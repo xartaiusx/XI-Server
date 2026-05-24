@@ -57,7 +57,7 @@ jobs:
           echo "REPO_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >>${GITHUB_ENV}
           echo "REPO=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
           submodules: recursive # For navmeshes
