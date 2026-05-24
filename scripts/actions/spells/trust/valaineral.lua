@@ -52,7 +52,16 @@ spellObject.onMobSpawn = function(mob)
     end
 
     if lvl >= 5 then
+        mob:addGambit(ai.t.TARGET, { ai.c.IS_ECOSYSTEM, xi.ecosystem.UNDEAD }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.HOLY_CIRCLE })
         mob:addGambit(ai.t.SELF, { ai.c.ALWAYS, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.PROVOKE })
+    end
+
+    if lvl >= 15 then
+        mob:addGambit(ai.t.TARGET, { ai.l.OR(
+            { ai.c.CASTING_MA, 0 },
+            { ai.c.READYING_JA, 0 },
+            { ai.c.READYING_MS, 0 },
+            { ai.c.READYING_WS, 0 }) }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.SHIELD_BASH })
     end
 
     if lvl >= 30 then
@@ -80,6 +89,7 @@ spellObject.onMobSpawn = function(mob)
     end
 
     mob:addGambit(ai.t.SELF,   { ai.c.NOT_STATUS, xi.effect.PROTECT  }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.PROTECT })
+    mob:addGambit(ai.t.SELF,   { ai.c.NOT_STATUS, xi.effect.SHELL    }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.SHELL   })
     mob:addGambit(ai.t.TARGET, { ai.c.NOT_STATUS, xi.effect.FLASH    }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.FLASH        })
     mob:addGambit(ai.t.SELF,   { ai.c.NOT_STATUS, xi.effect.REPRISAL }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.REPRISAL     })
     mob:addGambit(ai.t.PARTY,  { ai.c.HPP_LT,     50                 }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.CURE    })
