@@ -8,8 +8,7 @@ on:
     types:
       - completed
     branches:
-      - main
-      - 'retail-inspired/**'
+      - retail-inspired/enhancements
   workflow_dispatch:
 
 concurrency:

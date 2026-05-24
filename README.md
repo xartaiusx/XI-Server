@@ -14,12 +14,11 @@ This repository is a public source lane for a FFXI server fork focused on retail
 
 The goal is not to claim perfect retail parity. The goal is to make source-backed gameplay improvements that follow the spirit of retail FFXI where credible evidence exists, while clearly separating those public changes from private local tooling, diagnostics, runtime state, and operator workflow.
 
-## Branches
+## Branch Model
 
-- `main`: clean public source baseline.
-- `retail-inspired/enhancements`: public source changes for reviewed FFXI behavior enhancements that may differ from strict retail but are intended to feel retail-consistent.
+`retail-inspired/enhancements` is the single long-lived public branch for reviewed FFXI behavior enhancements that may differ from strict retail but are intended to feel retail-consistent.
 
-Private local tooling and experiments are not published here. Public branches should not include local account details, local character details, GM helper commands, runtime logs, client files, private documentation, database dumps, or machine-specific configuration.
+Short-lived pull request branches may be used for review and should be deleted after merge. Private local tooling and experiments are not published here. Public content should not include local account details, local character details, GM helper commands, runtime logs, client files, private documentation, database dumps, or machine-specific configuration.
 
 ## Current Checks
 
@@ -66,7 +65,7 @@ Do not publish:
 
 This project uses Docker Compose for local runtime validation. Public code changes should remain buildable and reviewable without requiring private machine state.
 
-For source-level changes, prefer the smallest branch that proves the behavior. Keep unrelated refactors, local quality-of-life tooling, and experimental server customization out of public branches until they have a clear public purpose and evidence trail.
+For source-level changes, prefer the smallest pull request that proves the behavior. Keep unrelated refactors, local quality-of-life tooling, and experimental server customization out of public history until they have a clear public purpose and evidence trail.
 
 ## License
 
