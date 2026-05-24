@@ -3,6 +3,9 @@ name: Check Template
 on:
   pull_request_target:
     types: [ opened ]
+    branches:
+      - main
+      - retail-inspired/enhancements
   issues:
     types: [ opened ]
 
@@ -10,7 +13,9 @@ jobs:
   Check_Checkboxes:
     name: Check Checkboxes
     runs-on: ubuntu-latest
-    permissions: write-all
+    permissions:
+      issues: write
+      pull-requests: read
     steps:
     - name: Comment on unchecked boxes in template
       uses: actions/github-script@v7

@@ -3,7 +3,8 @@ name: Builds
 on:
   push:
     branches:
-      - base
+      - main
+      - 'retail-inspired/**'
   workflow_dispatch:
 
 concurrency:
@@ -98,7 +99,7 @@ jobs:
             tracy: false
             build_modules: false
             save_cache: false
-            publish: true
+            publish: false
           # - build_type: Debug
           #   os: ubuntu
           #   compiler: gcc
@@ -115,7 +116,7 @@ jobs:
             tracy: false
             build_modules: false
             save_cache: false
-            publish: true
+            publish: false
     uses: ./.github/workflows/docker_build.yml
     with:
       os: ${{ matrix.os }}

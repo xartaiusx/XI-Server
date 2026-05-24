@@ -1,15 +1,18 @@
 name: Publish Changelog
 
 on:
-  schedule:
-    # At 12:00 on day-of-month 1 and 15.
-    - cron:  '0 12 1,15 * *'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   Publish_Changelog:
     name: Generate and Publish Changelog
+    if: ${{ github.repository == 'LandSandBoat/server' }}
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
     - uses: actions/checkout@v1
     - uses: fregante/setup-git-user@v1
