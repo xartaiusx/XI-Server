@@ -7,6 +7,9 @@ on:
     workflows: [Builds]
     types:
       - completed
+    branches:
+      - main
+      - 'retail-inspired/**'
   workflow_dispatch:
 
 concurrency:

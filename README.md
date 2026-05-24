@@ -3,8 +3,8 @@
 Retail-inspired FFXI server enhancements, kept public-safe and source-reviewable.
 
 <p>
-<a href="https://github.com/xartaiusx/XI-Server/actions/workflows/build.yml"><img alt="Builds" src="https://github.com/xartaiusx/XI-Server/actions/workflows/build.yml/badge.svg"></a>
-<a href="https://github.com/xartaiusx/XI-Server/actions/workflows/codeql_analysis.yml"><img alt="CodeQL" src="https://github.com/xartaiusx/XI-Server/actions/workflows/codeql_analysis.yml/badge.svg"></a>
+<a href="https://github.com/xartaiusx/XI-Server/actions/workflows/build.yml?query=branch%3Amain"><img alt="Builds: main" src="https://github.com/xartaiusx/XI-Server/actions/workflows/build.yml/badge.svg?branch=main"></a>
+<a href="https://github.com/xartaiusx/XI-Server/actions/workflows/codeql_analysis.yml?query=branch%3Amain"><img alt="CodeQL: main" src="https://github.com/xartaiusx/XI-Server/actions/workflows/codeql_analysis.yml/badge.svg?branch=main"></a>
 <a href="https://www.gnu.org/licenses/gpl-3.0"><img alt="License: GPLv3" src="https://img.shields.io/badge/License-GPLv3-blue.svg"></a>
 </p>
 

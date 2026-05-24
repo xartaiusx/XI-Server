@@ -1,0 +1,73 @@
+name: Public Branch Hygiene
+
+on:
+  push:
+    branches:
+      - main
+      - 'retail-inspired/**'
+  pull_request:
+    branches:
+      - main
+      - 'retail-inspired/**'
+  schedule:
+    - cron: '17 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  public_hygiene:
+    name: Public branch hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify public branch boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          fail=0
+
+          for path in AGENTS.md local .lsb-secrets .lsb-local-client.env backups docker-compose.override.yml; do
+              if [[ -e "$path" ]]; then
+                  echo "::error::Private/local path must not be present on public branches: $path"
+                  fail=1
+              fi
+          done
+
+          if [[ -d modules/custom/commands ]]; then
+              echo "::error::Local GM command modules must not be present on public branches: modules/custom/commands"
+              fail=1
+          fi
+
+          marker_regex='Twi''lls|local''admin|CODEX''_TASK|lsb''finish|lsb''setrankpoints|lsb''maxcrocea|lsb''meleesucellos|lsb''rdmdwsucellos|/home/art''aius|servers/lands''andboat|Documents/GitHub/serv''er|XI_LSB_VALAINERAL''_DIAGNOSTICS|LOCAL_TWI''LLS|ALTER_EGO_PACKET''_OBSERVER'
+          if git grep -n -I -E "$marker_regex" -- \
+              README.md .github scripts sql src settings modules ':!.github/workflows/public_branch_hygiene.yml'; then
+              echo "::error::Private local marker found in public branch content"
+              fail=1
+          fi
+
+          if grep -RInE 'branch=base|/blob/base|^[[:space:]]*-[[:space:]]*base$' README.md .github/workflows/build.yml .github/workflows/publish_meshes.yml; then
+              echo "::error::Old base-branch workflow or badge target found"
+              fail=1
+          fi
+
+          if grep -nE '^[[:space:]]*publish:[[:space:]]*true' .github/workflows/build.yml; then
+              echo "::error::Normal validation build must not publish Docker images"
+              fail=1
+          fi
+
+          if awk '/^jobs:/{ exit } /^[[:space:]]{2}push:/{ print; found=1 } END { exit found ? 0 : 1 }' .github/workflows/publish_meshes.yml; then
+              echo "::error::Mesh image publishing must remain manually gated"
+              fail=1
+          fi
+
+          exit "$fail"

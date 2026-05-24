@@ -2,6 +2,9 @@ name: PR Labels
 
 on:
   pull_request_target:
+    branches:
+      - main
+      - retail-inspired/enhancements
     types:
       - opened
       - labeled
@@ -13,7 +16,9 @@ jobs:
   Check_Blocking_Labels:
     name: Check Blocking Labels
     runs-on: ubuntu-latest
-    permissions: write-all
+    permissions:
+      issues: read
+      pull-requests: read
     steps:
       - name: Check for blocking labels
         uses: actions/github-script@v7
