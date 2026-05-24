@@ -17,6 +17,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  Skip_Non_Successful_Build:
+    name: Skip non-successful build
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Explain skipped tests
+        run: echo "Builds concluded with '${{ github.event.workflow_run.conclusion }}'; skipping dependent tests."
+
   Sanity_Checks:
     name: Sanity Checks
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
