@@ -12,6 +12,14 @@
 name: CodeQL Analysis
 
 on:
+  push:
+    branches:
+      - main
+      - 'retail-inspired/**'
+  pull_request:
+    branches:
+      - main
+      - retail-inspired/enhancements
   schedule:
     # At 12:00 every day.
     - cron:  '0 12 * * *'
