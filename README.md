@@ -1,45 +1,77 @@
-<p align="center">
-    <img width="256" height="256" src="res/lsb_logo_circle.png">
-    <h1 align="center">LandSandBoat</h1>
+# XI Server
+
+Retail-inspired FFXI server enhancements, kept public-safe and source-reviewable.
+
+<p>
+<a href="https://github.com/xartaiusx/XI-Server/actions/workflows/build.yml"><img alt="Builds" src="https://github.com/xartaiusx/XI-Server/actions/workflows/build.yml/badge.svg"></a>
+<a href="https://github.com/xartaiusx/XI-Server/actions/workflows/codeql_analysis.yml"><img alt="CodeQL" src="https://github.com/xartaiusx/XI-Server/actions/workflows/codeql_analysis.yml/badge.svg"></a>
+<a href="https://www.gnu.org/licenses/gpl-3.0"><img alt="License: GPLv3" src="https://img.shields.io/badge/License-GPLv3-blue.svg"></a>
 </p>
 
-<p align="center">
-An open-source server emulator for FFXI.
-</p>
+## Purpose
 
-<p align="center">
-<a href="https://github.com/LandSandBoat/server/actions/workflows/build.yml"><img src="https://github.com/LandSandBoat/server/actions/workflows/build.yml/badge.svg?branch=base"/></a>
-<a href="https://github.com/LandSandBoat/server/actions/workflows/test.yml"><img src="https://github.com/LandSandBoat/server/actions/workflows/test.yml/badge.svg?branch=base"/></a>
-<a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg"/></a>
-<a href="https://github.com/LandSandBoat/server/pulls"><img src="https://img.shields.io/badge/Contributions-welcome-brightgreen.svg?style=flat"/></a>
-</p>
+This repository is a public source lane for a FFXI server fork focused on retail-inspired enhancements.
 
-## Getting Started
+The goal is not to claim perfect retail parity. The goal is to make source-backed gameplay improvements that follow the spirit of retail FFXI where credible evidence exists, while clearly separating those public changes from private local tooling, diagnostics, runtime state, and operator workflow.
 
-A [quick start guide](https://github.com/LandSandBoat/server/wiki/Quick-Start-Guide), the [frequently asked questions](https://github.com/LandSandBoat/server/wiki/Frequently-Asked-Questions), and a table of "[what works](https://github.com/LandSandBoat/server/wiki/What-Works)" are all available on [our wiki](https://github.com/LandSandBoat/server/wiki).
+## Branches
 
-## Interacting with LandSandBoat
+- `main`: clean public source baseline.
+- `retail-inspired/enhancements`: public source changes for reviewed FFXI behavior enhancements that may differ from strict retail but are intended to feel retail-consistent.
 
-### Crashes, warnings, errors, bugs, gameplay issues, visual issues, etc.
+Private local tooling and experiments are not published here. Public branches should not include local account details, local character details, GM helper commands, runtime logs, client files, private documentation, database dumps, or machine-specific configuration.
 
-Please create a new issue in the [issues tab](https://github.com/LandSandBoat/server/issues) after searching to see if your issue is already logged.
+## Current Checks
 
-### Balance discussion, technical discussion, meta discussions, etc.
+The badges above point to this repository's own published GitHub Actions workflow status.
 
-Discussions are similar to forum posts. Please open a new discussion post in the [discussions tab](https://github.com/LandSandBoat/server/discussions) for less directed and more open-ended conversation than issues.
+Use them as the quick visitor-facing health check:
 
-*If you are encountering an issue, please open an issue and not a discussion!* It's much easier for us to track and you're more likely to get resolution through an issue.
+- Builds should be green before treating the source baseline as currently healthy.
+- CodeQL should be green before treating the public branch as clean from the configured static-analysis perspective.
 
-### AI Agents and their use
+Local-only validation may be broader than the public badges, but private runtime checks are not documented here unless they are safe and useful for public contributors. Additional public checks should only be shown here once they are configured and passing cleanly for the public branch.
 
-If you're a human using AI agents or an AI agent you should go read `./documentation/ai_agents/README.md`.
+## Enhancement Standard
 
-## LICENSE
+Public gameplay changes should be small, source-reviewable, and easy to compare against the current codebase.
 
-LandSandBoat is licensed under [GNU GPL v3](https://github.com/LandSandBoat/server/blob/base/LICENSE)
+Preferred evidence order:
 
-## Thanks
+1. Current checked-out source, SQL, migrations, and runtime behavior.
+2. Official FFXI or Square Enix update notes.
+3. Retail captures, event dumps, packet observations, or in-client proof when official notes omit exact details.
+4. Community references as secondary guidance only, verified against source or runtime evidence before implementation.
 
-Thanks to all contributors past and present, we wouldn't be here without you!
+When exact retail behavior is uncertain, changes should be described as retail-inspired rather than retail-identical.
 
-Thanks to GitHub for hosting us, and for all the CI minutes we use!
+## Public Scope
+
+Good public changes include:
+
+- gameplay behavior fixes with clear source evidence
+- SQL or script corrections that can be reviewed independently
+- narrow enhancements that preserve the retail feel of FFXI
+- documentation that helps explain public source behavior
+
+Do not publish:
+
+- secrets, passwords, hashes, tokens, or temporary credentials
+- local runtime configuration or generated compose overrides
+- local operator scripts, private task notes, or diagnostic commands
+- client files, launcher binaries, Wine or Proton prefixes, mod archives, or extracted assets
+- database dumps, backups, raw captures with private data, or runtime logs
+
+## Development Notes
+
+This project uses Docker Compose for local runtime validation. Public code changes should remain buildable and reviewable without requiring private machine state.
+
+For source-level changes, prefer the smallest branch that proves the behavior. Keep unrelated refactors, local quality-of-life tooling, and experimental server customization out of public branches until they have a clear public purpose and evidence trail.
+
+## License
+
+This project is distributed under the GNU GPL v3 license. See [LICENSE](LICENSE).
+
+## Credits
+
+This fork builds on GPL-licensed open-source server emulator work and the long-running efforts of its contributors. Public changes here should preserve that spirit: source-visible, reviewable, and useful to people who care about FFXI behavior.
