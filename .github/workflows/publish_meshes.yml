@@ -1,13 +1,6 @@
 name: Publish Meshes Docker Image
 
 on:
-  push:
-    branches:
-      - base
-    paths:
-      - './navmeshes/**'
-      - './ximeshes/**'
-      - '.gitmodules'
   workflow_dispatch:
 
 jobs:

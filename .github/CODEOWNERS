@@ -1,0 +1,14 @@
+# Public branch ownership for xartaiusx/XI-Server.
+#
+# GitHub uses the CODEOWNERS file from the pull request base branch.
+# Keep this file intentionally broad so public workflow, README, SQL, Lua, and
+# source hygiene changes request owner review before merge.
+
+* @xartaiusx
+
+/.github/ @xartaiusx
+/README.md @xartaiusx
+/scripts/ @xartaiusx
+/sql/ @xartaiusx
+/src/ @xartaiusx
+/settings/ @xartaiusx

@@ -4,6 +4,9 @@ name: PR Checks
 
 on:
   pull_request:
+    branches:
+      - main
+      - retail-inspired/enhancements
     types:
       - opened
       - synchronize
@@ -12,6 +15,9 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 # # Available machines:
 # # https://github.com/actions/runner-images/tree/main
