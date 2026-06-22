@@ -21,8 +21,8 @@
 
 #include "0x016_charreq.h"
 
-#include "entities/charentity.h"
-#include "entities/npcentity.h"
+#include "entities/char_entity.h"
+#include "entities/npc_entity.h"
 #include "packets/char_status.h"
 #include "utils/zoneutils.h"
 
@@ -41,7 +41,7 @@ void GP_CLI_COMMAND_CHARREQ::process(MapSession* PSession, CCharEntity* PChar) c
         return;
     }
 
-    CBaseEntity* PEntity = PChar->GetEntity(this->ActIndex, TYPE_NPC | TYPE_PC);
+    CBaseEntity* PEntity = PChar->GetEntity(this->ActIndex, TYPE_NPC | TYPE_PC | TYPE_SHIP);
     if (!PEntity)
     {
         const auto fullId = ((4096 + PChar->getZone()) << 12) + this->ActIndex;

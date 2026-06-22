@@ -24,7 +24,7 @@
 #include "common/logging.h"
 #include "common/tracy.h"
 
-#include "entities/charentity.h"
+#include "entities/char_entity.h"
 #include "map_session.h"
 #include "packets/basic.h"
 #include "packets/c2s/0x00a_login.h"
@@ -371,6 +371,9 @@ constexpr auto packetHandlers_ = buildPacketHandlers();
 
 void PacketSystem::dispatch(uint16 packetId, MapSession* PSession, CCharEntity* PChar, CBasicPacket& data)
 {
+    LogWith({ "char", { { "id", PChar->id }, { "name", PChar->getName() } } },
+            { "packet", { { "id", packetId } } });
+
     if (const auto handler = packetHandlers_[packetId])
     {
         if (rateLimiter_.isLimited(PChar, packetId))

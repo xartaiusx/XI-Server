@@ -113,6 +113,8 @@ find_package(OpenSSLlibcrypto REQUIRED)
 find_package(OpenSSLlibssl REQUIRED)
 
 if(UNIX AND NOT APPLE)
+# zstd is sometimes a prereq for binutils
+    find_package(Zstd REQUIRED)
     find_package(Binutils REQUIRED)
 endif()
 
@@ -127,14 +129,12 @@ set_project_warnings(project_warnings)
 # Globally define SOL_ALL_SAFETIES_ON so sol can be included anywhere
 # If SOL_NO_CHECK_NUMBER_PRECISION is defined, turns off number precision and integer
 # precision fitting when pushing numbers into sol
-# RC_FAST_MATH informs recastnavigation to not try to use infinity because we use -ffast-math
 # add_compile_definitions() comes with CMake 3.12
 add_definitions(
     -DSOL_ALL_SAFETIES_ON=1
     -DSOL_NO_CHECK_NUMBER_PRECISION=1
     -DSOL_DEFAULT_PASS_ON_ERROR=1
     -DSOL_PRINT_ERRORS=0
-    -DRC_FAST_MATH=1
     -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
 )
 
@@ -175,6 +175,45 @@ execute_process(
 )
 if (NOT IPC_EXIT_CODE EQUAL 0)
     message(FATAL_ERROR "Failed to generate IPC stubs")
+endif()
+
+execute_process(
+    COMMAND ${Python_EXECUTABLE} -c "import jinja2, jsonschema, yaml"
+    RESULT_VARIABLE CODEGEN_DEPS_EXIT_CODE
+    OUTPUT_QUIET
+    ERROR_QUIET
+)
+if(NOT CODEGEN_DEPS_EXIT_CODE EQUAL 0)
+    message(FATAL_ERROR
+        "Codegen requires the Python packages jinja2, jsonschema, and pyyaml, "
+        "but they are not installed for the interpreter CMake selected:\n"
+        "    ${Python_EXECUTABLE}\n"
+        "Install them by running this command exactly as shown (the interpreter path "
+        "matters, so the packages land in the environment this build uses):\n"
+        "    ${Python_EXECUTABLE} -m pip install -r ${CMAKE_SOURCE_DIR}/tools/requirements.txt"
+    )
+endif()
+
+add_custom_target(data_codegen
+    COMMAND ${Python_EXECUTABLE} -m tools.codegen ${CMAKE_BINARY_DIR}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    BYPRODUCTS
+        ${CMAKE_BINARY_DIR}/generated/.codegen.stamp
+        ${CMAKE_BINARY_DIR}/generated/data/all.h
+    USES_TERMINAL
+    VERBATIM
+)
+
+if(NOT EXISTS ${CMAKE_BINARY_DIR}/generated/.codegen.stamp)
+    message(STATUS "Bootstrapping data codegen")
+    execute_process(
+        COMMAND ${Python_EXECUTABLE} -m tools.codegen ${CMAKE_BINARY_DIR}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        RESULT_VARIABLE CODEGEN_EXIT_CODE
+    )
+    if(NOT CODEGEN_EXIT_CODE EQUAL 0)
+        message(FATAL_ERROR "Bootstrap codegen failed")
+    endif()
 endif()
 
 include_directories(${CMAKE_BINARY_DIR}/generated) # Globally include the build/generated directory

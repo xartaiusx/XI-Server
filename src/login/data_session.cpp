@@ -68,7 +68,7 @@ void data_session::read_func()
     session_t& session = loginHelpers::get_authenticated_session(ipAddress, sessionHash);
     if (!session.data_session)
     {
-        session.data_session              = std::make_shared<data_session>(std::forward<asio::ssl::stream<asio::ip::tcp::socket>>(socket_), zmqDealerWrapper_);
+        session.data_session              = std::make_shared<data_session>(std::forward<asio::ssl::stream<asio::ip::tcp::socket>>(socket_), dealerChannel_);
         session.data_session->sessionHash = sessionHash;
     }
 
@@ -129,7 +129,7 @@ void data_session::read_func()
 
                 uint32_t i = 0;
 
-                // Generate on first time read from db
+                // Generate on first time read from db or after the account logs out after a log in
                 if (!generatedCharInfo)
                 {
                     characterInfoResponse            = {};
@@ -414,6 +414,17 @@ void data_session::read_func()
                     ShowWarning(fmt::format("data_session: account {} attempting to login when {} already has {} active session(s), limit is {}", session.accountID, ipAddress, sessionCount, loginLimit));
                 }
 
+                if (loginHelpers::isZoneAtPlayerCap(ZoneID, isGM))
+                {
+                    ShowWarning(fmt::format("data_session: zone {} at player cap, denying charid {} (gm={})", ZoneID, charid, isGM ? 1 : 0));
+                    if (auto viewSession = session.view_session.get())
+                    {
+                        loginHelpers::generateErrorMessage(viewSession->buffer_.data(), loginErrors::errorCode::WORLD_IS_FULL);
+                        viewSession->do_write(0x24);
+                        return;
+                    }
+                }
+
                 if ((isNotMaint && loginLimitOK) || isGM)
                 {
                     if (PrevZone == 0)
@@ -502,7 +513,8 @@ void data_session::read_func()
                 viewSession->socket_.lowest_layer().close();
                 session.view_session = nullptr;
 
-                session.incrementKeyValue = 0; // Reset incremented key after inserting into db
+                session.incrementKeyValue = 0;     // Reset incremented key after inserting into db
+                generatedCharInfo         = false; // Reset this so next time we log out it regenerates the char info
 
                 const auto payload = ipc::toBytesWithHeader(ipc::CharZone{
                     .charId            = charid,
@@ -512,7 +524,7 @@ void data_session::read_func()
                 db::preparedStmt("UPDATE char_flags SET disconnecting = 0 WHERE charid = ?", charid);
                 db::preparedStmt("UPDATE char_stats SET zoning = 2 WHERE charid = ?", charid);
 
-                zmqDealerWrapper_.outgoingQueue_.enqueue(zmq::message_t(payload.data(), payload.size()));
+                dealerChannel_.send(zmq::message_t(payload.data(), payload.size()));
             }
 
             if (settings::get<bool>("login.LOG_USER_IP"))

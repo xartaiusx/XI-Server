@@ -35,9 +35,9 @@
 #include "ai/ai_container.h"
 #include "ai/controllers/mob_controller.h"
 
-#include "entities/mobentity.h"
-#include "entities/npcentity.h"
-#include "entities/trustentity.h"
+#include "entities/mob_entity.h"
+#include "entities/npc_entity.h"
+#include "entities/trust_entity.h"
 
 #include "packets/char_sync.h"
 #include "packets/entity_update.h"
@@ -453,7 +453,7 @@ void CZoneEntities::WeatherChange(Weather weather)
         }
     }
 
-    m_zone->spawnHandler()->onWeatherChange(weather);
+    m_zone->spawnHandler().onWeatherChange(weather);
 
     FOR_EACH_PAIR_CAST_SECOND(CCharEntity*, PCurrentChar, m_charList)
     {
@@ -543,9 +543,9 @@ void CZoneEntities::DecreaseZoneCounter(CCharEntity* PChar)
     PChar->ClearTrusts();
     PChar->SpawnTRUSTList.clear();
 
-    if (m_zone->m_BattlefieldHandler)
+    if (m_zone->battlefieldHandler())
     {
-        m_zone->m_BattlefieldHandler->RemoveFromBattlefield(PChar, PChar->PBattlefield, BATTLEFIELD_LEAVE_CODE_WARPDC);
+        m_zone->battlefieldHandler()->RemoveFromBattlefield(PChar, PChar->PBattlefield, BATTLEFIELD_LEAVE_CODE_WARPDC);
     }
 
     FOR_EACH_PAIR_CAST_SECOND(CMobEntity*, PCurrentMob, m_mobList)
@@ -893,43 +893,51 @@ void CZoneEntities::SpawnNPCs(CCharEntity* PChar)
     //     : spatial partitioning to only check entities within a certain range of the player.
     //     : This would change this loop to look like:
     //     : Compare previous and current spatial partitioning results to determine which entities to add/remove from the spawn list.
-    for (const auto& [_, PCurrentEntity] : m_npcList)
+    const auto syncSpawn = [&](const EntityList_t& list, auto&& shouldBeSpawned)
     {
         auto& spawnList = PChar->SpawnNPCList;
-
-        const auto id              = PCurrentEntity->id;
-        const auto itr             = spawnList.find(id);
-        const auto isInSpawnList   = itr != spawnList.end();
-        const auto isInRange       = isWithinDistance(PChar->loc.p, PCurrentEntity->loc.p, ENTITY_RENDER_DISTANCE);
-        const auto isVisibleStatus = PCurrentEntity->status == STATUS_TYPE::NORMAL || PCurrentEntity->status == STATUS_TYPE::UPDATE;
-
-        const auto tryAddToSpawnList = [&]()
+        for (const auto& [_, PEntity] : list)
         {
-            if (!isInSpawnList)
+            const auto itr        = spawnList.find(PEntity->id);
+            const auto inSpawnSet = itr != spawnList.end();
+            const auto want       = shouldBeSpawned(PEntity);
+
+            if (want && !inSpawnSet)
             {
-                spawnList.insert(itr, SpawnIDList_t::value_type(id, PCurrentEntity));
-                PChar->updateEntityPacket(PCurrentEntity, ENTITY_SPAWN, UPDATE_ALL_MOB);
+                spawnList.insert(itr, SpawnIDList_t::value_type(PEntity->id, PEntity));
+                PChar->updateEntityPacket(PEntity, ENTITY_SPAWN, UPDATE_ALL_MOB);
             }
-        };
-
-        const auto tryRemoveFromSpawnList = [&]()
-        {
-            if (isInSpawnList)
+            else if (!want && inSpawnSet)
             {
                 spawnList.erase(itr);
-                PChar->updateEntityPacket(PCurrentEntity, ENTITY_DESPAWN, UPDATE_NONE);
+                PChar->updateEntityPacket(PEntity, ENTITY_DESPAWN, UPDATE_NONE);
             }
-        };
+        }
+    };
 
-        if (isVisibleStatus && isInRange)
+    syncSpawn(
+        m_npcList,
+        [&](CBaseEntity* PEntity)
         {
-            tryAddToSpawnList();
-        }
-        else
+            const auto inRange       = isWithinDistance(PChar->loc.p, PEntity->loc.p, ENTITY_RENDER_DISTANCE);
+            const auto visibleStatus = PEntity->status == STATUS_TYPE::NORMAL || PEntity->status == STATUS_TYPE::UPDATE;
+            const auto alwaysRel     = PEntity->objtype == TYPE_NPC && static_cast<CNpcEntity*>(PEntity)->alwaysRelevant();
+            return visibleStatus && (inRange || alwaysRel);
+        });
+
+    // Registered transports are broadcast at zone-in by SpawnTransport and driven by TransportTimer; everything else
+    // in m_TransportList is a static SubKind=4 prop that gets proximity-spawned regardless of status.
+    syncSpawn(
+        m_TransportList,
+        [&](CBaseEntity* PEntity)
         {
-            tryRemoveFromSpawnList();
-        }
-    }
+            if (static_cast<CNpcEntity*>(PEntity)->alwaysRelevant())
+            {
+                return false;
+            }
+
+            return isWithinDistance(PChar->loc.p, PEntity->loc.p, ENTITY_RENDER_DISTANCE);
+        });
 }
 
 void CZoneEntities::SpawnTRUSTs(CCharEntity* PChar)
@@ -1243,6 +1251,11 @@ void CZoneEntities::SpawnTransport(CCharEntity* PChar)
 
     FOR_EACH_PAIR_CAST_SECOND(CNpcEntity*, PEntity, m_TransportList)
     {
+        if (!PEntity->alwaysRelevant())
+        {
+            continue;
+        }
+
         PChar->updateEntityPacket(PEntity, ENTITY_SPAWN, UPDATE_ALL_MOB);
     }
 }
@@ -1338,34 +1351,7 @@ void CZoneEntities::TOTDChange(vanadiel_time::TOTD TOTD)
 {
     TracyZoneScoped;
 
-    m_zone->spawnHandler()->onTOTDChange(TOTD);
-
-    SCRIPTTYPE ScriptType = SCRIPT_NONE;
-
-    switch (TOTD)
-    {
-        case vanadiel_time::TOTD::DAWN:
-            ScriptType = SCRIPT_TIME_DAWN;
-            break;
-        case vanadiel_time::TOTD::DAY:
-            ScriptType = SCRIPT_TIME_DAY;
-            break;
-        case vanadiel_time::TOTD::DUSK:
-            ScriptType = SCRIPT_TIME_DUSK;
-            break;
-        case vanadiel_time::TOTD::EVENING:
-            ScriptType = SCRIPT_TIME_EVENING;
-            break;
-        default:
-            break;
-    }
-    if (ScriptType != SCRIPT_NONE)
-    {
-        FOR_EACH_PAIR_CAST_SECOND(CCharEntity*, PChar, m_charList)
-        {
-            charutils::CheckEquipLogic(PChar, ScriptType, TOTD);
-        }
-    }
+    m_zone->spawnHandler().onTOTDChange(TOTD);
 }
 
 void CZoneEntities::SavePlayTime()
@@ -1860,6 +1846,7 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
 {
     TracyZoneScoped;
     TracyZoneString(m_zone->getName());
+    LogWith({ "zone", { { "name", m_zone->getName() }, { "id", m_zone->GetID() } } });
 
     luautils::OnZoneTick(this->m_zone);
 
@@ -2029,8 +2016,10 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
             if (ready)
             {
                 PChar->clearPacketList();
-                charutils::HomePoint(PChar, PChar->isDead());
-                shouldErase = true;
+                if (charutils::HomePoint(PChar, PChar->isDead()))
+                {
+                    shouldErase = true;
+                }
             }
         }
         else if (PChar->loc.destination != 0xFFFF)
@@ -2039,8 +2028,10 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
             if (ready)
             {
                 PChar->clearPacketList();
-                charutils::SendToZone(PChar, PChar->loc.destination);
-                shouldErase = true;
+                if (charutils::SendToZone(PChar, PChar->loc.destination))
+                {
+                    shouldErase = true;
+                }
             }
         }
 
@@ -2167,12 +2158,12 @@ auto CZoneEntities::GetEffectCheckTime() const -> timer::time_point
     return m_EffectCheckTime;
 }
 
-EntityList_t CZoneEntities::GetCharList() const
+auto CZoneEntities::GetCharList() const -> const EntityList_t&
 {
     return m_charList;
 }
 
-EntityList_t CZoneEntities::GetMobList() const
+auto CZoneEntities::GetMobList() const -> const EntityList_t&
 {
     return m_mobList;
 }

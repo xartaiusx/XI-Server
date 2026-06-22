@@ -638,6 +638,24 @@ end
 function CBaseEntity:sendGuild(guildID, open, close, holiday)
 end
 
+---@nodiscard
+---@param npc CBaseEntity
+---@param open integer
+---@param close integer
+---@return boolean
+function CBaseEntity:openGuildShop(npc, open, close)
+end
+
+---@return nil
+function CBaseEntity:clearGuildShop()
+end
+
+---@param open integer
+---@param close integer
+---@return nil
+function CBaseEntity:sendGuildClose(open, close)
+end
+
 ---@return nil
 function CBaseEntity:openSendBox()
 end
@@ -1057,18 +1075,17 @@ end
 function CBaseEntity:createShop(size, arg1)
 end
 
----@param itemID integer
----@param rawPrice number
----@param arg2 integer
----@param arg3 integer
----@return nil
-function CBaseEntity:addShopItem(itemID, rawPrice, arg2, arg3)
-end
+---@class ShopItemRequirements
+---@field job   xi.job?       Required job; paired with `level`.
+---@field level integer?      Required job level. Only used with `job`.
+---@field guild xi.skill?     Required guild/craft skill; paired with `rank`.
+---@field rank  xi.craftRank? Required guild rank. Only used with `guild`.
 
 ---@param itemID integer
 ---@param rawPrice number
+---@param requirements ShopItemRequirements?
 ---@return nil
-function CBaseEntity:addShopItem(itemID, rawPrice)
+function CBaseEntity:addShopItem(itemID, rawPrice, requirements)
 end
 
 ---@nodiscard
@@ -1086,6 +1103,27 @@ end
 ---@param equip boolean
 ---@return boolean
 function CBaseEntity:addLinkpearl(lsname, equip)
+end
+
+---@class LinkshellConciergeSlot
+---@field groupId integer
+---@field groupKey integer
+---@field color integer
+---@field flag integer
+---@field name string
+---@field lang integer
+---@field membersGoal integer
+---@field activeTier integer
+---@field characteristics integer
+
+---@class LinkshellConciergeView
+---@field yourSlot integer?
+---@field postedDays integer?
+---@field slots table<integer, LinkshellConciergeSlot>?
+
+---@param data LinkshellConciergeView
+---@return nil
+function CBaseEntity:sendLinkshellConcierge(data)
 end
 
 ---@nodiscard
@@ -2876,6 +2914,12 @@ end
 function CBaseEntity:getNotorietyList()
 end
 
+---@nodiscard
+---@param rangeOverride number? Optional, Defaults to 22
+---@return CBaseEntity?
+function CBaseEntity:getMasterThreatMob(rangeOverride)
+end
+
 ---@param PEntity CBaseEntity
 ---@return nil
 function CBaseEntity:clearEnmityForEntity(PEntity)
@@ -2976,6 +3020,11 @@ end
 ---@param silent boolean?
 ---@return nil
 function CBaseEntity:delStatusEffectsByFlag(flag, silent)
+end
+
+---@param type xi.effectType
+---@return nil
+function CBaseEntity:delStatusEffectsByType(type)
 end
 
 ---@param StatusID integer
@@ -3546,6 +3595,12 @@ function CBaseEntity:hasAttachment(itemID)
 end
 
 ---@nodiscard
+---@param itemID integer
+---@return boolean
+function CBaseEntity:hasAttachmentSet(itemID)
+end
+
+---@nodiscard
 ---@return string
 function CBaseEntity:getAutomatonName()
 end
@@ -3590,12 +3645,6 @@ end
 function CBaseEntity:removeAllManeuvers()
 end
 
----@nodiscard
----@param slotId integer
----@return CItem?
-function CBaseEntity:getAttachment(slotId)
-end
-
 ---@param itemId integer
 ---@param slotId integer
 ---@return nil
@@ -3603,7 +3652,7 @@ function CBaseEntity:setAttachment(itemId, slotId)
 end
 
 ---@nodiscard
----@return CItem[]
+---@return table
 function CBaseEntity:getAttachments()
 end
 
@@ -3743,6 +3792,11 @@ end
 ---@param flags integer
 ---@return nil
 function CBaseEntity:setNpcFlags(flags)
+end
+
+---@param alwaysRelevant boolean
+---@return nil
+function CBaseEntity:setNpcAlwaysRelevant(alwaysRelevant)
 end
 
 ---@param despawnSec integer?
@@ -3926,8 +3980,13 @@ function CBaseEntity:getBattleTime()
 end
 
 ---@nodiscard
----@return integer
+---@return xi.element
 function CBaseEntity:getCrystalElement()
+end
+
+---@param element xi.element
+---@return nil
+function CBaseEntity:setCrystalElement(element)
 end
 
 ---@nodiscard
@@ -4102,14 +4161,14 @@ end
 function CBaseEntity:getDespoilDebuff(itemID)
 end
 
----@nodiscard
----@return boolean
-function CBaseEntity:itemStolen()
+---@param stolen boolean
+---@return nil
+function CBaseEntity:itemStolen(stolen)
 end
 
----@nodiscard
----@return boolean
-function CBaseEntity:itemDespoiled()
+---@param despoiled boolean
+---@return nil
+function CBaseEntity:itemDespoiled(despoiled)
 end
 
 ---@nodiscard

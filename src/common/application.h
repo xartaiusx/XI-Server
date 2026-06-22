@@ -24,9 +24,11 @@
 #include "arguments.h"
 #include "common/engine.h"
 #include "common/scheduler.h"
+#include "common/zmq/zmq_service.h"
 
 #include <asio.hpp> // for signal_set
 
+#include <chrono>
 #include <memory>
 #include <string>
 
@@ -97,11 +99,17 @@ public:
     //
 
     auto scheduler() -> Scheduler&;
+    auto zmqService() -> ZMQService&;
     auto args() const -> Arguments&;
     auto console() const -> ConsoleService&;
 
 protected:
-    Scheduler        scheduler_;
+    std::chrono::steady_clock::time_point startTime_{ std::chrono::steady_clock::now() };
+
+    Scheduler scheduler_;
+
+    ZMQService zmqService_;
+
     asio::signal_set signals_;
 
     std::string serverName_;

@@ -21,7 +21,7 @@
 
 #include "0x083_shop_buy.h"
 
-#include "entities/charentity.h"
+#include "entities/char_entity.h"
 #include "packets/s2c/0x01d_item_same.h"
 #include "packets/s2c/0x03f_shop_buy.h"
 #include "trade_container.h"
@@ -53,6 +53,31 @@ void GP_CLI_COMMAND_SHOP_BUY::process(MapSession* PSession, CCharEntity* PChar) 
     if (!PItem)
     {
         ShowWarning("User '%s' attempting to buy an invalid item from vendor!", PChar->getName());
+        return;
+    }
+
+    // Ensure player meets the item purchase requirement, if any
+    const bool meetsRequirement = std::visit(
+        [&]<typename T>(T const& restriction) -> bool
+        {
+            if constexpr (std::is_same_v<T, JobRestriction>)
+            {
+                return PChar->jobs.job[restriction.jobId] >= restriction.level;
+            }
+            else if constexpr (std::is_same_v<T, GuildRestriction>)
+            {
+                return PChar->RealSkills.rank[restriction.guildId] >= restriction.rank;
+            }
+            else
+            {
+                return true;
+            }
+        },
+        PChar->Container->getRestriction(this->ShopItemIndex));
+
+    if (!meetsRequirement)
+    {
+        ShowWarningFmt("{} attempting to buy item {} without meeting shop requirement!", PChar->getName(), itemId);
         return;
     }
 

@@ -27,9 +27,9 @@
 #include "common/mmo.h"
 #include "common/utils.h"
 #include "enmity_container.h"
-#include "entities/charentity.h"
-#include "entities/mobentity.h"
-#include "entities/trustentity.h"
+#include "entities/char_entity.h"
+#include "entities/mob_entity.h"
+#include "entities/trust_entity.h"
 #include "mob_modifier.h"
 #include "status_effect_container.h"
 #include "utils/zoneutils.h"
@@ -97,6 +97,7 @@ void CTargetFind::findWithinArea(CBattleEntity* PTarget, AOE_RADIUS radiusType, 
     }
 
     TracyZoneScoped;
+
     m_findFlags   = findFlags;
     m_targetFlags = targetFlags;
     m_radius      = radius;
@@ -304,6 +305,7 @@ void CTargetFind::addAllInMobList(CBattleEntity* PTarget, bool withPet)
 void CTargetFind::addAllInZone(CBattleEntity* PTarget, bool withPet)
 {
     TracyZoneScoped;
+
     // clang-format off
     zoneutils::GetZone(PTarget->getZone())->ForEachCharInstance(PTarget, [&](CCharEntity* PChar)
     {
@@ -388,11 +390,13 @@ void CTargetFind::addAllInRange(CBattleEntity* PTarget, float radius, ALLEGIANCE
         if (PTarget->objtype == TYPE_PC)
         {
             CCharEntity* PChar = static_cast<CCharEntity*>(PTarget);
-            for (auto& spawnList : { PChar->SpawnPCList, PChar->SpawnPETList })
+            for (const auto* spawnList : { &PChar->SpawnPCList, &PChar->SpawnPETList })
             {
-                FOR_EACH_PAIR_CAST_SECOND(CBattleEntity*, PBattleEntity, spawnList)
+                FOR_EACH_PAIR_CAST_SECOND(CBattleEntity*, PBattleEntity, *spawnList)
                 {
-                    if (PBattleEntity && isWithinArea(&(PBattleEntity->loc.p)) && !PBattleEntity->isDead() &&
+                    if (PBattleEntity &&
+                        isWithinArea(&(PBattleEntity->loc.p)) &&
+                        !PBattleEntity->isDead() &&
                         PBattleEntity->allegiance == ALLEGIANCE_TYPE::PLAYER)
                     {
                         m_targets.emplace_back(PBattleEntity);

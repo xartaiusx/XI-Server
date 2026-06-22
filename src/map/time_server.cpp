@@ -25,7 +25,7 @@
 #include "common/vana_time.h"
 
 #include "daily_system.h"
-#include "entities/charentity.h"
+#include "entities/char_entity.h"
 #include "latent_effect_container.h"
 #include "lua/luautils.h"
 #include "map_constants.h"
@@ -123,6 +123,14 @@ auto time_server(Scheduler& scheduler, MapConfig config) -> Task<void>
                     {
                         PChar->PLatentEffectContainer->CheckLatentsHours();
                         PChar->PLatentEffectContainer->CheckLatentsMoonPhase();
+
+                        if (PChar->guildShopNpc_.id != 0)
+                        {
+                            if (auto* PNpc = zoneutils::GetEntity(PChar->guildShopNpc_.id, TYPE_NPC))
+                            {
+                                luautils::callGlobal<void>("xi.guildShops.onGameHour", PChar, PNpc);
+                            }
+                        }
                     });
             });
 
@@ -130,6 +138,7 @@ auto time_server(Scheduler& scheduler, MapConfig config) -> Task<void>
         {
             // Vana'diel Day
             TracyZoneScoped;
+
             ShowDebugFmt("Vana'diel day tick... (current tick: {})", tickNum);
 
             zoneutils::ForEachZone(
@@ -151,6 +160,7 @@ auto time_server(Scheduler& scheduler, MapConfig config) -> Task<void>
         {
             // MIDNIGHT -> NEWDAY -> DAWN -> DAY -> DUSK -> EVENING -> NIGHT
             TracyZoneScoped;
+
             zoneutils::TOTDChange(vanaTotd);
             fishingutils::RestockFishingAreas();
 

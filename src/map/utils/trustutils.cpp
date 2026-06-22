@@ -38,8 +38,8 @@
 #include "ai/ai_container.h"
 #include "ai/controllers/trust_controller.h"
 #include "ai/helpers/gambits_container.h"
-#include "entities/mobentity.h"
-#include "entities/trustentity.h"
+#include "entities/mob_entity.h"
+#include "entities/trust_entity.h"
 #include "items/item_weapon.h"
 #include "mobskill.h"
 #include "status_effect_container.h"
@@ -54,14 +54,26 @@ void BuildTrustData(uint32 TrustID);
 auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*;
 void LoadTrustStatsAndSkills(CTrustEntity* PTrust);
 
+// List of trusts that are essentially walking GEO bubbles that should not be targetable
+static std::unordered_set<SpellID> passiveTrustIDs = {
+    SpellID::Sakura,
+    SpellID::Moogle,
+    SpellID::Star_Sibyl,
+    SpellID::Kuyin_Hathdenna,
+    SpellID::Brygid,
+    SpellID::Kupofried,
+    SpellID::Cornelia,
+};
+
 struct TrustData
 {
-    uint32      trustID{};
-    uint32      pool{};
-    look_t      look;        // appearance data
-    std::string name;        // script name string
-    std::string packet_name; // packet name string
-    ECOSYSTEM   EcoSystem{}; // ecosystem
+    uint32        trustID{};
+    bool          isPassiveTrust{};
+    uint32        pool{};
+    look_t        look;        // appearance data
+    std::string   name;        // script name string
+    std::string   packet_name; // packet name string
+    xi::Ecosystem EcoSystem{}; // ecosystem
 
     uint8  name_prefix{};
     uint8  modelSize{ 0 };
@@ -252,6 +264,11 @@ void BuildTrustData(uint32 TrustID)
 
             data->trustID = TrustID;
 
+            if (passiveTrustIDs.contains(static_cast<SpellID>(data->trustID)))
+            {
+                data->isPassiveTrust = true;
+            }
+
             data->pool        = rset->get<uint32>("poolid");
             data->name        = rset->get<std::string>("name");
             data->packet_name = rset->get<std::string>("packet_name");
@@ -272,7 +289,7 @@ void BuildTrustData(uint32 TrustID)
 
             data->modelSize       = rset->getOrDefault<uint8>("modelSize", 0);
             data->modelHitboxSize = std::max<float>(0.0f, rset->getOrDefault<float>("modelHitboxSize", 0) / 10.f);
-            data->EcoSystem       = rset->get<ECOSYSTEM>("ecosystemID");
+            data->EcoSystem       = rset->get<xi::Ecosystem>("ecosystemID");
             data->HPscale         = rset->get<float>("HP");
             data->MPscale         = rset->get<float>("MP");
 
@@ -342,7 +359,7 @@ auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*
 
     auto* trustData = itr->second.get();
 
-    auto* PTrust = new CTrustEntity(PMaster);
+    auto* PTrust = new CTrustEntity(PMaster, trustData->trustID, IsPassiveTrust{ trustData->isPassiveTrust });
 
     PTrust->loc              = PMaster->loc;
     PTrust->m_OwnerID.id     = PMaster->id;
@@ -362,8 +379,9 @@ auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*
     PTrust->MPscale        = trustData->MPscale;
     PTrust->baseSpeed      = trustData->baseSpeed;
     PTrust->animationSpeed = trustData->animationSpeed;
+
     PTrust->UpdateSpeed();
-    PTrust->m_TrustID       = trustData->trustID;
+
     PTrust->status          = STATUS_TYPE::NORMAL;
     PTrust->modelSize       = trustData->modelSize;
     PTrust->modelHitboxSize = trustData->modelHitboxSize;

@@ -64,7 +64,7 @@ jobs:
     steps:
       - name: Download changed files artifact
         if: ${{ inputs.optional_build }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: changed-files
 
@@ -146,7 +146,8 @@ jobs:
             luajit \
             mariadb-client \
             tzdata \
-            zlib1g-dev
+            zlib1g-dev \
+            libzstd-dev
 
       - name: Setup GCC (Linux)
         if: ${{ runner.os == 'Linux' && startsWith(inputs.compiler, 'gcc') && env.SKIP_BUILD != 'true' }}
@@ -173,13 +174,13 @@ jobs:
 
       - name: Setup MSVC
         if: ${{ runner.os == 'Windows' && env.SKIP_BUILD != 'true' }}
-        uses: TheMrMilchmann/setup-msvc-dev@v3
+        uses: TheMrMilchmann/setup-msvc-dev@v4
         with:
           arch: x64
 
       - name: Setup sccache
         if: ${{ env.SKIP_BUILD != 'true' }}
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
         with:
           disable_annotations: ${{ !inputs.save_cache }}
 
@@ -187,7 +188,11 @@ jobs:
         if: ${{ env.SKIP_BUILD != 'true' }}
         uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: '3.14'
+
+      - name: Install Python codegen deps
+        if: ${{ env.SKIP_BUILD != 'true' }}
+        run: python -m pip install jinja2 jsonschema pyyaml
 
       - name: Enable modules
         if: ${{ inputs.build_modules && env.SKIP_BUILD != 'true' }}
@@ -203,7 +208,7 @@ jobs:
       - name: Restore build cache
         if: ${{ env.SKIP_BUILD != 'true' }}
         id: restore_build
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         env:
           cmake_hash: ${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
           source_hash: ${{ hashFiles('src/**/*', 'ext/**/*') }}
@@ -230,7 +235,7 @@ jobs:
 
       - name: Upload artifact
         if: ${{ inputs.upload_artifact && env.SKIP_BUILD != 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ format('LSB_{0}_{1}_{2}', runner.os, inputs.build_type, github.sha) }}
           path: |
@@ -239,7 +244,7 @@ jobs:
 
       - name: Cache build
         if: ${{ inputs.save_cache && env.SKIP_BUILD != 'true' && steps.restore_build.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: build
           key: ${{ steps.restore_build.outputs.cache-primary-key }}

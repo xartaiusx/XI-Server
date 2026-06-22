@@ -292,6 +292,8 @@ local function resolveMissMessage(skill, hitsLanded, hitsYaegasumi, hitsAnticipa
             skill:setMsg(xi.msg.basic.RANGED_ATTACK_MISS)
         elseif primaryMessage == xi.msg.basic.HIT_DMG then
             skill:setMsg(xi.msg.basic.HIT_MISS)
+        elseif primaryMessage == xi.msg.basic.USES_JA_TAKE_DAMAGE then
+            skill:setMsg(xi.msg.basic.JA_MISS_2)
         else
             skill:setMsg(xi.msg.basic.SKILL_MISS)
         end
@@ -392,9 +394,11 @@ local function handleSinglePhysicalHit(mob, target, baseHitDamage, params)
     hitDamage = math.floor(hitDamage * xi.combat.damage.physicalElementSDT(target, params.damageType))
     hitDamage = math.floor(hitDamage * xi.combat.damage.calculateDamageAdjustment(target, true, false, false, false))
 
-    -- TODO: Automaton Steam Jacket Reduction
+    if mob:isAvatar() then
+        hitDamage = math.floor(hitDamage + hitDamage * mob:getMod(xi.mod.BP_DAMAGE) / 100)
+    end
 
-    -- TODO: Automaton Equalizer Reduction
+    hitDamage = xi.automaton.handleEqualizer(target, hitDamage)
 
     -- TODO: Need captures for different severe damage mechanics. Do they proc per hit or per skill
     hitDamage = math.floor(target:handleSevereDamage(hitDamage, true))
@@ -403,12 +407,21 @@ local function handleSinglePhysicalHit(mob, target, baseHitDamage, params)
 
     -- TODO: Fan Dance Reduction
 
-    hitDamage = math.floor(target:checkDamageCap(hitDamage))
+    -- Pre phalanx check - if stoneskin breaks we can get TP from shield mastery
+    if
+        blockedWithShieldMastery and
+        math.max(hitDamage - target:getMod(xi.mod.STONESKIN), 0) > 0
+    then
+        target:addTP(target:getMod(xi.mod.SHIELD_MASTERY_TP))
+    end
+
     hitDamage = utils.handlePhalanx(target, hitDamage)
 
     if not params.skipStoneskin then
         hitDamage = utils.handleStoneskin(target, hitDamage)
     end
+
+    hitDamage = math.floor(target:checkDamageCap(hitDamage))
 
     if hitDamage > 0 then
         target:trySkillUp(xi.skill.EVASION, target:getMainLvl())
@@ -499,9 +512,7 @@ local function handleSingleRangedHit(mob, target, baseHitDamage, params)
     hitDamage = math.floor(hitDamage * xi.combat.damage.physicalElementSDT(target, params.damageType))
     hitDamage = math.floor(hitDamage * xi.combat.damage.calculateDamageAdjustment(target, true, false, true, false))
 
-    -- TODO: Automaton Steam Jacket Reduction
-
-    -- TODO: Automaton Equalizer Reduction
+    hitDamage = xi.automaton.handleEqualizer(target, hitDamage)
 
     -- TODO: Need captures for different severe damage mechanics. Do they proc per hit or per skill
     hitDamage = math.floor(target:handleSevereDamage(hitDamage, true))
@@ -747,7 +758,7 @@ xi.mobskills.mobRangedMove = function(mob, target, skill, action, skillParams)
     totalDamage = resolveMissMessage(skill, hitsLanded, hitsYaegasumi, hitsAnticipated, hitsAbsorbed, shadowsAbsorbed, params.primaryMessage, totalDamage)
 
     -- Mob only gets TP for hitting the initial target. AOE hits do not count.
-    xi.mobskills.calculateSkillTPReturn(damage, mob, skill, target, params.attackType, hitsLanded)
+    xi.mobskills.calculateSkillTPReturn(totalDamage, mob, skill, target, params.attackType, hitsLanded)
 
     returnInfo.damage       = totalDamage
     returnInfo.hybridDamage = magicDamage
@@ -868,6 +879,10 @@ xi.mobskills.mobPhysicalMove = function(mob, target, skill, action, skillParams)
     -- Calculate the hits
     ----------------------------------
 
+    -- TODO: Implement multi attack procs with a param to enable them.
+    -- Need research to see if bloodpacts/pets skills can multi attack.
+    -- If so, do they carry fTP over from the first hit into subsequent hits?
+
     for hitNumber = 1, params.numHits do
         local hitInfo           = nil
         local hitChance         = 0
@@ -982,7 +997,7 @@ xi.mobskills.mobPhysicalMove = function(mob, target, skill, action, skillParams)
     ----------------------------------
     -- Handle TP Returns
     ----------------------------------
-    xi.mobskills.calculateSkillTPReturn(damage, mob, skill, target, params.attackType, hitsLanded)
+    xi.mobskills.calculateSkillTPReturn(totalDamage, mob, skill, target, params.attackType, hitsLanded)
 
     returnInfo.damage       = totalDamage
     returnInfo.hybridDamage = magicDamage
@@ -1183,6 +1198,7 @@ xi.mobskills.mobMagicalMove = function(mob, target, skill, action, skillParams)
     local sdt                   = xi.combat.damage.magicalElementSDT(target, actionElement)
     local resistTier            = 1
     local dayAndWeather         = xi.spells.damage.calculateDayAndWeather(mob, actionElement, false)
+    local steamJacketMultiplier = xi.combat.damage.steamJacketMultiplier(target, actionElement)
     local magicBonusDiff        = 1
     local magicDamageAdjustment = 1
     local bloodPactMultiplier   = 1
@@ -1236,6 +1252,7 @@ xi.mobskills.mobMagicalMove = function(mob, target, skill, action, skillParams)
     damage = math.floor(damage * sdt)
     damage = math.floor(damage * resistTier)
     damage = math.floor(damage * dayAndWeather)
+    damage = math.floor(damage * steamJacketMultiplier)
     damage = math.floor(damage * magicBonusDiff)
     damage = math.floor(damage * magicDamageAdjustment)
     damage = math.floor(damage * bloodPactMultiplier)
@@ -1385,9 +1402,10 @@ xi.mobskills.mobBreathMove = function(mob, target, skill, action, skillParams)
 
     -- Damage Multipliers
     local systemBonus            = 1 -- 1 + utils.getEcosystemStrengthBonus(mob:getEcosystem(), target:getEcosystem()) / 4
-    local elementalSDT           = 1
+    local elementalSDT           = xi.combat.damage.magicalElementSDT(target, actionElement)
     local resistRate             = 1
-    local dayAndWeather          = 1
+    local dayAndWeather          = xi.spells.damage.calculateDayAndWeather(mob, actionElement, false)
+    local steamJacketMultiplier  = xi.combat.damage.steamJacketMultiplier(target, actionElement)
     local breathDamageAdjustment = 1
     local magicBurst             = 1
     local magicBurstBonus        = 1
@@ -1417,18 +1435,18 @@ xi.mobskills.mobBreathMove = function(mob, target, skill, action, skillParams)
 
     -- TODO: Need more research about monster correlation.
     -- local systemBonus     = 1 + utils.getEcosystemStrengthBonus(mob:getEcosystem(), target:getEcosystem()) / 4
-    elementalSDT  = xi.combat.damage.magicalElementSDT(target, actionElement)
-    dayAndWeather = xi.spells.damage.calculateDayAndWeather(mob, actionElement, false)
 
     damage = math.floor(damage * systemBonus)
     damage = math.floor(damage * elementalSDT)
     damage = math.floor(damage * resistRate)
     damage = math.floor(damage * dayAndWeather)
+    damage = math.floor(damage * steamJacketMultiplier)
     damage = math.floor(damage * breathDamageAdjustment)
-    damage = utils.clamp(damage, 0, breathSkillDamageCap)
     damage = math.floor(damage * absorbDamage)
     damage = math.floor(damage * magicBurst)
     damage = math.floor(damage * magicBurstBonus)
+
+    damage = utils.clamp(damage, 0, breathSkillDamageCap)
 
     -- If we absorbed, then return early as the rest is not needed.
     if absorbDamage < 0  then

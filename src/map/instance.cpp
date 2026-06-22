@@ -19,12 +19,13 @@
 ===========================================================================
 */
 
+#include <filesystem>
 #include <thread>
 
 #include "instance.h"
 
 #include "ai/ai_container.h"
-#include "entities/charentity.h"
+#include "entities/char_entity.h"
 #include "lua/luautils.h"
 #include "zone.h"
 
@@ -78,6 +79,7 @@ void CInstance::LoadInstance()
                                        "instance_name, "
                                        "time_limit, "
                                        "entrance_zone, "
+                                       "overlay_id, "
                                        "start_x, "
                                        "start_y, "
                                        "start_z, "
@@ -97,6 +99,7 @@ void CInstance::LoadInstance()
 
         m_timeLimit                       = std::chrono::minutes(rset->get<uint32>("time_limit"));
         m_entrance                        = rset->get<uint16>("entrance_zone");
+        overlayId_                        = rset->getOrDefault("overlay_id", 0);
         m_entryloc.x                      = rset->get<float>("start_x");
         m_entryloc.y                      = rset->get<float>("start_y");
         m_entryloc.z                      = rset->get<float>("start_z");
@@ -108,10 +111,17 @@ void CInstance::LoadInstance()
 
         // Add to Lua cache
         // TODO: This will happen more often than needed, but not so often that it's a performance concern
-        const auto zone     = m_zone->getName();
-        const auto name     = m_instanceName;
-        const auto filename = fmt::format("./scripts/zones/{}/instances/{}.lua", zone, name);
-        luautils::CacheLuaObjectFromFile(filename);
+        const auto zone        = m_zone->getName();
+        const auto name        = m_instanceName;
+        const auto assaultPath = fmt::format("./scripts/assaults/{}/{}.lua", zone, name);
+        if (std::filesystem::exists(assaultPath))
+        {
+            luautils::CacheLuaObjectFromFile(assaultPath, true);
+        }
+        else
+        {
+            luautils::CacheLuaObjectFromFile(fmt::format("./scripts/zones/{}/instances/{}.lua", zone, name));
+        }
     }
     else
     {
@@ -348,4 +358,11 @@ uint16 CInstance::GetBackgroundMusicDay()
 uint16 CInstance::GetBackgroundMusicNight()
 {
     return m_zone_music_override.m_songNight ? *m_zone_music_override.m_songNight : GetZone()->GetBackgroundMusicNight();
+}
+
+// Certain instances with multiple sub-maps use alternative entity lists replacing the base list
+// The client needs it to know which DATs to load.
+auto CInstance::overlayId() const -> uint32
+{
+    return overlayId_;
 }

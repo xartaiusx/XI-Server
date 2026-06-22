@@ -23,7 +23,7 @@
 
 #include "ai/ai_container.h"
 #include "common/utils.h"
-#include "entities/petentity.h"
+#include "entities/pet_entity.h"
 #include "status_effect_container.h"
 #include "utils/petutils.h"
 
@@ -109,7 +109,7 @@ auto CPetController::DoRoamTick(timer::time_point tick) -> Task<void>
         {
             const auto petType             = PPetEntity->getPetType();
             const auto isWyvernOrAutomaton = petType == PET_TYPE::WYVERN || petType == PET_TYPE::AUTOMATON;
-            const auto isLightSpirit       = PPetEntity->m_PetID == PETID_LIGHTSPIRIT;
+            const auto isLightSpirit       = PPetEntity->petID() == PETID_LIGHTSPIRIT;
 
             if (isWyvernOrAutomaton)
             {
@@ -125,7 +125,7 @@ auto CPetController::DoRoamTick(timer::time_point tick) -> Task<void>
             if (isLightSpirit)
             {
                 // This will respect the pet's mob casting cooldown properties via MOBMOD_MAGIC_COOL
-                if (CMobController::IsSpellReady(0) && CMobController::TryCastSpell())
+                if (CMobController::IsSpellReady(0, 0) && CMobController::TryCastSpell())
                 {
                     co_return;
                 }
@@ -134,13 +134,13 @@ auto CPetController::DoRoamTick(timer::time_point tick) -> Task<void>
             }
 
             // Certain pets do not roam
-            if (immobilePets.contains(static_cast<PETID>(PPetEntity->m_PetID)))
+            if (immobilePets.contains(static_cast<PETID>(PPetEntity->petID())))
             {
                 co_return;
             }
         }
 
-        if (isBstPet && PPet->StatusEffectContainer->GetStatusEffect(EFFECT_HEALING))
+        if (isBstPet && PPet->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::Healing))
         {
             co_return;
         }
@@ -172,6 +172,8 @@ auto CPetController::DoRoamTick(timer::time_point tick) -> Task<void>
     }
 
     PPet->PAI->PathFind->FollowPath(m_Tick);
+
+    co_return;
 }
 
 bool CPetController::PetIsHealing()
@@ -183,7 +185,7 @@ bool CPetController::PetIsHealing()
     {
         // Animation down
         PPet->animation = ANIMATION_HEALING;
-        PPet->StatusEffectContainer->AddStatusEffect(new CStatusEffect(EFFECT_HEALING, 0, 0, std::chrono::seconds(settings::get<uint8>("map.HEALING_TICK_DELAY")), 0s));
+        PPet->StatusEffectContainer->AddStatusEffect(xi::StatusEffect::Healing, 0, 0, std::chrono::seconds(settings::get<uint8>("map.HEALING_TICK_DELAY")), 0s);
         PPet->updatemask |= UPDATE_HP;
         return true;
     }
@@ -191,7 +193,7 @@ bool CPetController::PetIsHealing()
     {
         // Animation up
         PPet->animation = ANIMATION_NONE;
-        PPet->StatusEffectContainer->DelStatusEffect(EFFECT_HEALING);
+        PPet->StatusEffectContainer->DelStatusEffect(xi::StatusEffect::Healing);
         PPet->updatemask |= UPDATE_HP;
         return false;
     }

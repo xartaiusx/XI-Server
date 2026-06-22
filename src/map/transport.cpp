@@ -27,7 +27,7 @@
 
 #include <cstdlib>
 
-#include "entities/charentity.h"
+#include "entities/char_entity.h"
 #include "packets/entity_update.h"
 #include "utils/zoneutils.h"
 #include "zone.h"
@@ -168,6 +168,8 @@ void CTransportHandler::InitializeTransport(IPP mapIPP)
             ShowErrorFmt("Transport {}: transport not found", zoneTown.ship.transportId);
             continue;
         }
+
+        static_cast<CNpcEntity*>(zoneTown.ship.npc)->setAlwaysRelevant(true);
 
         zoneTown.ship.animationArrive = rset->get<uint8>("anim_arrive");
         zoneTown.ship.animationDepart = rset->get<uint8>("anim_depart");
@@ -452,6 +454,8 @@ void CTransportHandler::insertElevator(Elevator_t elevator)
         ShowError("Elevator could not load NPC entity. Ignoring this elevator.");
         return;
     }
+
+    elevator.Elevator->setAlwaysRelevant(true);
 
     // check to see if this elevator already exists
     for (auto& i : ElevatorList)

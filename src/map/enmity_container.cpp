@@ -26,9 +26,9 @@
 #include "ai/ai_container.h"
 #include "alliance.h"
 #include "enmity_container.h"
-#include "entities/battleentity.h"
-#include "entities/charentity.h"
-#include "entities/mobentity.h"
+#include "entities/battle_entity.h"
+#include "entities/char_entity.h"
+#include "entities/mob_entity.h"
 #include "notoriety_container.h"
 #include "packets/entity_update.h"
 #include "status_effect_container.h"
@@ -61,6 +61,7 @@ CEnmityContainer::~CEnmityContainer()
 void CEnmityContainer::Clear(uint32 EntityID)
 {
     TracyZoneScoped;
+
     if (EntityID == 0)
     {
         // Iterate over all all entries and remove the relevant entry from their notoriety list
@@ -118,6 +119,7 @@ void CEnmityContainer::SetActive(uint32 EntityID, bool active)
 void CEnmityContainer::AddBaseEnmity(CBattleEntity* PChar)
 {
     TracyZoneScoped;
+
     if (PChar->getZone() != m_EnmityHolder->getZone())
     {
         return;
@@ -135,13 +137,14 @@ void CEnmityContainer::AddBaseEnmity(CBattleEntity* PChar)
 float CEnmityContainer::CalculateEnmityBonus(CBattleEntity* PEntity)
 {
     TracyZoneScoped;
+
     int enmityBonus = PEntity->getMod(Mod::ENMITY);
 
     if (auto* PChar = dynamic_cast<CCharEntity*>(PEntity))
     {
         enmityBonus += PChar->PMeritPoints->GetMeritValue(MERIT_ENMITY_INCREASE, PChar) - PChar->PMeritPoints->GetMeritValue(MERIT_ENMITY_DECREASE, PChar);
 
-        if (PChar->StatusEffectContainer->HasStatusEffect(EFFECT_SOULEATER))
+        if (PChar->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Souleater))
         {
             enmityBonus -= PChar->PMeritPoints->GetMeritValue(MERIT_MUTED_SOUL, PChar);
         }
@@ -283,6 +286,7 @@ bool CEnmityContainer::HasID(uint32 TargetID)
 void CEnmityContainer::UpdateEnmityFromCure(CBattleEntity* PEntity, uint8 level, int32 CureAmount, int32 fixedCE, int32 fixedVE)
 {
     TracyZoneScoped;
+
     if (!IsWithinEnmityRange(PEntity))
     {
         return;
@@ -330,6 +334,7 @@ void CEnmityContainer::UpdateEnmityFromCure(CBattleEntity* PEntity, uint8 level,
 void CEnmityContainer::LowerEnmityByPercent(CBattleEntity* PEntity, uint8 percent, CBattleEntity* HateReceiver)
 {
     TracyZoneScoped;
+
     auto enmity_obj = m_EnmityList.find(PEntity->id);
 
     if (enmity_obj != m_EnmityList.end())
@@ -444,6 +449,7 @@ void CEnmityContainer::UpdateEnmityFromDamage(CBattleEntity* PEntity, int32 Dama
 void CEnmityContainer::UpdateEnmityFromAttack(CBattleEntity* PEntity, int32 Damage)
 {
     TracyZoneScoped;
+
     if (auto enmity_obj = m_EnmityList.find(PEntity->id); enmity_obj != m_EnmityList.end())
     {
         float reduction = (100.0f - std::min<int16>(PEntity->getMod(Mod::ENMITY_LOSS_REDUCTION), 100)) / 100.0f;
@@ -462,6 +468,7 @@ void CEnmityContainer::UpdateEnmityFromAttack(CBattleEntity* PEntity, int32 Dama
 CBattleEntity* CEnmityContainer::GetHighestEnmity()
 {
     TracyZoneScoped;
+
     if (m_EnmityList.empty())
     {
         return nullptr;
@@ -548,6 +555,7 @@ bool CEnmityContainer::IsTameable() const
 void CEnmityContainer::UpdateEnmityFromCover(CBattleEntity* PCoverAbilityTarget, CBattleEntity* PCoverAbilityUser)
 {
     TracyZoneScoped;
+
     // Update Enmity if cover ability target and cover ability user are not nullptr
     if (PCoverAbilityTarget != nullptr && PCoverAbilityUser != nullptr)
     {
