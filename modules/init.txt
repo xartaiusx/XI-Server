@@ -38,3 +38,8 @@
 
 custom/commands/
 custom/lua/test_npcs_in_gm_home.lua
+custom/lua/twills_admin_bootstrap.lua
+custom/lua/server_bots.lua
+custom/sql/server_bots.sql
+custom/cpp/server_bots.cpp
+custom/cpp/twills_admin.cpp

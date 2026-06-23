@@ -24,13 +24,16 @@
 // Alter Ego upgrade categories
 enum class AlterEgoCategory : uint8_t
 {
-    HP  = 8,
-    MP  = 9,
-    STR = 10,
-    DEX = 11,
-    VIT = 12,
-    AGI = 13,
-    INT = 14,
-    MND = 15,
-    CHR = 16,
+    COMBAT_SKILLS = 0,
+    // The current client sends 17 for the Magic Skills Alter Ego Points row.
+    MAGIC_SKILLS  = 17,
+    HP            = 8,
+    MP            = 9,
+    STR           = 10,
+    DEX           = 11,
+    VIT           = 12,
+    AGI           = 13,
+    INT           = 14,
+    MND           = 15,
+    CHR           = 16,
 };

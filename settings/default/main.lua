@@ -12,11 +12,11 @@ xi.settings = xi.settings or {}
 xi.settings.main =
 {
     -- Server name (not longer than 15 characters)
-    SERVER_NAME = 'Nameless',
+    SERVER_NAME = 'Mochirii',
 
     SERVER_MESSAGE =
-        'Please visit https://github.com/LandSandBoat/server for the latest information on the project.\n' ..
-        'Thank you, and we hope you enjoy sailing the sands!',
+        'Welcome to Mochirii, a private FFXI world powered by LandSandBoat.\n' ..
+        'Please report issues to the server staff so we can keep the world stable.',
 
     -- Setting to lock content more accurately to the expansions defined below.
     -- This generally results in a more accurate presentation of your selected expansions,
@@ -178,6 +178,30 @@ xi.settings.main =
         '\n \n' .. -- The space between these newlines is intentional
         '\129\153\129\154 The Alter Ego Expo Campaign is active! \129\154\129\153\n' ..
         'Trusts gain the benefits of Increased HP, MP, and Status Resistances!',
+
+    -- SERVER-WIDE AI BOTS
+    -- Enables the custom server_bots module package. These are server-side
+    -- dynamic adventurer actors, not real connected clients.
+    ENABLE_SERVER_BOTS              = 1,
+    SERVER_BOT_DENSITY              = 'moderate', -- light, moderate, dense
+    SERVER_BOT_VISIBLE_AI_TAG       = false,
+    SERVER_BOT_GLOBAL_CAP           = 350,
+    SERVER_BOT_MAX_PER_ZONE         = 24,
+    SERVER_BOT_IDLE_DESPAWN_SECONDS = 300,
+    SERVER_BOT_FULL_SIM_ENABLED     = true,
+    SERVER_BOT_COMBAT_ENABLED       = true,
+    SERVER_BOT_DYNAMIC_MOB_ACTORS_ENABLED = false,
+    SERVER_BOT_ECONOMY_ENABLED      = true,
+    SERVER_BOT_AH_ENABLED           = false,
+    SERVER_BOT_LLM_CHAT_ENABLED     = false,
+    SERVER_BOT_PLAYER_COMMANDS_ENABLED = false,
+    SERVER_BOT_AUTONOMOUS_PARTIES_ENABLED = true,
+    SERVER_BOT_MAX_BOT_PARTY_SIZE = 6,
+    SERVER_BOT_PARTY_FORMATION_INTERVAL_SECONDS = 60,
+    SERVER_BOT_MAX_ACTIVE_PARTIES_PER_ZONE = 3,
+    SERVER_BOT_COMBAT_ACTOR_MODE = 'simulated_npc', -- simulated_npc, safe_cpp_bridge
+    SERVER_BOT_MAX_COMBAT_BOTS_PER_ZONE = 8,
+    SERVER_BOT_TICK_BUDGET_MS       = 4,
 
     HARVESTING_BREAK_CHANCE = 33, -- % chance for the sickle to break during harvesting.  Set between 0 and 100.
     EXCAVATION_BREAK_CHANCE = 33, -- % chance for the pickaxe to break during excavation.  Set between 0 and 100.
