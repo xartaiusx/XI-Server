@@ -79,11 +79,12 @@ Applied through supported standard exdata:
   - Nuking: INT+30, Mag. Acc./Mag. Dmg.+20, Mag. Atk. Bns.+10.
 - Five `telchine_*` variants with Enhancing Magic Effect Duration+10.
 
+Applied through LSB bundled augment exdata:
+- `crocea_mors`: Path C, rank 25.
+- `duelists_torque_+2`: Dynamis-D rank 25.
+- Full `nyame_*` armor set: Path B, rank 30.
+
 Not yet auto-applied:
-- Nyame Path B and Dynamis-D JSE neck rank augments. LSB supports bundled
-  exdata, but the exact item-to-bundle index mapping should be verified before
-  applying it to Twills. Base Nyame and Duelist Torque +2 still have their local
-  `item_mods`.
 - Any `+4` RDM JSE pieces with zero local `item_mods`. They are not granted
   until the local item implementation catches up.
 
@@ -130,6 +131,8 @@ After rebuild and relog:
   exposes.
 - Equip Crocea Mors/Ammurapi Shield and at least one Sucellos cape to verify
   augmented item display.
+- Inspect Crocea Mors, Duelist's Torque +2, and every Nyame piece after relog
+  to confirm the bundled augment text renders correctly in-client.
 
 ## 2026-06-23 Local Verification
 
@@ -146,5 +149,13 @@ After rebuild and relog:
 - The RDM/SCH bundle placed 99 target gear rows plus gil/utility rows through
   the LSB item path; four Sucellos capes and five Telchine pieces have augment
   exdata.
+- Current equipped augment repairs:
+  - `crocea_mors`: Path C, rank 25.
+  - `duelists_torque_+2`: Dynamis-D rank 25.
+- Current wardrobe augment repairs:
+  - `nyame_helm`, `nyame_mail`, `nyame_gauntlets`, `nyame_flanchard`, and
+    `nyame_sollerets`: Path B, rank 30.
 - Backup after the current repair/gear pass:
   `C:\Users\xtyty\Documents\FFXI\sql\backups\xidb-20260623-020712-32b34.sql`.
+- Backup before the bundled augment pass:
+  `C:\Users\xtyty\Documents\FFXI\sql\backups\xidb-20260623-031100-32b34.sql`.

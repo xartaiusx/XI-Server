@@ -220,6 +220,36 @@ namespace
         }
     }
 
+    void repairRdmSchAugments(uint32 charId)
+    {
+        struct ItemAugment
+        {
+            uint16      itemId;
+            const char* exdataHex;
+        };
+
+        // Bundled augment exdata from scripts/data/augments.lua:
+        // Crocea Mors Path C R25, Duelist's Torque +2 R25, Nyame Path B R30.
+        static constexpr std::array<ItemAugment, 7> kBundledAugments = {
+            ItemAugment{ 21627, "03830000B23164013F000000000000000000000000000000" }, // Crocea Mors Path C
+            ItemAugment{ 25443, "03830000B0316401CB000000000000000000000000000000" }, // Duelist's Torque +2
+            ItemAugment{ 23761, "03830000E167FB05BB010000000000000000000000000000" }, // Nyame Helm Path B
+            ItemAugment{ 23768, "03830000E167FB05BC010000000000000000000000000000" }, // Nyame Mail Path B
+            ItemAugment{ 23775, "03830000E167FB05BD010000000000000000000000000000" }, // Nyame Gauntlets Path B
+            ItemAugment{ 23782, "03830000E167FB05BE010000000000000000000000000000" }, // Nyame Flanchard Path B
+            ItemAugment{ 23789, "03830000E167FB05BF010000000000000000000000000000" }, // Nyame Sollerets Path B
+        };
+
+        for (const auto& augment : kBundledAugments)
+        {
+            db::preparedStmt(
+                "UPDATE char_inventory SET extra = UNHEX(?) WHERE charid = ? AND itemId = ?",
+                augment.exdataHex,
+                charId,
+                augment.itemId);
+        }
+    }
+
     void repairProfileAndStorage(uint32 charId)
     {
         db::preparedStmt(
@@ -293,6 +323,7 @@ public:
             repairJobPoints(charId);
             repairMerits(charId);
             repairAlterEgoPoints(charId);
+            repairRdmSchAugments(charId);
             repairProfileAndStorage(charId);
 
             return true;
