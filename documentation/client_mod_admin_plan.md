@@ -59,6 +59,14 @@ This plan tracks the local client and GM bootstrap gates used by this branch. Ru
   - Southern San d'Oria had 12 active autonomous city bots, zero combat bots, and `server_bot_performance_snapshots` showed `tick_elapsed_ms = 0` against a 4 ms budget.
   - Latest `xi_*` stderr logs contained only the standard LSB admin/root privilege warning, not module/server errors. The only recent map warning that remains known is the benign duplicate-login packet warning; the prior Alter Ego category 17 warning is expected to be resolved by the rebuild but should still be visually rechecked from the Mog House Alter Ego Points menu.
   - Automated Windows key injection foregrounded the `Twills` window successfully, but did not prove in-game `!serverbot` command execution. Use manual in-client command entry or a future server-side QA harness for the remaining GM command acceptance pass.
+- Current 2026-06-23 active-window gate update:
+  - `tools\mochirii\assert_windower_foreground.ps1` returned
+    `IsWindowerClient = true` for process `xiloader`, title `Twills`.
+  - A read-only foreground screenshot was captured only after that gate passed:
+    `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\active-windower-twills-20260623-033704.png`.
+  - The screenshot shows Twills in Escha Ru'Aun with no visible GM icon; command
+    injection remains blocked until the supported Windows automation bridge is
+    available or commands are entered manually in the foreground client.
 - Server bot safe leveling-zone verification passed in West Ronfaure:
   - Twills logged in through Windower to zone 100 after a clean map restart.
   - 8 active leveling bots spawned as untagged NPC actors with `role_state = adventuring`.
@@ -70,6 +78,12 @@ This plan tracks the local client and GM bootstrap gates used by this branch. Ru
 
 - Launch only through `C:\Users\xtyty\Desktop\Windower.lnk`.
 - Foreground the `Twills`/xiloader window before input or screenshots.
+- Treat active-window proof as a hard QA gate. Before any automated or manual
+  command-entry/screenshot acceptance pass, run
+  `tools\mochirii\assert_windower_foreground.ps1`. It must return
+  `IsWindowerClient = true`; otherwise do not send commands, do not capture
+  screenshots as evidence, and mark the client-side gate blocked until Windower
+  is foregrounded.
 - Keep the real-DAT mirrored UI/texture stack active unless rolling back from the recorded backup.
 - Keep XIPivot installed and preferred for future overlay experiments, but do not assume UI/master-star DATs apply through XIPivot without in-client proof.
 - Keep `XIPivot`, `distance`, `TParty`, `Config`, `Timers`, `FFXIDB`, `MipmapFix`, `SSOrganizer`, and `WinControl` autoloaded.
@@ -83,6 +97,9 @@ This plan tracks the local client and GM bootstrap gates used by this branch. Ru
 ## Next Gates
 
 1. GM and command-boundary QA:
+   - First confirm Windower is the foreground app with
+     `tools\mochirii\assert_windower_foreground.ps1`; no in-game command or
+     screenshot counts as accepted without that foreground proof.
    - Verify `!serverbot status`, `trace`, `profile`, `rule`, `camp`, `strategy`, `audit`, `economy`, `perf`, `reload`, `pause`, `resume`, `disable`, `enable`, and `panic`.
    - Verify `!bot` refuses orders and tells players to use Trusts for companion gameplay.
    - Verify `!twillsrepair` repairs Twills while logged in, then relog and check Mog House job, Merit Points, Job Points, Alter Ego Points/category ranks, Trust, and master-related access gates.
@@ -125,3 +142,4 @@ This plan tracks the local client and GM bootstrap gates used by this branch. Ru
 - `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\expanded-xipivot-mod-stack-verified-20260622-231427.json`
 - `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\real-client-active-dat-stack-applied-20260622-234443.json`
 - `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\real-client-active-dat-stack-active-window-20260622-235044.png`
+- `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\active-windower-twills-20260623-033704.png`

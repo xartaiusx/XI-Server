@@ -112,9 +112,13 @@ Moderate density is 12 city bots, 6 town bots, and 8 leveling-zone bots, capped 
 3. Start `xi_connect`, `xi_search`, `xi_world`, and `xi_map`; confirm no `server_bots` module errors.
 4. Enter a city and verify untagged ambient bots spawn, patrol, talk, audit, and idle-despawn.
 5. Enter a seeded leveling zone and verify safe NPC actors spawn, patrol camps, respect caps, and audit strategy ticks.
-6. Use every `!serverbot` command above. Manual in-client entry is currently the reliable acceptance path; synthetic Windows key injection is not accepted as proof unless the corresponding audit row appears.
-7. Confirm `!bot` refuses player orders and explains the Trust boundary.
-8. Confirm `!twillsrepair` repairs Twills and that Twills can verify GM commands plus Trust/Mog House, Merit Point, Job Point, Alter Ego Point/category, and master-related access after relog.
-9. Inspect `server_bot_audit_log`, `server_bot_state`, `server_bot_parties`, `server_bot_party_members`, `server_bot_strategy_memory`, `server_bot_encounter_ledger`, `server_bot_economy_ledger`, `server_bot_inventory_ledger`, and `server_bot_performance_snapshots`.
-10. Benchmark 1, 6, 12, and 24 bots in a zone before raising caps.
-11. Keep `SERVER_BOT_DYNAMIC_MOB_ACTORS_ENABLED`, `SERVER_BOT_AH_ENABLED`, and `SERVER_BOT_LLM_CHAT_ENABLED` off until those integrations have separate combat/provider/economy review.
+6. Before any command-entry or screenshot check, run
+   `tools\mochirii\assert_windower_foreground.ps1` and require
+   `IsWindowerClient = true`. If Windower is not foregrounded, do not send
+   commands or capture screenshots; mark the client gate blocked.
+7. Use every `!serverbot` command above. Manual in-client entry is currently the reliable acceptance path; synthetic Windows key injection is not accepted as proof unless the corresponding audit row appears.
+8. Confirm `!bot` refuses player orders and explains the Trust boundary.
+9. Confirm `!twillsrepair` repairs Twills and that Twills can verify GM commands plus Trust/Mog House, Merit Point, Job Point, Alter Ego Point/category, and master-related access after relog.
+10. Inspect `server_bot_audit_log`, `server_bot_state`, `server_bot_parties`, `server_bot_party_members`, `server_bot_strategy_memory`, `server_bot_encounter_ledger`, `server_bot_economy_ledger`, `server_bot_inventory_ledger`, and `server_bot_performance_snapshots`.
+11. Benchmark 1, 6, 12, and 24 bots in a zone before raising caps.
+12. Keep `SERVER_BOT_DYNAMIC_MOB_ACTORS_ENABLED`, `SERVER_BOT_AH_ENABLED`, and `SERVER_BOT_LLM_CHAT_ENABLED` off until those integrations have separate combat/provider/economy review.
