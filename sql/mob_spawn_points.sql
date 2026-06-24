@@ -13479,7 +13479,7 @@ INSERT INTO `mob_spawn_points` VALUES (16998651,0,'Lahama','Lahama',97,79,80,106
 INSERT INTO `mob_spawn_points` VALUES (16998652,0,'Lamia_Deathdancer','Lamia Deathdancer',46,81,83,139.117,-5.489,463.415,137);
 INSERT INTO `mob_spawn_points` VALUES (16998653,0,'Draugar_Servant','Draugar Servant',42,79,81,136.234,-6.831,468.779,94);
 INSERT INTO `mob_spawn_points` VALUES (16998654,0,'Draugar_Servant','Draugar Servant',47,79,81,134.976,-7.049,464.915,121);
-INSERT INTO `mob_spawn_points` VALUES (16998655,0,'Bloody_Bones','Bloody Bones',48,80,82,136.000,-6.000,476.000,29);
+INSERT INTO `mob_spawn_points` VALUES (16998655,0,'Bloody_Bones','Bloody Bones',48,83,83,136.000,-6.000,476.000,29);
 INSERT INTO `mob_spawn_points` VALUES (16998656,0,'Bhoot','Bhoot',34,80,82,107.258,-2.060,258.006,170);
 INSERT INTO `mob_spawn_points` VALUES (16998657,0,'Phasma','Phasma',12,73,74,109.564,-4.015,226.246,255);
 INSERT INTO `mob_spawn_points` VALUES (16998658,0,'Phasma','Phasma',12,73,74,148.004,-7.453,254.834,77);
@@ -13696,8 +13696,8 @@ INSERT INTO `mob_spawn_points` VALUES (16998865,0,'Lamia_Exon','Lamia Exon',84,7
 INSERT INTO `mob_spawn_points` VALUES (16998866,0,'Lamia_Exon','Lamia Exon',84,76,76,-462.000,-20.500,458.000,7);
 INSERT INTO `mob_spawn_points` VALUES (16998867,0,'Ornery_Orobon','Ornery Orobon',85,75,80,0.000,0.000,0.000,0);
 INSERT INTO `mob_spawn_points` VALUES (16998868,0,'Lamia_No19','Lamia No.19',86,78,78,-138.000,-7.600,132.000,161);
-INSERT INTO `mob_spawn_points` VALUES (16998869,0,'Lamias_Skeleton','Lamia\'s Skeleton',87,70,70,-136.700,-7.900,132.000,254);
-INSERT INTO `mob_spawn_points` VALUES (16998870,0,'Lamias_Skeleton','Lamia\'s Skeleton',87,70,70,-140.000,-7.600,131.000,254);
+INSERT INTO `mob_spawn_points` VALUES (16998869,0,'Lamias_Skeleton','Lamia\'s Skeleton',87,75,75,-136.700,-7.900,132.000,254);
+INSERT INTO `mob_spawn_points` VALUES (16998870,0,'Lamias_Skeleton','Lamia\'s Skeleton',87,75,75,-140.000,-7.600,131.000,254);
 INSERT INTO `mob_spawn_points` VALUES (16998871,0,'Lil_Apkallu','Lil\' Apkallu',88,82,83,489.740,-2.742,168.490,190);
 INSERT INTO `mob_spawn_points` VALUES (16998872,0,'Velionis','Velionis',89,78,80,313.170,-4.089,26.211,247);
 INSERT INTO `mob_spawn_points` VALUES (16998873,0,'Zareehkl_the_Jubilant','Zareehkl the Jubilant',90,85,86,177.640,-5.159,181.399,135);
