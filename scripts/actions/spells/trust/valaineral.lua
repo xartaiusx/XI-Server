@@ -88,15 +88,25 @@ spellObject.onMobSpawn = function(mob)
         mob:addGambit(ai.t.TARGET, { ai.c.NOT_STATUS,     xi.effect.FLASH }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.DIVINE_EMBLEM })
     end
 
-    mob:addGambit(ai.t.SELF,   { ai.c.NOT_STATUS, xi.effect.PROTECT  }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.PROTECT })
-    mob:addGambit(ai.t.SELF,   { ai.c.NOT_STATUS, xi.effect.SHELL    }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.SHELL   })
-    mob:addGambit(ai.t.TARGET, { ai.c.NOT_STATUS, xi.effect.FLASH    }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.FLASH        })
-    mob:addGambit(ai.t.SELF,   { ai.c.NOT_STATUS, xi.effect.REPRISAL }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.REPRISAL     })
+    if lvl >= 95 then
+        mob:addGambit(ai.t.SELF, { ai.c.NOT_STATUS, xi.effect.PALISADE }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.PALISADE })
+    end
+
+    mob:addGambit(ai.t.SELF,   { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.PROTECT  }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.PROTECT })
+    mob:addGambit(ai.t.SELF,   { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.SHELL    }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.SHELL   })
+    mob:addGambit(ai.t.TARGET, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.FLASH    }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.FLASH        })
+    mob:addGambit(ai.t.SELF,   { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.REPRISAL }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.REPRISAL     })
     mob:addGambit(ai.t.PARTY,  { ai.c.HPP_LT,     50                 }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.CURE    })
     mob:addGambit(ai.t.SELF,   { ai.c.HPP_LT,     70                 }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.CURE    })
-    mob:addGambit(ai.t.SELF,   { ai.c.NOT_STATUS, xi.effect.ENLIGHT  }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.ENLIGHT      })
-    mob:addGambit(ai.t.SELF,   { ai.c.NOT_STATUS, xi.effect.PHALANX  }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.PHALANX      })
+    mob:addGambit(ai.t.SELF,   { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.ENLIGHT  }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.ENLIGHT      })
+    mob:addGambit(ai.t.SELF,   { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.PHALANX  }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.PHALANX      })
     mob:addGambit(ai.t.PARTY,  { ai.c.STATUS,     xi.effect.SLEEP_I  }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.CURE         })
+
+    if lvl >= 65 then
+        mob:addGambit(ai.t.TARGET, { ai.c.IS_ECOSYSTEM, xi.ecosystem.UNDEAD }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.BANISH_III }, 45)
+    end
+
+    mob:setLocalVar('TrustParityValaineral', 1)
 
     mob:setTrustTPSkillSettings(ai.tp.OPENER, ai.s.RANDOM, 2000)
 
@@ -104,7 +114,13 @@ spellObject.onMobSpawn = function(mob)
         if skill:getID() == xi.mobSkill.URIEL_BLADE_1 then -- Uriel Blade
             -- Let the Blade of the Conqueror once again bring glory to the Kingdom!
             if math.random(1, 100) <= 33 then
-                if target:getID() == skill:getPrimaryTargetID() then
+                local primaryTargetId = nil
+
+                if skill.getPrimaryTargetID ~= nil then
+                    primaryTargetId = skill:getPrimaryTargetID()
+                end
+
+                if primaryTargetId == nil or primaryTargetId == 0 or target:getID() == primaryTargetId then
                     xi.trust.message(mobArg, xi.trust.messageOffset.SPECIAL_MOVE_1)
                 end
             end

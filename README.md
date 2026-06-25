@@ -1,76 +1,62 @@
-# XI Server
+# Mochirii
 
-Retail-inspired FFXI server enhancements, kept public-safe and source-reviewable.
+Mochirii is a local Final Fantasy XI server project focused on a polished, retail-shaped private world for development and QA.
 
-<p>
-<a href="https://github.com/xartaiusx/XI-Server/actions/workflows/build.yml?query=branch%3Aretail-inspired%2Fenhancements"><img alt="Builds: retail-inspired/enhancements" src="https://github.com/xartaiusx/XI-Server/actions/workflows/build.yml/badge.svg?branch=retail-inspired/enhancements"></a>
-<a href="https://github.com/xartaiusx/XI-Server/actions/workflows/codeql_analysis.yml?query=branch%3Aretail-inspired%2Fenhancements"><img alt="CodeQL: retail-inspired/enhancements" src="https://github.com/xartaiusx/XI-Server/actions/workflows/codeql_analysis.yml/badge.svg?branch=retail-inspired/enhancements"></a>
-<a href="https://www.gnu.org/licenses/gpl-3.0"><img alt="License: GPLv3" src="https://img.shields.io/badge/License-GPLv3-blue.svg"></a>
-</p>
+The project name and server identity are Mochirii. Public-facing documentation should use Mochirii for the server/project and spell out Final Fantasy XI when referring to the game.
 
-## Purpose
+## Current State
 
-This repository is a public source lane for a FFXI server fork focused on retail-inspired enhancements.
+- Server identity: `Mochirii`.
+- Manual server controls are available from the desktop:
+  - `Start Mochirii Server.lnk`
+  - `Start Mochirii Server (Local QA).lnk`
+  - `Stop Mochirii Server.lnk`
+- The server does not auto-start after reboot.
+- The canonical client launch path is `C:\Users\xtyty\Desktop\Windower.lnk`.
+- Twills is the local admin QA character: Red Mage main, Scholar support, GM5 privileges, visible GM marker hidden.
+- 2026-06-25 server verification: `xi_connect`, `xi_search`, `xi_world`, and `xi_map` were running after a clean `xi_map` rebuild/restart.
+- 2026-06-25 tooling verification: LuaJIT, Lua, Lua Language Server, StyLua, CMake, Ninja, clang-format 22, Python, Node, and GitHub CLI are installed. Local `gh` is not authenticated; use the GitHub connector for PR inspection unless authentication is added.
+- 2026-06-25 cleanup: ignored root debug artifacts and the old root Windower screenshot were removed from the workspace. Runtime evidence remains under `C:\Users\xtyty\Documents\FFXI-Runtime`.
 
-The goal is not to claim perfect retail parity. The goal is to make source-backed gameplay improvements that follow the spirit of retail FFXI where credible evidence exists, while clearly separating those public changes from private local tooling, diagnostics, runtime state, and operator workflow.
+## Development Focus
 
-## Branch Model
+Mochirii currently tracks three active workstreams:
 
-`retail-inspired/enhancements` is the single long-lived public branch for reviewed FFXI behavior enhancements that may differ from strict retail but are intended to feel retail-consistent.
+- Client and mod-stack stability through Windower, GearSwap, XIVHotbar, XivParty, and verified visual DAT layers.
+- Twills account and character completion for a retail-shaped long-time Red Mage/Scholar tester.
+- Trust behavior parity, with Trusts becoming closer to competent player-like versions of their job/subjob roles.
 
-Short-lived pull request branches may be used for review and should be deleted after merge. Private local tooling and experiments are not published here. Public content should not include local account details, local character details, GM helper commands, runtime logs, client files, private documentation, database dumps, or machine-specific configuration.
+## Documentation Map
 
-## Current Checks
+- `AGENTS.md` is the repo-level operating guide for Codex/agent work.
+- `documentation/client_mod_admin_plan.md` tracks client, Windower, mod, server-control, and Trust QA state.
+- `documentation/twills_rdm_sch_gear_completion.md` tracks Twills gear, storage, professions, chocobo, progression, and audit state.
+- `documentation/trust_retail_parity.md` tracks Trust combat, defensive behavior, logging, and per-Trust parity work.
 
-The badges above point to this repository's own published GitHub Actions workflow status.
+## Validation Standard
 
-Use them as the quick visitor-facing health check:
+Changes should be verified against the current local source, the live database, logs, and the Final Fantasy XI client whenever the behavior is visible in-game.
 
-- Builds should be green before treating the source baseline as currently healthy.
-- CodeQL should be green before treating the public branch as clean from the configured static-analysis perspective.
-
-Local-only validation may be broader than the public badges, but private runtime checks are not documented here unless they are safe and useful for public contributors. Additional public checks should only be shown here once they are configured and passing cleanly for the public branch.
-
-## Enhancement Standard
-
-Public gameplay changes should be small, source-reviewable, and easy to compare against the current codebase.
+For in-game UI proof, only native Windower screenshots count. Use the
+foreground helper and capture helper under `tools/mochirii` before accepting
+client-visible results.
 
 Preferred evidence order:
 
-1. Current checked-out source, SQL, migrations, and runtime behavior.
-2. Official FFXI or Square Enix update notes.
-3. Retail captures, event dumps, packet observations, or in-client proof when official notes omit exact details.
-4. Community references as secondary guidance only, verified against source or runtime evidence before implementation.
+1. Current local source, SQL, migrations, and runtime behavior.
+2. Official Final Fantasy XI or Square Enix update notes.
+3. Retail captures, packet observations, or in-client proof when official notes omit exact details.
+4. Community references as secondary guidance, verified against source or runtime evidence before implementation.
 
-When exact retail behavior is uncertain, changes should be described as retail-inspired rather than retail-identical.
+## Safety Rules
 
-## Public Scope
-
-Good public changes include:
-
-- gameplay behavior fixes with clear source evidence
-- SQL or script corrections that can be reviewed independently
-- narrow enhancements that preserve the retail feel of FFXI
-- documentation that helps explain public source behavior
-
-Do not publish:
+Do not commit or publish:
 
 - secrets, passwords, hashes, tokens, or temporary credentials
-- local runtime configuration or generated compose overrides
-- local operator scripts, private task notes, or diagnostic commands
-- client files, launcher binaries, Wine or Proton prefixes, mod archives, or extracted assets
+- client files, mod archives, launcher binaries, or extracted game assets
 - database dumps, backups, raw captures with private data, or runtime logs
-
-## Development Notes
-
-This project uses Docker Compose for local runtime validation. Public code changes should remain buildable and reviewable without requiring private machine state.
-
-For source-level changes, prefer the smallest pull request that proves the behavior. Keep unrelated refactors, local quality-of-life tooling, and experimental server customization out of public history until they have a clear public purpose and evidence trail.
+- local account details beyond safe QA summaries
 
 ## License
 
 This project is distributed under the GNU GPL v3 license. See [LICENSE](LICENSE).
-
-## Credits
-
-This fork builds on GPL-licensed open-source server emulator work and the long-running efforts of its contributors. Public changes here should preserve that spirit: source-visible, reviewable, and useful to people who care about FFXI behavior.

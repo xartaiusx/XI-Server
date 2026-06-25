@@ -1645,8 +1645,24 @@ void CBattleEntity::SetSLevel(uint8 slvl)
                 m_slvl = 0;
                 break;
             case 1: // 1/2 (75/37, 99/49)
-                m_slvl = (slvl > (m_mlvl >> 1) ? (m_mlvl == 1 ? 1 : (m_mlvl >> 1)) : slvl);
+            {
+                uint8 subJobCap = (m_mlvl == 1 ? 1 : (m_mlvl >> 1));
+                if (this->objtype & TYPE_PC)
+                {
+                    if (auto* PChar = dynamic_cast<CCharEntity*>(this))
+                    {
+                        const auto mainJob = PChar->GetMJob();
+                        if (mainJob > JOB_NON && mainJob < MAX_JOBTYPE)
+                        {
+                            const auto masterLevelBonus = static_cast<uint8>(PChar->masterLevels[mainJob] / 5);
+                            subJobCap                  = std::min<uint8>(59, subJobCap + masterLevelBonus);
+                        }
+                    }
+                }
+
+                m_slvl = (slvl > subJobCap ? subJobCap : slvl);
                 break;
+            }
             case 2: // 2/3 (75/50, 99/66)
                 m_slvl = (slvl > (m_mlvl * 2) / 3 ? (m_mlvl == 1 ? 1 : (m_mlvl * 2) / 3) : slvl);
                 break;

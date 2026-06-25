@@ -28,31 +28,41 @@
 
 namespace
 {
-    constexpr uint8 kAlterEgoCategoryCap = 50;
+constexpr uint8 kAlterEgoCategoryCap = 50;
+constexpr uint8 kLegacyCombatSkillsDisplayIndex = 0;
+constexpr uint8 kLegacyMagicSkillsDisplayIndex  = 1;
 
-    uint8 clampUpgrade(int32 value)
+uint8 clampUpgrade(int32 value)
+{
+    return static_cast<uint8>(std::clamp(value, 0, static_cast<int32>(kAlterEgoCategoryCap)));
+}
+
+uint16 nextUpgradeCost(uint8 upgrade)
+{
+    if (upgrade >= kAlterEgoCategoryCap)
     {
-        return static_cast<uint8>(std::clamp(value, 0, static_cast<int32>(kAlterEgoCategoryCap)));
+        return 0;
     }
 
-    uint16 nextUpgradeCost(uint8 upgrade)
-    {
-        if (upgrade >= kAlterEgoCategoryCap)
-        {
-            return 0;
-        }
+    return static_cast<uint16>((upgrade / 10) + 1);
+}
 
-        return static_cast<uint16>((upgrade / 10) + 1);
-    }
+void populateCategory(CCharEntity* PChar, GP_SERV_PACKET_ALTER_EGO_POINTS::PacketData& packet, AlterEgoCategory category, const char* varName)
+{
+    const auto index = static_cast<uint8>(category);
+    const auto rank  = clampUpgrade(charutils::GetCharVar(PChar, varName));
 
-    void populateCategory(CCharEntity* PChar, GP_SERV_PACKET_ALTER_EGO_POINTS::PacketData& packet, AlterEgoCategory category, const char* varName)
-    {
-        const auto index = static_cast<uint8>(category);
-        const auto rank  = clampUpgrade(charutils::GetCharVar(PChar, varName));
+    packet.Upgrades[index] = rank;
+    packet.Costs[index]    = nextUpgradeCost(rank);
+}
 
-        packet.Upgrades[index] = rank;
-        packet.Costs[index]    = nextUpgradeCost(rank);
-    }
+void populateDisplaySlot(CCharEntity* PChar, GP_SERV_PACKET_ALTER_EGO_POINTS::PacketData& packet, uint8 index, const char* varName)
+{
+    const auto rank  = clampUpgrade(charutils::GetCharVar(PChar, varName));
+
+    packet.Upgrades[index] = rank;
+    packet.Costs[index]    = nextUpgradeCost(rank);
+}
 } // namespace
 
 GP_SERV_PACKET_ALTER_EGO_POINTS::GP_SERV_PACKET_ALTER_EGO_POINTS(CCharEntity* PChar)
@@ -70,8 +80,6 @@ GP_SERV_PACKET_ALTER_EGO_POINTS::GP_SERV_PACKET_ALTER_EGO_POINTS(CCharEntity* PC
         cost = 0;
     }
 
-    populateCategory(PChar, packet, AlterEgoCategory::COMBAT_SKILLS, "AlterEgoPoints_CombatSkills");
-    populateCategory(PChar, packet, AlterEgoCategory::MAGIC_SKILLS, "AlterEgoPoints_MagicSkills");
     populateCategory(PChar, packet, AlterEgoCategory::HP, "AlterEgoPoints_HP");
     populateCategory(PChar, packet, AlterEgoCategory::MP, "AlterEgoPoints_MP");
     populateCategory(PChar, packet, AlterEgoCategory::STR, "AlterEgoPoints_STR");
@@ -81,4 +89,12 @@ GP_SERV_PACKET_ALTER_EGO_POINTS::GP_SERV_PACKET_ALTER_EGO_POINTS(CCharEntity* PC
     populateCategory(PChar, packet, AlterEgoCategory::INT, "AlterEgoPoints_INT");
     populateCategory(PChar, packet, AlterEgoCategory::MND, "AlterEgoPoints_MND");
     populateCategory(PChar, packet, AlterEgoCategory::CHR, "AlterEgoPoints_CHR");
+    populateCategory(PChar, packet, AlterEgoCategory::COMBAT_SKILLS, "AlterEgoPoints_CombatSkills");
+    populateCategory(PChar, packet, AlterEgoCategory::MAGIC_SKILLS, "AlterEgoPoints_MagicSkills");
+
+    // Older local testing initially treated the two skill rows as visible menu
+    // slots. Keep those aliases populated while the client-kind indexes above
+    // are the authoritative values used by C2S 0x00C1 and S2C 0x008E.
+    populateDisplaySlot(PChar, packet, kLegacyCombatSkillsDisplayIndex, "AlterEgoPoints_CombatSkills");
+    populateDisplaySlot(PChar, packet, kLegacyMagicSkillsDisplayIndex, "AlterEgoPoints_MagicSkills");
 }

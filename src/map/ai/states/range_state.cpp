@@ -33,6 +33,7 @@
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
 #include "utils/charutils.h"
+#include "utils/trustutils.h"
 
 CRangeState::CRangeState(CBattleEntity* PEntity, uint16 targid)
 : CState(PEntity, targid)
@@ -137,6 +138,7 @@ CRangeState::CRangeState(CBattleEntity* PEntity, uint16 targid)
     };
 
     m_PEntity->PAI->EventHandler.triggerListener("RANGE_START", m_PEntity, &action);
+    trustutils::LogTrustActionPacket(m_PEntity, action, PTarget, "range_state_start");
     m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
 }
 
@@ -188,6 +190,7 @@ bool CRangeState::Update(timer::time_point tick)
             // Only send packet if action was populated (e.g. interrupts return early)
             if (!action.targets.empty())
             {
+                trustutils::LogTrustActionPacket(m_PEntity, action, PTarget, "range_state_finish");
                 m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
             }
             m_PEntity->PAI->EventHandler.triggerListener("RANGE_STATE_EXIT", m_PEntity, PTarget, &action);

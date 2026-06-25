@@ -2487,6 +2487,11 @@ auto TakeSwipeLungeDamage(CBattleEntity* PDefender, CBattleEntity* PAttacker, in
 uint8 GetHitRateEx(CBattleEntity* PAttacker, CBattleEntity* PDefender, uint8 attackNumber,
                    int16 offsetAccuracy) // subWeaponAttack is for calculating acc of dual wielded sub weapon
 {
+    if (!PAttacker || !PDefender)
+    {
+        return 0;
+    }
+
     int32 hitrate = 75;
 
     bool hasSneakAttack      = PAttacker->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::SneakAttack);

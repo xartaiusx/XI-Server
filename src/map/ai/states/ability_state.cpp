@@ -37,6 +37,7 @@
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
 #include "utils/charutils.h"
+#include "utils/trustutils.h"
 #include "utils/zoneutils.h"
 
 namespace
@@ -143,6 +144,7 @@ CAbilityState::CAbilityState(CBattleEntity* PEntity, uint16 targid, uint16 abili
             }
         };
 
+        trustutils::LogTrustActionPacket(PEntity, action, PTarget, "ability_state_start");
         PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
         m_PEntity->PAI->EventHandler.triggerListener("ABILITY_START", m_PEntity, PAbility);
 
@@ -208,6 +210,7 @@ bool CAbilityState::Update(timer::time_point tick)
             // Only send packet if action was populated (e.g. interrupts return early)
             if (!action.targets.empty())
             {
+                trustutils::LogTrustActionPacket(m_PEntity, action, dynamic_cast<CBattleEntity*>(GetTarget()), "ability_state_finish");
                 m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
             }
             for (auto& actionTarget : action.targets)

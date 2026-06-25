@@ -4,7 +4,7 @@ This repository preserves documentation for **legacy Limbus** because the origin
 
 ## Why this is documented
 
-Old Limbus cannot be restored through simple script or naming changes alone. The original implementation depended on client data that no longer exists in a usable form. Events, NPCs, mobs, and related assets were removed, renamed, or otherwise changed to the point that the system is no longer works off the base FFXI client.
+Old Limbus cannot be restored through simple script or naming changes alone. The original implementation depended on client data that no longer exists in a usable form. Events, NPCs, mobs, and related assets were removed, renamed, or otherwise changed to the point that the system no longer works off the base Final Fantasy XI client.
 
 To get legacy Limbus working again, you would need to restore older DAT files and perform significant client-side and server-side reconstruction.
 

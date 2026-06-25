@@ -131,9 +131,9 @@ spellObject.onMobSpawn = function(mob)
         mob:addGambit(ai.t.SELF, { { ai.c.SUB_ANIMATION, 5 }, { ai.c.NOT_STATUS, xi.effect.DIVINE_EMBLEM }, }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.DIVINE_EMBLEM })
     end
 
-    mob:addGambit(ai.t.TARGET, { ai.c.NOT_STATUS, xi.effect.FLASH    }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.FLASH      })
+    mob:addGambit(ai.t.TARGET, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.FLASH    }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.FLASH      })
     mob:addGambit(ai.t.SELF,   { ai.c.HPP_LT,     75                 }, { ai.r.MA, ai.s.HIGHEST,  xi.magic.spellFamily.CURE })
-    mob:addGambit(ai.t.SELF,   { ai.c.NOT_STATUS, xi.effect.REPRISAL }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.REPRISAL   })
+    mob:addGambit(ai.t.SELF,   { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.REPRISAL }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.REPRISAL   })
     mob:addGambit(ai.t.PARTY,  { ai.c.HPP_LT,     50                 }, { ai.r.MA, ai.s.HIGHEST,  xi.magic.spellFamily.CURE })
     mob:addGambit(ai.t.PARTY,  { ai.c.STATUS,     xi.effect.SLEEP_I  }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.CURE       })
 

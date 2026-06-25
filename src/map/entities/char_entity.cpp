@@ -88,6 +88,7 @@
 #include "mobskill.h"
 #include "modifier.h"
 #include "notoriety_container.h"
+#include "party.h"
 #include "packets/s2c/0x020_item_attr.h"
 #include "packets/s2c/0x028_battle2.h"
 #include "packets/s2c/0x029_battle_message.h"
@@ -295,7 +296,7 @@ CCharEntity::~CCharEntity()
         PTreasurePool->delMember(this);
     }
 
-    ClearTrusts(); // trusts don't survive zone lines
+    ClearTrusts(false); // trusts don't survive zone lines
 
     if (PLinkshell1 != nullptr)
     {
@@ -1063,8 +1064,10 @@ void CCharEntity::RemoveTrust(CTrustEntity* PTrust)
     ReloadPartyInc();
 }
 
-void CCharEntity::ClearTrusts()
+void CCharEntity::ClearTrusts(const bool notifyClient)
 {
+    const bool hadTrusts = !PTrusts.empty();
+
     for (auto* PTrust : PTrusts)
     {
         PTrust->PAI->Despawn();
@@ -1072,6 +1075,12 @@ void CCharEntity::ClearTrusts()
     PTrusts.clear();
 
     ReloadPartyInc();
+
+    if (notifyClient && hadTrusts && PParty != nullptr && PParty->GetLeader() != nullptr &&
+        status != STATUS_TYPE::DISAPPEAR && status != STATUS_TYPE::SHUTDOWN)
+    {
+        PParty->ReloadParty();
+    }
 }
 
 void CCharEntity::RequestPersist(CHAR_PERSIST toPersist)

@@ -21,9 +21,12 @@
 
 #include "0x0c8_group_tbl.h"
 
+#include <algorithm>
+
 #include "alliance.h"
 #include "common/database.h"
 #include "common/logging.h"
+#include "common/settings.h"
 #include "map_engine.h"
 #include "party.h"
 
@@ -31,6 +34,27 @@
 #include "entities/trust_entity.h"
 #include "enums/party_kind.h"
 #include "utils/zoneutils.h"
+
+namespace
+{
+    constexpr uint8 kTrustAutoAllianceMembersPerParty = 6;
+    constexpr uint8 kTrustAutoAllianceMaxPartyNo      = 2;
+
+    auto trustAutoAllianceEnabled() -> bool
+    {
+        return settings::get<bool>("main.ENABLE_TRUST_AUTO_ALLIANCE");
+    }
+
+    auto trustVirtualPartyNo(uint8 memberIndex) -> uint8
+    {
+        if (!trustAutoAllianceEnabled())
+        {
+            return 0;
+        }
+
+        return std::min<uint8>(memberIndex / kTrustAutoAllianceMembersPerParty, kTrustAutoAllianceMaxPartyNo);
+    }
+} // namespace
 
 GP_SERV_COMMAND_GROUP_TBL::GP_SERV_COMMAND_GROUP_TBL(CParty* PParty, const bool loadTrust)
 {
@@ -86,9 +110,15 @@ GP_SERV_COMMAND_GROUP_TBL::GP_SERV_COMMAND_GROUP_TBL(CParty* PParty, const bool 
             {
                 for (const auto* PTrust : PLeader->PTrusts)
                 {
+                    if (i >= 20)
+                    {
+                        ShowWarning("GP_SERV_COMMAND_GROUP_TBL - Trust group table exceeded client entry cap.");
+                        break;
+                    }
+
                     packet.GroupTbl[i].UniqueNo          = PTrust->id;
                     packet.GroupTbl[i].ActIndex          = PTrust->targid;
-                    packet.GroupTbl[i].PartyNo           = 0; // Trusts are in main party
+                    packet.GroupTbl[i].PartyNo           = trustVirtualPartyNo(i);
                     packet.GroupTbl[i].PartyLeaderFlg    = 0;
                     packet.GroupTbl[i].AllianceLeaderFlg = 0;
                     packet.GroupTbl[i].PartyRFlg         = 0;
@@ -99,6 +129,11 @@ GP_SERV_COMMAND_GROUP_TBL::GP_SERV_COMMAND_GROUP_TBL(CParty* PParty, const bool 
                     i++;
                 }
             }
+        }
+
+        if (trustAutoAllianceEnabled() && i > kTrustAutoAllianceMembersPerParty)
+        {
+            packet.Kind = PartyKind::Alliance;
         }
     }
 }

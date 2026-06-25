@@ -189,8 +189,18 @@ Maybe<SpellID> CMobSpellContainer::GetBestAvailable(SPELLFAMILY family)
 
 Maybe<SpellID> CMobSpellContainer::GetBestIndiSpell(CBattleEntity* PTarget)
 {
+    if (!PTarget || PTarget->isDead())
+    {
+        return std::nullopt;
+    }
+
+    auto mTarget = PTarget->GetBattleTarget();
+    if (!mTarget || mTarget->isDead())
+    {
+        return GetAvailable(SpellID::Indi_Regen);
+    }
+
     auto mJob          = PTarget->GetMJob();
-    auto mTarget       = PTarget->GetBattleTarget();
     auto hitrate       = battleutils::GetHitRate(PTarget, mTarget);
     bool accBuffNeeded = hitrate < 65 ? true : false;
     auto mInt          = PTarget->getMod(Mod::INT);

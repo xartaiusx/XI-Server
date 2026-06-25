@@ -2,7 +2,13 @@
 
 Please see `init.txt` for how to load modules.
 
-Please see [the module guide on the wiki](https://github.com/LandSandBoat/server/wiki/Module-Guide) for a comprehensive guide on how to write and use Lua, C++, and SQL modules.
+Mochirii modules can be Lua, SQL, or C++:
+
+- Lua modules register runtime behavior and commands.
+- SQL modules provide idempotent schema/data changes.
+- C++ modules provide engine hooks and bridges that require a rebuild.
+
+Keep custom project work under `custom/` unless an era module is the better fit.
 
 ## Era Accuracy Modules
 

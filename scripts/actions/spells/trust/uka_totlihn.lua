@@ -59,11 +59,11 @@ spellObject.onMobSpawn = function(mob)
     end
 
     -- Step Interactions:
-    mob:addGambit(ai.t.TARGET, { ai.c.NOT_STATUS, xi.effect.LETHARGIC_DAZE_5 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.QUICKSTEP }, 20)
-    mob:addGambit(ai.t.TARGET, { ai.c.READYING_WS, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
-    mob:addGambit(ai.t.TARGET, { ai.c.READYING_MS, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
-    mob:addGambit(ai.t.TARGET, { ai.c.READYING_JA, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
-    mob:addGambit(ai.t.TARGET, { ai.c.CASTING_MA, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
+    mob:addGambit(ai.t.TARGET, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.LETHARGIC_DAZE_5 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.QUICKSTEP }, 20)
+    mob:addGambit(ai.t.TARGET, { { ai.c.READYING_WS, 0 }, { ai.c.CASTER_STATUS, xi.effect.FINISHING_MOVE_1 } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
+    mob:addGambit(ai.t.TARGET, { { ai.c.READYING_MS, 0 }, { ai.c.CASTER_STATUS, xi.effect.FINISHING_MOVE_1 } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
+    mob:addGambit(ai.t.TARGET, { { ai.c.READYING_JA, 0 }, { ai.c.CASTER_STATUS, xi.effect.FINISHING_MOVE_1 } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
+    mob:addGambit(ai.t.TARGET, { { ai.c.CASTING_MA, 0 }, { ai.c.CASTER_STATUS, xi.effect.FINISHING_MOVE_1 } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
 
     -- Ecosystem check to swap to Haste samba if the target is undead
     mob:addGambit(ai.t.TARGET, { ai.c.IS_ECOSYSTEM, xi.ecosystem.UNDEAD }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.HASTE_SAMBA })

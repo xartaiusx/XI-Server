@@ -262,6 +262,7 @@ venv.bak/
 # Test artifacts
 *.ctrf.json
 __pycache__
+windower-native-screenshot.jpg
 
 sanity_checks_summary.md
 changed-files.txt

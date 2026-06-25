@@ -21,10 +21,9 @@ effectObject.onEffectGain = function(target, effect)
         end
     end
 
-    -- Dances with Luopans: charge the luopan while resting at an Ergon Locus
-    xi.dancesWithLuopans.onHealing(target)
-
     if target:getObjType() == xi.objType.PC then
+        -- Dances with Luopans: charge the luopan while resting at an Ergon Locus
+        xi.dancesWithLuopans.onHealing(target)
         xi.voidwalker.onHealing(target)
     end
 end
@@ -86,8 +85,10 @@ effectObject.onEffectLose = function(target, effect)
     target:setAnimation(xi.animation.NONE)
     target:delStatusEffectSilent(xi.effect.LEAVEGAME)
 
-    -- Dances with Luopans: stopping the rest cancels the luopan charge
-    xi.dancesWithLuopans.onEffectLose(target)
+    if target:getObjType() == xi.objType.PC then
+        -- Dances with Luopans: stopping the rest cancels the luopan charge
+        xi.dancesWithLuopans.onEffectLose(target)
+    end
 end
 
 return effectObject

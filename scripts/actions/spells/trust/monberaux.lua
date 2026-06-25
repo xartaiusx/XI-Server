@@ -48,8 +48,8 @@ spellObject.onMobSpawn = function(mob)
     mob:setMod(xi.mod.STATUSRES, 15)
 
     -- Guard Drink should always be the first spell he casts
-    mob:addGambit(ai.t.PARTY, { ai.c.NOT_STATUS, xi.effect.PROTECT }, { ai.r.MS, ai.s.SPECIFIC, 4255 }, healingMoveCooldown) -- Mix: Guard Drink (Prot/Shell)
-    mob:addGambit(ai.t.PARTY, { ai.c.NOT_STATUS, xi.effect.SHELL   }, { ai.r.MS, ai.s.SPECIFIC, 4255 }, healingMoveCooldown) -- Mix: Guard Drink (Prot/Shell)
+    mob:addGambit(ai.t.PARTY, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.PROTECT }, { ai.r.MS, ai.s.SPECIFIC, 4255 }, healingMoveCooldown) -- Mix: Guard Drink (Prot/Shell)
+    mob:addGambit(ai.t.PARTY, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.SHELL   }, { ai.r.MS, ai.s.SPECIFIC, 4255 }, healingMoveCooldown) -- Mix: Guard Drink (Prot/Shell)
 
     -- Handle his Final Elixir (item donation) system, will use whenever a party memeber is asleep
     if finalElixir ~= 0 then
@@ -89,10 +89,10 @@ spellObject.onMobSpawn = function(mob)
 
     -- Mix II
     -- mob:addGambit(ai.t.PARTY,  { ai.c.NOT_STATUS, xi.effect.NEGATE_SLEEP    }, { ai.r.MS, ai.s.SPECIFIC, 4256 }, healingMoveCooldown) -- Insomniant. Disabled because animation when used is completely wrong.
-    mob:addGambit(ai.t.PARTY,  { ai.c.NOT_STATUS, xi.effect.REGEN           }, { ai.r.MS, ai.s.SPECIFIC, 4257 }, buffMoveCooldown) -- Mix: Life Water
-    mob:addGambit(ai.t.PARTY,  { ai.c.NOT_STATUS, xi.effect.STR_BOOST       }, { ai.r.MS, ai.s.SPECIFIC, 4261 }, buffMoveCooldown) -- Mix: Samson's Strength
-    mob:addGambit(ai.t.PARTY,  { ai.c.NOT_STATUS, xi.effect.MAGIC_DEF_BOOST }, { ai.r.MS, ai.s.SPECIFIC, 4259 }, buffMoveCooldown) -- Mix: Dragon Shield
-    mob:addGambit(ai.t.CASTER, { ai.c.NOT_STATUS, xi.effect.MAGIC_ATK_BOOST }, { ai.r.MS, ai.s.SPECIFIC, 4258 }, buffMoveCooldown) -- Mix: Elemental Power
+    mob:addGambit(ai.t.PARTY,  { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.REGEN           }, { ai.r.MS, ai.s.SPECIFIC, 4257 }, buffMoveCooldown) -- Mix: Life Water
+    mob:addGambit(ai.t.PARTY,  { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.STR_BOOST       }, { ai.r.MS, ai.s.SPECIFIC, 4261 }, buffMoveCooldown) -- Mix: Samson's Strength
+    mob:addGambit(ai.t.PARTY,  { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.MAGIC_DEF_BOOST }, { ai.r.MS, ai.s.SPECIFIC, 4259 }, buffMoveCooldown) -- Mix: Dragon Shield
+    mob:addGambit(ai.t.CASTER, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.MAGIC_ATK_BOOST }, { ai.r.MS, ai.s.SPECIFIC, 4258 }, buffMoveCooldown) -- Mix: Elemental Power
     mob:addGambit(ai.t.TARGET, { ai.c.ALWAYS,                             0 }, { ai.r.MS, ai.s.SPECIFIC, 4260 }, buffMoveCooldown) -- Dark Potion (666 Dark Damage)
 
     -- Mix III

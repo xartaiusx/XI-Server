@@ -5,7 +5,7 @@
 -----------------------------------
 -- Include the following:
 -- - Explanation of what quest(s) needs temporary fix
--- - Link to issue reported on LSB
+-- - Link to the local issue or research note when available
 -- - Explanation (if known) of how to fix
 -- - Include a TODO so it can be searched.
 -----------------------------------
@@ -18,7 +18,7 @@ m:addOverride('xi.server.onServerStart', function()
     super()
 
     -- Bastok zones don't currently produce NONE weather, so we are adding SUNSHINE as an accepted weather so the quest becomes completable.
-    -- See: https://github.com/LandSandBoat/server/pull/5831
+    -- TODO: Remove this when the local weather system can naturally produce the needed clear-night state.
     xi.module.modifyInteractionEntry('scripts/quests/bastok/Wish_Upon_a_Star', function(quest)
         quest.sections[2][xi.zone.BASTOK_MARKETS]['Enu'].onTrade = function(player, npc, trade)
         local isNight = VanadielTOTD() == xi.time.NIGHT or VanadielTOTD() == xi.time.MIDNIGHT

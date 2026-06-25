@@ -53,7 +53,7 @@ HTTPServer::HTTPServer(Scheduler& scheduler)
                 "/api",
                 [&](const httplib::Request& req, httplib::Response& res)
                 {
-                    res.set_content("Hello LSB API", "text/plain");
+                    res.set_content("Hello Mochirii API", "text/plain");
                 });
 
             httpServer_.Get(

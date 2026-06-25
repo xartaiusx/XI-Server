@@ -23,9 +23,18 @@
 
 #include "packets/s2c/0x028_battle2.h"
 #include "petskill.h"
+#include "utils/trustutils.h"
 
 namespace ActionInterrupts
 {
+namespace
+{
+void LogInterruptPacket(CBattleEntity* PEntity, action_t& action, const CBattleEntity* PTarget, const char* source)
+{
+    trustutils::LogTrustActionPacket(PEntity, action, const_cast<CBattleEntity*>(PTarget), source);
+}
+} // namespace
+
 void AvatarOutOfRange(CBattleEntity* PAvatar, const CPetSkill* PSkill, const CBattleEntity* PTarget)
 {
     // Avatars using BP against an enemy out of range use a specific set of BATTLE2 packets:
@@ -67,7 +76,9 @@ void AvatarOutOfRange(CBattleEntity* PAvatar, const CPetSkill* PSkill, const CBa
         }
     };
 
+    LogInterruptPacket(PAvatar, magicFinishAction, PTarget, "interrupt_avatar_out_of_range");
     PAvatar->loc.zone->PushPacket(PAvatar, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicFinishAction));
+    LogInterruptPacket(PAvatar, interruptAction, PTarget, "interrupt_avatar_out_of_range");
     PAvatar->loc.zone->PushPacket(PAvatar, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(interruptAction));
 }
 
@@ -113,7 +124,9 @@ void WyvernOutOfRange(CBattleEntity* PWyvern, const CPetSkill* PSkill, const CBa
         },
     };
 
+    LogInterruptPacket(PWyvern, magicFinishAction, PTarget, "interrupt_wyvern_out_of_range");
     PWyvern->loc.zone->PushPacket(PWyvern, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicFinishAction));
+    LogInterruptPacket(PWyvern, interruptAction, PTarget, "interrupt_wyvern_out_of_range");
     PWyvern->loc.zone->PushPacket(PWyvern, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(interruptAction));
 }
 
@@ -135,6 +148,7 @@ void WyvernSkillReady(CBattleEntity* PWyvern)
         }
     };
 
+    LogInterruptPacket(PWyvern, skillUseAction, PWyvern, "interrupt_wyvern_skill_ready");
     PWyvern->loc.zone->PushPacket(PWyvern, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(skillUseAction));
 }
 
@@ -156,6 +170,7 @@ void AbilityInterrupt(CBattleEntity* PEntity)
         },
     };
 
+    LogInterruptPacket(PEntity, interruptAction, PEntity, "interrupt_ability");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(interruptAction));
 }
 
@@ -177,6 +192,7 @@ void RangedInterrupt(CBattleEntity* PEntity)
         },
     };
 
+    LogInterruptPacket(PEntity, interruptAction, PEntity, "interrupt_ranged");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(interruptAction));
 }
 
@@ -198,6 +214,7 @@ void MobSkillNoTargetInRange(CBattleEntity* PEntity)
         },
     };
 
+    LogInterruptPacket(PEntity, magicFinishAction, PEntity, "interrupt_mobskill_no_target");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicFinishAction));
 }
 
@@ -219,6 +236,7 @@ void MobSkillOutOfRange(CBattleEntity* PEntity, const CBattleEntity* PTarget)
         },
     };
 
+    LogInterruptPacket(PEntity, magicFinishAction, PTarget, "interrupt_mobskill_out_of_range");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicFinishAction));
 }
 
@@ -240,6 +258,7 @@ void WeaponSkillOutOfRange(CBattleEntity* PEntity, const CBattleEntity* PTarget)
         },
     };
 
+    LogInterruptPacket(PEntity, magicFinishAction, PTarget, "interrupt_weaponskill_out_of_range");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicFinishAction));
 }
 
@@ -262,6 +281,7 @@ void RangedParalyzed(CBattleEntity* PEntity)
     };
 
     RangedInterrupt(PEntity);
+    LogInterruptPacket(PEntity, paralyzeAction, PEntity, "interrupt_ranged_paralyzed");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(paralyzeAction));
 }
 
@@ -283,6 +303,7 @@ void MagicInterrupt(CBattleEntity* PEntity, CSpell* PSpell)
         },
     };
 
+    LogInterruptPacket(PEntity, interruptAction, PEntity, "interrupt_magic");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(interruptAction));
 }
 
@@ -323,7 +344,9 @@ void MagicParalyzed(CBattleEntity* PEntity, CSpell* PSpell, const CBattleEntity*
         },
     };
 
+    LogInterruptPacket(PEntity, interruptedAction, PTarget, "interrupt_magic_paralyzed");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(interruptedAction));
+    LogInterruptPacket(PEntity, stopCastAction, PTarget, "interrupt_magic_paralyzed");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(stopCastAction));
 }
 
@@ -365,7 +388,9 @@ void MagicIntimidated(CBattleEntity* PEntity, CSpell* PSpell, const CBattleEntit
         },
     };
 
+    LogInterruptPacket(PEntity, magicFinishAction, PTarget, "interrupt_magic_intimidated");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicFinishAction));
+    LogInterruptPacket(PEntity, magicInterrupt, PTarget, "interrupt_magic_intimidated");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicInterrupt));
 }
 
@@ -387,6 +412,7 @@ void AttackParalyzed(CBattleEntity* PEntity, const CBattleEntity* PTarget)
         },
     };
 
+    LogInterruptPacket(PEntity, magicFinishSelfAction, PTarget, "interrupt_attack_paralyzed");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicFinishSelfAction));
 }
 
@@ -408,6 +434,7 @@ void AttackIntimidated(CBattleEntity* PEntity, const CBattleEntity* PTarget)
         },
     };
 
+    LogInterruptPacket(PEntity, magicFinishAction, PTarget, "interrupt_attack_intimidated");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicFinishAction));
 }
 
@@ -447,7 +474,9 @@ void AbilityParalyzed(CBattleEntity* PEntity, const CBattleEntity* PTarget)
         },
     };
 
+    LogInterruptPacket(PEntity, magicFinishSelfAction, PTarget, "interrupt_ability_paralyzed");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicFinishSelfAction));
+    LogInterruptPacket(PEntity, magicFinishTargetAction, PTarget, "interrupt_ability_paralyzed");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicFinishTargetAction));
 }
 
@@ -469,6 +498,7 @@ void ItemInterrupt(CBattleEntity* PEntity)
         },
     };
 
+    LogInterruptPacket(PEntity, itemStartAction, PEntity, "interrupt_item");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(itemStartAction));
 }
 
@@ -508,7 +538,9 @@ void ItemParalyzed(CBattleEntity* PEntity, const CBattleEntity* PTarget)
         },
     };
 
+    LogInterruptPacket(PEntity, magicFinishAction, PTarget, "interrupt_item_paralyzed");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicFinishAction));
+    LogInterruptPacket(PEntity, itemStartAction, PTarget, "interrupt_item_paralyzed");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(itemStartAction));
 }
 
@@ -548,7 +580,9 @@ void ItemIntimidated(CBattleEntity* PEntity, const CBattleEntity* PTarget)
         },
     };
 
+    LogInterruptPacket(PEntity, magicFinishAction, PTarget, "interrupt_item_intimidated");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicFinishAction));
+    LogInterruptPacket(PEntity, itemStartAction, PTarget, "interrupt_item_intimidated");
     PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(itemStartAction));
 }
 

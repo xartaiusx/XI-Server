@@ -102,6 +102,15 @@ enum class G_CONDITION : uint16
     JA_ON_COOLDOWN     = 37,
     VAL_URIEL_CHECK    = 38,
     TIMER              = 39, // condition_arg in seconds
+    CASTER_HPP_LT      = 40,
+    CASTER_HPP_GTE     = 41,
+    CASTER_MPP_LT      = 42,
+    CASTER_MPP_GTE     = 43,
+    CASTER_STATUS      = 44,
+    CASTER_NOT_STATUS  = 45,
+    CASTER_STATUS_FLAG = 46,
+    STATUS_MISSING_OR_EXPIRING        = 47,
+    CASTER_STATUS_MISSING_OR_EXPIRING = 48,
 };
 
 enum class G_REACTION : uint16

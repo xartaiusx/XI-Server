@@ -1,7 +1,7 @@
 Expansion Icons - 2 Bytes
 
 Byte 1 - Zilart to A Shantotto Ascension
-00000000 Bit0 - Not Used - Original FFXI bit
+00000000 Bit0 - Not Used - Original Final Fantasy XI bit
 00000010 Bit1 - Enables Rise of Zilart Icon
 00000100 Bit2 - Enables Chains of Promathia Icon
 00001000 Bit3 - Enables Treasures of Aht Urhgan Icon

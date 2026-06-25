@@ -29,6 +29,7 @@
 #include "roe.h"
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
+#include "utils/trustutils.h"
 #include "utils/zoneutils.h"
 #include "weapon_skill.h"
 
@@ -81,6 +82,7 @@ CWeaponSkillState::CWeaponSkillState(CBattleEntity* PEntity, uint16 targid, uint
         },
     };
 
+    trustutils::LogTrustActionPacket(m_PEntity, action, PTarget, "weaponskill_state_start");
     m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
 }
 
@@ -140,6 +142,7 @@ bool CWeaponSkillState::Update(timer::time_point tick)
             // Only send packet if action was populated (e.g. interrupts return early)
             if (!action.targets.empty())
             {
+                trustutils::LogTrustActionPacket(m_PEntity, action, PTarget, "weaponskill_state_finish");
                 m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
             }
 

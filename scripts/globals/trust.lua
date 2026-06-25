@@ -7,6 +7,34 @@ require('scripts/globals/roe')
 xi = xi or {}
 xi.trust = xi.trust or {}
 
+local function settingEnabled(name, default)
+    if
+        xi.settings == nil or
+        xi.settings.main == nil or
+        xi.settings.main[name] == nil
+    then
+        return default
+    end
+
+    local value = xi.settings.main[name]
+    return value == true or value == 1
+end
+
+local function getTrustAutoAllianceMaxMembers()
+    if not settingEnabled('ENABLE_TRUST_AUTO_ALLIANCE', false) then
+        return 6
+    end
+
+    local maxParties = tonumber(xi.settings.main.TRUST_AUTO_ALLIANCE_MAX_PARTIES) or 3
+    if maxParties < 1 then
+        maxParties = 1
+    elseif maxParties > 3 then
+        maxParties = 3
+    end
+
+    return maxParties * 6
+end
+
 xi.trust.movementType =
 {
     -- NOTE: If you need to add special movement types, add descending into the minus values.
@@ -291,8 +319,10 @@ xi.trust.canCast = function(caster, spell, notAllowedTrustIds)
         return 0
     end
 
-    -- Trusts not allowed in an alliance
-    if caster:checkSoloPartyAlliance() == 2 then
+    -- Retail does not allow Trusts in alliances. Mochirii can opt into a
+    -- custom virtual Trust-alliance layout that keeps real player alliance
+    -- rows untouched while presenting Trusts in 6-member alliance parties.
+    if caster:checkSoloPartyAlliance() == 2 and not settingEnabled('ENABLE_TRUST_AUTO_ALLIANCE', false) then
         return xi.msg.basic.TRUST_NO_CAST_TRUST
     end
 
@@ -321,8 +351,9 @@ xi.trust.canCast = function(caster, spell, notAllowedTrustIds)
         return -1
     end
 
-    -- Trusts cannot be summoned if you have hate
-    if caster:hasEnmity() then
+    -- Retail-style default blocks Trust magic with enmity. Mochirii allows
+    -- combat summoning while preserving other Trust, party, zone, and BCNM gates.
+    if caster:hasEnmity() and not settingEnabled('ALLOW_TRUST_CASTING_WITH_ENMITY', false) then
         caster:messageSystem(xi.msg.system.TRUST_NO_ENMITY)
         return -1
     end
@@ -361,8 +392,9 @@ xi.trust.canCast = function(caster, spell, notAllowedTrustIds)
         numPt = numPt + 1
     end
 
-    -- Max party size
-    if numPt >= 6 then
+    -- Max group size. Retail Trusts stop at a single party; Mochirii can
+    -- extend this to the 18-member alliance shape for Trust-heavy testing.
+    if numPt >= getTrustAutoAllianceMaxMembers() then
         caster:messageSystem(xi.msg.system.TRUST_MAXIMUM_NUMBER)
         return -1
     end
@@ -382,13 +414,16 @@ xi.trust.canCast = function(caster, spell, notAllowedTrustIds)
         return xi.msg.basic.TRUST_NO_CAST_TRUST
     end
 
-    -- Limits set by ROV Key Items
-    if numTrusts >= 3 and not caster:hasKeyItem(xi.ki.RHAPSODY_IN_WHITE) then
-        caster:messageSystem(xi.msg.system.TRUST_MAXIMUM_NUMBER)
-        return -1
-    elseif numTrusts >= 4 and not caster:hasKeyItem(xi.ki.RHAPSODY_IN_CRIMSON) then
-        caster:messageSystem(xi.msg.system.TRUST_MAXIMUM_NUMBER)
-        return -1
+    -- Limits set by ROV Key Items. The custom Trust-alliance mode replaces
+    -- these retail per-party Trust limits with the total group-size cap above.
+    if not settingEnabled('ENABLE_TRUST_AUTO_ALLIANCE', false) then
+        if numTrusts >= 3 and not caster:hasKeyItem(xi.ki.RHAPSODY_IN_WHITE) then
+            caster:messageSystem(xi.msg.system.TRUST_MAXIMUM_NUMBER)
+            return -1
+        elseif numTrusts >= 4 and not caster:hasKeyItem(xi.ki.RHAPSODY_IN_CRIMSON) then
+            caster:messageSystem(xi.msg.system.TRUST_MAXIMUM_NUMBER)
+            return -1
+        end
     end
 
     if not xi.trust.checkBattlefieldTrustCount(caster) then

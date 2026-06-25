@@ -9,10 +9,11 @@ Tools
 `python dbtool.py update full` - performs a full update with backup and migrations  
 `python dbtool.py migrate` - checks and performs any needed migrations
 
-This tool creates or connects to the database defined in `../settings/network.lua`. It 
-allows the user to backup or restore the database, import any `custom.sql` 
-stored in `../sql/backups/`, and import the latest SQL files provided by LandSandBoat 
-Development. This tool also handles data migrations for character data.
+This tool creates or connects to the database defined in
+`../settings/network.lua`. It allows the user to backup or restore the database,
+import any `custom.sql` stored in `../sql/backups/`, and import the SQL files
+tracked by the Mochirii checkout. This tool also handles data migrations for
+character data.
 
 ## Price Checker
 `python price_checker.py`
@@ -39,6 +40,41 @@ Sends `<your message>` to every character, in every zone, on every map process.
 
 Setup
 ========================
+
+## Current Windows Tooling
+
+The current Mochirii workstation has the following project tools installed and
+verified as of 2026-06-25:
+
+- Git
+- GitHub CLI `gh` 2.95.0, installed but not locally authenticated
+- Python 3.12
+- CMake
+- Ninja
+- LLVM clang-format 22.1.8
+- LuaJIT 2.1 for Lua 5.1-style syntax checks used by the server
+- Lua 5.4 for general Lua CLI work
+- Lua Language Server 3.18.2
+- StyLua 2.5.2 for optional Lua formatting checks
+- Node.js and npm for Windower/client helper tooling where needed
+
+Use LuaJIT for syntax validation of server Lua modules because the map server
+embeds LuaJIT-compatible semantics. StyLua is available, but do not apply a
+large mechanical Lua formatting pass unless the task explicitly asks for it.
+
+Recommended local checks for Mochirii custom Lua:
+
+```powershell
+luajit -bl modules/custom/lua/trust_retail_parity.lua NUL
+luajit -bl modules/custom/lua/trust_action_logger.lua NUL
+luajit -bl modules/custom/commands/trustparty.lua NUL
+```
+
+After C++ changes, rebuild the relevant server target:
+
+```powershell
+cmake --build build --target xi_map --config Release --parallel 6
+```
 
 ## Installing Python
 `python3 --version` or `py -3 --version`

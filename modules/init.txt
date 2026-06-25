@@ -39,7 +39,9 @@
 custom/commands/
 custom/lua/test_npcs_in_gm_home.lua
 custom/lua/twills_admin_bootstrap.lua
-custom/lua/server_bots.lua
-custom/sql/server_bots.sql
-custom/cpp/server_bots.cpp
+custom/lua/trust_retail_parity.lua
+custom/lua/trust_action_logger.lua
+custom/sql/master_levels.sql
+custom/sql/rdm_master_spells.sql
+custom/sql/trust_retail_parity.sql
 custom/cpp/twills_admin.cpp

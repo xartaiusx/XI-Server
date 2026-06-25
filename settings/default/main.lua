@@ -15,7 +15,7 @@ xi.settings.main =
     SERVER_NAME = 'Mochirii',
 
     SERVER_MESSAGE =
-        'Welcome to Mochirii, a private FFXI world powered by LandSandBoat.\n' ..
+        'Welcome to Mochirii, a private Final Fantasy XI world.\n' ..
         'Please report issues to the server staff so we can keep the world stable.',
 
     -- Setting to lock content more accurately to the expansions defined below.
@@ -160,48 +160,53 @@ xi.settings.main =
     -- TRUSTS
     ENABLE_TRUST_CASTING           = 1,
     ENABLE_TRUST_QUESTS            = 1,
-    ENABLE_TRUST_CUSTOM_ENGAGEMENT = 0,
+    ENABLE_TRUST_CUSTOM_ENGAGEMENT = 1,
+    ALLOW_TRUST_CASTING_WITH_ENMITY = 1, -- Mochirii: allow Trust magic while the player already has enmity/in combat.
+    ENABLE_TRUST_AUTO_ALLIANCE      = true, -- Mochirii: allow Trust summons to fill virtual alliance parties at 6/12/18 total members.
+    TRUST_AUTO_ALLIANCE_MAX_PARTIES = 3,    -- Retail alliance shape is three parties of six; lower this to 1 or 2 for testing.
+    ENABLE_TRUST_DEFENSIVE_MODE     = true, -- Mochirii: Trusts defend the player, active Trusts, and real party/alliance members from attackers.
+    ENABLE_TRUST_SHARED_TARGETING   = true, -- Mochirii: Trusts coordinate on one focus target, preferring the master's active target, then defensive threats.
+    ENABLE_TRUST_ROLE_ENMITY        = true, -- Mochirii: Tank Trusts periodically reinforce hate; non-tank Trusts shed hate if they become top target.
+    TRUST_ROLE_ENMITY_TICK_SECONDS  = 3,    -- Minimum seconds between role-enmity nudges per Trust.
+    TRUST_TANK_ENMITY_ASSIST_CE     = 120,  -- Conservative CE nudge when a tank Trust needs to pull/hold a focus mob.
+    TRUST_TANK_ENMITY_ASSIST_VE     = 480,  -- Conservative VE nudge when a tank Trust needs to pull/hold a focus mob.
+    TRUST_NON_TANK_ENMITY_SHED_PERCENT = 20, -- Percent of non-tank Trust hate to shed when they accidentally become top enmity.
+    ENABLE_TRUST_ALTER_EGO_POINT_BONUSES = true, -- Mochirii: apply stored Alter Ego Point ranks to Trust HP/MP/stats/skills at summon time.
+    TRUST_ALTER_EGO_POINT_HP_PER_RANK    = 10,   -- HP gained per stored Alter Ego Points HP rank.
+    TRUST_ALTER_EGO_POINT_MP_PER_RANK    = 5,    -- MP gained per stored Alter Ego Points MP rank.
+    ENABLE_TRUST_UNITY_RANK_STAT_PARITY  = true, -- Mochirii: apply a Unity-rank-like all-stat bonus to every Trust for equal Trust importance.
+    TRUST_UNITY_PARITY_DEFAULT_RANK      = 1,    -- Used when the summoner has no active Unity rank data; 1 is strongest, 11 is weakest.
+    TRUST_UNITY_PARITY_MAX_STAT_BONUS    = 10,   -- Rank 1 all-stat bonus; lower ranks scale down linearly.
+    ENABLE_TRUST_CASTER_RESTING            = true, -- Mochirii: Backline caster Trusts use logical rest ticks to recover MP/HP.
+    TRUST_CASTER_REST_MPP_START            = 35,   -- Out-of-combat caster Trusts begin resting at or below this MP percentage.
+    TRUST_CASTER_REST_MPP_STOP             = 85,   -- Out-of-combat caster Trusts stand at or above this MP percentage.
+    TRUST_CASTER_REST_HPP_START            = 60,   -- Out-of-combat caster Trusts may rest for HP recovery at or below this HP percentage.
+    TRUST_CASTER_REST_HPP_STOP             = 90,   -- HP floor required before standing from out-of-combat HP recovery rest.
+    TRUST_CASTER_REST_COOLDOWN             = 15,   -- Seconds after recent damage before caster Trusts may start logical rest.
+    TRUST_CASTER_REST_FOLLOW_GRACE_SECONDS = 10,   -- Seconds after starting rest before follow-distance alone can interrupt it.
+    ENABLE_TRUST_CASTER_COMBAT_RESTING     = true, -- Allow safe backline caster Trusts to rest during combat when personally unthreatened and out of immediate MP tools.
+    TRUST_CASTER_COMBAT_REST_MPP_START     = 35,   -- Combat-rest only starts at or below this MP percentage.
+    TRUST_CASTER_COMBAT_REST_HEALER_STOP_MPP  = 55, -- WHM/SCH-style healers stand once enough MP is restored for emergency cures.
+    TRUST_CASTER_COMBAT_REST_SUPPORT_STOP_MPP = 35, -- Support casters stand earlier than out-of-combat rest to resume buffs/control.
+    TRUST_CASTER_COMBAT_REST_NUKER_STOP_MPP   = 30, -- Nukers stand once enough MP is restored for a short cast sequence.
+    TRUST_CASTER_COMBAT_REST_PARTY_HPP_MIN    = 70, -- Do not combat-rest while the master or any Trust is at/below this HP percentage.
 
-    ENABLE_LIMITED_TIME_TRUST = 0, -- 0 = disabled, 1 = Cornelia, 2 = Matsui-P, will get automatically added to players trust list if the player has a trust permit KI.
+    ENABLE_LIMITED_TIME_TRUST = 2, -- 0 = disabled, 1 = Cornelia, 2 = Matsui-P, will get automatically added to players trust list if the player has a trust permit KI.
 
-    ENABLE_TRUST_ALTER_EGO_EXTRAVAGANZA          = 0, -- 0 = disabled, 1 = summer/ny, 2 = spring/autumn, 3 = both
-    ENABLE_TRUST_ALTER_EGO_EXTRAVAGANZA_ANNOUNCE = 0, -- 0 = disabled, 1 = add announcement to player login
-    ENABLE_TRUST_ALTER_EGO_EXPO                  = 0, -- 0 = disabled, 1 = expo - HPP/MPP/Status Resistance, 2 = expo plus (not implemented)
-    ENABLE_TRUST_ALTER_EGO_EXPO_ANNOUNCE         = 0, -- 0 = disabled, 1 = add announcement to player login
+    ENABLE_TRUST_ALTER_EGO_EXTRAVAGANZA          = 3, -- 0 = disabled, 1 = summer/ny, 2 = spring/autumn, 3 = both
+    ENABLE_TRUST_ALTER_EGO_EXTRAVAGANZA_ANNOUNCE = 1, -- 0 = disabled, 1 = add announcement to player login
+    ENABLE_TRUST_ALTER_EGO_EXPO                  = 1, -- 0 = disabled, 1 = expo - HPP/MPP/Status Resistance, 2 = expo plus (not implemented)
+    ENABLE_TRUST_ALTER_EGO_EXPO_ANNOUNCE         = 1, -- 0 = disabled, 1 = add announcement to player login
 
     TRUST_ALTER_EGO_EXTRAVAGANZA_MESSAGE =
         '\n \n' .. -- The space between these newlines is intentional
-        '\129\153\129\154 The Alter Ego Extravaganza Campaign is active! \129\154\129\153\n' ..
+        '[Trust] The Alter Ego Extravaganza Campaign is active!\n' ..
         'This is an excellent time to fill out your roster of Trusts!',
 
     TRUST_ALTER_EGO_EXPO_MESSAGE =
         '\n \n' .. -- The space between these newlines is intentional
-        '\129\153\129\154 The Alter Ego Expo Campaign is active! \129\154\129\153\n' ..
+        '[Trust] The Alter Ego Expo Campaign is active!\n' ..
         'Trusts gain the benefits of Increased HP, MP, and Status Resistances!',
-
-    -- SERVER-WIDE AI BOTS
-    -- Enables the custom server_bots module package. These are server-side
-    -- dynamic adventurer actors, not real connected clients.
-    ENABLE_SERVER_BOTS              = 1,
-    SERVER_BOT_DENSITY              = 'moderate', -- light, moderate, dense
-    SERVER_BOT_VISIBLE_AI_TAG       = false,
-    SERVER_BOT_GLOBAL_CAP           = 350,
-    SERVER_BOT_MAX_PER_ZONE         = 24,
-    SERVER_BOT_IDLE_DESPAWN_SECONDS = 300,
-    SERVER_BOT_FULL_SIM_ENABLED     = true,
-    SERVER_BOT_COMBAT_ENABLED       = true,
-    SERVER_BOT_DYNAMIC_MOB_ACTORS_ENABLED = false,
-    SERVER_BOT_ECONOMY_ENABLED      = true,
-    SERVER_BOT_AH_ENABLED           = false,
-    SERVER_BOT_LLM_CHAT_ENABLED     = false,
-    SERVER_BOT_PLAYER_COMMANDS_ENABLED = false,
-    SERVER_BOT_AUTONOMOUS_PARTIES_ENABLED = true,
-    SERVER_BOT_MAX_BOT_PARTY_SIZE = 6,
-    SERVER_BOT_PARTY_FORMATION_INTERVAL_SECONDS = 60,
-    SERVER_BOT_MAX_ACTIVE_PARTIES_PER_ZONE = 3,
-    SERVER_BOT_COMBAT_ACTOR_MODE = 'simulated_npc', -- simulated_npc, safe_cpp_bridge
-    SERVER_BOT_MAX_COMBAT_BOTS_PER_ZONE = 8,
-    SERVER_BOT_TICK_BUDGET_MS       = 4,
 
     HARVESTING_BREAK_CHANCE = 33, -- % chance for the sickle to break during harvesting.  Set between 0 and 100.
     EXCAVATION_BREAK_CHANCE = 33, -- % chance for the pickaxe to break during excavation.  Set between 0 and 100.
@@ -347,6 +352,16 @@ xi.settings.main =
     EQUIP_FROM_OTHER_CONTAINERS  = false, -- true/false. Allows equipping items from Mog Satchel, Sack, and Case. Only possible with the use of client addons.
     REGIME_REWARD_THRESHOLD      = 15,    -- If the player is more than N levels below the minimum suggested range, do not award experience.
     PERSIST_SEAL_TIMERS          = false, -- Persist seal (Beastmen/Kindred) recast timers across zone changes and logout.
+
+    -- TRUST QA LOGGING
+    ENABLE_TRUST_ACTION_LOG     = true,                                      -- true/false. Writes Trust action traces for QA.
+    TRUST_ACTION_LOG_PLAYER     = 'Twills',                                  -- Player whose Trust party is traced. Empty string traces all players.
+    TRUST_ACTION_LOG_DIR        = '../FFXI-Runtime/logs/trust_actions',      -- Folder containing live/ and archive/ Trust action logs.
+    TRUST_ACTION_LOG_MAP_ECHO   = false,                                     -- true/false. Also echo Trust action trace lines to the map log.
+    TRUST_ACTION_LOG_PACKET_RESULTS = true,                                  -- true/false. C++ packet/result logging for melee/ranged/WS/spell/JA outcomes.
+    TRUST_ACTION_LOG_RESULT_DETAIL  = 'full',                                -- full/minimal. Full records one action_result row per packet target result.
+    TRUST_ACTION_LOG_MAX_BYTES_PER_SESSION = 0,                              -- 0 = no cap. Reserved for large soak tests.
+    TRUST_ACTION_LOG_DIAGNOSTIC_TICK_SECONDS = 3,                            -- Seconds between per-Trust combat position/engagement diagnostics. 0 disables.
 
     -- SYSTEM
     DISABLE_INACTIVITY_WATCHDOG = false, -- true/false. If this is enabled, the watchdog which detects if the main loop isn't being ticked will no longer be able to kill the process.

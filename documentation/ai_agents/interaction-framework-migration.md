@@ -27,15 +27,15 @@ Retail packet captures are essential for accurate migrations. They provide the e
 - **Zone Constants:** `scripts/enum/zone.lua`.
 
 ### Retail Event Dumps
-The `sruon/FFXI-EventsDump` repository is the source of truth for retail event IDs and dialogue.
-- **Nearby Repo:** If the repo is cloned next to this one, access it via `../FFXI-EventsDump/dumps/<Zone_Name>`.
-- **Remote Access:** Use `web_fetch` or `google_web_search` to find raw markdown files on GitHub if the local path is unavailable.
+Retail event dumps are the preferred source of truth for event IDs and dialogue when they are available locally.
+- **Nearby Repo:** If a retail event-dump repo is cloned next to this one, access the relevant zone dump from that local checkout.
+- **Remote Access:** Use trusted source pages only when the local path is unavailable.
 - **Strings:** Each zone folder has a `strings.txt` file. Map the decimal/hex IDs in the `.md` files to these strings to verify dialogue.
 
 ## 3. The Migration Workflow
 
 ### Step 1: Research (The "Wiki Triangulation")
-1.  Check **BOTH** [BG-Wiki](https://www.bg-wiki.com) and [FFXI Wikia](https://ffxiclopedia.fandom.com).
+1.  Check **BOTH** [BG-Wiki](https://www.bg-wiki.com) and a Final Fantasy XI community wiki.
 2.  Compare steps, item requirements, and NPC dialogue descriptions.
 3.  Note any "Wait until Japanese Midnight" or "Zone out/in" requirements.
 
@@ -101,4 +101,4 @@ QUEST_NAME = 123, -- + Partial conversion. TODO: This needs completing with reta
 - **Timers:** Use `quest:setTimedVar(player, 'Timer', JstMidnight())` for daily repeats.
 
 ## 5. Verification Golden Rule
-**Never assume existing logic is correct.** Existing scripts often skip "Reminder" dialogue or "Post-Quest" flavor text. Always cross-reference the `sruon/FFXI-EventsDump` for every NPC involved in the quest to ensure 100% dialogue coverage.
+**Never assume existing logic is correct.** Existing scripts often skip "Reminder" dialogue or "Post-Quest" flavor text. Always cross-reference retail event dumps for every NPC involved in the quest to ensure full dialogue coverage.

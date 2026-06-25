@@ -97,6 +97,15 @@ ai.condition =
     JA_ON_COOLDOWN     = 37,
     VAL_URIEL_CHECK    = 38,
     TIMER              = 39, -- argument in seconds
+    CASTER_HPP_LT      = 40,
+    CASTER_HPP_GTE     = 41,
+    CASTER_MPP_LT      = 42,
+    CASTER_MPP_GTE     = 43,
+    CASTER_STATUS      = 44,
+    CASTER_NOT_STATUS  = 45,
+    CASTER_STATUS_FLAG = 46,
+    STATUS_MISSING_OR_EXPIRING        = 47, -- argument is effect; true if missing or <= trust refresh window
+    CASTER_STATUS_MISSING_OR_EXPIRING = 48, -- argument is effect; true if caster missing or <= trust refresh window
 }
 ai.c = ai.condition
 

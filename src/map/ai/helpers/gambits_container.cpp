@@ -47,6 +47,51 @@
 namespace gambits
 {
 
+namespace
+{
+    auto TrustRefreshWindow(timer::duration duration) -> timer::duration
+    {
+        if (duration <= 0s)
+        {
+            return 0s;
+        }
+
+        if (duration <= 60s)
+        {
+            return 5s;
+        }
+
+        if (duration <= 180s)
+        {
+            return 15s;
+        }
+
+        if (duration <= 600s)
+        {
+            return 30s;
+        }
+
+        return 60s;
+    }
+
+    auto StatusMissingOrExpiring(const CBattleEntity* PEntity, xi::StatusEffect effect) -> bool
+    {
+        if (!PEntity)
+        {
+            return false;
+        }
+
+        auto* PEffect = PEntity->StatusEffectContainer->GetStatusEffect(effect);
+        if (PEffect == nullptr || PEffect->GetDuration() <= 0s)
+        {
+            return true;
+        }
+
+        const auto refreshWindow = TrustRefreshWindow(PEffect->GetDuration());
+        return PEffect->GetStartTime() + PEffect->GetDuration() <= timer::now() + refreshWindow;
+    }
+} // namespace
+
 // Return a new unique identifier for a gambit
 auto CGambitsContainer::NewGambitIdentifier(const Gambit_t& gambit) const -> std::string
 {
@@ -357,7 +402,12 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
             }
             else if (action.select == G_SELECT::BEST_INDI)
             {
-                auto* PMaster = static_cast<CCharEntity*>(POwner->PMaster);
+                auto* PMaster = POwner->PMaster && POwner->PMaster->objtype == TYPE_PC ? static_cast<CCharEntity*>(POwner->PMaster) : nullptr;
+                if (!PMaster)
+                {
+                    return std::nullopt;
+                }
+
                 return POwner->SpellContainer->GetBestIndiSpell(PMaster);
             }
             else if (action.select == G_SELECT::ENTRUSTED)
@@ -539,6 +589,29 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                 continue;
             }
 
+            const auto& action           = gambit.actions[i];
+            uint32      resolvedActionId = action.select_arg;
+            if (action.reaction == G_REACTION::MA && resolvedSpells[i].has_value())
+            {
+                resolvedActionId = static_cast<uint32>(resolvedSpells[i].value());
+            }
+
+            POwner->SetLocalVar("MochiTrustGambitTargetSelector", static_cast<uint16>(gambit.target_selector));
+            POwner->SetLocalVar("MochiTrustGambitReaction", static_cast<uint16>(action.reaction));
+            POwner->SetLocalVar("MochiTrustGambitSelect", static_cast<uint16>(action.select));
+            POwner->SetLocalVar("MochiTrustGambitSelectArg", action.select_arg);
+            POwner->SetLocalVar("MochiTrustGambitResolvedId", resolvedActionId);
+            POwner->SetLocalVar("MochiTrustGambitTargetTargId", target ? target->targid : 0);
+            break;
+        }
+
+        for (size_t i = 0; i < gambit.actions.size(); ++i)
+        {
+            if (!canExecute[i])
+            {
+                continue;
+            }
+
             const auto& action = gambit.actions[i];
 
             if (action.reaction == G_REACTION::RATTACK)
@@ -577,7 +650,12 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                     }
                     else if (action.select == G_SELECT::BEST_INDI)
                     {
-                        auto* PMaster  = static_cast<CCharEntity*>(POwner->PMaster);
+                        auto* PMaster = POwner->PMaster && POwner->PMaster->objtype == TYPE_PC ? static_cast<CCharEntity*>(POwner->PMaster) : nullptr;
+                        if (!PMaster)
+                        {
+                            continue;
+                        }
+
                         auto  spell_id = POwner->SpellContainer->GetBestIndiSpell(PMaster);
                         if (spell_id.has_value())
                         {
@@ -1058,6 +1136,46 @@ auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const G
                 predicateResults.push_back(triggerTarget->GetMPP() >= predicate.condition_arg);
                 continue;
             }
+            case G_CONDITION::CASTER_HPP_LT:
+            {
+                predicateResults.push_back(POwner->GetHPP() < predicate.condition_arg);
+                continue;
+            }
+            case G_CONDITION::CASTER_HPP_GTE:
+            {
+                predicateResults.push_back(POwner->GetHPP() >= predicate.condition_arg);
+                continue;
+            }
+            case G_CONDITION::CASTER_MPP_LT:
+            {
+                predicateResults.push_back(POwner->GetMPP() < predicate.condition_arg);
+                continue;
+            }
+            case G_CONDITION::CASTER_MPP_GTE:
+            {
+                predicateResults.push_back(POwner->GetMPP() >= predicate.condition_arg);
+                continue;
+            }
+            case G_CONDITION::CASTER_STATUS:
+            {
+                predicateResults.push_back(POwner->StatusEffectContainer->HasStatusEffect(static_cast<xi::StatusEffect>(predicate.condition_arg)));
+                continue;
+            }
+            case G_CONDITION::CASTER_NOT_STATUS:
+            {
+                predicateResults.push_back(!POwner->StatusEffectContainer->HasStatusEffect(static_cast<xi::StatusEffect>(predicate.condition_arg)));
+                continue;
+            }
+            case G_CONDITION::CASTER_STATUS_MISSING_OR_EXPIRING:
+            {
+                predicateResults.push_back(StatusMissingOrExpiring(POwner, static_cast<xi::StatusEffect>(predicate.condition_arg)));
+                continue;
+            }
+            case G_CONDITION::CASTER_STATUS_FLAG:
+            {
+                predicateResults.push_back(POwner->StatusEffectContainer->HasStatusEffectByFlag(static_cast<xi::StatusEffectFlag>(predicate.condition_arg)));
+                continue;
+            }
             case G_CONDITION::TP_LT:
             {
                 predicateResults.push_back(triggerTarget->health.tp < (int16)predicate.condition_arg);
@@ -1076,6 +1194,11 @@ auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const G
             case G_CONDITION::NOT_STATUS:
             {
                 predicateResults.push_back(!triggerTarget->StatusEffectContainer->HasStatusEffect(static_cast<xi::StatusEffect>(predicate.condition_arg)));
+                continue;
+            }
+            case G_CONDITION::STATUS_MISSING_OR_EXPIRING:
+            {
+                predicateResults.push_back(StatusMissingOrExpiring(triggerTarget, static_cast<xi::StatusEffect>(predicate.condition_arg)));
                 continue;
             }
             case G_CONDITION::TIMER:
@@ -1827,6 +1950,12 @@ bool CGambitsContainer::TryTrustSkill()
             {
                 target = POwner->GetBattleTarget();
             }
+            POwner->SetLocalVar("MochiTrustGambitTargetSelector", static_cast<uint16>(chosen_skill->valid_targets & TARGET_SELF ? G_TARGET::SELF : G_TARGET::TARGET));
+            POwner->SetLocalVar("MochiTrustGambitReaction", static_cast<uint16>(chosen_skill->skill_type));
+            POwner->SetLocalVar("MochiTrustGambitSelect", static_cast<uint16>(G_SELECT::SPECIFIC));
+            POwner->SetLocalVar("MochiTrustGambitSelectArg", chosen_skill->skill_id);
+            POwner->SetLocalVar("MochiTrustGambitResolvedId", chosen_skill->skill_id);
+            POwner->SetLocalVar("MochiTrustGambitTargetTargId", target ? target->targid : 0);
             controller->WeaponSkill(target->targid, PWeaponSkill->getID());
         }
         else // Mobskill
@@ -1839,6 +1968,12 @@ bool CGambitsContainer::TryTrustSkill()
             {
                 target = POwner->GetBattleTarget();
             }
+            POwner->SetLocalVar("MochiTrustGambitTargetSelector", static_cast<uint16>((chosen_skill->valid_targets & TARGET_SELF || chosen_skill->valid_targets & TARGET_PLAYER_PARTY) ? G_TARGET::SELF : G_TARGET::TARGET));
+            POwner->SetLocalVar("MochiTrustGambitReaction", static_cast<uint16>(chosen_skill->skill_type));
+            POwner->SetLocalVar("MochiTrustGambitSelect", static_cast<uint16>(G_SELECT::SPECIFIC));
+            POwner->SetLocalVar("MochiTrustGambitSelectArg", chosen_skill->skill_id);
+            POwner->SetLocalVar("MochiTrustGambitResolvedId", chosen_skill->skill_id);
+            POwner->SetLocalVar("MochiTrustGambitTargetTargId", target ? target->targid : 0);
             controller->MobSkill(target->targid, chosen_skill->skill_id, std::nullopt);
         }
         return true;

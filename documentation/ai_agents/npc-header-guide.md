@@ -1,6 +1,6 @@
 # NPC Script Header Guide
 
-This guide explains how to format the header for NPC script files in LandSandBoat, and how to locate the required information.
+This guide explains how to format the header for Mochirii NPC script files and how to locate the required information.
 
 ## Header Format
 

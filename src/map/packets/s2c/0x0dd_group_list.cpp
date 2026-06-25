@@ -78,7 +78,7 @@ GP_SERV_COMMAND_GROUP_LIST::GP_SERV_COMMAND_GROUP_LIST(const CCharEntity* PChar,
     this->setSize(sizeof(GP_SERV_HEADER) + sizeof(PacketData) - 16 + packetNameSize);
 }
 
-GP_SERV_COMMAND_GROUP_LIST::GP_SERV_COMMAND_GROUP_LIST(const CTrustEntity* PTrust, const uint8_t MemberNumber)
+GP_SERV_COMMAND_GROUP_LIST::GP_SERV_COMMAND_GROUP_LIST(const CTrustEntity* PTrust, const uint8_t MemberNumber, const uint8_t PartyNo)
 {
     if (PTrust == nullptr)
     {
@@ -88,7 +88,8 @@ GP_SERV_COMMAND_GROUP_LIST::GP_SERV_COMMAND_GROUP_LIST(const CTrustEntity* PTrus
 
     auto& packet = this->data();
 
-    packet.UniqueNo     = PTrust->id;
+    packet.UniqueNo           = PTrust->id;
+    packet.GAttr.PartyNo      = PartyNo & 0x03;
     packet.Hp           = PTrust->health.hp;
     packet.Mp           = PTrust->health.mp;
     packet.Tp           = PTrust->health.tp;

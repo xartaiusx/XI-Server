@@ -21,15 +21,23 @@
 
 #include "trustutils.h"
 
+#include "common/earth_time.h"
 #include "common/utils.h"
 
 #include <algorithm>
+#include <cctype>
+#include <ctime>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <limits>
 #include <vector>
 
 #include "battleutils.h"
 #include "charutils.h"
 #include "mobutils.h"
+#include "roe.h"
 #include "zoneutils.h"
 
 #include "grades.h"
@@ -38,8 +46,13 @@
 #include "ai/ai_container.h"
 #include "ai/controllers/trust_controller.h"
 #include "ai/helpers/gambits_container.h"
+#include "action/action.h"
+#include "entities/char_entity.h"
 #include "entities/mob_entity.h"
 #include "entities/trust_entity.h"
+#include "enums/action/category.h"
+#include "enums/action/info.h"
+#include "enums/action/resolution.h"
 #include "items/item_weapon.h"
 #include "mobskill.h"
 #include "status_effect_container.h"
@@ -53,6 +66,722 @@
 void BuildTrustData(uint32 TrustID);
 auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*;
 void LoadTrustStatsAndSkills(CTrustEntity* PTrust);
+
+auto SafeLogValue(std::string value) -> std::string
+{
+    for (auto& ch : value)
+    {
+        if (ch == '\r' || ch == '\n' || ch == '\t')
+        {
+            ch = ' ';
+        }
+    }
+
+    return value;
+}
+
+auto SafeLogName(const std::string& value) -> std::string
+{
+    auto safe = SafeLogValue(value);
+    for (auto& ch : safe)
+    {
+        const auto byte = static_cast<unsigned char>(ch);
+        if (!std::isalnum(byte) && ch != '_' && ch != '-' && ch != '.')
+        {
+            ch = '_';
+        }
+    }
+
+    return safe.empty() ? "unknown" : safe;
+}
+
+auto NowLogStamp() -> std::string
+{
+    std::tm localTime = earth_time::to_local_tm();
+    char    buffer[32]{};
+    std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%S", &localTime);
+    return buffer;
+}
+
+auto ActionCategoryName(ActionCategory category) -> const char*
+{
+    switch (category)
+    {
+        case ActionCategory::BasicAttack:
+            return "BasicAttack";
+        case ActionCategory::RangedFinish:
+            return "RangedFinish";
+        case ActionCategory::SkillFinish:
+            return "SkillFinish";
+        case ActionCategory::MagicFinish:
+            return "MagicFinish";
+        case ActionCategory::ItemFinish:
+            return "ItemFinish";
+        case ActionCategory::AbilityFinish:
+            return "AbilityFinish";
+        case ActionCategory::SkillStart:
+            return "SkillStart";
+        case ActionCategory::MagicStart:
+            return "MagicStart";
+        case ActionCategory::ItemStart:
+            return "ItemStart";
+        case ActionCategory::AbilityStart:
+            return "AbilityStart";
+        case ActionCategory::MobSkillFinish:
+            return "MobSkillFinish";
+        case ActionCategory::RangedStart:
+            return "RangedStart";
+        case ActionCategory::PetSkillFinish:
+            return "PetSkillFinish";
+        case ActionCategory::Dancer:
+            return "Dancer";
+        case ActionCategory::RuneFencer:
+            return "RuneFencer";
+        case ActionCategory::None:
+        default:
+            return "None";
+    }
+}
+
+auto ActionResolutionName(ActionResolution resolution) -> const char*
+{
+    switch (resolution)
+    {
+        case ActionResolution::Hit:
+            return "hit";
+        case ActionResolution::Miss:
+            return "miss";
+        case ActionResolution::Guard:
+            return "guard";
+        case ActionResolution::Parry:
+            return "parry";
+        case ActionResolution::Block:
+            return "block";
+        default:
+            return "unknown";
+    }
+}
+
+auto MsgBasicName(MsgBasic messageId) -> const char*
+{
+    switch (static_cast<uint16>(messageId))
+    {
+        case 24:
+            return "target_recovers_hp_simple";
+        case 83:
+            return "magic_remove_effect";
+        case 103:
+            return "uses_skill_recovers_hp";
+        case 102:
+            return "uses_recovers_hp";
+        case 115:
+            return "uses_ability_berserk_effect";
+        case 117:
+            return "uses_ability_defender_effect";
+        case 119:
+            return "uses_ability_provoke";
+        case 159:
+            return "skill_erase";
+        case 194:
+            return "uses_skill_effect_self";
+        case 229:
+            return "additional_effect_damage";
+        case 231:
+            return "disappear_num";
+        case 268:
+            return "target_receives_effect_song";
+        case 271:
+            return "uses_skill_effect";
+        case 280:
+            return "target_receives_effect_2";
+        case 288:
+            return "skillchain_light";
+        case 289:
+            return "skillchain_darkness";
+        case 290:
+            return "skillchain_gravitation";
+        case 291:
+            return "skillchain_fragmentation";
+        case 292:
+            return "skillchain_distortion";
+        case 293:
+            return "skillchain_fusion";
+        case 294:
+            return "skillchain_compression";
+        case 295:
+            return "skillchain_liquefaction";
+        case 296:
+            return "skillchain_induration";
+        case 297:
+            return "skillchain_reverberation";
+        case 298:
+            return "skillchain_transfixion";
+        case 299:
+            return "skillchain_scission";
+        case 300:
+            return "skillchain_detonation";
+        case 301:
+            return "skillchain_impaction";
+        case 302:
+            return "skillchain_radiance";
+        case 303:
+            return "skillchain_umbra";
+        case 365:
+            return "status_boost_2";
+        case 341:
+            return "magic_erase";
+        case 385:
+            return "skillchain_absorbed_light";
+        case 386:
+            return "skillchain_absorbed_darkness";
+        case 387:
+            return "skillchain_absorbed_gravitation";
+        case 388:
+            return "skillchain_absorbed_fragmentation";
+        case 389:
+            return "skillchain_absorbed_distortion";
+        case 390:
+            return "skillchain_absorbed_fusion";
+        case 391:
+            return "skillchain_absorbed_compression";
+        case 392:
+            return "skillchain_absorbed_liquefaction";
+        case 393:
+            return "skillchain_absorbed_induration";
+        case 394:
+            return "skillchain_absorbed_reverberation";
+        case 395:
+            return "skillchain_absorbed_transfixion";
+        case 396:
+            return "skillchain_absorbed_scission";
+        case 397:
+            return "skillchain_absorbed_detonation";
+        case 398:
+            return "skillchain_absorbed_impaction";
+        case 399:
+            return "skillchain_absorbed_radiance";
+        case 400:
+            return "skillchain_absorbed_umbra";
+        case 762:
+            return "monberaux_mix_samsons_strength_self";
+        case 519:
+            return "dancer_quickstep";
+        case 520:
+            return "dancer_box_step";
+        case 522:
+            return "violent_flourish_stun";
+        case 524:
+            return "no_finishing_moves";
+        default:
+            break;
+    }
+
+    switch (messageId)
+    {
+        case MsgBasic::None:
+            return "none";
+        case MsgBasic::AttackHits:
+            return "attack_hits";
+        case MsgBasic::AttackMisses:
+            return "attack_misses";
+        case MsgBasic::AttackCrit:
+            return "attack_crit";
+        case MsgBasic::StartsCastingSelf:
+            return "starts_casting_self";
+        case MsgBasic::MagicRecoversHP:
+            return "magic_recovers_hp";
+        case MsgBasic::TargetParries:
+            return "target_parries";
+        case MsgBasic::TargetDodges:
+            return "target_dodges";
+        case MsgBasic::ShadowAbsorb:
+            return "shadow_absorb";
+        case MsgBasic::CounterAbsByShadow:
+            return "counter_absorbed_by_shadow";
+        case MsgBasic::AttackCounteredDamage:
+            return "attack_countered_damage";
+        case MsgBasic::MagicDamage:
+            return "magic_damage";
+        case MsgBasic::MagicNoEffect:
+            return "magic_no_effect";
+        case MsgBasic::MagicResisted:
+            return "magic_resisted";
+        case MsgBasic::MagicDrainsHP:
+            return "magic_drains_hp";
+        case MsgBasic::MagicGainsEffect:
+            return "magic_gains_effect";
+        case MsgBasic::MagicStatus:
+            return "magic_status";
+        case MsgBasic::MagicReceivesEffect:
+            return "magic_receives_effect";
+        case MsgBasic::MagicBurstDamage:
+            return "magic_burst_damage";
+        case MsgBasic::UsesJobAbility:
+            return "uses_job_ability";
+        case MsgBasic::UsesJobAbility2:
+            return "uses_job_ability_2";
+        case MsgBasic::UsesJobAbilityTakeDamage:
+            return "uses_job_ability_take_damage";
+        case MsgBasic::UsesAbilityTakesDamage:
+            return "uses_ability_takes_damage";
+        case MsgBasic::UsesAbilityGainsEffect:
+            return "uses_ability_gains_effect";
+        case MsgBasic::UsesAbilityReceivesEffect:
+            return "uses_ability_receives_effect";
+        case MsgBasic::UsesAbilityNoEffect:
+            return "uses_ability_no_effect";
+        case MsgBasic::UsesAbilityDispel:
+            return "uses_ability_dispel";
+        case MsgBasic::AbilityMisses:
+            return "ability_misses";
+        case MsgBasic::UsesSkillTakesDamage:
+            return "uses_skill_takes_damage";
+        case MsgBasic::UsesSkillGainsEffect:
+            return "uses_skill_gains_effect";
+        case MsgBasic::UsesSkillHPDrained:
+            return "uses_skill_hp_drained";
+        case MsgBasic::UsesSkillMisses:
+            return "uses_skill_misses";
+        case MsgBasic::UsesSkillNoEffect:
+            return "uses_skill_no_effect";
+        case MsgBasic::UsesSkillRecoversMP:
+            return "uses_skill_recovers_mp";
+        case MsgBasic::UsesSkillRecoversHPAreaOfEffect:
+            return "uses_skill_recovers_hp_aoe";
+        case MsgBasic::UsesSkillStatus:
+            return "uses_skill_status";
+        case MsgBasic::UsesSkillReceivesEffect:
+            return "uses_skill_receives_effect";
+        case MsgBasic::UsesSkillTPReduced:
+            return "uses_skill_tp_reduced";
+        case MsgBasic::TargetTPReduced:
+            return "target_tp_reduced";
+        case MsgBasic::TargetRecoversHP:
+            return "target_recovers_hp";
+        case MsgBasic::TargetRecoversHP2:
+            return "target_recovers_hp_2";
+        case MsgBasic::TargetRecoversMP:
+            return "target_recovers_mp";
+        case MsgBasic::TargetTakesDamage:
+            return "target_takes_damage";
+        case MsgBasic::TargetGainsEffect:
+            return "target_gains_effect";
+        case MsgBasic::TargetReceivesEffectAbility:
+            return "target_receives_effect_ability";
+        case MsgBasic::TargetStatus:
+            return "target_status";
+        case MsgBasic::TargetReceivesEffect:
+            return "target_receives_effect";
+        case MsgBasic::TargetEffectDisappears:
+            return "target_effect_disappears";
+        case MsgBasic::TargetNoEffect:
+            return "target_no_effect";
+        case MsgBasic::ReadiesWeaponskill:
+            return "readies_weaponskill";
+        case MsgBasic::ReadiesSkill:
+            return "readies_skill";
+        case MsgBasic::RangedAttackHit:
+            return "ranged_attack_hit";
+        case MsgBasic::RangedAttackCrit:
+            return "ranged_attack_crit";
+        case MsgBasic::RangedAttackMiss:
+            return "ranged_attack_miss";
+        case MsgBasic::RangedAttackNoEffect:
+            return "ranged_attack_no_effect";
+        case MsgBasic::RangedAttackAbsorbs:
+            return "ranged_attack_absorbs";
+        case MsgBasic::RangedAttackSquarely:
+            return "ranged_attack_squarely";
+        case MsgBasic::RangedAttackPummels:
+            return "ranged_attack_pummels";
+        case MsgBasic::IsInterrupted:
+            return "interrupted";
+        case MsgBasic::IsParalyzed:
+        case MsgBasic::IsParalyzed2:
+            return "paralyzed";
+        case MsgBasic::IsIntimidated:
+            return "intimidated";
+        case MsgBasic::RollMain:
+            return "roll_main";
+        case MsgBasic::ReceivesEffectAbility:
+            return "receives_effect_ability";
+        case MsgBasic::RollMainFail:
+            return "roll_main_fail";
+        case MsgBasic::RollSubFail:
+            return "roll_sub_fail";
+        case MsgBasic::DoubleUp:
+            return "double_up";
+        case MsgBasic::DoubleUpFail:
+            return "double_up_fail";
+        case MsgBasic::DoubleUpBust:
+            return "double_up_bust";
+        case MsgBasic::DoubleUpBustSub:
+            return "double_up_bust_sub";
+        case MsgBasic::SwordplayGain:
+            return "swordplay_gain";
+        case MsgBasic::VallationGain:
+            return "vallation_gain";
+        case MsgBasic::ValianceGainPartyMember:
+            return "valiance_gain_party_member";
+        case MsgBasic::TargetOutOfRange:
+        case MsgBasic::OutOfRangeUnableCast:
+        case MsgBasic::TooFarAway:
+        case MsgBasic::TooFarAwayRed:
+            return "out_of_range";
+        default:
+            return "msg_unknown";
+    }
+}
+
+auto BoolLog(bool value) -> const char*
+{
+    return value ? "true" : "false";
+}
+
+auto EntityName(CBaseEntity* PEntity) -> std::string
+{
+    return PEntity ? SafeLogValue(PEntity->getName()) : "none";
+}
+
+auto TargetTargId(uint32 entityId) -> uint16
+{
+    return static_cast<uint16>(entityId & 0xFFFF);
+}
+
+auto EntityDistance(CBaseEntity* PSource, CBaseEntity* PTarget) -> std::string
+{
+    if (!PSource || !PTarget)
+    {
+        return "nil";
+    }
+
+    return fmt::format("{:.2f}", distance(PSource->loc.p, PTarget->loc.p));
+}
+
+void AddEntityFields(std::ostringstream& line, const char* prefix, CBaseEntity* PEntity)
+{
+    line << '\t' << prefix << "_name=" << EntityName(PEntity);
+    line << '\t' << prefix << "_id=" << (PEntity ? PEntity->id : 0);
+    line << '\t' << prefix << "_targid=" << (PEntity ? PEntity->targid : 0);
+    line << '\t' << prefix << "_objtype=" << (PEntity ? static_cast<uint16>(PEntity->objtype) : 0);
+
+    if (auto* PBattle = dynamic_cast<CBattleEntity*>(PEntity))
+    {
+        line << '\t' << prefix << "_hp=" << PBattle->health.hp;
+        line << '\t' << prefix << "_maxhp=" << PBattle->GetMaxHP();
+        line << '\t' << prefix << "_hpp=" << static_cast<uint16>(PBattle->GetHPP());
+        line << '\t' << prefix << "_mp=" << PBattle->health.mp;
+        line << '\t' << prefix << "_maxmp=" << PBattle->GetMaxMP();
+        line << '\t' << prefix << "_mpp=" << static_cast<uint16>(PBattle->GetMPP());
+        line << '\t' << prefix << "_tp=" << PBattle->health.tp;
+    }
+}
+
+auto ShouldLogTrustPacket(CTrustEntity* PTrust, CCharEntity* PMaster) -> bool
+{
+    if (!PTrust || !PMaster || !settings::get<bool>("main.ENABLE_TRUST_ACTION_LOG") || !settings::get<bool>("main.TRUST_ACTION_LOG_PACKET_RESULTS"))
+    {
+        return false;
+    }
+
+    const auto configured = settings::get<std::string>("main.TRUST_ACTION_LOG_PLAYER");
+    return configured.empty() || PMaster->getName() == configured;
+}
+
+auto LogPathForOwner(const std::string& ownerName) -> std::filesystem::path
+{
+    auto root = std::filesystem::path(settings::get<std::string>("main.TRUST_ACTION_LOG_DIR"));
+    auto live = root / "live";
+    std::filesystem::create_directories(live);
+    return live / fmt::format("{}.log", SafeLogName(ownerName));
+}
+
+auto CurrentArchivePathForOwner(const std::string& ownerName) -> std::filesystem::path
+{
+    auto root    = std::filesystem::path(settings::get<std::string>("main.TRUST_ACTION_LOG_DIR"));
+    auto archive = root / "archive";
+    std::filesystem::create_directories(archive);
+
+    const auto prefix = fmt::format("{}-", SafeLogName(ownerName));
+    std::filesystem::path bestPath;
+    std::filesystem::file_time_type bestTime{};
+    std::error_code error;
+
+    for (const auto& entry : std::filesystem::directory_iterator(archive, error))
+    {
+        if (error || !entry.is_regular_file())
+        {
+            continue;
+        }
+
+        const auto filename = entry.path().filename().string();
+        if (filename.rfind(prefix, 0) != 0 || entry.path().extension() != ".log")
+        {
+            continue;
+        }
+
+        const auto writeTime = entry.last_write_time(error);
+        if (error)
+        {
+            error.clear();
+            continue;
+        }
+
+        if (bestPath.empty() || writeTime > bestTime)
+        {
+            bestPath = entry.path();
+            bestTime = writeTime;
+        }
+    }
+
+    return bestPath;
+}
+
+void WriteTrustLogLine(const std::filesystem::path& path, const std::string& line)
+{
+    std::ofstream file(path, std::ios::app);
+    if (!file)
+    {
+        ShowWarningFmt("Mochirii TrustLog: failed to open {}", path.string());
+        return;
+    }
+
+    file << line << '\n';
+}
+
+void AppendTrustLogLine(CCharEntity* PMaster, const std::string& line)
+{
+    const auto path     = LogPathForOwner(PMaster->getName());
+    const auto maxBytes = settings::get<uint32>("main.TRUST_ACTION_LOG_MAX_BYTES_PER_SESSION");
+
+    if (maxBytes > 0 && std::filesystem::exists(path) && std::filesystem::file_size(path) >= maxBytes)
+    {
+        return;
+    }
+
+    WriteTrustLogLine(path, line);
+
+    const auto archivePath = CurrentArchivePathForOwner(PMaster->getName());
+    if (!archivePath.empty())
+    {
+        WriteTrustLogLine(archivePath, line);
+    }
+
+    if (settings::get<bool>("main.TRUST_ACTION_LOG_MAP_ECHO"))
+    {
+        ShowInfoFmt("{}", line);
+    }
+}
+
+void LogTrustProgressionBonus(CTrustEntity* PTrust)
+{
+    auto* PMaster = PTrust ? dynamic_cast<CCharEntity*>(PTrust->PMaster) : nullptr;
+    if (!PTrust || !PMaster || !settings::get<bool>("main.ENABLE_TRUST_ACTION_LOG"))
+    {
+        return;
+    }
+
+    const auto configured = settings::get<std::string>("main.TRUST_ACTION_LOG_PLAYER");
+    if (!configured.empty() && PMaster->getName() != configured)
+    {
+        return;
+    }
+
+    std::ostringstream line;
+    line << "time=" << NowLogStamp();
+    line << "\tevent=progression_bonus";
+    line << "\towner=" << SafeLogValue(PMaster->getName());
+    line << "\ttrust=" << SafeLogValue(PTrust->getName());
+    line << "\ttrust_id=" << PTrust->trustID();
+    line << "\ttrust_entity_id=" << PTrust->id;
+    line << "\ttrust_targid=" << PTrust->targid;
+    line << "\ttrust_hp=" << PTrust->health.hp;
+    line << "\ttrust_maxhp=" << PTrust->GetMaxHP();
+    line << "\ttrust_hpp=" << static_cast<uint16>(PTrust->GetHPP());
+    line << "\ttrust_mp=" << PTrust->health.mp;
+    line << "\ttrust_maxmp=" << PTrust->GetMaxMP();
+    line << "\ttrust_mpp=" << static_cast<uint16>(PTrust->GetMPP());
+    line << "\ttrust_tp=" << PTrust->health.tp;
+    line << "\taep_hp_rank=" << PTrust->GetLocalVar("MochiTrustAepHpRank");
+    line << "\taep_mp_rank=" << PTrust->GetLocalVar("MochiTrustAepMpRank");
+    line << "\taep_stat_rank=" << PTrust->GetLocalVar("MochiTrustAepStatRank");
+    line << "\taep_combat_rank=" << PTrust->GetLocalVar("MochiTrustAepCombatRank");
+    line << "\taep_magic_rank=" << PTrust->GetLocalVar("MochiTrustAepMagicRank");
+    line << "\tunity_parity_rank=" << PTrust->GetLocalVar("MochiTrustUnityRank");
+    line << "\tunity_parity_stat_bonus=" << PTrust->GetLocalVar("MochiTrustUnityStatBonus");
+    line << "\tzone=" << PTrust->getZone();
+
+    AppendTrustLogLine(PMaster, line.str());
+}
+
+void AddTrustActionContext(std::ostringstream& line, CTrustEntity* PTrust, CCharEntity* PMaster, const action_t& action, CBattleEntity* PPrimaryTarget, const char* source, const char* eventName)
+{
+    auto* PBattleTarget = PTrust->GetBattleTarget();
+
+    line << "time=" << NowLogStamp();
+    line << "\tevent=" << SafeLogValue(eventName ? eventName : "action_packet");
+    line << "\towner=" << SafeLogValue(PMaster->getName());
+    line << "\ttrust=" << SafeLogValue(PTrust->getName());
+    line << "\ttrust_id=" << PTrust->trustID();
+    line << "\ttrust_entity_id=" << PTrust->id;
+    line << "\ttrust_targid=" << PTrust->targid;
+    line << "\ttrust_hp=" << PTrust->health.hp;
+    line << "\ttrust_maxhp=" << PTrust->GetMaxHP();
+    line << "\ttrust_hpp=" << static_cast<uint16>(PTrust->GetHPP());
+    line << "\ttrust_mp=" << PTrust->health.mp;
+    line << "\ttrust_maxmp=" << PTrust->GetMaxMP();
+    line << "\ttrust_mpp=" << static_cast<uint16>(PTrust->GetMPP());
+    line << "\ttrust_tp=" << PTrust->health.tp;
+    line << "\taep_hp_rank=" << PTrust->GetLocalVar("MochiTrustAepHpRank");
+    line << "\taep_mp_rank=" << PTrust->GetLocalVar("MochiTrustAepMpRank");
+    line << "\taep_stat_rank=" << PTrust->GetLocalVar("MochiTrustAepStatRank");
+    line << "\taep_combat_rank=" << PTrust->GetLocalVar("MochiTrustAepCombatRank");
+    line << "\taep_magic_rank=" << PTrust->GetLocalVar("MochiTrustAepMagicRank");
+    line << "\tunity_parity_rank=" << PTrust->GetLocalVar("MochiTrustUnityRank");
+    line << "\tunity_parity_stat_bonus=" << PTrust->GetLocalVar("MochiTrustUnityStatBonus");
+    line << "\tzone=" << PTrust->getZone();
+    line << "\tsource=" << SafeLogValue(source ? source : "unknown");
+    line << "\taction_category=" << static_cast<uint16>(action.actiontype);
+    line << "\taction_category_name=" << ActionCategoryName(action.actiontype);
+    line << "\taction_id=" << action.actionid;
+    line << "\taction_recast_ms=" << std::chrono::duration_cast<std::chrono::milliseconds>(action.recast).count();
+    line << "\tspell_group=" << static_cast<uint16>(action.spellgroup);
+    line << "\tfocus_target_targid=" << PTrust->GetLocalVar("MochiTrustFocusTarget");
+    line << "\tfocus_reason=" << PTrust->GetLocalVar("MochiTrustFocusReason");
+    line << "\trole_enmity_action=" << PTrust->GetLocalVar("MochiTrustRoleEnmityAction");
+    line << "\trole_enmity_target_targid=" << PTrust->GetLocalVar("MochiTrustRoleEnmityTarget");
+    line << "\tgambit_target=" << PTrust->GetLocalVar("MochiTrustGambitTargetSelector");
+    line << "\tgambit_reaction=" << PTrust->GetLocalVar("MochiTrustGambitReaction");
+    line << "\tgambit_select=" << PTrust->GetLocalVar("MochiTrustGambitSelect");
+    line << "\tgambit_select_arg=" << PTrust->GetLocalVar("MochiTrustGambitSelectArg");
+    line << "\tgambit_resolved_id=" << PTrust->GetLocalVar("MochiTrustGambitResolvedId");
+    line << "\tgambit_target_targid=" << PTrust->GetLocalVar("MochiTrustGambitTargetTargId");
+    line << "\tcurrent_battle_target_name=" << EntityName(PBattleTarget);
+    line << "\tcurrent_battle_target_targid=" << (PBattleTarget ? PBattleTarget->targid : 0);
+    line << "\tdistance_to_current_target=" << EntityDistance(PTrust, PBattleTarget);
+    line << "\tdistance_to_primary_target=" << EntityDistance(PTrust, PPrimaryTarget);
+    line << "\tdistance_to_master=" << EntityDistance(PTrust, PMaster);
+}
+
+auto ResultIsCritical(const action_result_t& result) -> bool
+{
+    return (static_cast<uint8>(result.info) & static_cast<uint8>(ActionInfo::CriticalHit)) != 0 ||
+           result.messageID == MsgBasic::AttackCrit ||
+           result.messageID == MsgBasic::RangedAttackCrit;
+}
+
+auto ResultIsDefeated(const action_result_t& result) -> bool
+{
+    return (static_cast<uint8>(result.info) & static_cast<uint8>(ActionInfo::Defeated)) != 0;
+}
+
+auto ResolvePacketTarget(CTrustEntity* PTrust, CBattleEntity* PPrimaryTarget, uint32 targetId) -> CBaseEntity*
+{
+    if (PPrimaryTarget && PPrimaryTarget->id == targetId)
+    {
+        return PPrimaryTarget;
+    }
+
+    if (auto* PTarget = zoneutils::GetEntity(targetId))
+    {
+        return PTarget;
+    }
+
+    const auto targId = TargetTargId(targetId);
+    if (PTrust && targId < 0x1000)
+    {
+        return PTrust->GetEntity(targId);
+    }
+
+    return nullptr;
+}
+
+void trustutils::LogTrustActionPacket(CBattleEntity* PActor, const action_t& action, CBattleEntity* PPrimaryTarget, const char* source)
+{
+    auto* PTrust = dynamic_cast<CTrustEntity*>(PActor);
+    if (!PTrust)
+    {
+        return;
+    }
+
+    auto* PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    if (!ShouldLogTrustPacket(PTrust, PMaster))
+    {
+        return;
+    }
+
+    uint32 resultCount = 0;
+    int64  totalParam  = 0;
+    for (const auto& actionTarget : action.targets)
+    {
+        resultCount += static_cast<uint32>(actionTarget.results.size());
+        for (const auto& result : actionTarget.results)
+        {
+            totalParam += result.param;
+        }
+    }
+
+    {
+        std::ostringstream line;
+        AddTrustActionContext(line, PTrust, PMaster, action, PPrimaryTarget, source, "action_packet");
+        line << "\tpacket_actor_id=" << action.actorId;
+        line << "\ttarget_count=" << action.targets.size();
+        line << "\tresult_count=" << resultCount;
+        line << "\ttotal_param=" << totalParam;
+        AddEntityFields(line, "primary_target", PPrimaryTarget);
+
+        AppendTrustLogLine(PMaster, line.str());
+    }
+
+    if (settings::get<std::string>("main.TRUST_ACTION_LOG_RESULT_DETAIL") != "full")
+    {
+        return;
+    }
+
+    uint32 targetIndex = 0;
+    for (const auto& actionTarget : action.targets)
+    {
+        auto* PPacketTarget = ResolvePacketTarget(PTrust, PPrimaryTarget, actionTarget.actorId);
+
+        uint32 resultIndex = 0;
+        for (const auto& result : actionTarget.results)
+        {
+            std::ostringstream line;
+            AddTrustActionContext(line, PTrust, PMaster, action, PPrimaryTarget, source, "action_result");
+            line << "\tpacket_actor_id=" << action.actorId;
+            line << "\tpacket_target_id=" << actionTarget.actorId;
+            line << "\tpacket_target_targid=" << TargetTargId(actionTarget.actorId);
+            line << "\ttarget_index=" << targetIndex;
+            line << "\tresult_index=" << resultIndex;
+            line << "\tresult_resolution=" << static_cast<uint16>(result.resolution);
+            line << "\tresult_resolution_name=" << ActionResolutionName(result.resolution);
+            line << "\tresult_kind=" << static_cast<uint16>(result.kind);
+            line << "\tresult_animation=" << static_cast<uint16>(result.animation);
+            line << "\tresult_info=" << static_cast<uint16>(result.info);
+            line << "\tresult_param=" << result.param;
+            line << "\tmessage_id=" << static_cast<uint16>(result.messageID);
+            line << "\tmessage_name=" << MsgBasicName(result.messageID);
+            line << "\tis_critical=" << BoolLog(ResultIsCritical(result));
+            line << "\tis_defeated=" << BoolLog(ResultIsDefeated(result));
+            line << "\thas_additional_effect=" << BoolLog(result.hasAdditionalEffect());
+            line << "\tadditional_effect_info=" << static_cast<uint16>(result.addEffectInfo);
+            line << "\tadditional_effect_param=" << result.addEffectParam;
+            line << "\tadditional_effect_message_id=" << static_cast<uint16>(result.addEffectMessage);
+            line << "\tadditional_effect_message_name=" << MsgBasicName(result.addEffectMessage);
+            line << "\tspikes_info=" << static_cast<uint16>(result.spikesInfo);
+            line << "\tspikes_param=" << result.spikesParam;
+            line << "\tspikes_message_id=" << static_cast<uint16>(result.spikesMessage);
+            line << "\tspikes_message_name=" << MsgBasicName(result.spikesMessage);
+            line << "\tdistance_to_packet_target=" << EntityDistance(PTrust, PPacketTarget);
+            AddEntityFields(line, "packet_target", PPacketTarget);
+
+            AppendTrustLogLine(PMaster, line.str());
+            ++resultIndex;
+        }
+
+        ++targetIndex;
+    }
+}
 
 // List of trusts that are essentially walking GEO bubbles that should not be targetable
 static std::unordered_set<SpellID> passiveTrustIDs = {
@@ -147,6 +876,212 @@ struct TrustData
 
 std::unordered_map<uint16, std::unique_ptr<TrustData>> g_PTrustData;
 
+auto ClampAlterEgoPointRank(int32 value) -> uint8
+{
+    return static_cast<uint8>(std::clamp(value, 0, 50));
+}
+
+auto GetAlterEgoPointRank(CCharEntity* PMaster, const std::string& varName) -> uint8
+{
+    if (!PMaster)
+    {
+        return 0;
+    }
+
+    // Alter Ego Point ranks are durable account-style progression for Trust
+    // stat calculation. Read the persisted value directly so an online
+    // character with an older char-var cache cannot summon unboosted Trusts
+    // after an admin repair or DB-side bootstrap.
+    return ClampAlterEgoPointRank(charutils::FetchCharVar(PMaster->id, varName).first);
+}
+
+template <typename T>
+auto AddClamped(T value, uint32 bonus) -> T
+{
+    const auto widened = static_cast<uint32>(std::max<T>(value, 0)) + bonus;
+    return static_cast<T>(std::min<uint32>(widened, static_cast<uint32>(std::numeric_limits<T>::max())));
+}
+
+void AddSkillRangeBonus(CTrustEntity* PTrust, int firstSkill, int lastSkill, uint8 bonus)
+{
+    if (!PTrust || bonus == 0)
+    {
+        return;
+    }
+
+    for (int skillId = firstSkill; skillId <= lastSkill; ++skillId)
+    {
+        PTrust->WorkingSkills.skill[skillId] = AddClamped(PTrust->WorkingSkills.skill[skillId], bonus);
+    }
+}
+
+auto GetTrustUnityRank(CCharEntity* PMaster) -> uint8
+{
+    auto rank = settings::get<uint8>("main.TRUST_UNITY_PARITY_DEFAULT_RANK");
+
+    if (PMaster && PMaster->profile.unity_leader > 0 && PMaster->profile.unity_leader <= 11)
+    {
+        const auto liveRank = roeutils::RoeSystem.unityLeaderRank[PMaster->profile.unity_leader - 1];
+        if (liveRank > 0)
+        {
+            rank = liveRank;
+        }
+    }
+
+    return static_cast<uint8>(std::clamp(rank, static_cast<uint8>(1), static_cast<uint8>(11)));
+}
+
+auto GetTrustUnityStatBonus(CCharEntity* PMaster) -> uint8
+{
+    if (!settings::get<bool>("main.ENABLE_TRUST_UNITY_RANK_STAT_PARITY"))
+    {
+        return 0;
+    }
+
+    const auto maxBonus = settings::get<uint8>("main.TRUST_UNITY_PARITY_MAX_STAT_BONUS");
+    const auto rank     = GetTrustUnityRank(PMaster);
+
+    return static_cast<uint8>(((12U - rank) * maxBonus) / 11U);
+}
+
+void ApplyTrustStatBonus(CTrustEntity* PTrust, uint8 bonus)
+{
+    if (!PTrust || bonus == 0)
+    {
+        return;
+    }
+
+    PTrust->stats.STR = AddClamped(PTrust->stats.STR, bonus);
+    PTrust->stats.DEX = AddClamped(PTrust->stats.DEX, bonus);
+    PTrust->stats.VIT = AddClamped(PTrust->stats.VIT, bonus);
+    PTrust->stats.AGI = AddClamped(PTrust->stats.AGI, bonus);
+    PTrust->stats.INT = AddClamped(PTrust->stats.INT, bonus);
+    PTrust->stats.MND = AddClamped(PTrust->stats.MND, bonus);
+    PTrust->stats.CHR = AddClamped(PTrust->stats.CHR, bonus);
+}
+
+void ApplyTrustAlterEgoPointVitals(CTrustEntity* PTrust)
+{
+    if (!PTrust || !settings::get<bool>("main.ENABLE_TRUST_ALTER_EGO_POINT_BONUSES"))
+    {
+        return;
+    }
+
+    auto* PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    if (!PMaster)
+    {
+        return;
+    }
+
+    const auto hpRank = GetAlterEgoPointRank(PMaster, "AlterEgoPoints_HP");
+    const auto mpRank = GetAlterEgoPointRank(PMaster, "AlterEgoPoints_MP");
+    const auto hpBonus = hpRank * settings::get<uint8>("main.TRUST_ALTER_EGO_POINT_HP_PER_RANK");
+    const auto mpBonus = mpRank * settings::get<uint8>("main.TRUST_ALTER_EGO_POINT_MP_PER_RANK");
+
+    if (PTrust->GetLocalVar("MochiTrustAepVitalsApplied") == 0)
+    {
+        PTrust->addModifier(Mod::HP, hpBonus);
+        PTrust->addModifier(Mod::MP, mpBonus);
+        PTrust->SetLocalVar("MochiTrustAepVitalsApplied", 1);
+    }
+
+    PTrust->SetLocalVar("MochiTrustAepHpRank", hpRank);
+    PTrust->SetLocalVar("MochiTrustAepMpRank", mpRank);
+    PTrust->SetLocalVar("MochiTrustAepHpBonus", hpBonus);
+    PTrust->SetLocalVar("MochiTrustAepMpBonus", mpBonus);
+}
+
+void ApplyTrustAlterEgoPointStats(CTrustEntity* PTrust)
+{
+    if (!PTrust || !settings::get<bool>("main.ENABLE_TRUST_ALTER_EGO_POINT_BONUSES"))
+    {
+        return;
+    }
+
+    auto* PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    if (!PMaster)
+    {
+        return;
+    }
+
+    PTrust->stats.STR = AddClamped(PTrust->stats.STR, GetAlterEgoPointRank(PMaster, "AlterEgoPoints_STR"));
+    PTrust->stats.DEX = AddClamped(PTrust->stats.DEX, GetAlterEgoPointRank(PMaster, "AlterEgoPoints_DEX"));
+    PTrust->stats.VIT = AddClamped(PTrust->stats.VIT, GetAlterEgoPointRank(PMaster, "AlterEgoPoints_VIT"));
+    PTrust->stats.AGI = AddClamped(PTrust->stats.AGI, GetAlterEgoPointRank(PMaster, "AlterEgoPoints_AGI"));
+    PTrust->stats.INT = AddClamped(PTrust->stats.INT, GetAlterEgoPointRank(PMaster, "AlterEgoPoints_INT"));
+    PTrust->stats.MND = AddClamped(PTrust->stats.MND, GetAlterEgoPointRank(PMaster, "AlterEgoPoints_MND"));
+    PTrust->stats.CHR = AddClamped(PTrust->stats.CHR, GetAlterEgoPointRank(PMaster, "AlterEgoPoints_CHR"));
+
+    PTrust->SetLocalVar("MochiTrustAepStatRank", GetAlterEgoPointRank(PMaster, "AlterEgoPoints_STR"));
+}
+
+void ApplyTrustAlterEgoPointSkills(CTrustEntity* PTrust)
+{
+    if (!PTrust || !settings::get<bool>("main.ENABLE_TRUST_ALTER_EGO_POINT_BONUSES"))
+    {
+        return;
+    }
+
+    auto* PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    if (!PMaster)
+    {
+        return;
+    }
+
+    const auto combatBonus = GetAlterEgoPointRank(PMaster, "AlterEgoPoints_CombatSkills");
+    const auto magicBonus  = GetAlterEgoPointRank(PMaster, "AlterEgoPoints_MagicSkills");
+
+    AddSkillRangeBonus(PTrust, SKILL_HAND_TO_HAND, SKILL_STAFF, combatBonus);
+    AddSkillRangeBonus(PTrust, SKILL_DIVINE_MAGIC, SKILL_BLUE_MAGIC, magicBonus);
+
+    PTrust->SetLocalVar("MochiTrustAepCombatRank", combatBonus);
+    PTrust->SetLocalVar("MochiTrustAepMagicRank", magicBonus);
+}
+
+void ApplyTrustUnityRankParity(CTrustEntity* PTrust)
+{
+    if (!PTrust)
+    {
+        return;
+    }
+
+    auto* PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    const auto rank  = GetTrustUnityRank(PMaster);
+    const auto bonus = GetTrustUnityStatBonus(PMaster);
+
+    ApplyTrustStatBonus(PTrust, bonus);
+
+    PTrust->SetLocalVar("MochiTrustUnityRank", rank);
+    PTrust->SetLocalVar("MochiTrustUnityStatBonus", bonus);
+}
+
+void ApplyTrustMasterProgressionBonuses(CTrustEntity* PTrust)
+{
+    if (!PTrust)
+    {
+        return;
+    }
+
+    ApplyTrustAlterEgoPointVitals(PTrust);
+    ApplyTrustAlterEgoPointStats(PTrust);
+    ApplyTrustUnityRankParity(PTrust);
+    ApplyTrustAlterEgoPointSkills(PTrust);
+
+    PTrust->UpdateHealth();
+    if (PTrust->GetLocalVar("MochiTrustAepVitalsEffectiveApplied") == 0)
+    {
+        PTrust->health.modhp = AddClamped(PTrust->health.modhp, static_cast<uint32>(PTrust->GetLocalVar("MochiTrustAepHpBonus")));
+        PTrust->health.modmp = AddClamped(PTrust->health.modmp, static_cast<uint32>(PTrust->GetLocalVar("MochiTrustAepMpBonus")));
+        PTrust->SetLocalVar("MochiTrustAepVitalsEffectiveApplied", 1);
+    }
+
+    PTrust->health.hp = PTrust->GetMaxHP();
+    PTrust->health.mp = PTrust->GetMaxMP();
+    PTrust->updatemask |= UPDATE_HP;
+
+    LogTrustProgressionBonus(PTrust);
+}
+
 void trustutils::LoadTrustList()
 {
     const auto rset = db::preparedStmt("SELECT "
@@ -193,6 +1128,7 @@ auto trustutils::SpawnTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntit
 
     PMaster->loc.zone->InsertTRUST(PTrust);
     PTrust->Spawn();
+    ApplyTrustMasterProgressionBonuses(PTrust);
 
     PMaster->PParty->ReloadParty();
 

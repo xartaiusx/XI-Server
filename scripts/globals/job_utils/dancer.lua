@@ -416,7 +416,13 @@ end
 
 -- TODO: This ability needs verification
 xi.job_utils.dancer.useViolentFlourishAbility = function(player, target, ability, action)
-    local numMoves  = player:getStatusEffect(xi.effect.FINISHING_MOVE_1):getPower()
+    local fmEffect = player:getStatusEffect(xi.effect.FINISHING_MOVE_1)
+    if not fmEffect then
+        ability:setMsg(xi.msg.basic.NO_FINISHINGMOVES)
+        return 0
+    end
+
+    local numMoves  = fmEffect:getPower()
     local hitRate   = xi.combat.physicalHitRate.getPhysicalHitRate(player, target, 100, xi.attackAnimation.RIGHT_ATTACK, false)
     local infoValue = actionInfo[ability:getID()][1]
     setFinishingMoves(player, numMoves - 1)

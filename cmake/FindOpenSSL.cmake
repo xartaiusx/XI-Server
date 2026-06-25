@@ -7,6 +7,6 @@ set(OPENSSL_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/ext/openssl/include/) # Only look in
 
 find_package_handle_standard_args(OpenSSL DEFAULT_MSG OPENSSL_INCLUDE_DIR)
 
-message(STATUS "Using LSB FindOpenSSL.cmake over the globally provided version")
+message(STATUS "Using project FindOpenSSL.cmake over the globally provided version")
 message(STATUS "OpenSSL_FOUND: ${OpenSSL_FOUND}")
 message(STATUS "OpenSSL_INCLUDE_DIR: ${OpenSSL_INCLUDE_DIR}")

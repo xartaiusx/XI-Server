@@ -35,7 +35,7 @@ Arguments::Arguments(const ApplicationConfig& config, const int argc, char** arg
     //
 
     const auto description = fmt::format(
-        "xi_{}: part of LandSandBoat - a server emulator for Final Fantasy XI\n\nBranch: {}",
+        "xi_{}: part of Mochirii - a private server for Final Fantasy XI\n\nBranch: {}",
         config.serverName,
         version::GetVersionString());
 

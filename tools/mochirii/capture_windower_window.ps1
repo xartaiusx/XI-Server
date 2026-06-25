@@ -1,0 +1,247 @@
+param(
+    [string] $OutputPath = (Join-Path $PWD 'windower-native-screenshot.jpg'),
+    [ValidateSet('jpg', 'png', 'bmp')]
+    [string] $Format = 'jpg',
+    [switch] $HideWindowerObjects,
+    [int] $MinimumClientCoveragePercent = 95,
+    [int] $TimeoutSeconds = 12
+)
+
+$ErrorActionPreference = 'Stop'
+
+$assertScript = Join-Path $PSScriptRoot 'assert_windower_foreground.ps1'
+$sendScript = Join-Path $PSScriptRoot 'send_windower_text.ps1'
+$windowerRoot = 'C:\Program Files (x86)\Steam\steamapps\common\FFXINA\Windower'
+$screenshotRoot = Join-Path $windowerRoot 'screenshots'
+$triggerPath = 'C:\Users\xtyty\Documents\FFXI-Runtime\screenshots\native_screenshot_request.txt'
+
+if (-not (Test-Path -LiteralPath $assertScript))
+{
+    throw "Missing foreground helper: $assertScript"
+}
+
+if (-not (Test-Path -LiteralPath $sendScript))
+{
+    throw "Missing Windower input helper: $sendScript"
+}
+
+New-Item -ItemType Directory -Force -Path $screenshotRoot | Out-Null
+
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class MochiriiNativeScreenshotFocus
+{
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [DllImport("user32.dll")]
+    public static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetDpiForWindow(IntPtr hWnd);
+
+    public const byte VK_MENU = 0x12;
+    public const uint KEYEVENTF_KEYUP = 0x0002;
+}
+'@ -ErrorAction SilentlyContinue
+
+$targetWindow = Get-Process -Name xiloader, Windower, pol, polboot, polcore, ffximain -ErrorAction SilentlyContinue |
+    Where-Object { $_.MainWindowHandle -ne 0 -and ($_.MainWindowTitle -match 'Twills|FINAL FANTASY|PlayOnline|Windower') } |
+    Sort-Object @{ Expression = { if ($_.MainWindowTitle -match 'Twills') { 0 } else { 1 } } }, ProcessName |
+    Select-Object -First 1
+
+if ($null -eq $targetWindow)
+{
+    throw 'Could not find a Windower/xiloader/Final Fantasy XI client window to foreground for native screenshot.'
+}
+
+[void][MochiriiNativeScreenshotFocus]::ShowWindow($targetWindow.MainWindowHandle, 9)
+Start-Sleep -Milliseconds 250
+for ($i = 0; $i -lt 8; $i++)
+{
+    [MochiriiNativeScreenshotFocus]::keybd_event([MochiriiNativeScreenshotFocus]::VK_MENU, 0, 0, [UIntPtr]::Zero)
+    [MochiriiNativeScreenshotFocus]::keybd_event([MochiriiNativeScreenshotFocus]::VK_MENU, 0, [MochiriiNativeScreenshotFocus]::KEYEVENTF_KEYUP, [UIntPtr]::Zero)
+    [void][MochiriiNativeScreenshotFocus]::SetForegroundWindow($targetWindow.MainWindowHandle)
+    Start-Sleep -Milliseconds 250
+
+    $preCheck = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $assertScript
+    if ($LASTEXITCODE -eq 0)
+    {
+        break
+    }
+}
+
+$focusCheck = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $assertScript
+if ($LASTEXITCODE -ne 0)
+{
+    $focusCheck | Write-Output
+    throw 'Refusing screenshot: Windower/xiloader is not the foreground client.'
+}
+
+$focusCheck | Write-Output
+
+$clientRect = New-Object MochiriiNativeScreenshotFocus+RECT
+[void][MochiriiNativeScreenshotFocus]::GetClientRect($targetWindow.MainWindowHandle, [ref]$clientRect)
+$clientWidth = [Math]::Max(0, $clientRect.Right - $clientRect.Left)
+$clientHeight = [Math]::Max(0, $clientRect.Bottom - $clientRect.Top)
+$windowDpi = 96
+try
+{
+    $reportedDpi = [MochiriiNativeScreenshotFocus]::GetDpiForWindow($targetWindow.MainWindowHandle)
+    if ($reportedDpi -gt 0)
+    {
+        $windowDpi = [int]$reportedDpi
+    }
+}
+catch
+{
+    $windowDpi = 96
+}
+
+$dpiScale = [Math]::Max(1.0, $windowDpi / 96.0)
+$expectedImageWidth = [int][Math]::Round($clientWidth * $dpiScale)
+$expectedImageHeight = [int][Math]::Round($clientHeight * $dpiScale)
+$coverageRatio = [Math]::Min(100, [Math]::Max(1, $MinimumClientCoveragePercent)) / 100.0
+$minimumImageWidth = [int][Math]::Floor($expectedImageWidth * $coverageRatio)
+$minimumImageHeight = [int][Math]::Floor($expectedImageHeight * $coverageRatio)
+
+$extension = ".$Format"
+$requestedOutput = $OutputPath
+if ([System.IO.Path]::GetExtension($OutputPath).ToLowerInvariant() -ne $extension)
+{
+    $OutputPath = [System.IO.Path]::ChangeExtension($OutputPath, $Format)
+}
+
+$before = @{}
+Get-ChildItem -LiteralPath $screenshotRoot -Recurse -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.Extension -ieq $extension } |
+    ForEach-Object { $before[$_.FullName] = $_.LastWriteTimeUtc }
+
+$command = "screenshot $Format"
+if ($HideWindowerObjects)
+{
+    $command += ' hide'
+}
+
+$requestDirectory = Split-Path -Parent $triggerPath
+New-Item -ItemType Directory -Force -Path $requestDirectory | Out-Null
+$requestTimeUtc = (Get-Date).ToUniversalTime()
+$request = "format=$Format`nhide=$([bool]$HideWindowerObjects)"
+Set-Content -LiteralPath $triggerPath -Value $request -Encoding ASCII
+
+$deadline = (Get-Date).AddSeconds([Math]::Max(1, $TimeoutSeconds))
+$nativeScreenshot = $null
+do
+{
+    Start-Sleep -Milliseconds 350
+    $nativeScreenshot = Get-ChildItem -LiteralPath $screenshotRoot -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.Extension -ieq $extension -and
+            $_.LastWriteTimeUtc -ge $requestTimeUtc.AddSeconds(-5) -and
+            ((-not $before.ContainsKey($_.FullName)) -or $before[$_.FullName] -ne $_.LastWriteTimeUtc)
+        } |
+        Sort-Object LastWriteTimeUtc -Descending |
+        Select-Object -First 1
+} while ($null -eq $nativeScreenshot -and (Get-Date) -lt $deadline)
+
+if ($null -eq $nativeScreenshot)
+{
+    # Most Mochirii sessions autoload the bridge from Windower\scripts\init.txt.
+    # If this session does not have it yet, load it once as a fallback and retry.
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $sendScript -Text "//lua load MochiriiScreenshotQA" -PressSpaceBefore -PressEnterAfter -EscapeCount 1 | Write-Output
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw 'Could not load MochiriiScreenshotQA in Windower.'
+    }
+
+    $requestTimeUtc = (Get-Date).ToUniversalTime()
+    Set-Content -LiteralPath $triggerPath -Value $request -Encoding ASCII
+    $deadline = (Get-Date).AddSeconds([Math]::Max(1, $TimeoutSeconds))
+
+    do
+    {
+        Start-Sleep -Milliseconds 350
+        $nativeScreenshot = Get-ChildItem -LiteralPath $screenshotRoot -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.Extension -ieq $extension -and
+                $_.LastWriteTimeUtc -ge $requestTimeUtc.AddSeconds(-5) -and
+                ((-not $before.ContainsKey($_.FullName)) -or $before[$_.FullName] -ne $_.LastWriteTimeUtc)
+            } |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1
+    } while ($null -eq $nativeScreenshot -and (Get-Date) -lt $deadline)
+
+    if ($null -eq $nativeScreenshot)
+    {
+        throw "Timed out waiting for Windower native screenshot under $screenshotRoot."
+    }
+}
+
+Add-Type -AssemblyName System.Drawing
+$imageWidth = 0
+$imageHeight = 0
+$image = $null
+try
+{
+    $image = [System.Drawing.Image]::FromFile($nativeScreenshot.FullName)
+    $imageWidth = $image.Width
+    $imageHeight = $image.Height
+}
+finally
+{
+    if ($null -ne $image)
+    {
+        $image.Dispose()
+    }
+}
+
+if ($clientWidth -gt 0 -and $clientHeight -gt 0 -and ($imageWidth -lt $minimumImageWidth -or $imageHeight -lt $minimumImageHeight))
+{
+    throw "Windower native screenshot is smaller than the live client. Captured ${imageWidth}x${imageHeight}; expected at least ${minimumImageWidth}x${minimumImageHeight} from client ${clientWidth}x${clientHeight} at DPI $windowDpi. Refusing to use a cropped or stale screenshot."
+}
+
+$copiedPath = $null
+if ($OutputPath)
+{
+    $outputDirectory = Split-Path -Parent $OutputPath
+    if ($outputDirectory)
+    {
+        New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
+    }
+
+    Copy-Item -LiteralPath $nativeScreenshot.FullName -Destination $OutputPath -Force
+    $copiedPath = (Resolve-Path -LiteralPath $OutputPath).Path
+}
+
+[pscustomobject]@{
+    CaptureMode = 'WindowerNativeScreenshot'
+    Command = "MochiriiScreenshotQA -> $command"
+    NativePath = $nativeScreenshot.FullName
+    CopiedPath = $copiedPath
+    RequestedOutput = $requestedOutput
+    Format = $Format
+    ImageWidth = $imageWidth
+    ImageHeight = $imageHeight
+    ClientWidth = $clientWidth
+    ClientHeight = $clientHeight
+    WindowDpi = $windowDpi
+    MinimumClientCoveragePercent = $MinimumClientCoveragePercent
+    HideWindowerObjects = [bool]$HideWindowerObjects
+} | Format-List

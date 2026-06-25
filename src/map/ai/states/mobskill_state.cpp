@@ -33,6 +33,7 @@
 #include "packets/s2c/0x028_battle2.h"
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
+#include "utils/trustutils.h"
 
 CMobSkillState::CMobSkillState(CBattleEntity* PEntity, uint16 targid, uint16 wsid, Maybe<timer::duration> castTimeOverride)
 : CState(PEntity, targid)
@@ -110,6 +111,7 @@ CMobSkillState::CMobSkillState(CBattleEntity* PEntity, uint16 targid, uint16 wsi
             },
         };
 
+        trustutils::LogTrustActionPacket(m_PEntity, action, dynamic_cast<CBattleEntity*>(PTarget), "mobskill_state_start");
         m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
 
         // face toward target // TODO : add force param to turnTowardsTarget on certain TP moves like Petro Eyes
@@ -193,6 +195,7 @@ bool CMobSkillState::Update(timer::time_point tick)
         if (!action.targets.empty())
         {
             m_skillSuccess = true;
+            trustutils::LogTrustActionPacket(m_PEntity, action, dynamic_cast<CBattleEntity*>(GetTarget()), "mobskill_state_finish");
             m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
         }
 

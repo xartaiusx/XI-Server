@@ -236,6 +236,8 @@ void CalculateStats(CCharEntity* PChar)
         slvl = mlvl;
     }
 
+    const uint8 masterLevel = (mjob > JOB_NON && mjob < MAX_JOBTYPE) ? PChar->masterLevels[mjob] : 0;
+
     uint8 race = 0; // Hume
 
     switch (static_cast<CharRace>(PChar->look.race))
@@ -311,7 +313,7 @@ void CalculateStats(CCharEntity* PChar)
     }
 
     uint16 MeritBonus   = PChar->PMeritPoints->GetMeritValue(MERIT_MAX_HP, PChar);
-    PChar->health.maxhp = (int16)(raceStat + jobStat + bonusStat + sJobStat + MeritBonus);
+    PChar->health.maxhp = (int16)(raceStat + jobStat + bonusStat + sJobStat + MeritBonus + (masterLevel * 7));
 
     // The beginning of the MP
 
@@ -354,7 +356,7 @@ void CalculateStats(CCharEntity* PChar)
     }
 
     MeritBonus          = PChar->PMeritPoints->GetMeritValue(MERIT_MAX_MP, PChar);
-    PChar->health.maxmp = (int16)(raceStat + jobStat + sJobStat + MeritBonus); // MP calculation result
+    PChar->health.maxmp = (int16)(raceStat + jobStat + sJobStat + MeritBonus + (masterLevel * 2)); // MP calculation result
 
     // Start calculating Stats
 
@@ -405,7 +407,7 @@ void CalculateStats(CCharEntity* PChar)
         MeritBonus = PChar->PMeritPoints->GetMeritValue(statMerit[StatIndex - 2], PChar);
 
         // Value output
-        ref<uint16>(&PChar->stats, counter) = (uint16)(raceStat + jobStat + sJobStat + MeritBonus);
+        ref<uint16>(&PChar->stats, counter) = (uint16)(raceStat + jobStat + sJobStat + MeritBonus + masterLevel);
         counter += 2;
     }
 }
@@ -731,6 +733,20 @@ auto LoadChar(Scheduler& scheduler, MapConfig config, const uint32 charId) -> st
         PChar->jobs.job[JOB_SCH] = rset->get<uint8>("sch");
         PChar->jobs.job[JOB_GEO] = rset->get<uint8>("geo");
         PChar->jobs.job[JOB_RUN] = rset->get<uint8>("run");
+    }
+
+    PChar->masterLevels.fill(0);
+    rset = db::preparedStmt("SELECT jobid, master_level FROM char_master_levels WHERE charid = ?", PChar->id);
+    if (rset && rset->rowsCount())
+    {
+        while (rset->next())
+        {
+            const auto jobId = rset->get<uint8>("jobid");
+            if (jobId > JOB_NON && jobId < MAX_JOBTYPE)
+            {
+                PChar->masterLevels[jobId] = std::min<uint8>(rset->get<uint8>("master_level"), 50);
+            }
+        }
     }
 
     // LoadFromCharExpSQL
@@ -3871,9 +3887,10 @@ void BuildingCharSkillsTable(CCharEntity* PChar)
             PChar->WorkingSkills.skill[i] = 0x8000;
             continue;
         }
-        uint16 maxMainSkill = battleutils::GetMaxSkill((SKILLTYPE)i, PChar->GetMJob(), PChar->GetMLevel());
-        uint16 maxSubSkill  = battleutils::GetMaxSkill((SKILLTYPE)i, PChar->GetSJob(), PChar->GetSLevel());
-        int16  skillBonus   = 0;
+        uint16      maxMainSkill = battleutils::GetMaxSkill((SKILLTYPE)i, PChar->GetMJob(), PChar->GetMLevel());
+        uint16      maxSubSkill  = battleutils::GetMaxSkill((SKILLTYPE)i, PChar->GetSJob(), PChar->GetSLevel());
+        int16       skillBonus   = 0;
+        const uint8 masterLevel  = (PChar->GetMJob() > JOB_NON && PChar->GetMJob() < MAX_JOBTYPE) ? PChar->masterLevels[PChar->GetMJob()] : 0;
 
         // apply arts bonuses
         if (isArtsBonusActive(PChar, static_cast<SKILLTYPE>(i)))
@@ -3916,7 +3933,7 @@ void BuildingCharSkillsTable(CCharEntity* PChar)
                 currentSkill = maxMainSkill;
             }
 
-            int16 newSkillValue = currentSkill + skillBonus;
+            int16 newSkillValue = currentSkill + skillBonus + masterLevel;
             if (newSkillValue < 0)
             {
                 newSkillValue = 0;
@@ -6696,8 +6713,11 @@ void SaveTeleport(CCharEntity* PChar, TELEPORT_TYPE type)
         break;
         case TELEPORT_TYPE::ESCHAN_PORTAL:
         {
+            std::array<uint8, sizeof(PChar->teleport.eschanPortal)> eschanPortalBlob{};
+            std::memcpy(eschanPortalBlob.data(), &PChar->teleport.eschanPortal, sizeof(PChar->teleport.eschanPortal));
+
             db::preparedStmt("UPDATE char_unlocks SET eschan_portals = ? WHERE charid = ? LIMIT 1",
-                             PChar->teleport.eschanPortal,
+                             eschanPortalBlob,
                              PChar->id);
         }
         break;

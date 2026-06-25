@@ -75,18 +75,18 @@ spellObject.onMobSpawn = function(mob)
         mob:addGambit(ai.t.TARGET, { ai.c.CASTING_ELE_MA_AOE, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.ONE_FOR_ALL })
     end
 
-    mob:addGambit(ai.t.TARGET, { ai.c.NOT_STATUS, xi.effect.FLASH   }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.FLASH         })
-    mob:addGambit(ai.t.SELF,   { ai.c.NOT_STATUS, xi.effect.PHALANX }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.PHALANX       })
-    mob:addGambit(ai.t.SELF,   { ai.c.NOT_STATUS, xi.effect.FOIL    }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.FOIL          })
-    mob:addGambit(ai.t.SELF,   { ai.c.NOT_STATUS, xi.effect.PROTECT }, { ai.r.MA, ai.s.HIGHEST,  xi.magic.spellFamily.PROTECT })
-    mob:addGambit(ai.t.SELF,   { ai.c.NOT_STATUS, xi.effect.SHELL   }, { ai.r.MA, ai.s.HIGHEST,  xi.magic.spellFamily.SHELL   })
+    mob:addGambit(ai.t.TARGET, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.FLASH   }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.FLASH         })
+    mob:addGambit(ai.t.SELF,   { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.PHALANX }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.PHALANX       })
+    mob:addGambit(ai.t.SELF,   { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.FOIL    }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.FOIL          })
+    mob:addGambit(ai.t.SELF,   { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.PROTECT }, { ai.r.MA, ai.s.HIGHEST,  xi.magic.spellFamily.PROTECT })
+    mob:addGambit(ai.t.SELF,   { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.SHELL   }, { ai.r.MA, ai.s.HIGHEST,  xi.magic.spellFamily.SHELL   })
 
     mob:addGambit(ai.t.TARGET, { { ai.c.CAST_ELE_MA_SELF, 0                   }, { ai.c.NEED_ELE_BAREFFECT,  0 }, }, { ai.r.MA, ai.s.DEF_BAR_ELEMENT, 0                          })
-    mob:addGambit(ai.t.SELF,   { { ai.c.NOT_STATUS,       xi.effect.REGEN     }, { ai.c.HPP_LT,             75 }, }, { ai.r.MA, ai.s.HIGHEST,         xi.magic.spellFamily.REGEN })
-    mob:addGambit(ai.t.SELF,   { { ai.c.NOT_STATUS,       xi.effect.REFRESH   }, { ai.c.MPP_LT,             75 }, }, { ai.r.MA, ai.s.SPECIFIC,        xi.magic.spell.REFRESH     })
+    mob:addGambit(ai.t.SELF,   { { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.REGEN   }, { ai.c.HPP_LT, 75 }, }, { ai.r.MA, ai.s.HIGHEST,  xi.magic.spellFamily.REGEN })
+    mob:addGambit(ai.t.SELF,   { { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.REFRESH }, { ai.c.MPP_LT, 75 }, }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.REFRESH     })
 
     mob:addGambit(ai.t.SELF, {
-        { ai.c.NOT_STATUS, xi.effect.STONESKIN },
+        { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.STONESKIN },
         { ai.c.HPP_LT, 75 },
         { ai.c.MPP_GTE, 50 }, }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.STONESKIN })
 

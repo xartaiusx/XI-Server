@@ -5,7 +5,10 @@
 local effectObject = {}
 
 effectObject.onEffectGain = function(target, effect)
-    target:recalculateAbilitiesTable()
+    if target:getObjType() ~= xi.objType.TRUST then -- account for trusts
+        target:recalculateAbilitiesTable()
+    end
+
     local bonus = effect:getPower()
     local regen = effect:getSubPower()
 
@@ -24,14 +27,19 @@ effectObject.onEffectGain = function(target, effect)
         target:addMod(xi.mod.REGEN_DURATION, regen * 2)
     end
 
-    target:recalculateSkillsTable()
+    if target:getObjType() ~= xi.objType.TRUST then -- account for trusts
+        target:recalculateSkillsTable()
+    end
 end
 
 effectObject.onEffectTick = function(target, effect)
 end
 
 effectObject.onEffectLose = function(target, effect)
-    target:recalculateAbilitiesTable()
+    if target:getObjType() ~= xi.objType.TRUST then -- account for trusts
+        target:recalculateAbilitiesTable()
+    end
+
     local bonus = effect:getPower()
     local regen = effect:getSubPower()
 
@@ -50,7 +58,9 @@ effectObject.onEffectLose = function(target, effect)
         target:delMod(xi.mod.REGEN_DURATION, regen * 2)
     end
 
-    target:recalculateSkillsTable()
+    if target:getObjType() ~= xi.objType.TRUST then -- account for trusts
+        target:recalculateSkillsTable()
+    end
 end
 
 return effectObject

@@ -47,7 +47,7 @@ spellObject.onMobSpawn = function(mob)
     mob:addGambit(ai.t.SELF, { ai.c.STATUS_FLAG, xi.effectFlag.ERASABLE }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.ERASE })
 
     if mob:getMainLvl() >= 20 then
-        mob:addGambit(ai.t.SELF, { ai.c.NOT_STATUS, xi.effect.COLURE_ACTIVE }, { ai.r.MA, ai.s.BEST_INDI, xi.magic.spellFamily.NONE })
+        mob:addGambit(ai.t.SELF, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.COLURE_ACTIVE }, { ai.r.MA, ai.s.BEST_INDI, xi.magic.spellFamily.NONE })
     end
 
     if mob:getMainLvl() >= 93 and mJob ~= xi.job.GEO then
@@ -55,8 +55,8 @@ spellObject.onMobSpawn = function(mob)
         mob:addGambit(ai.t.SELF, { ai.c.STATUS, xi.effect.ENTRUST }, { ai.r.MA, ai.s.ENTRUSTED, xi.magic.spellFamily.INDI_BUFF })
     end
 
-    mob:addGambit(ai.t.MASTER, { ai.c.NOT_STATUS, xi.effect.HASTE }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.HASTE })
-    mob:addGambit(ai.t.MELEE, { ai.c.NOT_STATUS, xi.effect.HASTE }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.HASTE })
+    mob:addGambit(ai.t.MASTER, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.HASTE }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.HASTE })
+    mob:addGambit(ai.t.MELEE, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.HASTE }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.HASTE })
 
     mob:setAutoAttackEnabled(false)
 end

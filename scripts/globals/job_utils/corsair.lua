@@ -556,8 +556,12 @@ local function applyRoll(caster, target, inAbility, total, isDoubleup, currentAb
     end
 
     -- Apply Additional Phantom Roll+ Buff
-    local phantomMult = caster:getMaxGearMod(xi.mod.PHANTOM_ROLL)
-    effectpower       = effectpower + rollInfo.phantomBase * phantomMult
+    local phantomMult = 0
+    if caster:getObjType() == xi.objType.PC then
+        phantomMult = caster:getMaxGearMod(xi.mod.PHANTOM_ROLL)
+    end
+
+    effectpower = effectpower + rollInfo.phantomBase * phantomMult
 
     -- Effect Power varies depending on COR level (Main vs Sub)
     local actorLevel  = utils.getActiveJobLevel(caster, xi.job.COR)
@@ -725,7 +729,16 @@ end
 xi.job_utils.corsair.useDoubleUp = function(caster, target, ability, action)
     if caster:getID() == target:getID() then -- the COR handles all the calculations
         local duEffect = caster:getStatusEffect(xi.effect.DOUBLE_UP_CHANCE)
+        if duEffect == nil then
+            return 0
+        end
+
         local prevRoll = caster:getStatusEffect(duEffect:getSubPower())
+        if prevRoll == nil then
+            caster:delStatusEffectSilent(xi.effect.DOUBLE_UP_CHANCE)
+            return 0
+        end
+
         local roll     = prevRoll:getSubPower()
         local job      = duEffect:getTier()
 

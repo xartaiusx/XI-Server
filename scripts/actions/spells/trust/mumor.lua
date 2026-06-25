@@ -51,11 +51,11 @@ spellObject.onMobSpawn = function(mob)
     mob:addGambit(ai.t.SELF, { ai.c.NOT_STATUS, xi.effect.SABER_DANCE }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.SABER_DANCE })
 
     -- Step usage: -DEF debuff and stuns
-    mob:addGambit(ai.t.TARGET, { ai.c.NOT_STATUS, xi.effect.WEAKENED_DAZE_5 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.STUTTER_STEP })
-    mob:addGambit(ai.t.TARGET, { ai.c.READYING_WS, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
-    mob:addGambit(ai.t.TARGET, { ai.c.READYING_MS, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
-    mob:addGambit(ai.t.TARGET, { ai.c.READYING_JA, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
-    mob:addGambit(ai.t.TARGET, { ai.c.CASTING_MA, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
+    mob:addGambit(ai.t.TARGET, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.WEAKENED_DAZE_5 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.STUTTER_STEP })
+    mob:addGambit(ai.t.TARGET, { { ai.c.READYING_WS, 0 }, { ai.c.CASTER_STATUS, xi.effect.FINISHING_MOVE_1 } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
+    mob:addGambit(ai.t.TARGET, { { ai.c.READYING_MS, 0 }, { ai.c.CASTER_STATUS, xi.effect.FINISHING_MOVE_1 } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
+    mob:addGambit(ai.t.TARGET, { { ai.c.READYING_JA, 0 }, { ai.c.CASTER_STATUS, xi.effect.FINISHING_MOVE_1 } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
+    mob:addGambit(ai.t.TARGET, { { ai.c.CASTING_MA, 0 }, { ai.c.CASTER_STATUS, xi.effect.FINISHING_MOVE_1 } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.VIOLENT_FLOURISH })
 
     -- Samba logic
     -- Checks masters job, adjusts samba type if master has a healer main job.

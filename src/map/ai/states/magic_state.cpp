@@ -38,6 +38,7 @@
 #include "spell.h"
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
+#include "utils/trustutils.h"
 #include "utils/zoneutils.h"
 
 CMagicState::CMagicState(CBattleEntity* PEntity, uint16 targid, SpellID spellid, uint8 flags)
@@ -127,6 +128,7 @@ CMagicState::CMagicState(CBattleEntity* PEntity, uint16 targid, SpellID spellid,
                              });
     }
 
+    trustutils::LogTrustActionPacket(m_PEntity, action, PTarget, "magic_state_start");
     m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
 }
 
@@ -165,6 +167,7 @@ bool CMagicState::Update(timer::time_point tick)
         {
             // guessed, but cancels correctly.
             m_PEntity->OnCastInterrupted(*this, action, msg, false);
+            trustutils::LogTrustActionPacket(m_PEntity, action, PTarget, "magic_state_invalid_target");
             m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
 
             Complete();
@@ -280,6 +283,7 @@ bool CMagicState::Update(timer::time_point tick)
                                  });
         }
 
+        trustutils::LogTrustActionPacket(m_PEntity, action, PTarget, "magic_state_finish");
         m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
 
         Complete();
