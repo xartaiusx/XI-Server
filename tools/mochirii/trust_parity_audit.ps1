@@ -181,7 +181,9 @@ if (Test-Path -LiteralPath $logPath) {
                 GambitTarget = Get-StringField -Fields $fields -Key 'gambit_target'
                 GambitReaction = Get-StringField -Fields $fields -Key 'gambit_reaction'
                 GambitSelect = Get-StringField -Fields $fields -Key 'gambit_select'
+                GambitSelectArg = Get-StringField -Fields $fields -Key 'gambit_select_arg'
                 GambitResolvedId = Get-StringField -Fields $fields -Key 'gambit_resolved_id'
+                GambitTargetTargId = Get-StringField -Fields $fields -Key 'gambit_target_targid'
                 CurrentBattleTarget = Get-StringField -Fields $fields -Key 'current_battle_target_name'
                 CurrentBattleTargetTargId = Get-StringField -Fields $fields -Key 'current_battle_target_targid'
                 PacketTarget = Get-StringField -Fields $fields -Key 'packet_target_name'
@@ -265,6 +267,30 @@ function Get-EffectEntry {
     }
 
     return $null
+}
+
+function Format-IssueContext {
+    param([object[]]$Rows)
+
+    $contexts = @(
+        $Rows |
+            Select-Object -First 3 |
+            ForEach-Object {
+                $current = if ([string]::IsNullOrWhiteSpace($_.CurrentBattleTarget)) { 'none' } else { $_.CurrentBattleTarget }
+                $currentTargId = if ([string]::IsNullOrWhiteSpace($_.CurrentBattleTargetTargId)) { '0' } else { $_.CurrentBattleTargetTargId }
+                $gambitTarget = if ([string]::IsNullOrWhiteSpace($_.GambitTargetTargId)) { '0' } else { $_.GambitTargetTargId }
+                $resolved = if ([string]::IsNullOrWhiteSpace($_.GambitResolvedId)) { '0' } else { $_.GambitResolvedId }
+                $selectArg = if ([string]::IsNullOrWhiteSpace($_.GambitSelectArg)) { '0' } else { $_.GambitSelectArg }
+
+                "current=$current#$currentTargId;gambitTarget#$gambitTarget;resolved=$resolved;selectArg=$selectArg"
+            }
+    )
+
+    if ($contexts.Count -eq 0) {
+        return ''
+    }
+
+    return ($contexts -join '<br>')
 }
 
 function Get-RefreshWindowSeconds {
@@ -585,11 +611,11 @@ if ($parsedLogRows.Count -eq 0) {
     if ($issueRows.Count -eq 0) {
         $lines.Add('- None found in latest log rows.')
     } else {
-        $lines.Add('| Trust | Event | Source | Action | Target | Max Distance | Count |')
-        $lines.Add('| --- | --- | --- | --- | --- | ---: | ---: |')
+        $lines.Add('| Trust | Event | Source | Action | Target | Context | Max Distance | Count |')
+        $lines.Add('| --- | --- | --- | --- | --- | --- | ---: | ---: |')
         foreach ($group in ($issueRows | Group-Object Trust, Event, Source, ActionName, Target | Sort-Object Count -Descending | Select-Object -First 60)) {
             $parts = $group.Name -split ', ', 5
-            $lines.Add("| $($parts[0]) | $($parts[1]) | $($parts[2]) | $($parts[3]) | $($parts[4]) | $(Get-MaxDistance -Rows $group.Group) | $($group.Count) |")
+            $lines.Add("| $($parts[0]) | $($parts[1]) | $($parts[2]) | $($parts[3]) | $($parts[4]) | $(Format-IssueContext -Rows $group.Group) | $(Get-MaxDistance -Rows $group.Group) | $($group.Count) |")
         }
     }
 
