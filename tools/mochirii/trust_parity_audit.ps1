@@ -184,6 +184,10 @@ if (Test-Path -LiteralPath $logPath) {
                 GambitSelectArg = Get-StringField -Fields $fields -Key 'gambit_select_arg'
                 GambitResolvedId = Get-StringField -Fields $fields -Key 'gambit_resolved_id'
                 GambitTargetTargId = Get-StringField -Fields $fields -Key 'gambit_target_targid'
+                TpSkillSkipReason = Get-StringField -Fields $fields -Key 'tp_skill_skip_reason'
+                TpSkillSkipReasonName = Get-StringField -Fields $fields -Key 'tp_skill_skip_reason_name'
+                TpSkillSkipId = Get-StringField -Fields $fields -Key 'tp_skill_skip_id'
+                TpSkillSkipTargetTargId = Get-StringField -Fields $fields -Key 'tp_skill_skip_target_targid'
                 CurrentBattleTarget = Get-StringField -Fields $fields -Key 'current_battle_target_name'
                 CurrentBattleTargetTargId = Get-StringField -Fields $fields -Key 'current_battle_target_targid'
                 PacketTarget = Get-StringField -Fields $fields -Key 'packet_target_name'
@@ -616,6 +620,24 @@ if ($parsedLogRows.Count -eq 0) {
         foreach ($group in ($issueRows | Group-Object Trust, Event, Source, ActionName, Target | Sort-Object Count -Descending | Select-Object -First 60)) {
             $parts = $group.Name -split ', ', 5
             $lines.Add("| $($parts[0]) | $($parts[1]) | $($parts[2]) | $($parts[3]) | $($parts[4]) | $(Format-IssueContext -Rows $group.Group) | $(Get-MaxDistance -Rows $group.Group) | $($group.Count) |")
+        }
+    }
+
+    $lines.Add('')
+    $lines.Add('## TP Skill Guard Skips')
+    $tpSkipRows = $parsedLogRows | Where-Object {
+        -not [string]::IsNullOrWhiteSpace($_.TpSkillSkipReasonName) -and
+        $_.TpSkillSkipReasonName -ne 'none'
+    }
+
+    if ($tpSkipRows.Count -eq 0) {
+        $lines.Add('- None found in latest log rows.')
+    } else {
+        $lines.Add('| Trust | Reason | Skill ID | Target TargID | Current Target | Count |')
+        $lines.Add('| --- | --- | ---: | ---: | --- | ---: |')
+        foreach ($group in ($tpSkipRows | Group-Object Trust, TpSkillSkipReasonName, TpSkillSkipId, TpSkillSkipTargetTargId, CurrentBattleTarget | Sort-Object Count -Descending | Select-Object -First 60)) {
+            $parts = $group.Name -split ', ', 5
+            $lines.Add("| $($parts[0]) | $($parts[1]) | $($parts[2]) | $($parts[3]) | $($parts[4]) | $($group.Count) |")
         }
     }
 

@@ -711,6 +711,18 @@ local function roleEnmityActionName(action)
     return roleEnmityActions[tonumber(action) or 0] or 'unknown'
 end
 
+local tpSkillSkipReasons =
+{
+    [0] = 'none',
+    [1] = 'invalid_target',
+    [2] = 'cannot_see',
+    [3] = 'out_of_range',
+}
+
+local function tpSkillSkipReasonName(reason)
+    return tpSkillSkipReasons[tonumber(reason) or 0] or 'unknown'
+end
+
 local function hpMissing(entity)
     local hp = call(entity, 'getHP') or 0
     local maxHp = call(entity, 'getMaxHP') or 0
@@ -795,6 +807,7 @@ trustActionLogger.log = function(trust, eventName, target, extraFields)
     local gambitTarget = call(trust, 'getLocalVar', 'MochiTrustGambitTargetSelector') or 0
     local gambitReaction = call(trust, 'getLocalVar', 'MochiTrustGambitReaction') or 0
     local gambitSelect = call(trust, 'getLocalVar', 'MochiTrustGambitSelect') or 0
+    local tpSkillSkipReason = call(trust, 'getLocalVar', 'MochiTrustTpSkillSkipReason') or 0
     local focusReason = call(trust, 'getLocalVar', 'MochiTrustFocusReason') or 0
     local roleEnmityAction = call(trust, 'getLocalVar', 'MochiTrustRoleEnmityAction') or 0
     local fields =
@@ -843,6 +856,10 @@ trustActionLogger.log = function(trust, eventName, target, extraFields)
         'gambit_select_arg=' .. clean(call(trust, 'getLocalVar', 'MochiTrustGambitSelectArg') or 0),
         'gambit_resolved_id=' .. clean(call(trust, 'getLocalVar', 'MochiTrustGambitResolvedId') or 0),
         'gambit_target_targid=' .. clean(call(trust, 'getLocalVar', 'MochiTrustGambitTargetTargId') or 0),
+        'tp_skill_skip_reason=' .. clean(tpSkillSkipReason),
+        'tp_skill_skip_reason_name=' .. clean(tpSkillSkipReasonName(tpSkillSkipReason)),
+        'tp_skill_skip_id=' .. clean(call(trust, 'getLocalVar', 'MochiTrustTpSkillSkipId') or 0),
+        'tp_skill_skip_target_targid=' .. clean(call(trust, 'getLocalVar', 'MochiTrustTpSkillSkipTargetTargId') or 0),
     }
 
     entityFields('target', target, fields)

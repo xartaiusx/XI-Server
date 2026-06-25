@@ -43,7 +43,7 @@ spellObject.onMobSpawn = function(mob)
     end
 
     if lvl >= 20 then
-        mob:addGambit(ai.t.SELF, { ai.c.NOT_STATUS, xi.effect.SWORDPLAY }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.SWORDPLAY })
+        mob:addGambit(ai.t.SELF, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.SWORDPLAY }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.SWORDPLAY })
     end
 
     if lvl >= 25 then
@@ -52,7 +52,7 @@ spellObject.onMobSpawn = function(mob)
     end
 
     if lvl >= 30 then
-        mob:addGambit(ai.t.SELF, { ai.c.NOT_STATUS, xi.effect.BERSERK }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.BERSERK })
+        mob:addGambit(ai.t.SELF, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.BERSERK }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.BERSERK })
     end
 
     if lvl >= 50 then
@@ -60,7 +60,7 @@ spellObject.onMobSpawn = function(mob)
     end
 
     if lvl >= 60 then
-        mob:addGambit(ai.t.SELF, { ai.c.NOT_STATUS, xi.effect.EMBOLDEN }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.EMBOLDEN })
+        mob:addGambit(ai.t.SELF, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.EMBOLDEN }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.EMBOLDEN })
     end
 
     if lvl >= 65 then

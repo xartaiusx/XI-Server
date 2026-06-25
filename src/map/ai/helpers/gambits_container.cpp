@@ -90,6 +90,69 @@ namespace
         const auto refreshWindow = TrustRefreshWindow(PEffect->GetDuration());
         return PEffect->GetStartTime() + PEffect->GetDuration() <= timer::now() + refreshWindow;
     }
+
+    enum class TrustTpSkillSkipReason : uint16
+    {
+        None          = 0,
+        InvalidTarget = 1,
+        CannotSee     = 2,
+        OutOfRange    = 3,
+    };
+
+    void SetTrustTpSkillSkip(CTrustEntity* POwner, TrustTpSkillSkipReason reason, uint32 skillId = 0, CBattleEntity* PTarget = nullptr)
+    {
+        if (!POwner)
+        {
+            return;
+        }
+
+        POwner->SetLocalVar("MochiTrustTpSkillSkipReason", static_cast<uint16>(reason));
+        POwner->SetLocalVar("MochiTrustTpSkillSkipId", skillId);
+        POwner->SetLocalVar("MochiTrustTpSkillSkipTargetTargId", PTarget ? PTarget->targid : 0);
+    }
+
+    auto IsValidTrustTpSkillTarget(CTrustEntity* POwner, CBattleEntity* PTarget, uint32 skillId) -> TrustTpSkillSkipReason
+    {
+        if (!POwner || !PTarget || !PTarget->isAlive() || POwner->loc.zone != PTarget->loc.zone)
+        {
+            return TrustTpSkillSkipReason::InvalidTarget;
+        }
+
+        if (PTarget != POwner && !POwner->CanSeeTarget(PTarget))
+        {
+            return TrustTpSkillSkipReason::CannotSee;
+        }
+
+        if (skillId <= 255)
+        {
+            auto* PWeaponSkill = battleutils::GetWeaponSkill(skillId);
+            if (!PWeaponSkill)
+            {
+                return TrustTpSkillSkipReason::InvalidTarget;
+            }
+
+            if (distance(POwner->loc.p, PTarget->loc.p) > PWeaponSkill->getRange() + POwner->modelHitboxSize + PTarget->modelHitboxSize)
+            {
+                return TrustTpSkillSkipReason::OutOfRange;
+            }
+
+            return TrustTpSkillSkipReason::None;
+        }
+
+        auto* PMobSkill = battleutils::GetMobSkill(skillId);
+        if (!PMobSkill)
+        {
+            return TrustTpSkillSkipReason::InvalidTarget;
+        }
+
+        const bool isSelfCenteredAoE = PMobSkill->getAoe() == static_cast<uint8>(AOE_RADIUS::ATTACKER);
+        if (!isSelfCenteredAoE && distance(POwner->loc.p, PTarget->loc.p) > PMobSkill->getDistance() + POwner->modelHitboxSize + PTarget->modelHitboxSize)
+        {
+            return TrustTpSkillSkipReason::OutOfRange;
+        }
+
+        return TrustTpSkillSkipReason::None;
+    }
 } // namespace
 
 // Return a new unique identifier for a gambit
@@ -1950,12 +2013,21 @@ bool CGambitsContainer::TryTrustSkill()
             {
                 target = POwner->GetBattleTarget();
             }
+
+            auto skipReason = IsValidTrustTpSkillTarget(POwner, target, chosen_skill->skill_id);
+            if (skipReason != TrustTpSkillSkipReason::None)
+            {
+                SetTrustTpSkillSkip(POwner, skipReason, chosen_skill->skill_id, target);
+                return false;
+            }
+
             POwner->SetLocalVar("MochiTrustGambitTargetSelector", static_cast<uint16>(chosen_skill->valid_targets & TARGET_SELF ? G_TARGET::SELF : G_TARGET::TARGET));
             POwner->SetLocalVar("MochiTrustGambitReaction", static_cast<uint16>(chosen_skill->skill_type));
             POwner->SetLocalVar("MochiTrustGambitSelect", static_cast<uint16>(G_SELECT::SPECIFIC));
             POwner->SetLocalVar("MochiTrustGambitSelectArg", chosen_skill->skill_id);
             POwner->SetLocalVar("MochiTrustGambitResolvedId", chosen_skill->skill_id);
             POwner->SetLocalVar("MochiTrustGambitTargetTargId", target ? target->targid : 0);
+            SetTrustTpSkillSkip(POwner, TrustTpSkillSkipReason::None);
             controller->WeaponSkill(target->targid, PWeaponSkill->getID());
         }
         else // Mobskill
@@ -1968,12 +2040,21 @@ bool CGambitsContainer::TryTrustSkill()
             {
                 target = POwner->GetBattleTarget();
             }
+
+            auto skipReason = IsValidTrustTpSkillTarget(POwner, target, chosen_skill->skill_id);
+            if (skipReason != TrustTpSkillSkipReason::None)
+            {
+                SetTrustTpSkillSkip(POwner, skipReason, chosen_skill->skill_id, target);
+                return false;
+            }
+
             POwner->SetLocalVar("MochiTrustGambitTargetSelector", static_cast<uint16>((chosen_skill->valid_targets & TARGET_SELF || chosen_skill->valid_targets & TARGET_PLAYER_PARTY) ? G_TARGET::SELF : G_TARGET::TARGET));
             POwner->SetLocalVar("MochiTrustGambitReaction", static_cast<uint16>(chosen_skill->skill_type));
             POwner->SetLocalVar("MochiTrustGambitSelect", static_cast<uint16>(G_SELECT::SPECIFIC));
             POwner->SetLocalVar("MochiTrustGambitSelectArg", chosen_skill->skill_id);
             POwner->SetLocalVar("MochiTrustGambitResolvedId", chosen_skill->skill_id);
             POwner->SetLocalVar("MochiTrustGambitTargetTargId", target ? target->targid : 0);
+            SetTrustTpSkillSkip(POwner, TrustTpSkillSkipReason::None);
             controller->MobSkill(target->targid, chosen_skill->skill_id, std::nullopt);
         }
         return true;

@@ -51,7 +51,7 @@ spellObject.onMobSpawn = function(mob)
     end
 
     if mob:getMainLvl() >= 93 and mJob ~= xi.job.GEO then
-        mob:addGambit(ai.t.SELF, { ai.c.NOT_STATUS, xi.effect.ENTRUST }, { ai.r.JA, ai.s.SPECIFIC, xi.jobAbility.ENTRUST })
+        mob:addGambit(ai.t.SELF, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.ENTRUST }, { ai.r.JA, ai.s.SPECIFIC, xi.jobAbility.ENTRUST })
         mob:addGambit(ai.t.SELF, { ai.c.STATUS, xi.effect.ENTRUST }, { ai.r.MA, ai.s.ENTRUSTED, xi.magic.spellFamily.INDI_BUFF })
     end
 

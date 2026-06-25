@@ -65,12 +65,12 @@ spellObject.onMobSpawn = function(mob)
     end
 
     if lvl >= 30 then
-        mob:addGambit(ai.t.SELF, { ai.c.NOT_STATUS, xi.effect.SENTINEL }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.SENTINEL })
+        mob:addGambit(ai.t.SELF, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.SENTINEL }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.SENTINEL })
     end
 
     if lvl >= 50 then
         mob:addGambit(ai.t.SELF, { { ai.c.MPP_LT,         50             }, { ai.c.TP_GTE,     1000               } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.CHIVALRY })
-        mob:addGambit(ai.t.SELF, { { ai.c.JA_ON_COOLDOWN, xi.ja.SENTINEL }, { ai.c.NOT_STATUS, xi.effect.SENTINEL } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.DEFENDER })
+        mob:addGambit(ai.t.SELF, { { ai.c.JA_ON_COOLDOWN, xi.ja.SENTINEL }, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.DEFENDER } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.DEFENDER })
     end
 
     if lvl >= 62 then
@@ -80,16 +80,16 @@ spellObject.onMobSpawn = function(mob)
     end
 
     if lvl >= 70 then
-        mob:addGambit(ai.t.SELF, { ai.c.NOT_STATUS, xi.effect.MAJESTY }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.MAJESTY })
+        mob:addGambit(ai.t.SELF, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.MAJESTY }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.MAJESTY })
     end
 
     if lvl >= 75 then
         mob:addGambit(ai.t.TARGET, { ai.c.CASTING_DEBUFF, 0               }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.FEALTY        })
-        mob:addGambit(ai.t.TARGET, { ai.c.NOT_STATUS,     xi.effect.FLASH }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.DIVINE_EMBLEM })
+        mob:addGambit(ai.t.TARGET, { { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.FLASH }, { ai.c.CASTER_STATUS_MISSING_OR_EXPIRING, xi.effect.DIVINE_EMBLEM } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.DIVINE_EMBLEM })
     end
 
     if lvl >= 95 then
-        mob:addGambit(ai.t.SELF, { ai.c.NOT_STATUS, xi.effect.PALISADE }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.PALISADE })
+        mob:addGambit(ai.t.SELF, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.PALISADE }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.PALISADE })
     end
 
     mob:addGambit(ai.t.SELF,   { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.PROTECT  }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.PROTECT })

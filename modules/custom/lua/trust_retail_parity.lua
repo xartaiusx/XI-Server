@@ -16,6 +16,7 @@ local m = Module:new('trust_retail_parity')
 local qaAdminName = 'Twills'
 local qaAutoVar = 'MochiriiTrustQAAuto'
 local qaRunningVar = 'MochiriiTrustQARunning'
+local qaExpectedCountVar = 'MochiriiTrustQAExpected'
 
 local function normalizeTrustName(name)
     return tostring(name or ''):lower():gsub('[^%w]', '')
@@ -264,6 +265,7 @@ trustRetailParity.roster =
 }
 
 local isTrust
+local qaTrustIds
 
 local function explicitNameProfileForName(name)
     return trustRetailParity.nameProfiles[normalizeTrustName(name)]
@@ -327,6 +329,39 @@ local function hasTrust(player, trustId)
     end
 
     return false
+end
+
+local function countActiveQaTrusts(player, trustIds)
+    local expected = {}
+    for _, trustId in ipairs(trustIds) do
+        expected[trustId] = true
+    end
+
+    local active = 0
+    local party = player:getPartyWithTrusts()
+    for _, member in pairs(party) do
+        if isTrust(member) and expected[member:getTrustID()] then
+            active = active + 1
+        end
+    end
+
+    return active
+end
+
+trustRetailParity.isQaSummonRunning = function(player)
+    return player ~= nil and player:getCharVar(qaRunningVar) == 1
+end
+
+trustRetailParity.qaAllianceReady = function(player)
+    if player == nil then
+        return false, 0, 0
+    end
+
+    local trustIds = qaTrustIds()
+    local expected = #trustIds
+    local active = countActiveQaTrusts(player, trustIds)
+
+    return active >= expected, active, expected
 end
 
 local function applyValaineral(trust, profile)
@@ -748,7 +783,7 @@ trustRetailParity.compositionRows = function()
     return rows
 end
 
-local function qaTrustIds()
+qaTrustIds = function()
     local trustIds = {}
 
     for _, party in ipairs(trustRetailParity.qaAllianceComposition) do
@@ -810,6 +845,76 @@ end
 trustRetailParity.autoSummonQaParty = function(player)
     local trustIds = qaTrustIds()
     local spawned = 0
+    local expectedCount = #trustIds
+
+    player:setCharVar(qaRunningVar, 1)
+    player:setCharVar(qaExpectedCountVar, expectedCount)
+
+    local function finalizeWhenReady(reportPlayer, attempt)
+        if reportPlayer == nil then
+            return
+        end
+
+        local activeCount = countActiveQaTrusts(reportPlayer, trustIds)
+        if activeCount < expectedCount then
+            if attempt < 12 then
+                print(string.format(
+                    'Mochirii Trust QA: waiting for active alliance for %s active=%u expected=%u attempt=%u',
+                    reportPlayer:getName(),
+                    activeCount,
+                    expectedCount,
+                    attempt
+                ))
+
+                if attempt == 1 then
+                    printLine(reportPlayer, string.format(
+                        'Mochirii Trust QA: waiting for all Trusts before repair (%u/%u active).',
+                        activeCount,
+                        expectedCount
+                    ))
+                end
+
+                reportPlayer:timer(3000, function(nextReportPlayer)
+                    finalizeWhenReady(nextReportPlayer, attempt + 1)
+                end)
+                return
+            end
+
+            print(string.format(
+                'Mochirii Trust QA: summon did not settle for %s active=%u expected=%u; parity repair skipped',
+                reportPlayer:getName(),
+                activeCount,
+                expectedCount
+            ))
+            printLine(reportPlayer, string.format(
+                'Mochirii Trust QA: summon did not settle (%u/%u active). Repair skipped; relog and run summonqa again.',
+                activeCount,
+                expectedCount
+            ))
+            reportPlayer:setCharVar(qaAutoVar, 0)
+            reportPlayer:setCharVar(qaRunningVar, 0)
+            return
+        end
+
+        print(string.format('Mochirii Trust QA: reporting active party for %s active=%u expected=%u', reportPlayer:getName(), activeCount, expectedCount))
+        printLine(reportPlayer, 'Mochirii Trust QA parity status follows in map log; client rows are shortened.')
+        local rows = trustRetailParity.partyRows(reportPlayer, true)
+        local clientRows = 0
+        for _, row in ipairs(rows) do
+            print('Mochirii Trust QA: ' .. row)
+            if clientRows < 6 then
+                printClientSummary(reportPlayer, row)
+                clientRows = clientRows + 1
+            end
+        end
+
+        if #rows > clientRows then
+            printLine(reportPlayer, string.format('Mochirii Trust QA: %u more row(s) written to map log/report.', #rows - clientRows))
+        end
+
+        reportPlayer:setCharVar(qaAutoVar, 0)
+        reportPlayer:setCharVar(qaRunningVar, 0)
+    end
 
     local function spawnNext(playerArg, index)
         if playerArg == nil then
@@ -818,29 +923,10 @@ trustRetailParity.autoSummonQaParty = function(player)
 
         if index > #trustIds then
             print(string.format('Mochirii Trust QA: spawn sequence complete for %s; spawned=%u', playerArg:getName(), spawned))
-            printLine(playerArg, string.format('Mochirii Trust QA: spawned %u Trust(s); applying parity shortly.', spawned))
+            printLine(playerArg, string.format('Mochirii Trust QA: spawned %u new Trust(s); waiting for all %u active Trusts before repair.', spawned, expectedCount))
 
-            playerArg:timer(2500, function(reportPlayer)
-                if reportPlayer ~= nil then
-                    print(string.format('Mochirii Trust QA: reporting active party for %s', reportPlayer:getName()))
-                    printLine(reportPlayer, 'Mochirii Trust QA parity status follows in map log; client rows are shortened.')
-                    local rows = trustRetailParity.partyRows(reportPlayer, true)
-                    local clientRows = 0
-                    for _, row in ipairs(rows) do
-                        print('Mochirii Trust QA: ' .. row)
-                        if clientRows < 6 then
-                            printClientSummary(reportPlayer, row)
-                            clientRows = clientRows + 1
-                        end
-                    end
-
-                    if #rows > clientRows then
-                        printLine(reportPlayer, string.format('Mochirii Trust QA: %u more row(s) written to map log/report.', #rows - clientRows))
-                    end
-
-                    reportPlayer:setCharVar(qaAutoVar, 0)
-                    reportPlayer:setCharVar(qaRunningVar, 0)
-                end
+            playerArg:timer(5000, function(reportPlayer)
+                finalizeWhenReady(reportPlayer, 1)
             end)
 
             return
@@ -872,7 +958,7 @@ trustRetailParity.autoSummonQaParty = function(player)
     end
 
     print(string.format('Mochirii Trust QA: rebuilding recommended alliance for %s', player:getName()))
-    printLine(player, 'Mochirii Trust QA: reset Trust logs, clearing active Trusts, then summoning the recommended 3-party test alliance.')
+    printLine(player, 'Mochirii Trust QA: reset logs, clear Trusts, summon alliance, then auto-repair when all Trusts are ready.')
     for _, row in ipairs(trustRetailParity.compositionRows()) do
         print('Mochirii Trust QA composition: ' .. row)
     end
@@ -887,6 +973,15 @@ end
 
 m:addOverride('xi.player.onGameIn', function(player, firstLogin, zoning)
     super(player, firstLogin, zoning)
+
+    if
+        player:getName() == qaAdminName and
+        player:getCharVar(qaAutoVar) ~= 1 and
+        player:getCharVar(qaRunningVar) == 1
+    then
+        print(string.format('Mochirii Trust QA: clearing stale running flag for %s on game-in', player:getName()))
+        player:setCharVar(qaRunningVar, 0)
+    end
 
     if
         player:getName() ~= qaAdminName or

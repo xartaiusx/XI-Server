@@ -137,7 +137,7 @@ This plan tracks the local Final Fantasy XI client and Mochirii GM bootstrap gat
    - Run `!twillsaudit` after repair/relog. Treat any `[FIX]` row as a concrete follow-up item unless it is an explicitly documented local-content limitation.
 
 2. Trust parity and logging:
-   - Verify `!trustparty status`, `!trustparty repair`, `!trustparty audit active`, `!trustparty audit all`, and `!trustparty audit <trust>`.
+   - For the QA alliance, run `!trustparty summonqa` and wait for its completion message before running `!trustparty audit active`; `summonqa` owns the repair pass once all 17 Trusts are active. Verify `!trustparty status`, post-summon `!trustparty repair`, `!trustparty audit active`, `!trustparty audit all`, and `!trustparty audit <trust>` only after the roster is fully settled.
    - Use the Trust action logs under `C:\Users\xtyty\Documents\FFXI-Runtime\logs\trust_actions` plus Windower-native screenshots to verify every active Trust action, target, rest state, and role decision.
    - Keep Trust rest logical only. Do not reintroduce native kneel/healing animation attempts; XivParty displays the resting marker from the live Trust rest TSV.
 

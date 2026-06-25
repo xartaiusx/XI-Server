@@ -26,7 +26,7 @@ spellObject.onMobSpawn = function(mob)
 
     if mob:getMainLvl() >= 75 then
         mob:addGambit(ai.t.SELF, {
-            { ai.c.NOT_STATUS, xi.effect.SNAKE_EYE },
+            { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.SNAKE_EYE },
             { ai.c.NOT_STATUS, xi.effect.DOUBLE_UP_CHANCE },
         }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.SNAKE_EYE }, 60)
     end
@@ -54,7 +54,7 @@ spellObject.onMobSpawn = function(mob)
             { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.HUNTERS_ROLL },
             { ai.c.NOT_STATUS, xi.effect.CORSAIRS_ROLL },
             { ai.c.NOT_STATUS, xi.effect.EVOKERS_ROLL },
-            { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.FIGHTERS_ROLL },
+            { ai.c.NOT_STATUS, xi.effect.FIGHTERS_ROLL },
         }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.HUNTERS_ROLL })
 
         mob:addGambit(ai.t.PARTY, {
@@ -65,7 +65,7 @@ spellObject.onMobSpawn = function(mob)
     end
 
     if mob:getMainLvl() >= 87 then
-        mob:addGambit(ai.t.SELF, { ai.c.NOT_STATUS, xi.effect.TRIPLE_SHOT }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.TRIPLE_SHOT })
+        mob:addGambit(ai.t.SELF, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.TRIPLE_SHOT }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.TRIPLE_SHOT })
     end
 
     mob:addGambit(ai.t.TARGET, { ai.c.STATUS_FLAG, xi.effectFlag.DISPELABLE }, { ai.r.MS, ai.s.SPECIFIC, xi.mobSkill.DARK_SHOT }, 45)

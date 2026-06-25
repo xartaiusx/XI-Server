@@ -134,6 +134,27 @@ Get-ChildItem -LiteralPath $screenshotRoot -Recurse -File -ErrorAction SilentlyC
     Where-Object { $_.Extension -ieq $extension } |
     ForEach-Object { $before[$_.FullName] = $_.LastWriteTimeUtc }
 
+function Get-NativeScreenshotCandidate
+{
+    param(
+        [datetime] $SinceUtc,
+        [hashtable] $Seen,
+        [string] $Root,
+        [string] $Extension
+    )
+
+    Get-ChildItem -LiteralPath $Root -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.Extension -ieq $Extension -and
+            $_.DirectoryName -ine $Root -and
+            $_.LastWriteTimeUtc -ge $SinceUtc.AddSeconds(-5) -and
+            ((-not $Seen.ContainsKey($_.FullName)) -or $Seen[$_.FullName] -ne $_.LastWriteTimeUtc) -and
+            (Test-Path -LiteralPath $_.FullName)
+        } |
+        Sort-Object LastWriteTimeUtc -Descending |
+        Select-Object -First 1
+}
+
 $command = "screenshot $Format"
 if ($HideWindowerObjects)
 {
@@ -151,14 +172,7 @@ $nativeScreenshot = $null
 do
 {
     Start-Sleep -Milliseconds 350
-    $nativeScreenshot = Get-ChildItem -LiteralPath $screenshotRoot -Recurse -File -ErrorAction SilentlyContinue |
-        Where-Object {
-            $_.Extension -ieq $extension -and
-            $_.LastWriteTimeUtc -ge $requestTimeUtc.AddSeconds(-5) -and
-            ((-not $before.ContainsKey($_.FullName)) -or $before[$_.FullName] -ne $_.LastWriteTimeUtc)
-        } |
-        Sort-Object LastWriteTimeUtc -Descending |
-        Select-Object -First 1
+    $nativeScreenshot = Get-NativeScreenshotCandidate -SinceUtc $requestTimeUtc -Seen $before -Root $screenshotRoot -Extension $extension
 } while ($null -eq $nativeScreenshot -and (Get-Date) -lt $deadline)
 
 if ($null -eq $nativeScreenshot)
@@ -178,14 +192,7 @@ if ($null -eq $nativeScreenshot)
     do
     {
         Start-Sleep -Milliseconds 350
-        $nativeScreenshot = Get-ChildItem -LiteralPath $screenshotRoot -Recurse -File -ErrorAction SilentlyContinue |
-            Where-Object {
-                $_.Extension -ieq $extension -and
-                $_.LastWriteTimeUtc -ge $requestTimeUtc.AddSeconds(-5) -and
-                ((-not $before.ContainsKey($_.FullName)) -or $before[$_.FullName] -ne $_.LastWriteTimeUtc)
-            } |
-            Sort-Object LastWriteTimeUtc -Descending |
-            Select-Object -First 1
+        $nativeScreenshot = Get-NativeScreenshotCandidate -SinceUtc $requestTimeUtc -Seen $before -Root $screenshotRoot -Extension $extension
     } while ($null -eq $nativeScreenshot -and (Get-Date) -lt $deadline)
 
     if ($null -eq $nativeScreenshot)
@@ -198,18 +205,35 @@ Add-Type -AssemblyName System.Drawing
 $imageWidth = 0
 $imageHeight = 0
 $image = $null
-try
+$readError = $null
+for ($attempt = 1; $attempt -le 10; $attempt++)
 {
-    $image = [System.Drawing.Image]::FromFile($nativeScreenshot.FullName)
-    $imageWidth = $image.Width
-    $imageHeight = $image.Height
-}
-finally
-{
-    if ($null -ne $image)
+    try
     {
-        $image.Dispose()
+        $image = [System.Drawing.Image]::FromFile($nativeScreenshot.FullName)
+        $imageWidth = $image.Width
+        $imageHeight = $image.Height
+        $readError = $null
+        break
     }
+    catch
+    {
+        $readError = $_
+        Start-Sleep -Milliseconds 350
+    }
+    finally
+    {
+        if ($null -ne $image)
+        {
+            $image.Dispose()
+            $image = $null
+        }
+    }
+}
+
+if ($null -ne $readError)
+{
+    throw $readError
 }
 
 if ($clientWidth -gt 0 -and $clientHeight -gt 0 -and ($imageWidth -lt $minimumImageWidth -or $imageHeight -lt $minimumImageHeight))

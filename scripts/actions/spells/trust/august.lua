@@ -119,16 +119,16 @@ spellObject.onMobSpawn = function(mob)
     end
 
     if lvl >= 30 then
-        mob:addGambit(ai.t.SELF, { ai.c.NOT_STATUS, xi.effect.SENTINEL }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.SENTINEL })
+        mob:addGambit(ai.t.SELF, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.SENTINEL }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.SENTINEL })
     end
 
     if lvl >= 95 then
-        mob:addGambit(ai.t.SELF, { ai.c.NOT_STATUS, xi.effect.PALISADE }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.PALISADE })
+        mob:addGambit(ai.t.SELF, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.PALISADE }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.PALISADE })
     end
 
     if lvl >= 75 then
         -- Only uses Divine Emblen and Holy when daybreak active (subAnimation 5)
-        mob:addGambit(ai.t.SELF, { { ai.c.SUB_ANIMATION, 5 }, { ai.c.NOT_STATUS, xi.effect.DIVINE_EMBLEM }, }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.DIVINE_EMBLEM })
+        mob:addGambit(ai.t.SELF, { { ai.c.SUB_ANIMATION, 5 }, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.DIVINE_EMBLEM }, }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.DIVINE_EMBLEM })
     end
 
     mob:addGambit(ai.t.TARGET, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.FLASH    }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.FLASH      })
