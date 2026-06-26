@@ -386,7 +386,7 @@ Verification completed:
 
 Current verified strengths from the live database and latest `!twillsaudit`:
 
-- Account `xArtyZx` is active and bound to Twills (`charid = 2`).
+- Twills is active on the local QA account (`charid = 2`).
 - Twills is active Red Mage/Scholar with `mjob = 5`, `sjob = 20`, `99/59`,
   GM5, no mentor/GM marker, San d'Oria nation, and `job_master = 1`.
 - Every job is Master Level 50 in `char_master_levels`; all 22 jobs are level

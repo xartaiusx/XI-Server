@@ -3,10 +3,10 @@ name: Public Branch Hygiene
 on:
   push:
     branches:
-      - retail-inspired/enhancements
+      - main
   pull_request:
     branches:
-      - retail-inspired/enhancements
+      - main
   schedule:
     - cron: '17 9 * * 1'
   workflow_dispatch:
@@ -27,34 +27,35 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify public branch boundaries
+      - name: Verify public repository boundaries
         shell: bash
         run: |
           set -euo pipefail
 
           fail=0
 
-          for path in AGENTS.md local .lsb-secrets .lsb-local-client.env backups docker-compose.override.yml; do
+          for path in local .lsb-secrets .lsb-local-client.env backups docker-compose.override.yml; do
               if [[ -e "$path" ]]; then
-                  echo "::error::Private/local path must not be present on public branches: $path"
+                  echo "::error::Private runtime path must not be present in the public repository: $path"
                   fail=1
               fi
           done
 
-          if [[ -d modules/custom/commands ]]; then
-              echo "::error::Local GM command modules must not be present on public branches: modules/custom/commands"
+          if git ls-files | grep -Ev '^(log/\.gitkeep|sql/backups/\.gitignore)$' | grep -E '(^|/)(logs?|screenshots?|captures?|backups?|dumps?)(/|$)|\.(bak|backup|dump|sql\.gz|7z|zip|rar)$'; then
+              echo "::error::Runtime logs, screenshots, backups, dumps, or mod archives must stay out of git"
               fail=1
           fi
 
-          marker_regex='Twi''lls|local''admin|CODEX''_TASK|lsb''finish|lsb''setrankpoints|lsb''maxcrocea|lsb''meleesucellos|lsb''rdmdwsucellos|/home/art''aius|servers/lands''andboat|Documents/GitHub/serv''er|XI_LSB_VALAINERAL''_DIAGNOSTICS|LOCAL_TWI''LLS|ALTER_EGO_PACKET''_OBSERVER'
+          marker_regex='Twinkle''Toes|xArty''Zx|BEGIN[[:space:]]+(RSA[[:space:]]+|OPENSSH[[:space:]]+|EC[[:space:]]+)?PRIVATE[[:space:]]+KEY'
           if git grep -n -I -E "$marker_regex" -- \
-              README.md .github scripts sql src settings modules ':!.github/workflows/public_branch_hygiene.yml'; then
-              echo "::error::Private local marker found in public branch content"
+              README.md AGENTS.md CONTRIBUTING.md SECURITY.md .github documentation scripts sql src settings modules tools ':!.github/workflows/public_branch_hygiene.yml'; then
+              echo "::error::Secret or private account marker found in public repository content"
               fail=1
           fi
 
-          if grep -RInE 'branch=base|/blob/base|^[[:space:]]*-[[:space:]]*base$' README.md .github/workflows/build.yml .github/workflows/publish_meshes.yml; then
-              echo "::error::Old base-branch workflow or badge target found"
+          stale_regex='retail-inspired/enhancements|LandSandBoat/server/blob/base|codex/server-wide|branch=base|/blob/base|^[[:space:]]*-[[:space:]]*base$'
+          if grep -RInE --exclude='public_branch_hygiene.yml' "$stale_regex" README.md AGENTS.md CONTRIBUTING.md SECURITY.md .github documentation scripts settings tools modules; then
+              echo "::error::Stale public branch or removed bot-system reference found"
               fail=1
           fi
 

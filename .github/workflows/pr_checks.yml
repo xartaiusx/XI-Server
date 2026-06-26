@@ -5,7 +5,7 @@ name: PR Checks
 on:
   pull_request:
     branches:
-      - retail-inspired/enhancements
+      - main
     types:
       - opened
       - synchronize

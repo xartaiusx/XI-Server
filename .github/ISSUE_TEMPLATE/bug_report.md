@@ -10,8 +10,8 @@ assignees:
 <!-- (it should look like this: - [x] I have ...) -->
 **_I affirm:_**
 - [x] I understand that if I do not agree to the following points by completing the checkboxes my issue will be ignored.
-- [ ] I have read and understood the [Contributing Guide](https://github.com/LandSandBoat/server/blob/base/CONTRIBUTING.md) and the [Code of Conduct](https://github.com/LandSandBoat/server/blob/base/CODE_OF_CONDUCT.md).
-- [ ] I have searched existing [issues](https://github.com/LandSandBoat/server/issues) to see if the issue has already been opened, and I have checked the commit log to see if the issue has been resolved since my server was last updated.
+- [ ] I have read and understood the [Contributing Guide](https://github.com/xartaiusx/XI-Server/blob/main/CONTRIBUTING.md) and the [Code of Conduct](https://github.com/xartaiusx/XI-Server/blob/main/CODE_OF_CONDUCT.md).
+- [ ] I have searched existing [issues](https://github.com/xartaiusx/XI-Server/issues) to see if the issue has already been opened, and I have checked the commit log to see if the issue has been resolved since my server was last updated.
 
 ## OS / platform the server is running (if known)
 
@@ -19,7 +19,7 @@ assignees:
 
 ## Branch affected by issue <!-- Change to the branch the issue exists on (if relevant) -->
 
-`base`
+`main`
 
 ## Steps to reproduce
 

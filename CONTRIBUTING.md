@@ -33,5 +33,5 @@ Mochirii changes should prioritize:
 - retail-shaped Final Fantasy XI behavior where the local implementation supports
   it cleanly;
 - reversible client/mod and database changes;
-- clear audit logs for GM, Trust, bot, and admin repair systems;
+- clear audit logs for GM, Trust, and admin repair systems;
 - performance-safe autonomous systems with explicit caps and kill switches.

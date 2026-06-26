@@ -3,7 +3,7 @@ name: Builds
 on:
   push:
     branches:
-      - retail-inspired/enhancements
+      - main
   workflow_dispatch:
 
 concurrency:

@@ -3,7 +3,7 @@ name: PR Labels
 on:
   pull_request_target:
     branches:
-      - retail-inspired/enhancements
+      - main
     types:
       - opened
       - labeled

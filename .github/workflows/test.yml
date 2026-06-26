@@ -8,7 +8,7 @@ on:
     types:
       - completed
     branches:
-      - retail-inspired/enhancements
+      - main
   workflow_dispatch:
 
 concurrency:

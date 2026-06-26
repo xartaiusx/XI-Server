@@ -154,9 +154,9 @@ jobs:
             type=ref,event=pr
             type=sha
           labels: |
-            org.opencontainers.image.authors=LandSandBoat Dev Teams
-            org.opencontainers.image.title=LandSandBoat Server (${{ inputs.os }})
-            org.opencontainers.image.documentation=https://github.com/LandSandBoat/server/wiki
+            org.opencontainers.image.authors=Mochirii
+            org.opencontainers.image.title=Mochirii Server (${{ inputs.os }})
+            org.opencontainers.image.documentation=https://github.com/xartaiusx/XI-Server
           flavor: ${{ inputs.os != 'ubuntu' && format('suffix=-{0},onlatest=true', inputs.os) || '' }}
 
       - name: Build devtools image

@@ -38,9 +38,9 @@ jobs:
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
           labels: |
-            org.opencontainers.image.authors=LandSandBoat & EdenServer Dev Teams
+            org.opencontainers.image.authors=Mochirii
             org.opencontainers.image.title=FFXI Meshes
-            org.opencontainers.image.description=Line-of-sight and navigation meshes for use with LandSandBoat server.
+            org.opencontainers.image.description=Line-of-sight and navigation meshes for use with Mochirii.
 
       - name: Build and push
         uses: docker/build-push-action@v7
