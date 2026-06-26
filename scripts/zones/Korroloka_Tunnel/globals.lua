@@ -161,7 +161,12 @@ moveMorionWormQM = function()
         [143] = {  297.921, -10.569,  88.572 },
     }
 
-    npc:setPos(unpack(morionQmPoints[math.random(1, #morionQmPoints)]))
+    local morionQmKeys = {}
+    for key in pairs(morionQmPoints) do
+        morionQmKeys[#morionQmKeys + 1] = key
+    end
+
+    npc:setPos(unpack(morionQmPoints[morionQmKeys[math.random(1, #morionQmKeys)]]))
     npc:timer(60 * 15 * 1000, function()
         moveMorionWormQM()
     end)
