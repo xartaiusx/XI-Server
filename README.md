@@ -9,13 +9,12 @@ The project name and server identity are Mochirii. Public-facing documentation s
 - Server identity: `Mochirii`.
 - Manual server controls are available from the desktop:
   - `Start Mochirii Server.lnk`
-  - `Start Mochirii Server (Local QA).lnk`
   - `Stop Mochirii Server.lnk`
 - The server does not auto-start after reboot.
 - The canonical client launch path is `C:\Users\xtyty\Desktop\Windower.lnk`.
 - Twills is the local admin QA character: Red Mage main, Scholar support, GM5 privileges, visible GM marker hidden.
-- 2026-06-25 server verification: `xi_connect`, `xi_search`, `xi_world`, and `xi_map` were running after a clean `xi_map` rebuild/restart.
-- 2026-06-25 tooling verification: LuaJIT, Lua, Lua Language Server, StyLua, CMake, Ninja, clang-format 22, Python, Node, and GitHub CLI are installed. Local `gh` is not authenticated; use the GitHub connector for PR inspection unless authentication is added.
+- 2026-06-25 server verification: desktop Start/Stop shortcuts manually started and stopped MariaDB plus `xi_connect`, `xi_search`, `xi_world`, and `xi_map`; no Startup-folder, Run-key, service, or Scheduled Task autostart was configured.
+- 2026-06-25 tooling verification: LuaJIT, Lua, Lua Language Server, StyLua, CMake, Ninja, clang-format 22, Python, Node, and GitHub CLI are installed. Local `gh` is authenticated for `xartaiusx/XI-Server`.
 - 2026-06-25 cleanup: ignored root debug artifacts and the old root Windower screenshot were removed from the workspace. Runtime evidence remains under `C:\Users\xtyty\Documents\FFXI-Runtime`.
 
 ## Development Focus
