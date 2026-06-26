@@ -73,7 +73,7 @@ This plan tracks the local Final Fantasy XI client and Mochirii GM bootstrap gat
   - The screenshot shows Twills in Escha Ru'Aun with no visible GM icon; command
     injection remains blocked until the supported Windows automation bridge is
     available or commands are entered manually in the foreground client.
-- Mochirii no longer carries a custom world-bot system. Trusts are the active behavior focus for party/alliance combat testing, logging, role parity, and player-like job/subjob refinement.
+- Trusts are the active behavior focus for party/alliance combat testing, logging, role parity, and player-like job/subjob refinement.
 - 2026-06-25 tooling and repo hygiene update:
   - Installed and verified LuaJIT, Lua, Lua Language Server, and StyLua through winget. LuaJIT is the preferred syntax-check CLI for server Lua because this checkout embeds LuaJIT-compatible semantics.
   - Verified existing Git, CMake, Ninja, clang-format 22, Python, Node, npm, and GitHub CLI installs. GitHub CLI is installed but not locally authenticated; use the GitHub connector for PR inspection unless `gh auth login` is completed.

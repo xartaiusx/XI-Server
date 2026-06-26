@@ -9,9 +9,10 @@ when referring to the game.
 - Mochirii is a local Final Fantasy XI server project.
 - The active development focus is Trust retail-player parity, Twills QA/admin
   completeness, Windower client QA, and clean server operation.
-- The custom autonomous world-bot system has been removed. Do not reintroduce
-  `server_bots`, `serverbot`, player-commandable bot systems, real bot client
-  sessions, or bot-specific database tables.
+- Do not reintroduce custom world-population automation, player-commandable
+  artificial party systems, real automated client sessions, or dedicated
+  artificial-character database tables. Trust retail-player parity is the active
+  behavior track.
 
 ## Setup Commands
 
