@@ -1,10 +1,11 @@
 xi = xi or {}
 xi.settings = xi.settings or {}
+xi.settings.network = xi.settings.network or {}
 
 -- Local QA defaults. Copy to settings/network.lua and edit locally.
-xi.settings.NETWORK_SQL_HOST = "127.0.0.1"
-xi.settings.NETWORK_SQL_PORT = 3306
-xi.settings.NETWORK_SQL_LOGIN = "xi"
-xi.settings.NETWORK_SQL_PASSWORD = "change-me"
-xi.settings.NETWORK_SQL_DATABASE = "xidb"
-xi.settings.NETWORK_ZONE_IP = "127.0.0.1"
+xi.settings.network.SQL_HOST = '127.0.0.1'
+xi.settings.network.SQL_PORT = 3306
+xi.settings.network.SQL_LOGIN = 'xi'
+xi.settings.network.SQL_PASSWORD = 'change-me'
+xi.settings.network.SQL_DATABASE = 'xidb'
+xi.settings.network.ZONE_IP = '127.0.0.1'

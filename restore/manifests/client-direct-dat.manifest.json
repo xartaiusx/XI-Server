@@ -1,8 +1,26 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-06-30T00:46:07-07:00",
+  "generatedAt": "2026-06-30T04:50:00-07:00",
   "policy": "Direct DAT replacement is allowed only for documented exceptions with backup/hash evidence. Do not commit DAT files.",
   "clientRoot": "D:/Steam/steamapps/common/FFXINA/SquareEnix/FINAL FANTASY XI",
+  "restoreOrder": [
+    "Reinstall or verify the Steam/Square Enix Final Fantasy XI client first.",
+    "Apply XIView direct replacement files with backup/hash capture.",
+    "Apply XITide direct replacement files last with backup/hash capture.",
+    "Verify final active hashes against this manifest before launching through Windower."
+  ],
+  "overlapResolution": {
+    "ROM/119/51.DAT": {
+      "alsoTouchedBy": [
+        "XIView",
+        "XITide"
+      ],
+      "finalOwner": "XITide",
+      "finalSha256": "40a9dad50db8df3ee3993dd1e9be5f068f559bc14aff059cb1e73d17f9c06dfc",
+      "finalSize": 4286240,
+      "reason": "XITide must be applied after XIView so the tide DAT remains the active client file."
+    }
+  },
   "exceptions": [
     {
       "name": "XIView",

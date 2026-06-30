@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-06-30T00:46:07-07:00",
+  "generatedAt": "2026-06-30T04:50:00-07:00",
   "sourceAnchors": [
     "https://github.com/LandSandBoat/lsb-wiki/blob/main/Quick-Start-Guide.md",
     "https://github.com/LandSandBoat/lsb-wiki/blob/main/Client-Setup-Windows.md",
@@ -17,13 +17,34 @@
     "https://www.playonline.com/ff11us/rule/index.html"
   ],
   "preCommitChecks": [
-    "python3 tools/mochirii/portable_restore/verify_restore.py --repo-root .",
+    "python3 tools/mochirii/portable_restore/verify_restore.py --repo-root . --check-manifests",
+    "bash -n tools/mochirii/portable_restore/restore_garuda.sh",
     "git diff --check",
-    "gitleaks detect or git-secrets scan when available",
+    "gitleaks detect --source . --redact --no-banner, or git-secrets --scan if Gitleaks is unavailable",
     "git status --short to confirm no plaintext artifacts are staged"
   ],
+  "protonPayload": {
+    "folderName": "Server Restore-20260630-011753",
+    "updatedAt": "2026-06-30T02:35:09-07:00",
+    "containsSecrets": true,
+    "fullSteamClientIncluded": false,
+    "sectionTotals": {
+      "files": 62257,
+      "bytes": 52049629833
+    },
+    "checksumLines": 62262,
+    "criticalArtifacts": [
+      "FFXI-Runtime/portable-restore/artifacts/xidb-twills-20260630-003932.sql.gz.enc",
+      "FFXI-Runtime/portable-restore/artifacts/windower-golden-state-20260630-004048.tar.gz.enc",
+      "FFXI-Runtime/secrets/mochirii-restore-db-20260630-003932.passphrase.txt",
+      "FFXI-Runtime/secrets/mochirii-restore-windower-20260630-004048.passphrase.txt",
+      "Steam-FFXI-client-patches/PlayOnlineViewer/pol.exe",
+      "Steam-FFXI-client-patches/4gb_patch.zip",
+      "Downloaded-FFXI-Mods-And-Tools"
+    ]
+  },
   "restoreDryRunChecks": [
-    "decrypt/import encrypted xidb artifact into fresh MariaDB",
+    "decrypt/import encrypted xidb artifact into an isolated scratch MariaDB datadir or disposable VM/container, not the live xidb",
     "run python tools/dbtool.py update full twice",
     "configure and build with CMake presets",
     "start xi_connect, xi_search, xi_world, xi_map",

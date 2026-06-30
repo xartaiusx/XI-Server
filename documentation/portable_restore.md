@@ -60,6 +60,14 @@ The current capture produced these restorable artifacts outside Git:
 Tracked manifests under `restore/manifests` record names, sizes, hashes, capture
 methods, and restore expectations.
 
+The latest private Proton Drive payload is
+`C:\Users\xtyty\Documents\FFXI\Server Restore-20260630-011753`, updated
+`2026-06-30T02:35:09-07:00`. It contains the encrypted restore artifacts, matching
+passphrases, a stopped MariaDB datadir copy, the Windower runtime, current direct
+DAT replacement subset, the patched PlayOnline `pol.exe`, the 4GB patch archive,
+and the downloaded mod/tool archive set. It intentionally does not include the
+full Steam Final Fantasy XI client.
+
 ## Garuda Restore
 
 Garuda is Arch-family. LandSandBoat's Arch-family notes are less primary than
@@ -82,12 +90,37 @@ requirements, prepares local settings from templates, runs `dbtool update full`
 twice, configures/builds with CMake presets, and can start the server daemons for
 a smoke test.
 
+For a pre-format dry run on the current Windows machine, do not import the dump
+into the live MariaDB datadir. The dump was captured with `--databases xidb` and
+`--add-drop-database`, so use a scratch MariaDB datadir on an alternate port or a
+disposable VM/container, then point `settings/network.lua` or the
+`XI_NETWORK_SQL_*` environment variables at that scratch instance.
+
+## Client Mod Restore Notes
+
+XIPivot's active overlay setting is:
+
+```text
+Mochirii-GeoBubblesClear,Mochirii-BardNotesHD,Mochirii-LevelMeritJobPoints,Mochirii-MissionRankUps,AshenbubsHD-Prime,ALL-Dat-Mods
+```
+
+`XiView-Widescreen` is preserved only as a staged/reference folder because XIView
+is a direct replacement exception. `_inactive` remains inactive.
+
+Apply direct client DAT exceptions in this order:
+
+1. Apply XIView direct replacements and verify their manifest hashes.
+2. Apply XITide direct replacements last.
+3. Verify `ROM/119/51.DAT` resolves to XITide's final hash
+   `40a9dad50db8df3ee3993dd1e9be5f068f559bc14aff059cb1e73d17f9c06dfc`.
+
 ## Verification Standard
 
 Before pushing restore work, run:
 
 ```bash
-python3 tools/mochirii/portable_restore/verify_restore.py --repo-root .
+python3 tools/mochirii/portable_restore/verify_restore.py --repo-root . --check-manifests
+bash -n tools/mochirii/portable_restore/restore_garuda.sh
 git diff --check
 ```
 

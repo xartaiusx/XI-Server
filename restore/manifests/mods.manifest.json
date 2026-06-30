@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-06-30T00:46:07-07:00",
+  "generatedAt": "2026-06-30T04:50:00-07:00",
   "policy": "Reacquire client mods from source URLs and verify hashes; do not commit archives or DATs.",
   "downloads": [
     {
@@ -49,7 +49,15 @@
   ],
   "xipivot": {
     "preferredFor": "texture and non-early-loaded DAT overlays",
-    "activeOverlayFolders": [
+    "activeOverlays": [
+      "Mochirii-GeoBubblesClear",
+      "Mochirii-BardNotesHD",
+      "Mochirii-LevelMeritJobPoints",
+      "Mochirii-MissionRankUps",
+      "AshenbubsHD-Prime",
+      "ALL-Dat-Mods"
+    ],
+    "availableOverlayFolders": [
       "ALL-Dat-Mods",
       "AshenbubsHD-Prime",
       "Mochirii-BardNotesHD",
@@ -58,6 +66,10 @@
       "Mochirii-MissionRankUps",
       "XiView-Widescreen",
       "_inactive"
+    ],
+    "stagedInactiveFolders": [
+      "_inactive",
+      "XiView-Widescreen"
     ],
     "overlaySizes": {
       "ALL-Dat-Mods": "7.1G",
@@ -75,8 +87,28 @@
     "XIView",
     "XITide"
   ],
+  "protonPayload": {
+    "folderName": "Server Restore-20260630-011753",
+    "updatedAt": "2026-06-30T02:35:09-07:00",
+    "sections": {
+      "Steam-FFXI-client-patches": {
+        "files": 2,
+        "bytes": 1713112
+      },
+      "Downloaded-FFXI-Mods-And-Tools": {
+        "files": 16,
+        "bytes": 10241218005
+      }
+    },
+    "criticalArtifacts": {
+      "patchedPlayOnlinePol": "Steam-FFXI-client-patches/PlayOnlineViewer/pol.exe",
+      "fourGbPatchArchive": "Steam-FFXI-client-patches/4gb_patch.zip",
+      "downloadedModsAndTools": "Downloaded-FFXI-Mods-And-Tools"
+    }
+  },
   "notes": [
     "XIPivot is preferred, but early-loaded menu/font/UI DATs may require direct replacement with backup and hash manifest.",
+    "XIView-Widescreen is present for staging/reference but is not active in XIPivot because XIView is a direct replacement exception.",
     "Ashenbubs remains one Prime overlay; do not load Basic and Prime simultaneously.",
     "Original client files and replaced DATs are never committed."
   ]

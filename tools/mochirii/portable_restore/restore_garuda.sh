@@ -101,10 +101,10 @@ from pathlib import Path
 import sys
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
-text = text.replace('"xi"', repr(sys.argv[2]).replace("'", '"'))
-text = text.replace('"change-me"', repr(sys.argv[3]).replace("'", '"'))
-text = text.replace('"xidb"', repr(sys.argv[4]).replace("'", '"'))
-  path.write_text(text, encoding="utf-8")
+text = text.replace("xi.settings.network.SQL_LOGIN = 'xi'", f"xi.settings.network.SQL_LOGIN = {sys.argv[2]!r}")
+text = text.replace("xi.settings.network.SQL_PASSWORD = 'change-me'", f"xi.settings.network.SQL_PASSWORD = {sys.argv[3]!r}")
+text = text.replace("xi.settings.network.SQL_DATABASE = 'xidb'", f"xi.settings.network.SQL_DATABASE = {sys.argv[4]!r}")
+path.write_text(text, encoding="utf-8")
 PY
 fi
 
