@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-06-30T00:46:07-07:00",
+  "artifactPolicy": "encrypted-runtime-artifact-only; do not commit plaintext SQL or passphrases",
+  "database": "xidb",
+  "artifact": {
+    "fileName": "xidb-twills-20260630-003932.sql.gz.enc",
+    "runtimeLocation": "C:/Users/xtyty/Documents/FFXI-Runtime/portable-restore/artifacts/xidb-twills-20260630-003932.sql.gz.enc",
+    "bytes": 4154832,
+    "sha256": "97ce81c6d2c5e0e0900833c9a0624091d74643135c604149b9af0296a734381f",
+    "format": "mariadb-dump | gzip -9 | openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000",
+    "capturedAt": "2026-06-30T00:39:36-07:00",
+    "passphraseLocation": "outside-git: C:/Users/xtyty/Documents/FFXI-Runtime/secrets/mochirii-restore-db-20260630-003932.passphrase.txt",
+    "plaintextCommitted": false,
+    "decryptSmokeTest": "verified SQL header from encrypted artifact on 2026-06-30"
+  },
+  "dumpOptions": [
+    "--databases xidb",
+    "--single-transaction",
+    "--routines",
+    "--triggers",
+    "--events",
+    "--hex-blob",
+    "--default-character-set=utf8mb4",
+    "--add-drop-database",
+    "--add-drop-table",
+    "--add-drop-trigger"
+  ],
+  "restoreCommandShape": "openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass file:<passphrase> -in <artifact> | gzip -dc | mariadb",
+  "safetyNotes": [
+    "Stop xi_* server processes before capture; MariaDB may remain online for --single-transaction dump.",
+    "Never commit decrypted SQL, passphrase files, or account credential material.",
+    "Run dbtool update full twice after import."
+  ]
+}

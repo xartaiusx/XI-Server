@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-06-30T00:46:07-07:00",
+  "trackedGoldenStateRoot": "restore/windower-golden-state",
+  "trackedFiles": [
+    {
+      "relativePath": "addons/GearSwap/data/Twills.lua",
+      "bytes": 16799,
+      "sha256": "6e8193aa373bd71971be0ee38d8b4494208ff6fc78c464f4132f4a3c77dab82b"
+    },
+    {
+      "relativePath": "addons/MochiriiScreenshotQA/MochiriiScreenshotQA.lua",
+      "bytes": 4321,
+      "sha256": "4da1a1775a35c837ecd2ad3ca358ca72a691c030642a3b1e324f45a59f90157d"
+    },
+    {
+      "relativePath": "addons/XIPivot/data/settings.xml",
+      "bytes": 401,
+      "sha256": "a7e75e41753ed6d61bc31f8ceb282ef61bfbdbe7e14d463b7ebd103d0b2bedc1"
+    },
+    {
+      "relativePath": "addons/XivParty/data/settings.xml",
+      "bytes": 1666,
+      "sha256": "cf9c7649ec01cc95b76ff8885cb7a02e248f06ada2c60f463e4895d33f80a540"
+    },
+    {
+      "relativePath": "addons/battlemod/data/filters/filters-RDM.xml",
+      "bytes": 10388,
+      "sha256": "72af0847b4d67f752652c530249bc965558dd48db156966d0c5d4de8abbfdc9b"
+    },
+    {
+      "relativePath": "addons/battlemod/data/settings.xml",
+      "bytes": 1807,
+      "sha256": "afc893bb97c2df9db74b7a852eb67a9d18ccadc2fddf9f74fe07a45954d3ed4f"
+    },
+    {
+      "relativePath": "addons/xivhotbar/data/Twills/General.lua",
+      "bytes": 3856,
+      "sha256": "30d215694d7bc382a01a8e49f4b3aa6510330d03adc7b53a5848e669626306ec"
+    },
+    {
+      "relativePath": "addons/xivhotbar/data/Twills/RDM.lua",
+      "bytes": 3611,
+      "sha256": "a911aac59e0db84e784f337e921ef005ede41878c6f820b0715e90d51e95915b"
+    },
+    {
+      "relativePath": "addons/xivhotbar/data/keybinds.lua",
+      "bytes": 3535,
+      "sha256": "f0595f11063904cfaed86d933a836384238688e9ecc184cc52cf9de816b28c53"
+    },
+    {
+      "relativePath": "addons/xivhotbar/data/settings.xml",
+      "bytes": 4501,
+      "sha256": "1c1318ab72df44e23c71f7d21c92d583f9b43e5a73659b6974a2050456a9ce02"
+    },
+    {
+      "relativePath": "plugins/settings/Config.xml",
+      "bytes": 1115,
+      "sha256": "22ddecbd64d14042b5bcdb77c6fdd0ffa29b208134a970c815e3add10d5992f8"
+    },
+    {
+      "relativePath": "scripts/init.txt",
+      "bytes": 323,
+      "sha256": "65ce26eebe7b2f199da299140762e115f0dc195acae611920f3e34d63f0d7294"
+    }
+  ],
+  "encryptedFullBundle": {
+    "fileName": "windower-golden-state-20260630-004048.tar.gz.enc",
+    "runtimeLocation": "C:/Users/xtyty/Documents/FFXI-Runtime/portable-restore/artifacts/windower-golden-state-20260630-004048.tar.gz.enc",
+    "bytes": 23104,
+    "sha256": "5b87d439351474d4a4aeb559a4e920d0976d2eac6627f129daa4d6b2b2921bfa",
+    "format": "tar -cz windower-golden-state | openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000",
+    "passphraseLocation": "outside-git: C:/Users/xtyty/Documents/FFXI-Runtime/secrets/mochirii-restore-windower-20260630-004048.passphrase.txt",
+    "plaintextCommitted": false
+  },
+  "encryptedOnlyFiles": [
+    "addons/GearSwap/flow.lua",
+    "addons/xivhotbar/xivhotbar.lua",
+    "addons/xivhotbar/defaults.lua",
+    "addons/xivhotbar/lib/player.lua",
+    "manifest.json"
+  ],
+  "startupSourceOfTruth": "Windower/scripts/init.txt; global Windower/settings.xml autoload remains empty",
+  "notes": [
+    "Tracked files are Git-safe Twills configs and Mochirii QA addon state.",
+    "Full patched third-party addon source is preserved in the encrypted Windower bundle.",
+    "MochiriiScreenshotQA contains Windows runtime paths; rewrite those paths when restoring on non-Windows Wine prefixes."
+  ]
+}

@@ -1,0 +1,20 @@
+lua unload XIPivot
+lua load XIPivot
+
+load Config
+config ClippingPlane 5
+config save
+
+lua load shortcuts
+lua load battlemod
+lua load DressUp
+lua load findAll
+lua load GearSwap
+lua load XivParty
+xp setup off
+lua load xivhotbar
+lua load MochiriiScreenshotQA
+
+bind !f10 gs c cycle
+bind !f11 gs c idle
+bind sysrq screenshot jpg

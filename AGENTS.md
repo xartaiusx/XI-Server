@@ -41,6 +41,9 @@ when referring to the game.
 
 - Always inspect current source, git status, server processes, and latest logs
   before changing behavior.
+- For portable restore work, read `documentation/portable_restore.md` and the
+  JSON manifests under `restore/manifests` before changing scripts, database
+  backup handling, Windower restore state, or client mod policy.
 - For client-visible state, use only native Windower screenshots. Run
   `tools\mochirii\assert_windower_foreground.ps1` first, then
   `tools\mochirii\capture_windower_window.ps1`.
@@ -75,8 +78,17 @@ when referring to the game.
 
 - Keep generated binaries, debug artifacts, screenshots, runtime logs, database
   backups, secrets, client files, and mod archives out of git.
+- Portable restore artifacts must stay split by class:
+  - Git-safe source, docs, templates, redacted summaries, and manifests may be
+    tracked.
+  - Full `xidb`, Windower runtime bundles, account state, and any private
+    payload must be encrypted before storage outside Git history.
+  - Final Fantasy XI client files, DATs, downloaded mod archives, xiloader, and
+    Windower binaries are reacquired from documented sources or restored from
+    private encrypted artifacts; do not commit them.
 - Before committing, run:
   - `git diff --check`
+  - `python3 tools/mochirii/portable_restore/verify_restore.py --repo-root .`
   - relevant LuaJIT syntax checks
   - relevant CMake build target when C++ changed
 - Use focused commits with descriptive messages.

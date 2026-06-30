@@ -16,6 +16,7 @@ The project name and server identity are Mochirii. Public-facing documentation s
 - 2026-06-25 server verification: desktop Start/Stop shortcuts manually started and stopped MariaDB plus `xi_connect`, `xi_search`, `xi_world`, and `xi_map`; no Startup-folder, Run-key, service, or Scheduled Task autostart was configured.
 - 2026-06-25 tooling verification: LuaJIT, Lua, Lua Language Server, StyLua, CMake, Ninja, clang-format 22, Python, Node, and GitHub CLI are installed. Local `gh` is authenticated for `xartaiusx/XI-Server`.
 - 2026-06-25 cleanup: ignored root debug artifacts and the old root Windower screenshot were removed from the workspace. Runtime evidence remains under `C:\Users\xtyty\Documents\FFXI-Runtime`.
+- 2026-06-30 portable restore baseline: fresh encrypted `xidb` and Windower golden-state artifacts exist under `C:\Users\xtyty\Documents\FFXI-Runtime\portable-restore\artifacts`; tracked restore manifests live under `restore\manifests`.
 
 ## Development Focus
 
@@ -31,6 +32,8 @@ Mochirii currently tracks three active workstreams:
 - `documentation/client_mod_admin_plan.md` tracks client, Windower, mod, server-control, and Trust QA state.
 - `documentation/twills_rdm_sch_gear_completion.md` tracks Twills gear, storage, professions, chocobo, progression, and audit state.
 - `documentation/trust_retail_parity.md` tracks Trust combat, defensive behavior, logging, and per-Trust parity work.
+- `documentation/portable_restore.md` explains the Windows capture, GitHub-safe artifact policy, and Garuda restore path.
+- `restore/` contains Git-safe restore manifests, templates, and the tracked Windower golden-state subset.
 
 ## Validation Standard
 
@@ -47,6 +50,22 @@ Preferred evidence order:
 3. Retail captures, packet observations, or in-client proof when official notes omit exact details.
 4. Community references as secondary guidance, verified against source or runtime evidence before implementation.
 
+## Portable Restore
+
+The restore goal is reproducibility, not committing every byte. Source code,
+custom modules, redacted Twills state, templates, checksums, and manifests are
+tracked. Full database state and exact Windower runtime bundles are encrypted
+under `FFXI-Runtime` and referenced by hash. Final Fantasy XI client files, DAT
+files, downloaded mod archives, launcher binaries, screenshots, raw logs, and
+secrets are intentionally reacquired or restored from private encrypted
+artifacts instead of committed.
+
+Key entry points:
+
+- `tools\mochirii\portable_restore\Capture-MochiriiRestoreBundle.ps1`
+- `tools/mochirii/portable_restore/restore_garuda.sh`
+- `tools/mochirii/portable_restore/verify_restore.py`
+
 ## Safety Rules
 
 Do not commit or publish:
@@ -55,6 +74,8 @@ Do not commit or publish:
 - client files, mod archives, launcher binaries, or extracted game assets
 - database dumps, backups, raw captures with private data, or runtime logs
 - local account details beyond safe QA summaries
+- plaintext restore artifacts, encrypted artifacts without an explicit private
+  distribution decision, or decryption passphrases
 
 ## License
 

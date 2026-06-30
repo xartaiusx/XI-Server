@@ -219,6 +219,29 @@ ip.txt
 ext/tracy/
 tracy.tar.gz
 
+# Local MinGW runtime DLLs copied beside Windows debug executables.
+/libgcc_s_seh-1.dll
+/libstdc++-6.dll
+/libwinpthread-1.dll
+
+# Mochirii portable restore artifacts.
+# Keep manifests and docs in git, but never commit plaintext dumps, encrypted
+# payloads, passphrases, client assets, DATs, or bundled runtime archives.
+/restore/artifacts/*
+!/restore/artifacts/README.md
+!/restore/artifacts/.gitkeep
+/restore/**/*.sql
+/restore/**/*.sql.gz
+/restore/**/*.dump
+/restore/**/*.bak
+/restore/**/*.enc
+/restore/**/*.passphrase.txt
+/restore/**/*.zip
+/restore/**/*.7z
+/restore/**/*.rar
+/restore/**/*.DAT
+/restore/**/*.dat
+
 # Valgrind
 *.memcheck.log
 *.callgrind.log
