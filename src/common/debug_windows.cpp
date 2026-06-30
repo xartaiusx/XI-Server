@@ -31,8 +31,10 @@
 #else
 #include <shlobj_core.h>
 #endif
+#ifdef _MSC_VER
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "user32.lib")
+#endif
 
 #ifndef __MINGW32__
 WheatyExceptionReport g_WheatyExceptionReport;
