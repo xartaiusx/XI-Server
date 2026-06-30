@@ -79,14 +79,14 @@ constexpr auto  TrustFocusReasonVar           = "MochiTrustFocusReason";
 constexpr auto  TrustRoleEnmityActionVar      = "MochiTrustRoleEnmityAction";
 constexpr auto  TrustRoleEnmityTargetVar      = "MochiTrustRoleEnmityTargetTargId";
 
-enum class TrustRestMode : uint16
+enum class TrustRestMode : uint8
 {
     None        = 0,
     OutOfCombat = 1,
     Combat      = 2,
 };
 
-enum class TrustRestStartReason : uint16
+enum class TrustRestStartReason : uint8
 {
     None     = 0,
     LowMp    = 1,
@@ -95,7 +95,7 @@ enum class TrustRestStartReason : uint16
     CombatMp = 4,
 };
 
-enum class TrustRestStopReason : uint16
+enum class TrustRestStopReason : uint8
 {
     None          = 0,
     Engaged       = 1,
@@ -105,7 +105,7 @@ enum class TrustRestStopReason : uint16
     CombatUnsafe  = 5,
 };
 
-enum class TrustRestBlockReason : uint16
+enum class TrustRestBlockReason : uint8
 {
     None                = 0,
     NotNeeded           = 1,
@@ -122,7 +122,7 @@ enum class TrustRestBlockReason : uint16
     OutOfCombatCooldown = 12,
 };
 
-enum class TrustFocusReason : uint16
+enum class TrustFocusReason : uint8
 {
     None          = 0,
     MasterTarget  = 1,
@@ -130,7 +130,7 @@ enum class TrustFocusReason : uint16
     CurrentTarget = 3,
 };
 
-enum class TrustRoleEnmityAction : uint16
+enum class TrustRoleEnmityAction : uint8
 {
     None       = 0,
     TankAssist = 1,

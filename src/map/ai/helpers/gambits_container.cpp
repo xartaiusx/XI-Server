@@ -91,7 +91,7 @@ namespace
         return PEffect->GetStartTime() + PEffect->GetDuration() <= timer::now() + refreshWindow;
     }
 
-    enum class TrustTpSkillSkipReason : uint16
+    enum class TrustTpSkillSkipReason : uint8
     {
         None          = 0,
         InvalidTarget = 1,

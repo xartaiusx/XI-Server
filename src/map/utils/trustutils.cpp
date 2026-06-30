@@ -438,7 +438,7 @@ auto BoolLog(bool value) -> const char*
     return value ? "true" : "false";
 }
 
-auto EntityName(CBaseEntity* PEntity) -> std::string
+auto EntityName(const CBaseEntity* PEntity) -> std::string
 {
     return PEntity ? SafeLogValue(PEntity->getName()) : "none";
 }
@@ -448,7 +448,7 @@ auto TargetTargId(uint32 entityId) -> uint16
     return static_cast<uint16>(entityId & 0xFFFF);
 }
 
-auto EntityDistance(CBaseEntity* PSource, CBaseEntity* PTarget) -> std::string
+auto EntityDistance(const CBaseEntity* PSource, const CBaseEntity* PTarget) -> std::string
 {
     if (!PSource || !PTarget)
     {
@@ -458,14 +458,14 @@ auto EntityDistance(CBaseEntity* PSource, CBaseEntity* PTarget) -> std::string
     return fmt::format("{:.2f}", distance(PSource->loc.p, PTarget->loc.p));
 }
 
-void AddEntityFields(std::ostringstream& line, const char* prefix, CBaseEntity* PEntity)
+void AddEntityFields(std::ostringstream& line, const char* prefix, const CBaseEntity* PEntity)
 {
     line << '\t' << prefix << "_name=" << EntityName(PEntity);
     line << '\t' << prefix << "_id=" << (PEntity ? PEntity->id : 0);
     line << '\t' << prefix << "_targid=" << (PEntity ? PEntity->targid : 0);
     line << '\t' << prefix << "_objtype=" << (PEntity ? static_cast<uint16>(PEntity->objtype) : 0);
 
-    if (auto* PBattle = dynamic_cast<CBattleEntity*>(PEntity))
+    if (const auto* PBattle = dynamic_cast<const CBattleEntity*>(PEntity))
     {
         line << '\t' << prefix << "_hp=" << PBattle->health.hp;
         line << '\t' << prefix << "_maxhp=" << PBattle->GetMaxHP();
@@ -614,7 +614,7 @@ void LogTrustProgressionBonus(CTrustEntity* PTrust)
     AppendTrustLogLine(PMaster, line.str());
 }
 
-void AddTrustActionContext(std::ostringstream& line, CTrustEntity* PTrust, CCharEntity* PMaster, const action_t& action, CBattleEntity* PPrimaryTarget, const char* source, const char* eventName)
+void AddTrustActionContext(std::ostringstream& line, CTrustEntity* PTrust, CCharEntity* PMaster, const action_t& action, const CBattleEntity* PPrimaryTarget, const char* source, const char* eventName)
 {
     auto* PBattleTarget = PTrust->GetBattleTarget();
 
@@ -675,7 +675,7 @@ auto ResultIsDefeated(const action_result_t& result) -> bool
     return (static_cast<uint8>(result.info) & static_cast<uint8>(ActionInfo::Defeated)) != 0;
 }
 
-auto ResolvePacketTarget(CTrustEntity* PTrust, CBattleEntity* PPrimaryTarget, uint32 targetId) -> CBaseEntity*
+auto ResolvePacketTarget(CTrustEntity* PTrust, const CBattleEntity* PPrimaryTarget, uint32 targetId) -> const CBaseEntity*
 {
     if (PPrimaryTarget && PPrimaryTarget->id == targetId)
     {
@@ -696,7 +696,7 @@ auto ResolvePacketTarget(CTrustEntity* PTrust, CBattleEntity* PPrimaryTarget, ui
     return nullptr;
 }
 
-void trustutils::LogTrustActionPacket(CBattleEntity* PActor, const action_t& action, CBattleEntity* PPrimaryTarget, const char* source)
+void trustutils::LogTrustActionPacket(CBattleEntity* PActor, const action_t& action, const CBattleEntity* PPrimaryTarget, const char* source)
 {
     auto* PTrust = dynamic_cast<CTrustEntity*>(PActor);
     if (!PTrust)
