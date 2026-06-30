@@ -114,10 +114,10 @@ function(set_project_warnings project_name)
 
   option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" TRUE)
   if(WARNINGS_AS_ERRORS)
-    if(UNIX)
-      set(ERRORS "-Werror")
-    elseif(WIN32)
+    if(MSVC)
       set(ERRORS "/WX")
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+      set(ERRORS "-Werror")
     endif()
   endif()
 
