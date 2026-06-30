@@ -299,6 +299,12 @@ if(WIN32)
 
     list(APPEND SHARED_EXTERNAL_LIBS
         wepoll
+        ws2_32
+        mswsock
+        iphlpapi
+        shell32
+        user32
+        shlwapi
     )
 
 # backwards needs these to add to linker

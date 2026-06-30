@@ -1,4 +1,4 @@
-if(NOT WIN32)
+if(NOT WIN32 OR MINGW)
     message(STATUS "Building MariaDB Connector/C++ from source")
     CPMAddPackage(
         NAME mariadb-connector-cpp
@@ -111,7 +111,7 @@ if(NOT WIN32)
         )
 
         # NOTE: Keep this around if we ever want to rebuild the mariadb-connector-cpp library
-        if(WIN32)
+        if(WIN32 AND NOT MINGW)
             set(MACPP_SOURCES
                 ${MACPP_SOURCES}
                 ${mariadb-connector-cpp_SOURCE_DIR}/src/Dll.c
@@ -237,6 +237,16 @@ if(NOT WIN32)
                 ${mariadb-connector-cpp_SOURCE_DIR}/src/maconncpp.def
             )
         endif()
+        if(MINGW)
+            file(READ "${mariadb-connector-cpp_SOURCE_DIR}/src/CArrayImp.h" CARRAYIMP_CONTENTS)
+            string(REPLACE
+                "#ifndef _WIN32\n# define ZEROI64 0LL\n#else\n# define ZEROI64 0I64\n#endif"
+                "#if defined(_WIN32) && !defined(__MINGW32__)\n# define ZEROI64 0I64\n#else\n# define ZEROI64 0LL\n#endif"
+                CARRAYIMP_CONTENTS
+                "${CARRAYIMP_CONTENTS}"
+            )
+            file(WRITE "${mariadb-connector-cpp_SOURCE_DIR}/src/CArrayImp.h" "${CARRAYIMP_CONTENTS}")
+        endif()
         add_library(mariadbclientcpp STATIC ${MACPP_SOURCES})
         target_include_directories(mariadbclientcpp
             PUBLIC
@@ -245,13 +255,21 @@ if(NOT WIN32)
                 ${mariadb-connector-cpp_SOURCE_DIR}/include/conncpp
                 ${mariadb-connector-cpp_SOURCE_DIR}/src/
         )
+        if(MINGW)
+            target_compile_options(mariadbclientcpp PRIVATE
+                $<$<COMPILE_LANGUAGE:CXX>:-include>
+                $<$<COMPILE_LANGUAGE:CXX>:cstdint>
+                $<$<COMPILE_LANGUAGE:CXX>:-fext-numeric-literals>
+                $<$<COMPILE_LANGUAGE:CXX>:-Wno-attributes>
+            )
+        endif()
         target_link_libraries(mariadbclientcpp PRIVATE mariadbclient)
 
         set(MARIADBCPP_FOUND TRUE)
         set(MARIADBCPP_LIBRARY mariadbclientcpp)
         set(MARIADBCPP_INCLUDE_DIR ${mariadb-connector-cpp_SOURCE_DIR}/include)
     endif()
-else() # WIN32
+else() # WIN32 AND NOT MINGW
     message(STATUS "Looking for prebuilt MariaDB Connector/C++")
     find_library(MARIADBCPP_LIBRARY
         NAMES

@@ -29,54 +29,92 @@
 namespace certificateHelpers
 {
 
+inline bool hasReadablePrivateKey()
+{
+    if (!std::filesystem::exists("login.key") || std::filesystem::file_size("login.key") == 0)
+    {
+        return false;
+    }
+
+    FILE* fileHandle = fopen("login.key", "r");
+    if (!fileHandle)
+    {
+        return false;
+    }
+
+    EVP_PKEY* pkey = PEM_read_PrivateKey(fileHandle, nullptr, nullptr, nullptr);
+    const bool isReadable = pkey != nullptr;
+
+    if (isReadable)
+    {
+        ShowInfo(fmt::format("Found existing login.key"));
+    }
+
+    EVP_PKEY_free(pkey);
+    fclose(fileHandle);
+    return isReadable;
+}
+
+inline bool hasReadableCertificate()
+{
+    if (!std::filesystem::exists("login.cert") || std::filesystem::file_size("login.cert") == 0)
+    {
+        return false;
+    }
+
+    FILE* fileHandle = fopen("login.cert", "r");
+    if (!fileHandle)
+    {
+        return false;
+    }
+
+    X509* cert = PEM_read_X509(fileHandle, nullptr, nullptr, nullptr);
+    const bool isReadable = cert != nullptr;
+
+    if (isReadable)
+    {
+        char cn[2048] = {};
+        int  size     = sizeof(cn);
+
+        X509_NAME_oneline(X509_get_subject_name(cert), cn, size);
+        X509_NAME_oneline(X509_get_issuer_name(cert), cn, size);
+
+        // This is internal, so we can trust it.
+        ShowInfo(fmt::format("Found existing login.cert: {}", asStringFromUntrustedSource(cn)));
+
+        // if current time not within the bounds of valid date, note it's expired
+        if (X509_cmp_time(X509_get_notAfter(cert), nullptr) != 1 || X509_cmp_time(X509_get_notBefore(cert), nullptr) != -1)
+        {
+            ShowWarning("Existing login.cert is not valid for the current time. Please regenerate or obtain a new certificate.");
+        }
+    }
+
+    X509_free(cert);
+    fclose(fileHandle);
+    return isReadable;
+}
+
 inline void generateSelfSignedCert()
 {
-    if (std::filesystem::exists("login.key"))
-    {
-        FILE* fileHandle = fopen("login.key", "r");
-        if (fileHandle)
-        {
-            EVP_PKEY* pkey = PEM_read_PrivateKey(fileHandle, nullptr, nullptr, nullptr);
-            if (pkey)
-            {
-                ShowInfo(fmt::format("Found existing login.key"));
-            }
+    const bool hasKey  = hasReadablePrivateKey();
+    const bool hasCert = hasReadableCertificate();
 
-            EVP_PKEY_free(pkey);
-            fclose(fileHandle);
-        }
+    if (hasKey && hasCert)
+    {
+        return;
     }
 
-    if (std::filesystem::exists("login.cert"))
+    if (std::filesystem::exists("login.key") && !hasKey)
     {
-        FILE* fileHandle = fopen("login.cert", "r");
-        if (fileHandle)
-        {
-            X509* cert = PEM_read_X509(fileHandle, nullptr, nullptr, nullptr);
-            if (cert)
-            {
-                char cn[2048] = {};
-                int  size     = sizeof(cn);
-
-                X509_NAME_oneline(X509_get_subject_name(cert), cn, size);
-                X509_NAME_oneline(X509_get_issuer_name(cert), cn, size);
-
-                // This is internal, so we can trust it.
-                ShowInfo(fmt::format("Found existing login.cert: {}", asStringFromUntrustedSource(cn)));
-
-                // if current time not within the bounds of valid date, note it's expired
-                if (X509_cmp_time(X509_get_notAfter(cert), nullptr) != 1 || X509_cmp_time(X509_get_notBefore(cert), nullptr) != -1)
-                {
-                    ShowWarning("Existing login.cert is not valid for the current time. Please regenerate or obtain a new certificate.");
-                }
-            }
-
-            X509_free(cert);
-            fclose(fileHandle);
-        }
+        std::filesystem::remove("login.key");
     }
 
-    if (!std::filesystem::exists("login.key") && !std::filesystem::exists("login.cert"))
+    if (std::filesystem::exists("login.cert") && !hasCert)
+    {
+        std::filesystem::remove("login.cert");
+    }
+
+    if (!hasKey || !hasCert)
     {
         ShowInfo("Generating self-signed certificate");
 

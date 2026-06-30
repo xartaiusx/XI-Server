@@ -48,7 +48,7 @@ public:
 
         sslContext_.set_options(asio::ssl::context::default_workarounds | asio::ssl::context::verify_fail_if_no_peer_cert);
         sslContext_.set_default_verify_paths();
-        sslContext_.use_rsa_private_key_file("login.key", asio::ssl::context::file_format::pem);
+        sslContext_.use_private_key_file("login.key", asio::ssl::context::file_format::pem);
         sslContext_.use_certificate_chain_file("login.cert");
 
         scheduler_.postToMainThread(accept_loop());

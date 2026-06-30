@@ -87,6 +87,7 @@
 #if !defined(_MSC_VER)
 #define strcmpi strcasecmp
 #define stricmp strcasecmp
+#endif
 
 // https://stackoverflow.com/questions/12044519/what-is-the-windows-equivalent-of-the-unix-function-gmtime-r
 // gmtime_r() is the thread-safe version of gmtime(). The MSVC implementation of gmtime() is already thread safe,
@@ -96,11 +97,12 @@
 // You can use gmtime_s() instead. Closest to gmtime_r() but with the arguments reversed
 
 // Provide func_s implementations for Unix
-#define _gmtime_s(a, b)    gmtime_r(b, a)
-#define _localtime_s(a, b) localtime_r(b, a)
-#else // MSVC
+#if defined(_WIN32)
 #define _gmtime_s(a, b)    gmtime_s(a, b)
 #define _localtime_s(a, b) localtime_s(a, b)
+#else
+#define _gmtime_s(a, b)    gmtime_r(b, a)
+#define _localtime_s(a, b) localtime_r(b, a)
 #endif
 
 // MSVC doesn't have __PRETTY_FUNCTION__ so we use an equivalent
