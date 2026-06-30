@@ -31,12 +31,15 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <numbers>
 #include <regex>
 #include <string>
 
 #ifdef _MSC_VER
 #include <intrin.h>
 #endif
+
+static constexpr float pi = std::numbers::pi_v<float>;
 
 int32 checksum(unsigned char* buf, uint32 buflen, char checkhash[16])
 {
@@ -113,12 +116,12 @@ convert back and forth.
 */
 float rotationToRadian(uint8 rotation)
 {
-    return (float)((rotation / 256.0f) * 2 * M_PI);
+    return (rotation / 256.0f) * 2 * pi;
 }
 
 uint8 radianToRotation(float radian)
 {
-    return (uint8)((radian / (2 * M_PI)) * 256);
+    return (uint8)((radian / (2 * pi)) * 256);
 }
 
 /****************************************************************************
@@ -135,7 +138,7 @@ uint8 worldAngle(const position_t& A, const position_t& B)
     }
 
     float radians  = atan2f(B.z - A.z, B.x - A.x);
-    int16 rawAngle = static_cast<int16>(radians * -(128.0f / M_PI));
+    int16 rawAngle = static_cast<int16>(radians * -(128.0f / pi));
     return static_cast<uint8>((rawAngle % 256 + 256) % 256);
 }
 
@@ -223,9 +226,9 @@ position_t nearPosition(const position_t& A, float offset, float radian)
     float      totalRadians = rotationToRadian(A.rotation) + radian;
     position_t B;
 
-    B.x = A.x + cosf((float)(2 * M_PI - totalRadians)) * offset;
+    B.x = A.x + cosf(2 * pi - totalRadians) * offset;
     B.y = A.y;
-    B.z = A.z + sinf((float)(2 * M_PI - totalRadians)) * offset;
+    B.z = A.z + sinf(2 * pi - totalRadians) * offset;
 
     B.rotation = A.rotation;
     B.moving   = A.moving;

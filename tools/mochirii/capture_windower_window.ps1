@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 
 $assertScript = Join-Path $PSScriptRoot 'assert_windower_foreground.ps1'
 $sendScript = Join-Path $PSScriptRoot 'send_windower_text.ps1'
-$windowerRoot = 'C:\Program Files (x86)\Steam\steamapps\common\FFXINA\Windower'
+$windowerRoot = 'D:\Steam\steamapps\common\FFXINA\Windower'
 $screenshotRoot = Join-Path $windowerRoot 'screenshots'
 $triggerPath = 'C:\Users\xtyty\Documents\FFXI-Runtime\screenshots\native_screenshot_request.txt'
 
@@ -29,6 +29,7 @@ New-Item -ItemType Directory -Force -Path $screenshotRoot | Out-Null
 
 Add-Type -TypeDefinition @'
 using System;
+using System.Text;
 using System.Runtime.InteropServices;
 
 public static class MochiriiNativeScreenshotFocus
@@ -57,10 +58,54 @@ public static class MochiriiNativeScreenshotFocus
     [DllImport("user32.dll")]
     public static extern uint GetDpiForWindow(IntPtr hWnd);
 
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
     public const byte VK_MENU = 0x12;
     public const uint KEYEVENTF_KEYUP = 0x0002;
 }
 '@ -ErrorAction SilentlyContinue
+
+$allowedProcessNames = @(
+    'Windower',
+    'xiloader',
+    'pol',
+    'polboot',
+    'polcore',
+    'ffximain'
+)
+
+function Get-MochiriiForegroundSnapshot
+{
+    $handle = [MochiriiNativeScreenshotFocus]::GetForegroundWindow()
+    $processId = 0
+    [void][MochiriiNativeScreenshotFocus]::GetWindowThreadProcessId($handle, [ref]$processId)
+
+    $titleBuilder = New-Object System.Text.StringBuilder 512
+    [void][MochiriiNativeScreenshotFocus]::GetWindowText($handle, $titleBuilder, $titleBuilder.Capacity)
+
+    $process = $null
+    if ($processId -ne 0)
+    {
+        $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+    }
+
+    $processName = if ($process) { $process.ProcessName } else { '' }
+
+    [pscustomobject]@{
+        IsWindowerClient = $allowedProcessNames -contains $processName
+        ProcessId        = $processId
+        ProcessName      = $processName
+        WindowTitle      = $titleBuilder.ToString()
+        AllowedNames     = $allowedProcessNames -join ','
+    }
+}
 
 $targetWindow = Get-Process -Name xiloader, Windower, pol, polboot, polcore, ffximain -ErrorAction SilentlyContinue |
     Where-Object { $_.MainWindowHandle -ne 0 -and ($_.MainWindowTitle -match 'Twills|FINAL FANTASY|PlayOnline|Windower') } |
@@ -81,21 +126,21 @@ for ($i = 0; $i -lt 8; $i++)
     [void][MochiriiNativeScreenshotFocus]::SetForegroundWindow($targetWindow.MainWindowHandle)
     Start-Sleep -Milliseconds 250
 
-    $preCheck = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $assertScript
-    if ($LASTEXITCODE -eq 0)
+    $preCheck = Get-MochiriiForegroundSnapshot
+    if ($preCheck.IsWindowerClient)
     {
         break
     }
 }
 
-$focusCheck = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $assertScript
-if ($LASTEXITCODE -ne 0)
+$focusCheck = Get-MochiriiForegroundSnapshot
+if (-not $focusCheck.IsWindowerClient)
 {
-    $focusCheck | Write-Output
+    $focusCheck | ConvertTo-Json -Compress | Write-Output
     throw 'Refusing screenshot: Windower/xiloader is not the foreground client.'
 }
 
-$focusCheck | Write-Output
+$focusCheck | ConvertTo-Json -Compress | Write-Output
 
 $clientRect = New-Object MochiriiNativeScreenshotFocus+RECT
 [void][MochiriiNativeScreenshotFocus]::GetClientRect($targetWindow.MainWindowHandle, [ref]$clientRect)
@@ -146,7 +191,6 @@ function Get-NativeScreenshotCandidate
     Get-ChildItem -LiteralPath $Root -Recurse -File -ErrorAction SilentlyContinue |
         Where-Object {
             $_.Extension -ieq $Extension -and
-            $_.DirectoryName -ine $Root -and
             $_.LastWriteTimeUtc -ge $SinceUtc.AddSeconds(-5) -and
             ((-not $Seen.ContainsKey($_.FullName)) -or $Seen[$_.FullName] -ne $_.LastWriteTimeUtc) -and
             (Test-Path -LiteralPath $_.FullName)
@@ -179,8 +223,11 @@ if ($null -eq $nativeScreenshot)
 {
     # Most Mochirii sessions autoload the bridge from Windower\scripts\init.txt.
     # If this session does not have it yet, load it once as a fallback and retry.
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $sendScript -Text "//lua load MochiriiScreenshotQA" -PressSpaceBefore -PressEnterAfter -EscapeCount 1 | Write-Output
-    if ($LASTEXITCODE -ne 0)
+    try
+    {
+        & $sendScript -Text "//lua load MochiriiScreenshotQA" -PressSpaceBefore -PressEnterAfter -EscapeCount 1
+    }
+    catch
     {
         throw 'Could not load MochiriiScreenshotQA in Windower.'
     }

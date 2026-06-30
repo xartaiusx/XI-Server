@@ -40,6 +40,10 @@ if(WIN32)
     set_target_properties(xi_connect PROPERTIES OUTPUT_NAME xi_connect)
 endif()
 
+if(MINGW)
+    target_compile_options(xi_connect PRIVATE -fpermissive)
+endif()
+
 if (APPLE)
     disable_lto(xi_connect)
 endif()

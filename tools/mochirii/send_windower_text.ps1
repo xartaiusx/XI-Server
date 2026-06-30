@@ -22,6 +22,7 @@ $assertScript = Join-Path $PSScriptRoot 'assert_windower_foreground.ps1'
 
 Add-Type -TypeDefinition @'
 using System;
+using System.Text;
 using System.Runtime.InteropServices;
 
 public static class MochiriiFocusWindow
@@ -35,10 +36,54 @@ public static class MochiriiFocusWindow
     [DllImport("user32.dll")]
     public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
     public const byte VK_MENU = 0x12;
     public const uint KEYEVENTF_KEYUP = 0x0002;
 }
 '@ -ErrorAction SilentlyContinue
+
+$allowedProcessNames = @(
+    'Windower',
+    'xiloader',
+    'pol',
+    'polboot',
+    'polcore',
+    'ffximain'
+)
+
+function Get-MochiriiForegroundSnapshot
+{
+    $handle = [MochiriiFocusWindow]::GetForegroundWindow()
+    $processId = 0
+    [void][MochiriiFocusWindow]::GetWindowThreadProcessId($handle, [ref]$processId)
+
+    $titleBuilder = New-Object System.Text.StringBuilder 512
+    [void][MochiriiFocusWindow]::GetWindowText($handle, $titleBuilder, $titleBuilder.Capacity)
+
+    $process = $null
+    if ($processId -ne 0)
+    {
+        $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+    }
+
+    $processName = if ($process) { $process.ProcessName } else { '' }
+
+    [pscustomobject]@{
+        IsWindowerClient = $allowedProcessNames -contains $processName
+        ProcessId        = $processId
+        ProcessName      = $processName
+        WindowTitle      = $titleBuilder.ToString()
+        AllowedNames     = $allowedProcessNames -join ','
+    }
+}
 
 $targetWindow = Get-Process -Name xiloader, Windower, pol, polboot, polcore, ffximain -ErrorAction SilentlyContinue |
     Where-Object { $_.MainWindowHandle -ne 0 -and ($_.MainWindowTitle -match 'Twills|FINAL FANTASY|PlayOnline|Windower') } |
@@ -60,17 +105,17 @@ for ($i = 0; $i -lt 8; $i++)
     [void][MochiriiFocusWindow]::SetForegroundWindow($targetWindow.MainWindowHandle)
     Start-Sleep -Milliseconds 250
 
-    $focusCheck = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $assertScript
-    if ($LASTEXITCODE -eq 0)
+    $focusCheck = Get-MochiriiForegroundSnapshot
+    if ($focusCheck.IsWindowerClient)
     {
-        $focusCheck | Write-Output
+        $focusCheck | ConvertTo-Json -Compress | Write-Output
         break
     }
 
     if ($i -eq 7)
     {
-        $focusCheck | Write-Output
-        exit $LASTEXITCODE
+        $focusCheck | ConvertTo-Json -Compress | Write-Output
+        exit 2
     }
 }
 
@@ -233,4 +278,4 @@ if ($PressEnterAfter)
 }
 
 Start-Sleep -Milliseconds 250
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $assertScript | Write-Output
+Get-MochiriiForegroundSnapshot | ConvertTo-Json -Compress | Write-Output
