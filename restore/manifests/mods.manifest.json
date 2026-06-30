@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-06-30T04:50:00-07:00",
+  "policy": "Reacquire client mods from source URLs and verify hashes; do not commit archives or DATs.",
+  "downloads": [
+    {
+      "name": "xiloader",
+      "version": "v2.1.1",
+      "source": "https://github.com/LandSandBoat/xiloader/releases/tag/v2.1.1",
+      "md5": "44fe5f23bf76e4e847946b5b76f1e061",
+      "gitSafe": false
+    },
+    {
+      "name": "XIPivot Windower",
+      "version": "v0.4.7",
+      "source": "https://github.com/HealsCodes/XIPivot/releases/tag/v0.4.7",
+      "sha256": "46b433ca88c3b9ce0b6114d82bdeb204cac578f7876441d32630f548e2bf95fa",
+      "installedDllSha256": "122054ced92a87f925cf93684fc6cd3b89a064d9ed63a256d58da9d7bf1755fb",
+      "gitSafe": false
+    },
+    {
+      "name": "XivParty",
+      "version": "v2.2.0",
+      "source": "https://github.com/Tylas11/XivParty/releases/tag/v2.2.0",
+      "sha256": "287225884e04ba400be51dc1910bd5cbbe69bcce0deed34d7c557593ccd1e56b",
+      "gitSafe": false
+    },
+    {
+      "name": "Grammara font",
+      "source": "https://www.fontspace.com/grammara-font-f40751",
+      "sha256": "3f6615129258ac590ffeb3d74429dfeec2e3f0e7636276935e16a450ba28d20e",
+      "gitSafe": false
+    },
+    {
+      "name": "XIVHotbar",
+      "source": "https://github.com/Akirane/XIVHotbar",
+      "gitSafe": "config-only"
+    },
+    {
+      "name": "XITide",
+      "source": "https://www.nexusmods.com/finalfantasy11/mods/3",
+      "gitSafe": false
+    },
+    {
+      "name": "XIView",
+      "source": "author release tracked in runtime downloads/manifests",
+      "gitSafe": false
+    }
+  ],
+  "xipivot": {
+    "preferredFor": "texture and non-early-loaded DAT overlays",
+    "activeOverlays": [
+      "Mochirii-GeoBubblesClear",
+      "Mochirii-BardNotesHD",
+      "Mochirii-LevelMeritJobPoints",
+      "Mochirii-MissionRankUps",
+      "AshenbubsHD-Prime",
+      "ALL-Dat-Mods"
+    ],
+    "availableOverlayFolders": [
+      "ALL-Dat-Mods",
+      "AshenbubsHD-Prime",
+      "Mochirii-BardNotesHD",
+      "Mochirii-GeoBubblesClear",
+      "Mochirii-LevelMeritJobPoints",
+      "Mochirii-MissionRankUps",
+      "XiView-Widescreen",
+      "_inactive"
+    ],
+    "stagedInactiveFolders": [
+      "_inactive",
+      "XiView-Widescreen"
+    ],
+    "overlaySizes": {
+      "ALL-Dat-Mods": "7.1G",
+      "AshenbubsHD-Prime": "27G",
+      "Mochirii-BardNotesHD": "540K",
+      "Mochirii-GeoBubblesClear": "5.1M",
+      "Mochirii-LevelMeritJobPoints": "464K",
+      "Mochirii-MissionRankUps": "12M",
+      "XiView-Widescreen": "12M",
+      "_inactive": "19M"
+    },
+    "trackedSettings": "restore/windower-golden-state/addons/XIPivot/data/settings.xml"
+  },
+  "directClientReplacementExceptions": [
+    "XIView",
+    "XITide"
+  ],
+  "protonPayload": {
+    "folderName": "Server Restore-20260630-011753",
+    "updatedAt": "2026-06-30T02:35:09-07:00",
+    "sections": {
+      "Steam-FFXI-client-patches": {
+        "files": 2,
+        "bytes": 1713112
+      },
+      "Downloaded-FFXI-Mods-And-Tools": {
+        "files": 16,
+        "bytes": 10241218005
+      }
+    },
+    "criticalArtifacts": {
+      "patchedPlayOnlinePol": "Steam-FFXI-client-patches/PlayOnlineViewer/pol.exe",
+      "fourGbPatchArchive": "Steam-FFXI-client-patches/4gb_patch.zip",
+      "downloadedModsAndTools": "Downloaded-FFXI-Mods-And-Tools"
+    }
+  },
+  "notes": [
+    "XIPivot is preferred, but early-loaded menu/font/UI DATs may require direct replacement with backup and hash manifest.",
+    "XIView-Widescreen is present for staging/reference but is not active in XIPivot because XIView is a direct replacement exception.",
+    "Ashenbubs remains one Prime overlay; do not load Basic and Prime simultaneously.",
+    "Original client files and replaced DATs are never committed."
+  ]
+}

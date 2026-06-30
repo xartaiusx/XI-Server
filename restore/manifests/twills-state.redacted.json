@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-06-30T00:46:07-07:00",
+  "sourceAudit": "C:/Users/xtyty/Documents/FFXI-Runtime/audits/twills-full-state-latest.md",
+  "auditTimestamp": "2026-06-29T22:41:54.137964-07:00",
+  "character": {
+    "name": "Twills",
+    "charid": 2,
+    "gmLevel": 5,
+    "visibleGmMarker": "hidden",
+    "nation": 0,
+    "activeMainJob": "RDM",
+    "activeSupportJob": "SCH",
+    "activeLevels": {
+      "main": 99,
+      "support": 59
+    },
+    "position": {
+      "zone": 291,
+      "previousZone": 230,
+      "homeZone": 230
+    },
+    "repairMarkers": {
+      "TrustEngageType": 1,
+      "TwillsBootVersion": 8,
+      "TwillsRdmSchGearVersion": 3
+    }
+  },
+  "progression": {
+    "allJobsLevel99": true,
+    "masterLevelRows": 22,
+    "masterLevel50Rows": 22,
+    "rdmJobPoints": {
+      "capacityPoints": 29999,
+      "jobPoints": 500,
+      "jobPointsSpent": 2100,
+      "allCategoriesRank20": true
+    },
+    "meritRows": 296,
+    "totalMeritUpgrades": 1709,
+    "spellsLearned": 897,
+    "invalidSpellRows": 0,
+    "skillsRows": 43,
+    "activeEffectsRows": 3,
+    "recastRows": 11
+  },
+  "completionBitsets": {
+    "missionsSetBits": 420,
+    "questsSetBits": 1084,
+    "keyItemsSetBits": 220,
+    "weaponSkillsSetBits": 63,
+    "titlesSetBits": 30,
+    "zonesSetBits": 8,
+    "assaultSetBits": 0,
+    "campaignSetBits": 0,
+    "eminenceSetBits": 0
+  },
+  "storage": {
+    "inventory": {
+      "container": 0,
+      "rows": 33,
+      "capacity": 80,
+      "equipReady": true
+    },
+    "case": {
+      "container": 7,
+      "rows": 34,
+      "capacity": 80,
+      "equipReady": false
+    },
+    "wardrobe": {
+      "container": 8,
+      "rows": 80,
+      "capacity": 80,
+      "equipReady": true
+    },
+    "wardrobe2": {
+      "container": 10,
+      "rows": 45,
+      "capacity": 80,
+      "equipReady": true
+    },
+    "wardrobe3To8": {
+      "rows": 0,
+      "capacityEach": 80,
+      "equipReady": true
+    },
+    "augmentedOrExtraRows": 18
+  },
+  "equippedIdle": {
+    "main": "daybreak",
+    "sub": "ammurapi_shield",
+    "ammo": "staunch_tathlum_+1",
+    "head": "malignance_chapeau",
+    "body": "malignance_tabard",
+    "hands": "malignance_gloves",
+    "legs": "malignance_tights",
+    "feet": "malignance_boots",
+    "neck": "loricate_torque_+1",
+    "waist": "carriers_sash",
+    "left_ear": "etiolation_earring",
+    "right_ear": "malignance_earring",
+    "left_ring": "defending_ring",
+    "right_ring": "stikini_ring_+1",
+    "back": "sucelloss_cape"
+  },
+  "gearSwap": {
+    "referencedGearNames": 95,
+    "missingFromInventory": 0,
+    "unknownWindowerResources": 0
+  },
+  "xivhotbar": {
+    "battleTab": {
+      "file": "RDM.lua",
+      "rows": 6,
+      "columns": 12,
+      "configuredSlots": 72,
+      "duplicateSlots": 0
+    },
+    "fieldTab": {
+      "file": "General.lua",
+      "rows": 6,
+      "columns": 12,
+      "configuredSlots": 72,
+      "duplicateSlots": 0
+    }
+  },
+  "modsAndUi": {
+    "activeXipivotOverlays": [
+      "Mochirii-GeoBubblesClear",
+      "Mochirii-BardNotesHD",
+      "Mochirii-LevelMeritJobPoints",
+      "Mochirii-MissionRankUps",
+      "AshenbubsHD-Prime",
+      "ALL-Dat-Mods"
+    ],
+    "xiviewDirectFilesMatched": "4/4",
+    "xitideManifestCount": 1
+  },
+  "redaction": "Full account rows, password hashes, secrets, private database rows, logs, and screenshots are intentionally excluded from Git."
+}

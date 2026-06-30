@@ -2,6 +2,12 @@
 
 This plan tracks the local Final Fantasy XI client and Mochirii GM bootstrap gates used by this branch. Runtime manifests, screenshots, downloaded archives, secrets, and database dumps live outside the repo under the local runtime folder.
 
+Portable restore status is tracked separately in `documentation/portable_restore.md`
+and `restore/manifests`. Use those manifests before moving Windower, XIPivot,
+direct-DAT, or database backup material into Git; client files, DAT files,
+downloaded mod archives, launcher binaries, logs, screenshots, and secrets remain
+outside the repository.
+
 ## Source Basis
 
 - Square Enix PlayOnline/Final Fantasy XI launcher remains the authority for official client updates and Rules and Policies prompts.

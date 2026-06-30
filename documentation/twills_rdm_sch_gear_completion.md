@@ -5,6 +5,13 @@ Mochirii admin character. The goal is a retail-shaped Red Mage/Scholar QA
 character that uses Mochirii-supported APIs and item data instead of direct
 blob fabrication.
 
+The Git-safe portable restore snapshot for Twills is
+`restore/manifests/twills-state.redacted.json`. The complete restorable Twills
+account and character state is preserved only through the encrypted `xidb`
+artifact referenced by `restore/manifests/database-backup.manifest.json`; do not
+commit plaintext account rows, password hashes, runtime logs, screenshots, or
+database dumps.
+
 ## Source Basis
 
 - Mochirii local APIs: `player:addItem`, `completeQuest`, `addMission`,

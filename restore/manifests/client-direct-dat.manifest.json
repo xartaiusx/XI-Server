@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-06-30T04:50:00-07:00",
+  "policy": "Direct DAT replacement is allowed only for documented exceptions with backup/hash evidence. Do not commit DAT files.",
+  "clientRoot": "D:/Steam/steamapps/common/FFXINA/SquareEnix/FINAL FANTASY XI",
+  "restoreOrder": [
+    "Reinstall or verify the Steam/Square Enix Final Fantasy XI client first.",
+    "Apply XIView direct replacement files with backup/hash capture.",
+    "Apply XITide direct replacement files last with backup/hash capture.",
+    "Verify final active hashes against this manifest before launching through Windower."
+  ],
+  "overlapResolution": {
+    "ROM/119/51.DAT": {
+      "alsoTouchedBy": [
+        "XIView",
+        "XITide"
+      ],
+      "finalOwner": "XITide",
+      "finalSha256": "40a9dad50db8df3ee3993dd1e9be5f068f559bc14aff059cb1e73d17f9c06dfc",
+      "finalSize": 4286240,
+      "reason": "XITide must be applied after XIView so the tide DAT remains the active client file."
+    }
+  },
+  "exceptions": [
+    {
+      "name": "XIView",
+      "appliedAt": "2026-06-29T20:28:29-07:00",
+      "files": [
+        {
+          "relative": "ROM\\0\\12.DAT",
+          "before_sha256": "2F53FCC21A85F1EB89B1EDF49EAD3DCF3EC4711D0B6B4A2714F95E7C58492582",
+          "source_sha256": "114D3A72EACDA9190C0461E493E5CBE3D85FBAAD31AF674542F633DCF16114AE",
+          "after_sha256": "114D3A72EACDA9190C0461E493E5CBE3D85FBAAD31AF674542F633DCF16114AE"
+        },
+        {
+          "relative": "ROM\\119\\51.DAT",
+          "before_sha256": "04101EC2BFB642EE6D99A9946796C2C3E424FC1A5C45C69A6B8A73EA992D925D",
+          "source_sha256": "69EFBEC072906CFFD8A1E17C18910229D4F11E936F5EA16C00A3FD5D1039131C",
+          "after_sha256": "69EFBEC072906CFFD8A1E17C18910229D4F11E936F5EA16C00A3FD5D1039131C"
+        },
+        {
+          "relative": "ROM\\119\\57.DAT",
+          "before_sha256": "269E1B36888C9F2C9F3B7B1750E51586D7D0A163CFEF533DA5BDE7E98E11203D",
+          "source_sha256": "E8AAF6B39DFCAABE7EF1CA055F13A220A5280451882E114399C4C21E21FA038F",
+          "after_sha256": "E8AAF6B39DFCAABE7EF1CA055F13A220A5280451882E114399C4C21E21FA038F"
+        },
+        {
+          "relative": "ROM\\280\\15.DAT",
+          "before_sha256": "BA5F943A71B9C63D5EF62A35B1A486A12A9DCD4670A4E570B98035A78E7FFA19",
+          "source_sha256": "58F4DB6E25ED3BD218D76F3DF00327A0DD38E42A152592610AF9EE49EB6AE38D",
+          "after_sha256": "58F4DB6E25ED3BD218D76F3DF00327A0DD38E42A152592610AF9EE49EB6AE38D"
+        }
+      ]
+    },
+    {
+      "name": "XITide",
+      "appliedAt": "2026-06-29T02:22:34-07:00",
+      "files": [
+        {
+          "path": "ROM/91/15.dat",
+          "phase": "before",
+          "sha256": "1efc2106c938d0708cc283f3dcada6ccc2f65f76e2bcc767b3cf984fa47be53b",
+          "size": "3885488"
+        },
+        {
+          "path": "ROM/91/15.dat",
+          "phase": "after",
+          "sha256": "1a9be7dbe50a8469aaa1027fd4e06559d31c5d5e7127687ca482ee583c4066c0",
+          "size": "3941456"
+        },
+        {
+          "path": "ROM/119/51.dat",
+          "phase": "before",
+          "sha256": "8495718c11b9e8803e2613a556602535fd3fc9ac2c958161bcb1e8cc4e6a6ef1",
+          "size": "4204032"
+        },
+        {
+          "path": "ROM/119/51.dat",
+          "phase": "after",
+          "sha256": "40a9dad50db8df3ee3993dd1e9be5f068f559bc14aff059cb1e73d17f9c06dfc",
+          "size": "4286240"
+        }
+      ]
+    }
+  ],
+  "rollbackBackups": {
+    "XIView": "C:/Users/xtyty/Documents/FFXI-Runtime/mod-backups/XIView-direct-20260629-202829",
+    "XITide": "C:/Users/xtyty/Documents/FFXI-Runtime/mod-backups/XITide-20260629-022234"
+  }
+}
