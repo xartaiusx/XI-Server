@@ -103,6 +103,12 @@ jobs:
   Runner_Test:
     name: ${{ matrix.runner && 'Test' || '' }} # GitHub Actions hack to hide matrix args
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    permissions:
+      actions: read
+      checks: write
+      contents: read
+      pull-requests: write
+      statuses: write
     strategy:
       fail-fast: false
       matrix:
@@ -119,6 +125,12 @@ jobs:
   Docker_Test:
     name: ${{ matrix.os && 'Test' || '' }} # GitHub Actions hack to hide matrix args
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    permissions:
+      actions: read
+      checks: write
+      contents: read
+      pull-requests: write
+      statuses: write
     strategy:
       fail-fast: false
       matrix:

@@ -290,6 +290,12 @@ jobs:
     needs: Build
     if: ${{ !cancelled() && needs.Build.result == 'success' }}
     name: ${{ matrix.runner && 'Test' || '' }} # GitHub Actions hack to hide matrix args
+    permissions:
+      actions: read
+      checks: write
+      contents: read
+      pull-requests: write
+      statuses: write
     strategy:
       fail-fast: false
       matrix:
