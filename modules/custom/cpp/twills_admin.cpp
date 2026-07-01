@@ -94,7 +94,7 @@ auto findGearContainer(CCharEntity* PChar, uint8 preferredContainer) -> uint8
     return ERROR_SLOTID;
 }
 
-auto grantGear(CLuaBaseEntity* luaEntity, sol::table gearItems) -> std::tuple<uint16, uint16>
+auto grantGear(CLuaBaseEntity* luaEntity, const sol::table& gearItems) -> std::tuple<uint16, uint16>
 {
     auto* PChar = getCharacter(luaEntity);
     if (PChar == nullptr)

@@ -34,6 +34,6 @@ namespace trustutils
 // We cache all of this so we don't have to hit the database every time a trust is spawned
 void LoadTrustList();
 auto SpawnTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*;
-void LogTrustActionPacket(CBattleEntity* PActor, const action_t& action, CBattleEntity* PPrimaryTarget, const char* source);
+void LogTrustActionPacket(CBattleEntity* PActor, const action_t& action, const CBattleEntity* PPrimaryTarget, const char* source);
 
 }; // namespace trustutils

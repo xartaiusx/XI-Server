@@ -31,7 +31,7 @@ namespace
 {
 void LogInterruptPacket(CBattleEntity* PEntity, action_t& action, const CBattleEntity* PTarget, const char* source)
 {
-    trustutils::LogTrustActionPacket(PEntity, action, const_cast<CBattleEntity*>(PTarget), source);
+    trustutils::LogTrustActionPacket(PEntity, action, PTarget, source);
 }
 } // namespace
 
