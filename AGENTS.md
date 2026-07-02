@@ -55,8 +55,10 @@ when referring to the game.
 - After Lua-only Trust changes, rely on file watcher reload for quick checks,
   but restart `xi_map` when spell lists, SQL, or startup-loaded module behavior
   changed.
-- Keep runtime evidence outside the repo under
-  `C:\Users\xtyty\Documents\FFXI-Runtime`.
+- Keep server/runtime evidence outside the repo under
+  `/root/projects/FFXI-Runtime` in WSL. Keep only the small Windows-side
+  Windower bridge under `C:\Users\xtyty\Documents\FFXI-Runtime` because
+  the game client and native screenshot trigger run on Windows.
 
 ## Trust Development Rules
 

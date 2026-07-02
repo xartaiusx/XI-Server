@@ -1,6 +1,6 @@
 # Mochirii Client, Mod Stack, Admin, And Trust QA Plan
 
-This plan tracks the local Final Fantasy XI client and Mochirii GM bootstrap gates used by this branch. Runtime manifests, screenshots, downloaded archives, secrets, and database dumps live outside the repo under the local runtime folder.
+This plan tracks the local Final Fantasy XI client and Mochirii GM bootstrap gates used by this branch. Runtime manifests, screenshots, downloaded archives, secrets, and database dumps live outside the repo. Current server/runtime evidence lives under `/root/projects/FFXI-Runtime` in WSL; the Windows path `C:\Users\xtyty\Documents\FFXI-Runtime` is only the small Windower launcher/screenshot trigger bridge required by the D: client.
 
 Portable restore status is tracked separately in `documentation/portable_restore.md`
 and `restore/manifests`. Use those manifests before moving Windower, XIPivot,
@@ -42,10 +42,10 @@ outside the repository.
   - Ashenbubs textures are XIPivot-managed as a single active Prime overlay only. `AshenbubsHD-Basic` is no longer active, and `AshenbubsHD-June2026-Updates` was merged into `AshenbubsHD-Prime` on 2026-06-24. The merge backed up the 12 overwritten Prime files and hash-verified all 1,836 update files at `C:\Users\xtyty\Documents\FFXI-Runtime\mod-backups\XIPivot\ashenbubs-prime-merge-20260624-175432`.
   - Inactive Ashenbubs Basic and standalone June 2026 update folders were moved out of `Windower\addons\XIPivot\data\DATs` to `C:\Users\xtyty\Documents\FFXI-Runtime\mod-backups\XIPivot\inactive-overlays-20260624-175517` so XIPivot stays clean and cannot accidentally load both Basic and Prime.
   - The real-DAT mirror has a rollback backup at `C:\Users\xtyty\Documents\FFXI-Runtime\backups\real-client-active-dat-stack-before-apply-20260622-234443` and manifest at `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\real-client-active-dat-stack-applied-20260622-234443.json`.
-  - Windower Lua QA addons loaded by default through `Windower\scripts\init.txt`: `XIPivot`, `XICamera`, `DistancePlus`, `TParty`, `XivParty`, `pointwatch`, `battlemod`, `Debuffed`, `targetinfo`, `scoreboard`, `Logger`, `DressUp`, `cancel`, `GearSwap`, `xivhotbar`, `MochiriiTrustQA`, `MochiriiScreenshotQA`, `dynamishelper`, `EmpyPopTracker`, `enemybar`, `equipviewer`, `FastCS`, `gametime`, `giltracker`, `highlight`, `indinope`, `InfoBar`, `macrochanger`, `NoCampaignMusic`, `NyzulHelper`, `obiaway`, `ohShi`, `Omen`, `PetTP`, `plasmon`, `Pouches`, `RAWR`, `reive`, `Silence`, `StratHelper`, `Tab`, `Treasury`, `update`, and `vwhl`. The global `Windower\settings.xml` `<autoload>` block is intentionally empty so the profile script is the only startup source of truth.
-  - Windower Lua addons installed but not autoloaded until intentionally configured: `xivbar` and `organizer`.
-  - `GearSwap` autoloads the local `Twills.lua` RDM/SCH profile with healer/buffer and damage/debuffer modes. `XivParty` remains the active party/alliance overlay; `xivbar` is intentionally disabled by default.
-  - Windower official plugins loaded by default: `Config`, `Timers`, `FFXIDB`, `MipmapFix`, `SSOrganizer`, and `WinControl`; `LuaCore` loads as the required addon runtime.
+  - Windower Lua QA addons loaded by default through `Windower\scripts\init.txt`: `XIPivot`, `shortcuts`, `battlemod`, `DressUp`, `findAll`, `GearSwap`, `XivParty`, `xivhotbar`, and `MochiriiScreenshotQA`. The global `Windower\settings.xml` `<autoload>` block remains intentionally empty so the profile script is the only startup source of truth.
+  - Windower Lua addons installed but not autoloaded until intentionally configured include `xivbar`, `organizer`, `XICamera`, and the broader historical QA overlay set. Keep them manual unless a test specifically needs them.
+  - `GearSwap` autoloads the local `Twills.lua` RDM/SCH v10 profile with practical idle/engaged baselines and action-specific healer/buffer/damage/debuffer swaps. `XivParty` remains the active party/alliance overlay; `xivbar` is intentionally disabled by default.
+  - Windower official plugin baseline in current `init.txt`: `Config` only. Add other official plugins through Windower's supported launcher/update path when a verification pass requires them.
 - `C:\Users\xtyty\Desktop\Windower.lnk` is the canonical local client launch path. It targets the installed Windower executable and launches the local Mochirii profile; do not bypass it with ad hoc executable paths during QA.
 - Server identity is `Mochirii`.
 - Manual server control shortcuts are installed on the desktop:
@@ -56,6 +56,13 @@ outside the repository.
 - Router/NAT still needs manual forwarding before external players can join: forward TCP `54001`, `54002`, `54230`, and `54231` to this PC's LAN address. The current LAN address observed during setup was `172.16.0.36`; use a DHCP reservation or static LAN IP before inviting testers.
 - No Mochirii Startup-folder entry, scheduled task, service, or Run-key autostart is configured; server launch is manual through the desktop shortcut.
 - Public-mode local testing can black-screen if the router does not support NAT hairpin to the WAN IP. Use manual Local mode for same-PC verification, and Public mode for external testers after router port forwarding.
+- Current 2026-07-02 WSL/runtime verification:
+  - WSL repo branch: `codex/twills-endgame-completion`, created after PR #14 was merged to `main`.
+  - MariaDB is active; `mochirii-xi-connect`, `mochirii-xi-search`, `mochirii-xi-world`, and `mochirii-xi-map` are disabled/inactive until manually started.
+  - Fresh Twills audit: `/root/projects/FFXI-Runtime/audits/twills-full-state-20260702-041334.md` shows 19 supported completion checks OK, 0 FIX, and 5 WARN rows for unsupported raw blobs that should not be fabricated directly; GearSwap inventory audit remains 0 missing and 0 unknown resources.
+  - XIPivot collision report: `/root/projects/FFXI-Runtime/manifests/xipivot-overlay-collisions-20260702-031101.tsv`.
+  - Direct DAT verification: `/root/projects/FFXI-Runtime/manifests/direct-dat-verification-20260702-031340.tsv`; XIView is fully active, XITide backups/source are preserved, and `ROM\119\51` is intentionally held by XIView to preserve the working UI/master-star baseline.
+  - The Windows Windower bridge was restored at `C:\Users\xtyty\Documents\FFXI-Runtime\client-tools` with local secrets kept outside git so `C:\Users\xtyty\Desktop\Windower.lnk` can launch the Mochirii profile.
 - Local downloads now include:
   - AshenbubsHD Basic and Prime November 2021 archives, plus the June 2026 Ashenbubs update pack and XITide March 2026.
   - `ALL-Dat-Mods.rar`, whose included manifest lists Amelila, RadialArcana, and Kireek zone, gear, monster, NPC, spell, and misc DAT content.
@@ -118,11 +125,13 @@ outside the repository.
 - Keep the real-DAT mirrored UI stack active unless rolling back from the recorded backup.
 - Keep Ashenbubs textures active through one XIPivot folder only: `AshenbubsHD-Prime`, which includes the June 2026 update files. Do not re-add `AshenbubsHD-Basic` or a separate `AshenbubsHD-June2026-Updates` overlay.
 - Keep XIPivot installed and preferred for future texture overlay experiments, but do not assume UI/master-star DATs apply through XIPivot without in-client proof.
-- The current active XIPivot overlay list is `XiView-HD-Mar2026-B-OriginalWidth`, `XiView-Widescreen`, `AshenbubsHD-TideFont`, `Mochirii-GeoBubblesClear`, `Mochirii-BardNotesHD`, `Mochirii-LevelMeritJobPoints`, `Mochirii-MissionRankUps`, `Mochirii-ROM-3-25-HD`, `AshenbubsHD-Prime`, and `ALL-Dat-Mods`.
-- Keep these Windower addons loaded by `Windower\scripts\init.txt` for Mochirii QA: `XIPivot`, `XICamera`, `DistancePlus`, `TParty`, `XivParty`, `pointwatch`, `battlemod`, `Debuffed`, `targetinfo`, `scoreboard`, `Logger`, `DressUp`, `cancel`, `GearSwap`, `xivhotbar`, `MochiriiTrustQA`, `MochiriiScreenshotQA`, `dynamishelper`, `EmpyPopTracker`, `enemybar`, `equipviewer`, `FastCS`, `gametime`, `giltracker`, `highlight`, `indinope`, `InfoBar`, `macrochanger`, `NoCampaignMusic`, `NyzulHelper`, `obiaway`, `ohShi`, `Omen`, `PetTP`, `plasmon`, `Pouches`, `RAWR`, `reive`, `Silence`, `StratHelper`, `Tab`, `Treasury`, `update`, and `vwhl`.
+- The current active XIPivot overlay list is `Mochirii-GeoBubblesClear`, `Mochirii-BardNotesHD`, `Mochirii-LevelMeritJobPoints`, `Mochirii-MissionRankUps`, `AshenbubsHD-Prime`, and `ALL-Dat-Mods`. A collision report from 2026-07-02 confirms custom UI/FX overlays win over Ashenbubs Prime and the catch-all DAT pack where paths overlap.
+- Keep these Windower addons loaded by `Windower\scripts\init.txt` for the current lean Mochirii QA profile: `XIPivot`, `shortcuts`, `battlemod`, `DressUp`, `findAll`, `GearSwap`, `XivParty`, `xivhotbar`, and `MochiriiScreenshotQA`.
+- `MochiriiScreenshotQA` is v1.0.1 or newer. Native screenshot requests now carry a unique id, the helper removes stale trigger files before and after capture, and the addon ignores duplicate request contents so a leftover trigger cannot create repeated screenshots.
+- XivParty includes a Mochirii login-race guard in `player.lua` so early party-buff packets cannot crash the addon before per-character `Settings` is initialized.
 - Keep `bind sysrq screenshot jpg` in `Windower\scripts\init.txt` for manual native screenshots. Do not add `hide` to the default binding because UI/addon verification needs Windower overlays visible.
-- Keep XICamera at the conservative release defaults unless testing camera behavior specifically: normal distance 6, battle distance 8.2, battle range 4, battle lock on, and vertical pan auto-calculation on.
-- Keep these Windower plugins loaded by `Windower\scripts\init.txt`: `Config`, `Timers`, `FFXIDB`, `MipmapFix`, `SSOrganizer`, and `WinControl`.
+- Keep XICamera installed but manual unless camera testing is the active task; when enabled, use conservative defaults unless verifying camera behavior specifically.
+- Keep Windower plugin autoload lean. The current profile loads `Config`; add `Timers`, `FFXIDB`, `MipmapFix`, `SSOrganizer`, or `WinControl` only through Windower's supported launcher/update path when a verification pass requires them.
 - Keep `Windower\settings.xml` global `<autoload>` empty. Do not re-add broad launcher-managed addon lists there; it causes duplicate startup behavior and can load disabled overlays such as `xivbar`.
 - Keep `xivbar` and `organizer` installed but manual. This preserves the recommended tools without adding extra bar or inventory automation behavior to Trust QA by default.
 - Keep the current Windower overlay layout readable: PointWatch/TargetInfo/Debuffed stacked on the upper-left, Scoreboard hidden unless explicitly testing it, XIVHotbar in the lower-center action area, and XivParty occupying the party/alliance area. Windower-native screenshots are the acceptance proof after any overlay move.
@@ -169,6 +178,12 @@ outside the repository.
 
 ## Evidence
 
+Current WSL evidence:
+- `/root/projects/FFXI-Runtime/audits/twills-full-state-20260702-041334.md`
+- `/root/projects/FFXI-Runtime/manifests/xipivot-overlay-collisions-20260702-031101.tsv`
+- `/root/projects/FFXI-Runtime/manifests/direct-dat-verification-20260702-031340.tsv`
+
+Historical Windows-runtime evidence from before the WSL runtime move:
 - `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\visual-baseline-20260622-1740.json`
 - `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\desktop-windower-xipivot-xiview-clean-20260622-1740.png`
 - `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\windower-official-plugins-live-verification.json`

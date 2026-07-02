@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<settings>
+  <launcher>
+    <branch>stable</branch>
+  </launcher>
+  <profile name="">
+    <consolekey>Insert</consolekey>
+    <mipmaplevel>6</mipmaplevel>
+    <uiscale>2</uiscale>
+    <supersampling>2</supersampling>
+    <bumpmapping>true</bumpmapping>
+  </profile>
+  <profile name="Mochirii">
+    <consolekey>Insert</consolekey>
+    <mipmaplevel>6</mipmaplevel>
+    <uiscale>2</uiscale>
+    <supersampling>2</supersampling>
+    <bumpmapping>true</bumpmapping>
+    <args>--json C:\Users\xtyty\Documents\FFXI-Runtime\secrets\twills-xiloader-v211.json</args>
+    <executable>D:\Steam\steamapps\common\FFXINA\SquareEnix\PlayOnlineViewer\xiloader.exe</executable>
+  </profile>
+</settings>
