@@ -59,12 +59,13 @@ database dumps.
     veteran currencies/Unity, storage, crafts, ranks/fame, chocobo, repair
     markers, important key items, and locally represented mission/quest
     completion.
-- `C:\Program Files (x86)\Steam\steamapps\common\FFXINA\Windower\addons\GearSwap\data\Twills.lua`
-  - GearSwap v8 profile for healer/buffer and damage/debuffer modes.
-  - Uses only locally implemented item stats from this checkout's item tables
-    and adds conditional obi/day/weather, Orpheus distance, enhancing-duration,
-    idle DT/refresh, enfeebling mode, nuking/magic-burst mode, and weaponskill
-    refinements.
+- `D:\Steam\steamapps\common\FFXINA\Windower\addons\GearSwap\data\Twills.lua`
+  - GearSwap v10 profile for healer/buffer and damage/debuffer modes.
+  - Uses only locally implemented item stats from this checkout's item tables.
+  - Role commands now equip practical idle/engaged baselines; action-specific
+    swaps still handle fast cast, cures, status removal, enhancing duration,
+    Phalanx, Refresh, Hachirin-no-Obi/day/weather, Orpheus distance,
+    MND/INT enfeebles, nuking/magic-burst mode, and weaponskills.
 
 ## Gear Bundle
 
@@ -117,7 +118,7 @@ meaningful `item_mods` for them:
 
 ## GearSwap Modes
 
-The local Windower profile autoloads GearSwap and uses `Twills.lua`.
+The local Windower profile autoloads GearSwap and uses `Twills.lua` v10.
 
 - `//gs c healer` or `//gs c buffer`
   - Healer/buffer bias: idle DT/refresh, fast cast, cure potency, enhancing
@@ -426,7 +427,7 @@ V8 final refinements now implemented in code:
 5. Twills-only learned spell rows missing from local `spell_list` are pruned.
 6. Mission completion repair now checks current/completed state before adding
    mission rows, reducing old mission-current warning spam.
-7. GearSwap v8 adds smarter conditional handling for Hachirin-no-Obi,
+7. GearSwap v10 adds smarter conditional handling for Hachirin-no-Obi,
    Orpheus's Sash, enhancing-duration subsets, idle DT/refresh, enfeebling
    accuracy/potency modes, nuking/magic-burst mode, and weaponskill swaps.
 

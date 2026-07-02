@@ -125,6 +125,42 @@ function get_sets()
         main="Daybreak",
     })
 
+    sets.idle.Healer = set_combine(sets.idle.Refresh, {
+        main="Daybreak", sub="Ammurapi Shield", ammo="Staunch Tathlum +1",
+        head="Malignance Chapeau", body="Malignance Tabard", hands="Malignance Gloves",
+        legs="Malignance Tights", feet="Malignance Boots",
+        neck="Loricate Torque +1", waist="Carrier's Sash",
+        left_ear="Etiolation Earring", right_ear="Malignance Earring",
+        left_ring="Defending Ring", right_ring="Stikini Ring +1",
+    })
+
+    sets.idle.Buffer = set_combine(sets.idle.Refresh, {
+        main="Crocea Mors", sub="Ammurapi Shield", ammo="Staunch Tathlum +1",
+        head="Malignance Chapeau", body="Lethargy Sayon +2", hands="Malignance Gloves",
+        legs="Malignance Tights", feet="Malignance Boots",
+        neck="Loricate Torque +1", waist="Carrier's Sash",
+        left_ear="Etiolation Earring", right_ear="Malignance Earring",
+        left_ring="Defending Ring", right_ring="Stikini Ring +1",
+    })
+
+    sets.idle.Debuffer = set_combine(sets.idle.Refresh, {
+        main="Crocea Mors", sub="Ammurapi Shield", ammo="Staunch Tathlum +1",
+        head="Malignance Chapeau", body="Malignance Tabard", hands="Malignance Gloves",
+        legs="Malignance Tights", feet="Malignance Boots",
+        neck="Loricate Torque +1", waist="Carrier's Sash",
+        left_ear="Etiolation Earring", right_ear="Malignance Earring",
+        left_ring="Defending Ring", right_ring="Stikini Ring +1",
+    })
+
+    sets.idle.Caster = set_combine(sets.idle.Refresh, {
+        main="Crocea Mors", sub="Ammurapi Shield", ammo="Staunch Tathlum +1",
+        head="Malignance Chapeau", body="Malignance Tabard", hands="Malignance Gloves",
+        legs="Malignance Tights", feet="Malignance Boots",
+        neck="Loricate Torque +1", waist="Carrier's Sash",
+        left_ear="Etiolation Earring", right_ear="Malignance Earring",
+        left_ring="Defending Ring", right_ring="Stikini Ring +1",
+    })
+
     sets.engaged = {
         main="Crocea Mors", sub="Ammurapi Shield", range=empty, ammo="Coiste Bodhar",
         head="Malignance Chapeau", body="Malignance Tabard", hands="Malignance Gloves",
@@ -286,14 +322,14 @@ function get_sets()
 
     sets.role = {
         idle = sets.idle.Refresh,
-        healer = sets.midcast.Cure,
-        buffer = sets.midcast.EnhancingDuration,
-        debuffer = sets.midcast.Enfeebling,
-        caster = sets.midcast.MagicBurst,
+        healer = sets.idle.Healer,
+        buffer = sets.idle.Buffer,
+        debuffer = sets.idle.Debuffer,
+        caster = sets.idle.Caster,
         melee = sets.engaged,
     }
 
-    chat('Twills RDM/SCH GearSwap v9 loaded; role=' .. role_mode)
+    chat('Twills RDM/SCH GearSwap v10 loaded; role=' .. role_mode)
 end
 
 function precast(spell)
@@ -408,17 +444,10 @@ function self_command(command)
 end
 
 function equip_current()
-    if role_mode == 'debuffer' then
-        if enfeeble_mode == 'mnd' then
-            equip(sets.midcast.EnfeeblingMND)
-        elseif enfeeble_mode == 'int' then
-            equip(sets.midcast.EnfeeblingINT)
-        else
-            equip(sets.midcast.Enfeebling)
-        end
-    elseif role_mode == 'caster' then
-        equip(nuke_mode == 'burst' and sets.midcast.MagicBurst or sets.midcast.Nuke)
-    else
-        equip(sets.role[role_mode] or sets.idle.Refresh or sets.idle)
+    if player and player.status == 'Engaged' and role_mode == 'melee' then
+        equip(sets.engaged)
+        return
     end
+
+    equip(sets.role[role_mode] or sets.idle.Refresh or sets.idle)
 end

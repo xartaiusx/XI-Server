@@ -1,6 +1,6 @@
 _addon.name = 'MochiriiScreenshotQA'
 _addon.author = 'Mochirii'
-_addon.version = '1.0.0'
+_addon.version = '1.0.1'
 _addon.commands = {'mochiriiscreenshotqa', 'mscreenshotqa'}
 
 local resources = require('resources')
@@ -9,6 +9,7 @@ local trigger_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/screenshots/native_s
 local command_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/client-tools/windower_command_request.txt'
 local equipment_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/client-tools/windower_equipment_snapshot.tsv'
 local last_check = 0
+local last_screenshot_request = nil
 local equipment_slots = {
     'main', 'sub', 'range', 'ammo', 'head', 'body', 'hands', 'legs',
     'feet', 'neck', 'waist', 'left_ear', 'right_ear', 'left_ring',
@@ -27,7 +28,16 @@ local function read_request(path)
 
     local request = handle:read('*a') or ''
     handle:close()
-    os.remove(path)
+
+    local removed = os.remove(path)
+    if not removed then
+        local clear_handle = io.open(path, 'w')
+        if clear_handle then
+            clear_handle:write('')
+            clear_handle:close()
+        end
+    end
+
     return trim(request)
 end
 
@@ -116,7 +126,8 @@ windower.register_event('prerender', function()
 
     last_check = now
     local request = read_request(trigger_path)
-    if request and request ~= '' then
+    if request and request ~= '' and request ~= last_screenshot_request then
+        last_screenshot_request = request
         run_request(request)
     end
 

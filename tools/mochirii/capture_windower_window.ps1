@@ -208,7 +208,9 @@ if ($HideWindowerObjects)
 $requestDirectory = Split-Path -Parent $triggerPath
 New-Item -ItemType Directory -Force -Path $requestDirectory | Out-Null
 $requestTimeUtc = (Get-Date).ToUniversalTime()
-$request = "format=$Format`nhide=$([bool]$HideWindowerObjects)"
+$requestId = [Guid]::NewGuid().ToString('N')
+$request = "id=$requestId`nformat=$Format`nhide=$([bool]$HideWindowerObjects)"
+Remove-Item -LiteralPath $triggerPath -Force -ErrorAction SilentlyContinue
 Set-Content -LiteralPath $triggerPath -Value $request -Encoding ASCII
 
 $deadline = (Get-Date).AddSeconds([Math]::Max(1, $TimeoutSeconds))
@@ -233,6 +235,9 @@ if ($null -eq $nativeScreenshot)
     }
 
     $requestTimeUtc = (Get-Date).ToUniversalTime()
+    $requestId = [Guid]::NewGuid().ToString('N')
+    $request = "id=$requestId`nformat=$Format`nhide=$([bool]$HideWindowerObjects)"
+    Remove-Item -LiteralPath $triggerPath -Force -ErrorAction SilentlyContinue
     Set-Content -LiteralPath $triggerPath -Value $request -Encoding ASCII
     $deadline = (Get-Date).AddSeconds([Math]::Max(1, $TimeoutSeconds))
 
@@ -247,6 +252,8 @@ if ($null -eq $nativeScreenshot)
         throw "Timed out waiting for Windower native screenshot under $screenshotRoot."
     }
 }
+
+Remove-Item -LiteralPath $triggerPath -Force -ErrorAction SilentlyContinue
 
 Add-Type -AssemblyName System.Drawing
 $imageWidth = 0
