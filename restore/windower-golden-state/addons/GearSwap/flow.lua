@@ -24,8 +24,6 @@
 --(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 --SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
-
 -----------------------------------------------------------------------------------
 --Name: equip_sets(swap_type,ts,val1,val2)
 --Desc: General purpose equipment pipeline / user function caller.
@@ -95,7 +93,6 @@ function equip_sets(swap_type,ts,...)
             msg.debugging('val1 error')
         end
     end
-
 
     if type(swap_type) == 'function' then
         results = { pcall(swap_type,...) }
@@ -194,7 +191,6 @@ function equip_sets(swap_type,ts,...)
 
     return equip_sets_exit(swap_type,ts,val1)
 end
-
 
 -----------------------------------------------------------------------------------
 --Name: equip_sets_exit(swap_type, ts, val1)
@@ -315,7 +311,6 @@ function equip_sets_exit(swap_type, ts, val1)
     end
 end
 
-
 -----------------------------------------------------------------------------------
 --Name: user_pcall(str,...)
 --Desc: Calls a user function, if it exists. If not, throws an error.
@@ -335,7 +330,6 @@ function user_pcall(str,...)
         end
     end
 end
-
 
 -----------------------------------------------------------------------------------
 --Name: user_pcall2(str,...)
@@ -357,7 +351,6 @@ function user_pcall2(str,...)
     end
 end
 
-
 -----------------------------------------------------------------------------------
 --Name: pretarget_delayed_cast(ts)
 --Desc: Triggers an outgoing action packet (if the passed key is valid).
@@ -375,8 +368,6 @@ function pretarget_delayed_cast(ts)
         msg.debugging("Bad index passed to pretarget_delayed_cast")
     end
 end
-
-
 
 -----------------------------------------------------------------------------------
 --Name: precast_send_check(ts)
@@ -406,7 +397,6 @@ function precast_send_check(ts)
     return true
 end
 
-
 -----------------------------------------------------------------------------------
 --Name: precast_delayed_cast(ts)
 --Desc: Triggers an outgoing action packet (if the passed key is valid).
@@ -424,7 +414,6 @@ function precast_delayed_cast(ts)
         msg.debugging("Bad index passed to precast_delayed_cast")
     end
 end
-
 
 -----------------------------------------------------------------------------------
 --Name: send_action(ts)
