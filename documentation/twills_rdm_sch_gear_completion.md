@@ -20,10 +20,14 @@ database dumps.
 - Mochirii local tables: `item_basic`, `item_equipment`, `item_mods`,
   `augments`, `char_profile`, `char_storage`, `chars`, `char_inventory`, and
   packed mission/quest/key item blobs.
-- RDM gear source guidance:
+- RDM gear source guidance, in priority order:
+  - Local Mochirii tables and Twills inventory/augment rows are authoritative for what can be equipped and what has stats.
+  - https://www.bg-wiki.com/ffxi/All_Jobs_Gear_Sets/Red_Mage
   - https://www.bg-wiki.com/ffxi/Community_Red_Mage_Guide
   - https://www.bg-wiki.com/ffxi/Red_Mage
-  - https://www.ffxiah.com/forum/topic/49688/jack-of-all-trades-a-guide-to-red-mage/
+  - https://www.ffxiah.com/
+  - https://www.ffxiah.com/forum/topic/55398/anything-you-can-do-i-can-do-better-rdm-guide/
+  - FFXIAH is used for current community discussion, item pages, availability, and augment sanity checks; pricing and popularity are not treated as BIS proof without local Mochirii stat support.
 - Job point, Refresh III, and Master Level source guidance:
   - https://www.bg-wiki.com/ffxi/Job_Points
   - https://www.bg-wiki.com/ffxi/Red_Mage_Job_Points
@@ -60,7 +64,7 @@ database dumps.
     markers, important key items, and locally represented mission/quest
     completion.
 - `D:\Steam\steamapps\common\FFXINA\Windower\addons\GearSwap\data\Twills.lua`
-  - GearSwap v10 profile for healer/buffer and damage/debuffer modes.
+  - GearSwap v11 profile for healer/buffer and damage/debuffer modes.
   - Uses only locally implemented item stats from this checkout's item tables.
   - Role commands now equip practical idle/engaged baselines; action-specific
     swaps still handle fast cast, cures, status removal, enhancing duration,
@@ -118,7 +122,7 @@ meaningful `item_mods` for them:
 
 ## GearSwap Modes
 
-The local Windower profile autoloads GearSwap and uses `Twills.lua` v10.
+The local Windower profile autoloads GearSwap and uses `Twills.lua` v11.
 
 - `//gs c healer` or `//gs c buffer`
   - Healer/buffer bias: idle DT/refresh, fast cast, cure potency, enhancing
@@ -130,6 +134,19 @@ The local Windower profile autoloads GearSwap and uses `Twills.lua` v10.
     and defensive engaged sets.
 - `//gs c idle`
   - Reports the active mode and re-equips the current idle/engaged set.
+
+## XIVHotbar v11 Layout
+
+The RDM battle hotbars are redesigned around practical RDM/SCH play:
+
+- Row 1: GearSwap modes, idle toggles, weapon modes, validation, and status.
+- Row 2: core Red Mage debuffs, Dispel, and crowd-control spells.
+- Row 3: nuke mode, elemental nukes, weapon skills, and attack.
+- Row 4: Scholar Arts, Addenda, and stratagems available through the ML50 support-job cap.
+- Row 5: Red Mage job abilities, Sublimation, Refresh III, Haste II, Phalanx II, Temper II, Aquaveil, and Stoneskin.
+- Row 6: Cure, Regen, Reraise, Erase, and status-removal recovery.
+
+General field hotbars retain travel, Trust QA, audit/repair, addon reload, screenshot QA, and utility commands.
 
 ## Augment Policy
 
@@ -427,7 +444,7 @@ V8 final refinements now implemented in code:
 5. Twills-only learned spell rows missing from local `spell_list` are pruned.
 6. Mission completion repair now checks current/completed state before adding
    mission rows, reducing old mission-current warning spam.
-7. GearSwap v10 adds smarter conditional handling for Hachirin-no-Obi,
+7. GearSwap v11 adds smarter conditional handling for Hachirin-no-Obi,
    Orpheus's Sash, enhancing-duration subsets, idle DT/refresh, enfeebling
    accuracy/potency modes, nuking/magic-burst mode, and weaponskill swaps.
 
@@ -436,4 +453,4 @@ Pending in-client verification after Twills logs back in:
 - Confirm the audit reports no undefined spells, Cornelia learned, all 22
   Master Level rows at ML50, Sylvie Unity rank 1, complete travel categories,
   and veteran currency floors.
-- Run `//gs reload` and `//gs validate sets` against the v8 GearSwap profile.
+- Run `//gs reload`, `//gs validate sets`, `//gs validate inv`, and `//gs c status` against the v11 GearSwap profile.

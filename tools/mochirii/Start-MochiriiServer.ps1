@@ -13,13 +13,14 @@ $ports = @(54001, 54002, 54003, 55030, 55031)
 
 New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
 
-function Test-ProcessId {
+function Test-WslKeeperProcess {
     param([int]$ProcessId)
     if ($ProcessId -le 0) {
         return $false
     }
 
-    return $null -ne (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)
+    $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    return $null -ne $process -and $process.ProcessName -eq 'wsl'
 }
 
 function Ensure-WslKeeper {
@@ -29,9 +30,14 @@ function Ensure-WslKeeper {
         [void][int]::TryParse($rawPid, [ref]$existingPid)
     }
 
-    if (Test-ProcessId -ProcessId $existingPid) {
+    if (Test-WslKeeperProcess -ProcessId $existingPid) {
         Write-Host "WSL keepalive already running: PID $existingPid"
         return
+    }
+
+    if ($existingPid -gt 0) {
+        Write-Host "Ignoring stale WSL keepalive PID $existingPid"
+        Remove-Item -LiteralPath $keeperPidFile -Force -ErrorAction SilentlyContinue
     }
 
     $keeper = Start-Process -FilePath 'wsl.exe' -ArgumentList @('-d', $Distro, '-u', 'root', '--', '/bin/sleep', 'infinity') -WindowStyle Hidden -PassThru

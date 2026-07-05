@@ -22,9 +22,11 @@ if (Test-Path $keeperPidFile) {
     [void][int]::TryParse($rawPid, [ref]$keeperPid)
     if ($keeperPid -gt 0) {
         $keeper = Get-Process -Id $keeperPid -ErrorAction SilentlyContinue
-        if ($null -ne $keeper) {
+        if ($null -ne $keeper -and $keeper.ProcessName -eq 'wsl') {
             Stop-Process -Id $keeperPid -Force
             Write-Host "Stopped WSL keepalive: PID $keeperPid"
+        } elseif ($null -ne $keeper) {
+            Write-Warning "Ignoring stale WSL keepalive PID $keeperPid because it belongs to $($keeper.ProcessName)."
         }
     }
     Remove-Item -LiteralPath $keeperPidFile -Force -ErrorAction SilentlyContinue
