@@ -30,3 +30,27 @@ and installed into `Windower\addons\MochiriiScreenshotQA`.
 sent keys to the foreground client, not that Final Fantasy XI accepted or ran the
 command. Verify command results with a Windower-native screenshot and matching
 server/Windower logs.
+
+## Twills GearSwap QA
+
+Run the static resolver before accepting Twills RDM/SCH GearSwap changes:
+
+```bash
+python3 tools/mochirii/gearswap_action_qa.py --repo-root .
+```
+
+Then verify the live Windower profile with:
+
+```text
+//gs reload
+//gs validate sets
+//gs validate inv
+//gs c qa all
+//gs c status
+//gs c gearscore
+```
+
+The static resolver writes reports to `/root/projects/FFXI-Runtime/logs/gearswap_qa/`.
+The live GearSwap command writes TSV evidence to
+`C:\Users\xtyty\Documents\FFXI-Runtime\logs\gearswap_qa`. Keep those
+runtime reports out of git.
