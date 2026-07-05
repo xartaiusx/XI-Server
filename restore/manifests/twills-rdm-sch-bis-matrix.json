@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "character": "Twills",
+  "job": "RDM/SCH",
+  "level": "99/59",
+  "sourcePriority": [
+    "local Mochirii item stats, inventory, and augment audit",
+    "official Final Fantasy XI and Windower/GearSwap mechanics",
+    "BG Wiki Red Mage gear and job references",
+    "FFXIAH RDM guide and item pages as secondary corroboration"
+  ],
+  "families": [
+    { "family": "idle_dt", "label": "Idle DT", "setPaths": ["sets.idle"] },
+    { "family": "idle_refresh", "label": "Idle Refresh", "setPaths": ["sets.idle.Refresh"] },
+    { "family": "engaged_tp", "label": "Engaged TP", "setPaths": ["sets.engaged"] },
+    { "family": "fast_cast", "label": "Fast Cast", "setPaths": ["sets.precast.FC"] },
+    { "family": "cure", "label": "Cure", "setPaths": ["sets.midcast.Cure"] },
+    { "family": "status_removal", "label": "Status Removal", "setPaths": ["sets.midcast.StatusRemoval"] },
+    { "family": "raise_reraise", "label": "Raise and Reraise", "setPaths": ["sets.midcast.Raise"] },
+    { "family": "enhancing_skill", "label": "Enhancing Skill", "setPaths": ["sets.midcast.EnhancingSkill"] },
+    { "family": "enhancing_duration", "label": "Enhancing Duration", "setPaths": ["sets.midcast.EnhancingDuration"] },
+    { "family": "self_buffs", "label": "Self Buffs", "setPaths": ["sets.midcast.EnhancingSelf"] },
+    { "family": "refresh_iii", "label": "Refresh III", "setPaths": ["sets.midcast.Refresh"] },
+    { "family": "phalanx_ii", "label": "Phalanx II", "setPaths": ["sets.midcast.Phalanx"] },
+    { "family": "stoneskin", "label": "Stoneskin", "setPaths": ["sets.midcast.Stoneskin"] },
+    { "family": "aquaveil", "label": "Aquaveil", "setPaths": ["sets.midcast.Aquaveil"] },
+    { "family": "enspell_temper", "label": "Enspell and Temper II", "setPaths": ["sets.midcast.Enspell"] },
+    { "family": "barspells", "label": "Barspells", "setPaths": ["sets.midcast.Barspell"] },
+    { "family": "mnd_enfeebles", "label": "MND Enfeebles", "setPaths": ["sets.midcast.EnfeeblingMND"] },
+    { "family": "int_enfeebles", "label": "INT Enfeebles", "setPaths": ["sets.midcast.EnfeeblingINT"] },
+    { "family": "magic_accuracy", "label": "Magic Accuracy", "setPaths": ["sets.midcast.Enfeebling"] },
+    { "family": "enfeebling_potency", "label": "Enfeebling Potency", "setPaths": ["sets.midcast.EnfeeblingPotency"] },
+    { "family": "nuking", "label": "Elemental Nuking", "setPaths": ["sets.midcast.Nuke"] },
+    { "family": "magic_burst", "label": "Magic Burst", "setPaths": ["sets.midcast.MagicBurst"] },
+    { "family": "helix", "label": "Helix", "setPaths": ["sets.midcast.Helix"] },
+    { "family": "dark_magic", "label": "Dark Magic", "setPaths": ["sets.midcast.Dark"] },
+    { "family": "physical_ws", "label": "Physical Weapon Skills", "setPaths": ["sets.precast.WS", "sets.precast.WS['Savage Blade']", "sets.precast.WS['Black Halo']", "sets.precast.WS['Chant du Cygne']", "sets.precast.WS['Requiescat']", "sets.precast.WS['Evisceration']"] },
+    { "family": "magical_ws", "label": "Magical Weapon Skills", "setPaths": ["sets.precast.WS['Sanguine Blade']", "sets.precast.WS['Seraph Blade']", "sets.precast.WS['Red Lotus Blade']"] },
+    { "family": "job_abilities", "label": "Job Abilities", "setPaths": ["sets.precast.JA", "sets.precast.JA['Chainspell']", "sets.precast.JA['Composure']", "sets.precast.JA['Convert']", "sets.precast.JA['Saboteur']", "sets.precast.JA['Stymie']", "sets.precast.JA['Spontaneity']", "sets.precast.JA['Sublimation']", "sets.precast.JA['Light Arts']", "sets.precast.JA['Dark Arts']", "sets.precast.JA['Accession']", "sets.precast.JA['Manifestation']"] }
+  ],
+  "unsupportedRetailBisPolicy": "Document unsupported retail theory pieces and do not use them until local item stats, ownership, and augment evidence are present."
+}

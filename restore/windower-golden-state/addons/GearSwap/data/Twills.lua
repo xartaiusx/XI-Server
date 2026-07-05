@@ -1,5 +1,6 @@
 -- Mochirii Twills RDM/SCH profile.
 -- Uses only gear verified in Twills' local inventory and wardrobes.
+-- Static coverage companion: tools/mochirii/gearswap_action_qa.py
 
 local role_mode = 'idle'
 local idle_mode = 'dt'
@@ -8,6 +9,13 @@ local nuke_mode = 'free'
 local weapon_mode = 'daybreak'
 
 local mode_order = { 'idle', 'healer', 'buffer', 'debuffer', 'caster', 'melee' }
+local qa_sets_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-sets.tsv'
+local qa_equipment_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-equipment.tsv'
+local gear_slots = {
+    'main', 'sub', 'range', 'ammo', 'head', 'body', 'hands', 'legs',
+    'feet', 'neck', 'waist', 'left_ear', 'right_ear', 'left_ring',
+    'right_ring', 'back',
+}
 
 local mnd_enfeebles = {
     ['Addle'] = true, ['Addle II'] = true,
@@ -166,6 +174,143 @@ local function split_words(command)
         words[#words + 1] = word
     end
     return words
+end
+
+local function qa_clean(value)
+    if value == nil then
+        return ''
+    end
+    if value == empty then
+        return '__empty__'
+    end
+    if type(value) == 'table' then
+        value = value.name or value.en or value.english or tostring(value)
+    end
+
+    local cleaned = tostring(value):gsub('%c', ' ')
+    return cleaned
+end
+
+local function qa_missing_slots(set)
+    local missing = {}
+    if type(set) ~= 'table' then
+        for _, slot in ipairs(gear_slots) do
+            missing[#missing + 1] = slot
+        end
+        return missing
+    end
+
+    for _, slot in ipairs(gear_slots) do
+        if set[slot] == nil or set[slot] == '' then
+            missing[#missing + 1] = slot
+        end
+    end
+
+    return missing
+end
+
+local function qa_slot_payload(set)
+    local pieces = {}
+    if type(set) == 'table' then
+        for _, slot in ipairs(gear_slots) do
+            pieces[#pieces + 1] = slot .. '=' .. qa_clean(set[slot])
+        end
+    end
+    return table.concat(pieces, '|')
+end
+
+local function qa_skip_set(path)
+    return path:match('^sets%.weapons') ~= nil or
+        path:match('^sets%.utility') ~= nil or
+        path:match('^sets%.gearscore') ~= nil or
+        path:match('^sets%.role') ~= nil
+end
+
+local function qa_has_equipment_shape(value)
+    if type(value) ~= 'table' then
+        return false
+    end
+
+    local count = 0
+    for _, slot in ipairs(gear_slots) do
+        if value[slot] ~= nil then
+            count = count + 1
+        end
+    end
+
+    return count >= 8
+end
+
+local function qa_write_set_row(handle, label, set)
+    local missing = qa_missing_slots(set)
+    local status = #missing == 0 and 'PASS' or 'FAIL'
+    handle:write(table.concat({
+        os.date('!%Y-%m-%dT%H:%M:%SZ'),
+        status,
+        label,
+        table.concat(missing, ','),
+        qa_slot_payload(set),
+    }, '\t') .. '\n')
+    return status
+end
+
+local function qa_walk_sets(handle, path, value, visited, counts)
+    if type(value) ~= 'table' or visited[value] then
+        return
+    end
+
+    visited[value] = true
+    if not qa_skip_set(path) and qa_has_equipment_shape(value) then
+        local status = qa_write_set_row(handle, path, value)
+        counts[status] = (counts[status] or 0) + 1
+    end
+
+    for key, child in pairs(value) do
+        if type(child) == 'table' then
+            qa_walk_sets(handle, path .. '.' .. tostring(key), child, visited, counts)
+        end
+    end
+end
+
+local function qa_write_equipment_snapshot()
+    local handle = io.open(qa_equipment_path, 'w')
+    if not handle then
+        chat('QA could not write ' .. qa_equipment_path)
+        return false
+    end
+
+    handle:write('timestamp_utc\tslot\titem\n')
+    local equipment = player and player.equipment or {}
+    for _, slot in ipairs(gear_slots) do
+        handle:write(table.concat({
+            os.date('!%Y-%m-%dT%H:%M:%SZ'),
+            slot,
+            qa_clean(equipment[slot]),
+        }, '\t') .. '\n')
+    end
+    handle:close()
+    return true
+end
+
+local function qa_run_sets()
+    local handle = io.open(qa_sets_path, 'w')
+    if not handle then
+        chat('QA could not write ' .. qa_sets_path)
+        return
+    end
+
+    handle:write('timestamp_utc\tstatus\tset\tmissing_slots\tslots\n')
+    local counts = { PASS = 0, FAIL = 0 }
+    qa_walk_sets(handle, 'sets', sets, {}, counts)
+    handle:close()
+    qa_write_equipment_snapshot()
+    chat('QA sets PASS=' .. counts.PASS .. ', FAIL=' .. counts.FAIL .. '; evidence=' .. qa_sets_path)
+end
+
+local function qa_status()
+    chat('QA static: python3 tools/mochirii/gearswap_action_qa.py --repo-root .')
+    chat('QA live sets: ' .. qa_sets_path)
+    chat('QA live equipment: ' .. qa_equipment_path)
 end
 
 local function set_role(mode)
@@ -417,7 +562,7 @@ function get_sets()
         ['Weapon Skills'] = 'Nyame Path B core with Naegling/Maxentius/Bunzi swaps',
     }
 
-    chat('Twills RDM/SCH GearSwap v11 loaded; role=' .. role_mode)
+    chat('Twills RDM/SCH GearSwap v12 loaded; role=' .. role_mode)
     equip_current()
 end
 
@@ -555,6 +700,13 @@ function self_command(command)
     elseif action == 'weapon' and sets.weapons[value] ~= nil then
         weapon_mode = value
         set_role(role_mode)
+    elseif action == 'qa' and (value == 'all' or value == 'sets') then
+        qa_run_sets()
+    elseif action == 'qa' and value == 'snapshot' then
+        qa_write_equipment_snapshot()
+        chat('QA equipment snapshot=' .. qa_equipment_path)
+    elseif action == 'qa' and value == 'status' then
+        qa_status()
     elseif action == 'validate' then
         send_command('gs validate sets;wait 1;gs validate inv')
     elseif action == 'reset' then
@@ -571,7 +723,7 @@ function self_command(command)
             chat(label .. ': ' .. detail)
         end
     else
-        chat('Commands: idle, healer, buffer, debuffer, caster, melee, cycle, dt, refresh, enf acc/mnd/int/potency, nuke free/burst, weapon daybreak/crocea/naegling/maxentius/bunzi/tauret, validate, status, gearscore, reset')
+        chat('Commands: idle, healer, buffer, debuffer, caster, melee, cycle, dt, refresh, enf acc/mnd/int/potency, nuke free/burst, weapon daybreak/crocea/naegling/maxentius/bunzi/tauret, validate, qa all/status/snapshot, status, gearscore, reset')
     end
 end
 

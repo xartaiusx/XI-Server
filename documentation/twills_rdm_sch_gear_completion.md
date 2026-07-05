@@ -38,6 +38,7 @@ database dumps.
   - https://www.bg-wiki.com/ffxi/Category:Craft
   - https://www.bg-wiki.com/ffxi/Category:Chocobo_Raising
   - https://docs.windower.net/addons/gearswap/
+  - https://docs.windower.net/addons/gearswap/reference/
 - Mission and quest source guidance:
   - https://www.bg-wiki.com/ffxi/Category:Missions
   - https://www.bg-wiki.com/ffxi/Category:Quests
@@ -64,7 +65,7 @@ database dumps.
     markers, important key items, and locally represented mission/quest
     completion.
 - `D:\Steam\steamapps\common\FFXINA\Windower\addons\GearSwap\data\Twills.lua`
-  - GearSwap v11 profile for healer/buffer and damage/debuffer modes.
+  - GearSwap v12 profile for healer/buffer and damage/debuffer modes.
   - Uses only locally implemented item stats from this checkout's item tables.
   - Role commands now equip practical idle/engaged baselines; action-specific
     swaps still handle fast cast, cures, status removal, enhancing duration,
@@ -122,7 +123,7 @@ meaningful `item_mods` for them:
 
 ## GearSwap Modes
 
-The local Windower profile autoloads GearSwap and uses `Twills.lua` v11.
+The local Windower profile autoloads GearSwap and uses `Twills.lua` v12.
 
 - `//gs c healer` or `//gs c buffer`
   - Healer/buffer bias: idle DT/refresh, fast cast, cure potency, enhancing
@@ -147,6 +148,34 @@ The RDM battle hotbars are redesigned around practical RDM/SCH play:
 - Row 6: Cure, Regen, Reraise, Erase, and status-removal recovery.
 
 General field hotbars retain travel, Trust QA, audit/repair, addon reload, screenshot QA, and utility commands.
+
+## Exhaustive GearSwap QA
+
+Twills RDM/SCH coverage is now verified by two complementary checks:
+
+- Static resolver: `python3 tools/mochirii/gearswap_action_qa.py --repo-root .`
+  - Enforces the Git-safe BIS family contract in `restore/manifests/twills-rdm-sch-bis-matrix.json`.
+  - Loads the Git-safe `restore/windower-golden-state/addons/GearSwap/data/Twills.lua` profile through LuaJIT with GearSwap-compatible stubs.
+  - Models GearSwap `set_combine` and `equip` precedence the same way Windower documents it: later/right-most slot values win.
+  - Generates a local RDM/SCH action matrix from `sql/spell_list.sql`, `sql/abilities.sql`, `sql/weapon_skills.sql`, and Twills GearSwap utility commands.
+  - Filters non-player Trust summon spells and non-RDM/SCH magic so the matrix remains scoped to Twills as RDM/SCH 99/59.
+  - Treats `range=empty` as a valid intentional slot, while ignoring overlay-only tables such as `sets.weapons.*`, `sets.utility.*`, `sets.role.*`, and `sets.gearscore.*`.
+  - Fails if any final action phase has missing equip slots, unknown Windower resource names, missing inventory evidence from the latest Twills audit, or unsupported active items.
+  - Writes JSON and Markdown evidence under `/root/projects/FFXI-Runtime/logs/gearswap_qa/`, which must not be committed.
+
+- Live GearSwap QA: `//gs c qa all`
+  - Writes `C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-sets.tsv`.
+  - Writes `C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-equipment.tsv`.
+  - Use `//gs c qa status` to print the static and live QA evidence paths in chat.
+  - Use `//gs c qa snapshot` when only the current equipment snapshot is needed.
+
+Acceptance for GearSwap changes:
+
+- `0` static harness failures.
+- `0` non-informational missing-slot rows.
+- `0` missing inventory items and `0` unknown Windower resources in the latest Twills audit.
+- `//gs validate sets`, `//gs validate inv`, `//gs c qa all`, `//gs c status`, and `//gs c gearscore` all run without fresh Lua errors.
+- Native Windower screenshots, not OS screenshots, are used for any game-client UI proof.
 
 ## Augment Policy
 
