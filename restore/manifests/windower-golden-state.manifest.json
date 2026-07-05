@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-06-30T00:46:07-07:00",
+  "generatedAt": "2026-07-05T10:58:26-07:00",
   "trackedGoldenStateRoot": "restore/windower-golden-state",
   "trackedFiles": [
     {
       "relativePath": "addons/GearSwap/data/Twills.lua",
-      "bytes": 16799,
-      "sha256": "6e8193aa373bd71971be0ee38d8b4494208ff6fc78c464f4132f4a3c77dab82b"
+      "bytes": 22900,
+      "sha256": "c76229874f065245960a010f767ad69771ec5e4a5ed667c52680b4dd301ffaf2"
     },
     {
       "relativePath": "addons/MochiriiScreenshotQA/MochiriiScreenshotQA.lua",
-      "bytes": 4321,
-      "sha256": "4da1a1775a35c837ecd2ad3ca358ca72a691c030642a3b1e324f45a59f90157d"
+      "bytes": 4645,
+      "sha256": "4cbef49738c8c4271ba6c0ed2cb10561df00ebe3daa05dd25ebe9277c56518b3"
     },
     {
       "relativePath": "addons/XIPivot/data/settings.xml",
@@ -35,13 +35,13 @@
     },
     {
       "relativePath": "addons/xivhotbar/data/Twills/General.lua",
-      "bytes": 3856,
-      "sha256": "30d215694d7bc382a01a8e49f4b3aa6510330d03adc7b53a5848e669626306ec"
+      "bytes": 3846,
+      "sha256": "aaa4ea3a49c51ba665e60f9974d9ed7fa0fa3e85dd4b2e3dc65b3f359d12e569"
     },
     {
       "relativePath": "addons/xivhotbar/data/Twills/RDM.lua",
-      "bytes": 3611,
-      "sha256": "a911aac59e0db84e784f337e921ef005ede41878c6f820b0715e90d51e95915b"
+      "bytes": 3645,
+      "sha256": "6dce279194679eead8e0aa3eb10e9cc9e26799523c924c9922500a3b808a7027"
     },
     {
       "relativePath": "addons/xivhotbar/data/keybinds.lua",
@@ -60,8 +60,8 @@
     },
     {
       "relativePath": "scripts/init.txt",
-      "bytes": 323,
-      "sha256": "65ce26eebe7b2f199da299140762e115f0dc195acae611920f3e34d63f0d7294"
+      "bytes": 343,
+      "sha256": "858a5ea620726fffb8a7d9286dd8270607ce1c23f2010dbdefe120e05896141c"
     }
   ],
   "encryptedFullBundle": {
