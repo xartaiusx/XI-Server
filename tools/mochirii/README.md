@@ -53,8 +53,18 @@ Then verify the live Windower profile with:
 The static resolver writes reports to `/root/projects/FFXI-Runtime/logs/gearswap_qa/`.
 The live GearSwap command writes TSV evidence to
 `C:\Users\xtyty\Documents\FFXI-Runtime\logs\gearswap_qa`. Keep those
-runtime reports out of git.
+runtime reports out of git. `//gs c qa all` writes live set, equipment,
+visual-model, and action-family/baseline TSV evidence; `//gs c qa families`
+refreshes only the action-family matrix.
 
 ## GearSwap Visual-Model Audit
 
-Twills GearSwap QA validates visible equipment model ids. Final action sets fail when `main`, `sub`, `head`, `body`, `hands`, `legs`, or `feet` resolve to a local equipment row with `MId=0`, because Mochirii sends `item_equipment.MId` as the rendered model id. Ammo, ranged, and accessory rows with `MId=0` are informational unless they affect a visible character model. Use `//gs c qa visual` for a live Windower snapshot under `FFXI-Runtime/logs/gearswap_qa`.
+Twills GearSwap QA validates visible equipment model ids. Final action sets fail when `main`, `sub`, `head`, `body`, `hands`, `legs`, or `feet` resolve to a local equipment row with `MId=0`, because Mochirii sends `item_equipment.MId` as the rendered model id. Ammo, ranged, and accessory rows with `MId=0` are informational unless they affect a visible character model.
+
+`restore/windower-golden-state/addons/GearSwap/data/Twills-visual-models.lua` is generated from local `item_basic` and `item_equipment` data by:
+
+```bash
+python3 tools/mochirii/gearswap_action_qa.py --repo-root . --write-visual-manifest restore/windower-golden-state/addons/GearSwap/data/Twills-visual-models.lua --no-write-report
+```
+
+Do not edit that manifest by hand. Use `//gs c qa visual` for a live Windower snapshot under `FFXI-Runtime/logs/gearswap_qa`; unknown visible items and missing manifests are failures.
