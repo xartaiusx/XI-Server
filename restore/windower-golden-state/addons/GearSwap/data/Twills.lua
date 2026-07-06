@@ -11,10 +11,65 @@ local weapon_mode = 'daybreak'
 local mode_order = { 'idle', 'healer', 'buffer', 'debuffer', 'caster', 'melee' }
 local qa_sets_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-sets.tsv'
 local qa_equipment_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-equipment.tsv'
+local qa_visual_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-visual-models.tsv'
 local gear_slots = {
     'main', 'sub', 'range', 'ammo', 'head', 'body', 'hands', 'legs',
     'feet', 'neck', 'waist', 'left_ear', 'right_ear', 'left_ring',
     'right_ring', 'back',
+}
+local qa_visual_slots = { 'main', 'sub', 'head', 'body', 'hands', 'legs', 'feet' }
+local qa_visual_items = {
+    ["Agwu's Pigaches"] = { item_id = 23770, model_id = 442 },
+    ["Agwu's Robe"] = { item_id = 23764, model_id = 442 },
+    ["Amalric Coif +1"] = { item_id = 25541, model_id = 442 },
+    ["Amalric Doublet +1"] = { item_id = 25755, model_id = 442 },
+    ["Amalric Gages +1"] = { item_id = 25805, model_id = 442 },
+    ["Amalric Nails +1"] = { item_id = 25927, model_id = 442 },
+    ["Amalric Slops +1"] = { item_id = 25864, model_id = 442 },
+    ["Ammurapi Shield"] = { item_id = 26419, model_id = 42 },
+    ["Atrophy Boots +3"] = { item_id = 23647, model_id = 286 },
+    ["Atrophy Gloves +3"] = { item_id = 23513, model_id = 286 },
+    ["Atrophy Tabard +3"] = { item_id = 23446, model_id = 286 },
+    ["Bunzi's Hat"] = { item_id = 23754, model_id = 451 },
+    ["Bunzi's Pants"] = { item_id = 23766, model_id = 451 },
+    ["Bunzi's Rod"] = { item_id = 22122, model_id = 531 },
+    ["Crocea Mors"] = { item_id = 21611, model_id = 529 },
+    ["Daybreak"] = { item_id = 22040, model_id = 532 },
+    ["Ea Houppelande +1"] = { item_id = 25765, model_id = 442 },
+    ["Genmei Shield"] = { item_id = 26421, model_id = 42 },
+    ["Jhakri Cuffs +2"] = { item_id = 25821, model_id = 287 },
+    ["Jhakri Pigaches +2"] = { item_id = 25941, model_id = 287 },
+    ["Jhakri Robe +2"] = { item_id = 25783, model_id = 287 },
+    ["Kaykaus Boots +1"] = { item_id = 25922, model_id = 442 },
+    ["Kaykaus Cuffs +1"] = { item_id = 25800, model_id = 442 },
+    ["Kaykaus Mitra +1"] = { item_id = 25536, model_id = 442 },
+    ["Kaykaus Tights +1"] = { item_id = 25859, model_id = 442 },
+    ["Leth. Chappel +2"] = { item_id = 23089, model_id = 286 },
+    ["Leth. Fuseau +2"] = { item_id = 23290, model_id = 286 },
+    ["Leth. Ganth. +2"] = { item_id = 23223, model_id = 286 },
+    ["Leth. Houseaux +2"] = { item_id = 23357, model_id = 286 },
+    ["Lethargy Sayon +2"] = { item_id = 23156, model_id = 286 },
+    ["Malignance Boots"] = { item_id = 23736, model_id = 458 },
+    ["Malignance Chapeau"] = { item_id = 23732, model_id = 458 },
+    ["Malignance Gloves"] = { item_id = 23734, model_id = 458 },
+    ["Malignance Tabard"] = { item_id = 23733, model_id = 458 },
+    ["Malignance Tights"] = { item_id = 23735, model_id = 458 },
+    ["Maxentius"] = { item_id = 22043, model_id = 532 },
+    ["Naegling"] = { item_id = 21684, model_id = 529 },
+    ["Nyame Flanchard"] = { item_id = 23782, model_id = 451 },
+    ["Nyame Gauntlets"] = { item_id = 23775, model_id = 451 },
+    ["Nyame Helm"] = { item_id = 23753, model_id = 451 },
+    ["Nyame Mail"] = { item_id = 23760, model_id = 451 },
+    ["Nyame Sollerets"] = { item_id = 23789, model_id = 451 },
+    ["Tauret"] = { item_id = 21694, model_id = 530 },
+    ["Telchine Braconi"] = { item_id = 25843, model_id = 289 },
+    ["Telchine Cap"] = { item_id = 25547, model_id = 289 },
+    ["Telchine Gloves"] = { item_id = 25809, model_id = 289 },
+    ["Telchine Pigaches"] = { item_id = 25933, model_id = 289 },
+    ["Viti. Chapeau +3"] = { item_id = 23402, model_id = 286 },
+    ["Vitiation Boots +3"] = { item_id = 23670, model_id = 286 },
+    ["Vitiation Tights +2"] = { item_id = 23268, model_id = 286 },
+    ["Volte Gaiters"] = { item_id = 23726, model_id = 132 },
 }
 
 local mnd_enfeebles = {
@@ -292,6 +347,39 @@ local function qa_write_equipment_snapshot()
     return true
 end
 
+local function qa_write_visual_snapshot()
+    local handle = io.open(qa_visual_path, 'w')
+    if not handle then
+        chat('QA could not write ' .. qa_visual_path)
+        return false
+    end
+
+    handle:write('timestamp_utc\tslot\titem\titem_id\tmodel_id\tstatus\n')
+    local equipment = player and player.equipment or {}
+    local fail_count = 0
+    for _, slot in ipairs(qa_visual_slots) do
+        local item = qa_clean(equipment[slot])
+        local visual = qa_visual_items[item]
+        local status = 'UNKNOWN'
+        local item_id = ''
+        local model_id = ''
+        if item == '' or item == '__empty__' then
+            status = 'EMPTY'
+        elseif visual then
+            item_id = tostring(visual.item_id)
+            model_id = tostring(visual.model_id)
+            status = visual.model_id == 0 and 'FAIL' or 'PASS'
+        end
+        if status == 'FAIL' then
+            fail_count = fail_count + 1
+        end
+        handle:write(table.concat({ os.date('!%Y-%m-%dT%H:%M:%SZ'), slot, item, item_id, model_id, status }, '\t') .. '\n')
+    end
+    handle:close()
+    chat('QA visual FAIL=' .. fail_count .. '; evidence=' .. qa_visual_path)
+    return fail_count == 0
+end
+
 local function qa_run_sets()
     local handle = io.open(qa_sets_path, 'w')
     if not handle then
@@ -304,6 +392,7 @@ local function qa_run_sets()
     qa_walk_sets(handle, 'sets', sets, {}, counts)
     handle:close()
     qa_write_equipment_snapshot()
+    qa_write_visual_snapshot()
     chat('QA sets PASS=' .. counts.PASS .. ', FAIL=' .. counts.FAIL .. '; evidence=' .. qa_sets_path)
 end
 
@@ -311,6 +400,7 @@ local function qa_status()
     chat('QA static: python3 tools/mochirii/gearswap_action_qa.py --repo-root .')
     chat('QA live sets: ' .. qa_sets_path)
     chat('QA live equipment: ' .. qa_equipment_path)
+    chat('QA live visual models: ' .. qa_visual_path)
 end
 
 local function set_role(mode)
@@ -705,6 +795,8 @@ function self_command(command)
     elseif action == 'qa' and value == 'snapshot' then
         qa_write_equipment_snapshot()
         chat('QA equipment snapshot=' .. qa_equipment_path)
+    elseif action == 'qa' and value == 'visual' then
+        qa_write_visual_snapshot()
     elseif action == 'qa' and value == 'status' then
         qa_status()
     elseif action == 'validate' then
@@ -723,7 +815,7 @@ function self_command(command)
             chat(label .. ': ' .. detail)
         end
     else
-        chat('Commands: idle, healer, buffer, debuffer, caster, melee, cycle, dt, refresh, enf acc/mnd/int/potency, nuke free/burst, weapon daybreak/crocea/naegling/maxentius/bunzi/tauret, validate, qa all/status/snapshot, status, gearscore, reset')
+        chat('Commands: idle, healer, buffer, debuffer, caster, melee, cycle, dt, refresh, enf acc/mnd/int/potency, nuke free/burst, weapon daybreak/crocea/naegling/maxentius/bunzi/tauret, validate, qa all/status/snapshot/visual, status, gearscore, reset')
     end
 end
 

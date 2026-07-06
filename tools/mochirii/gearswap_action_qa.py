@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -21,12 +22,38 @@ from pathlib import Path
 from typing import Iterable
 
 SLOTS = [
-    "main", "sub", "range", "ammo", "head", "body", "hands", "legs",
-    "feet", "neck", "waist", "left_ear", "right_ear", "left_ring",
-    "right_ring", "back",
+    "main",
+    "sub",
+    "range",
+    "ammo",
+    "head",
+    "body",
+    "hands",
+    "legs",
+    "feet",
+    "neck",
+    "waist",
+    "left_ear",
+    "right_ear",
+    "left_ring",
+    "right_ring",
+    "back",
 ]
 
 EMPTY_SENTINEL = "__GEARSWAP_EMPTY_SLOT__"
+MODEL_SENSITIVE_SLOTS = {"main", "sub", "head", "body", "hands", "legs", "feet"}
+MODEL_INFO_SLOTS = {"range", "ammo"}
+EQUIPMENT_SLOT_TO_GEARSWAP = {
+    1: {"main"},
+    2: {"sub"},
+    3: {"main", "sub"},
+    8: {"range", "ammo"},
+    16: {"head"},
+    32: {"body"},
+    64: {"hands"},
+    128: {"legs"},
+    256: {"feet"},
+}
 RDM_JOB_ID = 5
 SCH_JOB_ID = 20
 RDM_LEVEL = 99
@@ -118,15 +145,48 @@ SPECIAL_ACTION_NAMES = {
 }
 
 UTILITY_COMMANDS = [
-    "idle", "healer", "buffer", "debuffer", "caster", "melee", "cycle",
-    "dt", "refresh", "enf acc", "enf mnd", "enf int", "enf potency",
-    "nuke free", "nuke burst", "burst", "free", "weapon daybreak",
-    "weapon crocea", "weapon naegling", "weapon maxentius", "weapon bunzi",
-    "weapon tauret", "validate", "status", "gearscore", "reset", "qa all",
+    "idle",
+    "healer",
+    "buffer",
+    "debuffer",
+    "caster",
+    "melee",
+    "cycle",
+    "dt",
+    "refresh",
+    "enf acc",
+    "enf mnd",
+    "enf int",
+    "enf potency",
+    "nuke free",
+    "nuke burst",
+    "burst",
+    "free",
+    "weapon daybreak",
+    "weapon crocea",
+    "weapon naegling",
+    "weapon maxentius",
+    "weapon bunzi",
+    "weapon tauret",
+    "validate",
+    "status",
+    "gearscore",
+    "reset",
+    "qa all",
     "qa status",
+    "qa snapshot",
+    "qa visual",
 ]
 
-NO_EQUIP_COMMANDS = {"validate", "status", "gearscore", "qa all", "qa status"}
+NO_EQUIP_COMMANDS = {
+    "validate",
+    "status",
+    "gearscore",
+    "qa all",
+    "qa status",
+    "qa snapshot",
+    "qa visual",
+}
 
 PLAYER_MAGIC_SKILLS = {
     "Divine Magic",
@@ -268,6 +328,127 @@ def ffxi_name(raw: str) -> str:
     return " ".join(words)
 
 
+def normalize_item_name(name: str) -> str:
+    normalized = name.lower().replace("_", " ")
+    return " ".join(normalized.split())
+
+
+def apply_custom_model_updates(
+    repo_root: Path, equipment_rows: dict[int, dict[str, object]]
+) -> None:
+    custom_sql_root = repo_root / "modules" / "custom" / "sql"
+    if not custom_sql_root.exists():
+        return
+    pattern = re.compile(
+        r"UPDATE\s+`?item_equipment`?\s+SET\s+`?MId`?\s*=\s*(\d+)\s+WHERE\s+`?name`?\s+IN\s*\((.*?)\)",
+        re.IGNORECASE | re.DOTALL,
+    )
+    for sql_path in sorted(custom_sql_root.glob("*.sql")):
+        text = sql_path.read_text(encoding="utf-8", errors="ignore")
+        for match in pattern.finditer(text):
+            model_id = int(match.group(1))
+            names = {unquote_sql(token) for token in split_sql_values(match.group(2))}
+            for row in equipment_rows.values():
+                if row["name"] in names and int(row["model_id"]) == 0:
+                    row["model_id"] = model_id
+                    row["model_source"] = str(sql_path.relative_to(repo_root))
+
+
+def build_item_visual_lookup(repo_root: Path) -> dict[str, dict[str, object]]:
+    basic_rows: dict[int, dict[str, str]] = {}
+    for row in iter_insert_rows(repo_root / "sql" / "item_basic.sql", "item_basic"):
+        if len(row) < 4:
+            continue
+        item_id = int_token(row[0])
+        basic_rows[item_id] = {
+            "name": unquote_sql(row[2]),
+            "sortname": unquote_sql(row[3]),
+        }
+
+    equipment_rows: dict[int, dict[str, object]] = {}
+    for row in iter_insert_rows(
+        repo_root / "sql" / "item_equipment.sql", "item_equipment"
+    ):
+        if len(row) < 9:
+            continue
+        item_id = int_token(row[0])
+        equipment_rows[item_id] = {
+            "item_id": item_id,
+            "name": unquote_sql(row[1]),
+            "model_id": int_token(row[5]),
+            "equipment_slot": int_token(row[8]),
+            "model_source": "sql/item_equipment.sql",
+        }
+
+    apply_custom_model_updates(repo_root, equipment_rows)
+
+    lookup: dict[str, dict[str, object]] = {}
+    for item_id, equipment in equipment_rows.items():
+        basic = basic_rows.get(item_id, {})
+        names = {
+            str(equipment["name"]),
+            basic.get("name", ""),
+            basic.get("sortname", ""),
+        }
+        payload = {
+            "item_id": item_id,
+            "name": basic.get("name") or equipment["name"],
+            "sortname": basic.get("sortname", ""),
+            "model_id": equipment["model_id"],
+            "equipment_slot": equipment["equipment_slot"],
+            "model_source": equipment["model_source"],
+        }
+        for name in names:
+            if name:
+                lookup[normalize_item_name(name)] = payload
+    return lookup
+
+
+def visual_model_findings(
+    rows: list[dict[str, object]], item_lookup: dict[str, dict[str, object]]
+) -> tuple[list[dict[str, object]], list[dict[str, object]], int]:
+    failures: list[dict[str, object]] = []
+    info: list[dict[str, object]] = []
+    checked = 0
+    for row in rows:
+        if row.get("status") != "PASS":
+            continue
+        slots = row.get("slots") or {}
+        if not isinstance(slots, dict):
+            continue
+        for slot, raw_value in slots.items():
+            value = str(raw_value or "")
+            if not value or value == "__empty__":
+                continue
+            item = item_lookup.get(normalize_item_name(value))
+            if not item:
+                continue
+            equipment_slot = int(item["equipment_slot"])
+            valid_slots = EQUIPMENT_SLOT_TO_GEARSWAP.get(equipment_slot, set())
+            if slot not in valid_slots:
+                continue
+            checked += 1
+            model_id = int(item["model_id"])
+            finding = {
+                "kind": "VISUAL_MODEL",
+                "category": "visible_model",
+                "name": value,
+                "phase": f"{row.get('kind')}:{row.get('phase')}:{slot}",
+                "status": (
+                    "FAIL"
+                    if slot in MODEL_SENSITIVE_SLOTS and model_id == 0
+                    else "INFO"
+                ),
+                "missing_slots": [],
+                "error": f"itemId={item['item_id']} MId={model_id} source={item['model_source']}",
+            }
+            if slot in MODEL_SENSITIVE_SLOTS and model_id == 0:
+                failures.append(finding)
+            elif slot in MODEL_INFO_SLOTS and model_id == 0:
+                info.append(finding)
+    return failures, info, checked
+
+
 def spell_target_type(skill: str, valid_targets: int) -> str:
     if skill in {"Enfeebling Magic", "Elemental Magic", "Dark Magic", "Divine Magic"}:
         return "MONSTER"
@@ -294,16 +475,21 @@ def build_spell_actions(repo_root: Path) -> list[Action]:
         english = ffxi_name(name)
         if english.startswith("Trust: ") or skill not in PLAYER_MAGIC_SKILLS:
             continue
-        actions.append(Action(
-            category="spell",
-            name=english,
-            action_type="Magic",
-            skill=skill,
-            element=element,
-            target_type=spell_target_type(skill, valid_targets),
-            source="sql/spell_list.sql",
-        ))
-    return sorted({(a.name, a.skill): a for a in actions}.values(), key=lambda a: (a.skill, a.name))
+        actions.append(
+            Action(
+                category="spell",
+                name=english,
+                action_type="Magic",
+                skill=skill,
+                element=element,
+                target_type=spell_target_type(skill, valid_targets),
+                source="sql/spell_list.sql",
+            )
+        )
+    return sorted(
+        {(a.name, a.skill): a for a in actions}.values(),
+        key=lambda a: (a.skill, a.name),
+    )
 
 
 def build_ability_actions(repo_root: Path) -> list[Action]:
@@ -314,37 +500,45 @@ def build_ability_actions(repo_root: Path) -> list[Action]:
         name = unquote_sql(row[1])
         job = int_token(row[2])
         level = int_token(row[3])
-        usable = (job == RDM_JOB_ID and level <= RDM_LEVEL) or (job == SCH_JOB_ID and level <= SCH_LEVEL)
+        usable = (job == RDM_JOB_ID and level <= RDM_LEVEL) or (
+            job == SCH_JOB_ID and level <= SCH_LEVEL
+        )
         if not usable:
             continue
-        actions.append(Action(
-            category="job_ability",
-            name=ffxi_name(name),
-            action_type="JobAbility",
-            skill="Ability",
-            target_type="SELF",
-            source="sql/abilities.sql",
-        ))
+        actions.append(
+            Action(
+                category="job_ability",
+                name=ffxi_name(name),
+                action_type="JobAbility",
+                skill="Ability",
+                target_type="SELF",
+                source="sql/abilities.sql",
+            )
+        )
     return sorted({a.name: a for a in actions}.values(), key=lambda a: a.name)
 
 
 def build_weapon_skill_actions(repo_root: Path) -> list[Action]:
     actions: list[Action] = []
-    for row in iter_insert_rows(repo_root / "sql" / "weapon_skills.sql", "weapon_skills"):
+    for row in iter_insert_rows(
+        repo_root / "sql" / "weapon_skills.sql", "weapon_skills"
+    ):
         if len(row) < 16:
             continue
         jobs = row[2]
         if job_level(jobs, RDM_JOB_ID) <= 0:
             continue
-        actions.append(Action(
-            category="weapon_skill",
-            name=ffxi_name(unquote_sql(row[1])),
-            action_type="WeaponSkill",
-            skill="WeaponSkill",
-            element=ELEMENT_NAMES.get(int_token(row[5]), "None"),
-            target_type="MONSTER",
-            source="sql/weapon_skills.sql",
-        ))
+        actions.append(
+            Action(
+                category="weapon_skill",
+                name=ffxi_name(unquote_sql(row[1])),
+                action_type="WeaponSkill",
+                skill="WeaponSkill",
+                element=ELEMENT_NAMES.get(int_token(row[5]), "None"),
+                target_type="MONSTER",
+                source="sql/weapon_skills.sql",
+            )
+        )
     return sorted({a.name: a for a in actions}.values(), key=lambda a: a.name)
 
 
@@ -389,15 +583,21 @@ def lua_bis_table(bis_specs: list[dict[str, str]]) -> str:
     for spec in bis_specs:
         lines.append(
             "    {family=%s, label=%s, path=%s},"
-            % (lua_quote(spec.get("family", "")), lua_quote(spec.get("label", "")), lua_quote(spec.get("path", "")))
+            % (
+                lua_quote(spec.get("family", "")),
+                lua_quote(spec.get("label", "")),
+                lua_quote(spec.get("path", "")),
+            )
         )
     lines.append("}")
     return "\n".join(lines)
 
 
-def build_lua_runner(gearswap_path: Path, actions: list[Action], bis_specs: list[dict[str, str]]) -> str:
+def build_lua_runner(
+    gearswap_path: Path, actions: list[Action], bis_specs: list[dict[str, str]]
+) -> str:
     slots_lua = ", ".join(lua_quote(slot) for slot in SLOTS)
-    return f'''
+    return f"""
 local gearswap_path = {lua_quote(str(gearswap_path))}
 local slot_order = {{ {slots_lua} }}
 empty = {lua_quote(EMPTY_SENTINEL)}
@@ -605,7 +805,7 @@ local function walk(path, value)
 end
 
 walk('sets', sets)
-'''
+"""
 
 
 def parse_lua_output(output: str) -> list[dict[str, object]]:
@@ -616,24 +816,28 @@ def parse_lua_output(output: str) -> list[dict[str, object]]:
         parts = line.split("\t")
         while len(parts) < 10:
             parts.append("")
-        _, kind, category, name, phase, status, missing, error, no_equip, slots = parts[:10]
+        _, kind, category, name, phase, status, missing, error, no_equip, slots = parts[
+            :10
+        ]
         slot_values: dict[str, str] = {}
         if slots:
             for piece in slots.split("|"):
                 if "=" in piece:
                     slot, value = piece.split("=", 1)
                     slot_values[slot] = value
-        rows.append({
-            "kind": kind,
-            "category": category,
-            "name": name,
-            "phase": phase,
-            "status": status,
-            "missing_slots": [item for item in missing.split(",") if item],
-            "error": error,
-            "no_equip_expected": no_equip == "true",
-            "slots": slot_values,
-        })
+        rows.append(
+            {
+                "kind": kind,
+                "category": category,
+                "name": name,
+                "phase": phase,
+                "status": status,
+                "missing_slots": [item for item in missing.split(",") if item],
+                "error": error,
+                "no_equip_expected": no_equip == "true",
+                "slots": slot_values,
+            }
+        )
     return rows
 
 
@@ -665,7 +869,12 @@ def write_outputs(output_root: Path, report: dict[str, object]) -> tuple[Path, P
     summary = report["summary"]
     failures = report["failures"]
     lines = [
-        "# Twills RDM/SCH GearSwap Action QA", "", f"Generated: {report['generated_at']}", "", "## Summary", "",
+        "# Twills RDM/SCH GearSwap Action QA",
+        "",
+        f"Generated: {report['generated_at']}",
+        "",
+        "## Summary",
+        "",
     ]
     for key in sorted(summary):
         lines.append(f"- {key}: {summary[key]}")
@@ -677,48 +886,99 @@ def write_outputs(output_root: Path, report: dict[str, object]) -> tuple[Path, P
                 f"{failure['status']} missing={','.join(failure['missing_slots']) or '-'} error={failure['error'] or '-'}"
             )
         if len(failures) > 100:
-            lines.append(f"- ... {len(failures) - 100} more failures omitted from markdown; see JSON.")
+            lines.append(
+                f"- ... {len(failures) - 100} more failures omitted from markdown; see JSON."
+            )
     else:
         lines.append("- None")
-    lines.extend([
-        "", "## Evidence Rules", "",
-        "- `range=__empty__` is accepted as an intentional GearSwap empty ranged slot.",
-        "- `sets.weapons.*`, `sets.utility.*`, `sets.role.*`, and `sets.gearscore.*` are overlays/metadata and are not final action sets.",
-        "- Every action row is produced by executing Twills.lua with GearSwap-compatible `set_combine` and `equip` stubs.", "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Evidence Rules",
+            "",
+            "- `range=__empty__` is accepted as an intentional GearSwap empty ranged slot.",
+            "- `sets.weapons.*`, `sets.utility.*`, `sets.role.*`, and `sets.gearscore.*` are overlays/metadata and are not final action sets.",
+            "- Every action row is produced by executing Twills.lua with GearSwap-compatible `set_combine` and `equip` stubs.",
+            "- Visible slots (`main`, `sub`, `head`, `body`, `hands`, `legs`, `feet`) fail when their local item model id is `0`.",
+            "",
+        ]
+    )
     md_path.write_text("\n".join(lines), encoding="utf-8")
     return json_path, md_path
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate Twills RDM/SCH GearSwap action coverage.")
+    parser = argparse.ArgumentParser(
+        description="Validate Twills RDM/SCH GearSwap action coverage."
+    )
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--gearswap", type=Path, default=None)
-    parser.add_argument("--audit-json", type=Path, default=Path("/root/projects/FFXI-Runtime/audits/twills-full-state-latest.json"))
-    parser.add_argument("--output-root", type=Path, default=Path("/root/projects/FFXI-Runtime/logs/gearswap_qa"))
+    parser.add_argument(
+        "--audit-json",
+        type=Path,
+        default=Path(
+            "/root/projects/FFXI-Runtime/audits/twills-full-state-latest.json"
+        ),
+    )
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=Path("/root/projects/FFXI-Runtime/logs/gearswap_qa"),
+    )
     parser.add_argument("--bis-matrix", type=Path, default=None)
     parser.add_argument("--no-write-report", action="store_true")
     args = parser.parse_args()
 
     repo_root = args.repo_root.resolve()
-    gearswap_path = args.gearswap or repo_root / "restore" / "windower-golden-state" / "addons" / "GearSwap" / "data" / "Twills.lua"
+    gearswap_path = (
+        args.gearswap
+        or repo_root
+        / "restore"
+        / "windower-golden-state"
+        / "addons"
+        / "GearSwap"
+        / "data"
+        / "Twills.lua"
+    )
     if not gearswap_path.exists():
         raise SystemExit(f"GearSwap file not found: {gearswap_path}")
 
-    actions = build_spell_actions(repo_root) + build_ability_actions(repo_root) + build_weapon_skill_actions(repo_root) + build_utility_actions()
-    bis_matrix_path = args.bis_matrix or repo_root / "restore" / "manifests" / "twills-rdm-sch-bis-matrix.json"
-    bis_matrix = json.loads(bis_matrix_path.read_text(encoding="utf-8")) if bis_matrix_path.exists() else {"families": []}
+    actions = (
+        build_spell_actions(repo_root)
+        + build_ability_actions(repo_root)
+        + build_weapon_skill_actions(repo_root)
+        + build_utility_actions()
+    )
+    bis_matrix_path = (
+        args.bis_matrix
+        or repo_root / "restore" / "manifests" / "twills-rdm-sch-bis-matrix.json"
+    )
+    bis_matrix = (
+        json.loads(bis_matrix_path.read_text(encoding="utf-8"))
+        if bis_matrix_path.exists()
+        else {"families": []}
+    )
     bis_specs = []
     for family in bis_matrix.get("families", []):
         for set_path in family.get("setPaths", []):
-            bis_specs.append({"family": family.get("family", ""), "label": family.get("label", ""), "path": set_path})
+            bis_specs.append(
+                {
+                    "family": family.get("family", ""),
+                    "label": family.get("label", ""),
+                    "path": set_path,
+                }
+            )
     runner = build_lua_runner(gearswap_path.resolve(), actions, bis_specs)
-    with tempfile.NamedTemporaryFile("w", suffix=".lua", encoding="utf-8", delete=False) as handle:
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".lua", encoding="utf-8", delete=False
+    ) as handle:
         handle.write(runner)
         runner_path = Path(handle.name)
 
     try:
-        proc = subprocess.run(["luajit", str(runner_path)], check=False, text=True, capture_output=True)
+        proc = subprocess.run(
+            ["luajit", str(runner_path)], check=False, text=True, capture_output=True
+        )
     finally:
         runner_path.unlink(missing_ok=True)
 
@@ -729,16 +989,45 @@ def main() -> int:
     rows = parse_lua_output(proc.stdout)
     audit = load_audit(args.audit_json)
     gearswap_audit = audit.get("gearswap", {}) if isinstance(audit, dict) else {}
-    present_inventory = set(gearswap_audit.get("present", [])) if isinstance(gearswap_audit, dict) else set()
-    missing_from_audit = set(gearswap_audit.get("missing_from_inventory", [])) if isinstance(gearswap_audit, dict) else set()
-    unknown_from_audit = set(gearswap_audit.get("unknown_in_resources", [])) if isinstance(gearswap_audit, dict) else set()
+    present_inventory = (
+        set(gearswap_audit.get("present", []))
+        if isinstance(gearswap_audit, dict)
+        else set()
+    )
+    missing_from_audit = (
+        set(gearswap_audit.get("missing_from_inventory", []))
+        if isinstance(gearswap_audit, dict)
+        else set()
+    )
+    unknown_from_audit = (
+        set(gearswap_audit.get("unknown_in_resources", []))
+        if isinstance(gearswap_audit, dict)
+        else set()
+    )
     used_items = collect_items(rows)
-    inventory_missing = sorted(item for item in used_items if present_inventory and item not in present_inventory)
+    inventory_missing = sorted(
+        item
+        for item in used_items
+        if present_inventory and item not in present_inventory
+    )
+    item_visual_lookup = build_item_visual_lookup(repo_root)
+    visual_failures, visual_info, visual_checked = visual_model_findings(
+        rows, item_visual_lookup
+    )
     failures: list[dict[str, object]] = [row for row in rows if row["status"] != "PASS"]
-    failures.extend({
-        "kind": "INVENTORY", "category": "item", "name": item, "phase": "audit", "status": "FAIL",
-        "missing_slots": [], "error": "item not present in latest Twills GearSwap audit inventory evidence",
-    } for item in inventory_missing)
+    failures.extend(visual_failures)
+    failures.extend(
+        {
+            "kind": "INVENTORY",
+            "category": "item",
+            "name": item,
+            "phase": "audit",
+            "status": "FAIL",
+            "missing_slots": [],
+            "error": "item not present in latest Twills GearSwap audit inventory evidence",
+        }
+        for item in inventory_missing
+    )
 
     action_rows = [row for row in rows if row["kind"] == "ACTION"]
     set_rows = [row for row in rows if row["kind"] == "SET"]
@@ -754,19 +1043,31 @@ def main() -> int:
             "bis_matrix_rows": len(bis_rows),
             "bis_families": len(bis_matrix.get("families", [])),
             "failures": len(failures),
-            "missing_slot_rows": sum(1 for row in rows if row.get("missing_slots") and not row.get("no_equip_expected")),
-            "no_equip_expected_rows": sum(1 for row in rows if row.get("no_equip_expected")),
+            "missing_slot_rows": sum(
+                1
+                for row in rows
+                if row.get("missing_slots") and not row.get("no_equip_expected")
+            ),
+            "no_equip_expected_rows": sum(
+                1 for row in rows if row.get("no_equip_expected")
+            ),
             "inventory_missing": len(inventory_missing),
             "audit_missing_from_inventory": len(missing_from_audit),
             "audit_unknown_resources": len(unknown_from_audit),
             "used_items": len(used_items),
-            "passed": len(failures) == 0 and len(missing_from_audit) == 0 and len(unknown_from_audit) == 0,
+            "visual_model_checked_rows": visual_checked,
+            "visible_model_failures": len(visual_failures),
+            "visual_model_info_rows": len(visual_info),
+            "passed": len(failures) == 0
+            and len(missing_from_audit) == 0
+            and len(unknown_from_audit) == 0,
         },
         "bis_matrix_path": str(bis_matrix_path),
         "bis_matrix": bis_matrix,
         "actions": [action.__dict__ for action in actions],
         "rows": rows,
         "failures": failures,
+        "visual_model_info": visual_info,
         "inventory_missing": inventory_missing,
         "audit_missing_from_inventory": sorted(missing_from_audit),
         "audit_unknown_resources": sorted(unknown_from_audit),
