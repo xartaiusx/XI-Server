@@ -356,7 +356,7 @@ xi.settings.main =
     -- TRUST QA LOGGING
     ENABLE_TRUST_ACTION_LOG     = true,                                      -- true/false. Writes Trust action traces for QA.
     TRUST_ACTION_LOG_PLAYER     = 'Twills',                                  -- Player whose Trust party is traced. Empty string traces all players.
-    TRUST_ACTION_LOG_DIR        = '../FFXI-Runtime/logs/trust_actions',      -- Folder containing live/ and archive/ Trust action logs.
+    TRUST_ACTION_LOG_DIR        = '/root/projects/FFXI-Runtime/logs/trust_actions',      -- Folder containing live/ and archive/ Trust action logs.
     TRUST_ACTION_LOG_MAP_ECHO   = false,                                     -- true/false. Also echo Trust action trace lines to the map log.
     TRUST_ACTION_LOG_PACKET_RESULTS = true,                                  -- true/false. C++ packet/result logging for melee/ranged/WS/spell/JA outcomes.
     TRUST_ACTION_LOG_RESULT_DETAIL  = 'full',                                -- full/minimal. Full records one action_result row per packet target result.

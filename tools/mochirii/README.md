@@ -26,10 +26,54 @@ The source copy for the Windower-side bridge is kept at
 `tools\mochirii\windower_addons\MochiriiScreenshotQA\MochiriiScreenshotQA.lua`
 and installed into `Windower\addons\MochiriiScreenshotQA`.
 
-`send_windower_text.ps1` is only an input helper. A successful run means Windows
-sent keys to the foreground client, not that Final Fantasy XI accepted or ran the
-command. Verify command results with a Windower-native screenshot and matching
-server/Windower logs.
+## XivParty Runtime Guard
+
+Mochirii tracks XivParty settings in Git, while the full third-party addon
+source stays in the private encrypted Windower restore bundle. If XivParty
+errors while toggling setup mode before its UI view is initialized, apply the
+runtime guard to the live addon copy:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\mochirii\Apply-XivPartySetupGuard.ps1
+```
+
+The helper backs up `Windower\addons\XivParty\xivparty.lua` under
+`C:\Users\xtyty\Documents\FFXI-Runtime\backups\xivparty` and patches only the
+`setSetupEnabled()` path so `//xp setup on` and `//xp setup off` cannot call
+`view:setModel()` or `view:setUiLocked()` before XivParty has initialized after
+login. Verify with `//lua reload XivParty`, `//xp setup on`, `//xp setup off`,
+and a native Windower screenshot.
+
+Use `Invoke-WindowerCommand.ps1` for normal Windower, Final Fantasy XI chat,
+and GM command execution. It foregrounds the Twills/Windower client, clears any
+stale chat/menu input through `send_windower_text.ps1`, then writes a request for
+the loaded `MochiriiScreenshotQA` addon to execute through Windower's native
+command channel. It normalizes `//lua reload XivParty` to a Windower command,
+`/ma ...` to `input /ma ...`, and `!trustparty ...` to `input !trustparty ...`.
+
+`send_windower_text.ps1` is only a raw input helper for cases that truly require
+keystrokes. It must foreground the Twills/Windower client, verify the game
+client is the active foreground window, clear stale chat/menu input unless
+`-NoClearInputBefore` is explicitly passed, and verify foreground focus again
+before typing. A successful run means Windows sent keys to the foreground client,
+not that Final Fantasy XI accepted or ran the command. Verify command results
+with a Windower-native screenshot and matching server/Windower logs.
+
+## Trust Parity Audit
+
+When the live Mochirii server/runtime is running from WSL, generate the canonical
+Trust parity report from the WSL checkout so the audit reads the active live log
+without copying runtime files:
+
+```bash
+python3 tools/mochirii/trust_parity_audit.py --repo-root . --runtime-root /root/projects/FFXI-Runtime --player Twills
+```
+
+The report is written under `/root/projects/FFXI-Runtime/reports`. Use it
+after `!trustparty summonqa`, the summon-complete message, `!trustparty audit
+active`, and a controlled combat test. Fix Trust AI only from report evidence:
+unresolved names, runtime action issues, role mistakes, early buff/debuff
+refreshes, missing static preconditions, or support-scope gaps.
 
 ## Twills GearSwap QA
 

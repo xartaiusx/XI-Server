@@ -25,7 +25,7 @@ local lastMagicTargetHpVar = 'MochiTrustLogMagicTargetHp'
 local lastMagicTargetMaxHpVar = 'MochiTrustLogMagicTargetMaxHp'
 local lastMagicTargetHppVar = 'MochiTrustLogMagicTargetHpp'
 local lastMagicTrustMppVar = 'MochiTrustLogMagicTrustMpp'
-local defaultLogDir = '../FFXI-Runtime/logs/trust_actions'
+local defaultLogDir = '/root/projects/FFXI-Runtime/logs/trust_actions'
 
 local activeArchives = {}
 local ensuredDirs = {}
@@ -788,6 +788,8 @@ trustActionLogger.resetForLogin = function(player)
     print(string.format('Mochirii TrustLog: reset live log for %s; archive=%s', ownerName, activeArchives[ownerName]))
 end
 
+-- Disable cyclomatic complexity check for the event logger dispatcher:
+-- luacheck: ignore 561
 trustActionLogger.log = function(trust, eventName, target, extraFields)
     if trust == nil or call(trust, 'getObjType') ~= xi.objType.TRUST then
         return

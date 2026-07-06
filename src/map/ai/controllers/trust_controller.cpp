@@ -40,6 +40,7 @@
 #include "recast_container.h"
 #include "status_effect_container.h"
 #include "utils/charutils.h"
+#include "utils/trustutils.h"
 #include "zone.h"
 
 #include <algorithm>
@@ -152,7 +153,7 @@ void ForTrustDefendedGroup(CCharEntity* PMaster, F&& func)
     }
 
     std::unordered_set<uint32> seen;
-    auto visit = [&](CBattleEntity* PEntity)
+    auto                       visit = [&](CBattleEntity* PEntity)
     {
         if (PEntity && seen.insert(PEntity->id).second)
         {
@@ -161,17 +162,17 @@ void ForTrustDefendedGroup(CCharEntity* PMaster, F&& func)
     };
 
     PMaster->ForAlliance([&](CBattleEntity* PMember)
-    {
-        visit(PMember);
+                         {
+                             visit(PMember);
 
-        if (auto* PCharMember = dynamic_cast<CCharEntity*>(PMember))
-        {
-            for (auto* PTrust : PCharMember->PTrusts)
-            {
-                visit(PTrust);
-            }
-        }
-    });
+                             if (auto* PCharMember = dynamic_cast<CCharEntity*>(PMember))
+                             {
+                                 for (auto* PTrust : PCharMember->PTrusts)
+                                 {
+                                     visit(PTrust);
+                                 }
+                             }
+                         });
 
     // Mochirii's Trust auto-alliance is virtual at the packet layer, so keep
     // the master's active Trust vector in the defended set even when there is
@@ -209,12 +210,12 @@ auto MobThreatensTrustParty(CMobEntity* PMob, CCharEntity* PMaster) -> bool
 {
     bool threatens = false;
     ForTrustDefendedGroup(PMaster, [&](CBattleEntity* PEntity)
-    {
-        if (!threatens && MobThreatensEntity(PMob, PEntity))
-        {
-            threatens = true;
-        }
-    });
+                          {
+                              if (!threatens && MobThreatensEntity(PMob, PEntity))
+                              {
+                                  threatens = true;
+                              }
+                          });
 
     return threatens;
 }
@@ -224,12 +225,12 @@ auto DefensiveThreatDistance(CMobEntity* PMob, CCharEntity* PMaster) -> float
     auto closestDistance = std::numeric_limits<float>::max();
 
     ForTrustDefendedGroup(PMaster, [&](CBattleEntity* PEntity)
-    {
-        if (MobThreatensEntity(PMob, PEntity))
-        {
-            closestDistance = std::min(closestDistance, distance(PEntity->loc.p, PMob->loc.p));
-        }
-    });
+                          {
+                              if (MobThreatensEntity(PMob, PEntity))
+                              {
+                                  closestDistance = std::min(closestDistance, distance(PEntity->loc.p, PMob->loc.p));
+                              }
+                          });
 
     return closestDistance;
 }
@@ -272,26 +273,26 @@ auto GetDefensiveTargetByScanningZone(CCharEntity* PMaster) -> CMobEntity*
     auto        bestDistance = std::numeric_limits<float>::max();
 
     PMaster->loc.zone->ForEachMob([&](CMobEntity* PMob)
-    {
-        if (!PMob || !PMob->isAlive() || !PMob->PEnmityContainer || PMob->PAI->IsUntargetable())
-        {
-            return;
-        }
+                                  {
+                                      if (!PMob || !PMob->isAlive() || !PMob->PEnmityContainer || PMob->PAI->IsUntargetable())
+                                      {
+                                          return;
+                                      }
 
-        if (!MobThreatensTrustParty(PMob, PMaster))
-        {
-            return;
-        }
+                                      if (!MobThreatensTrustParty(PMob, PMaster))
+                                      {
+                                          return;
+                                      }
 
-        const auto threatDistance = DefensiveThreatDistance(PMob, PMaster);
-        if (threatDistance > DefensiveEngageDistance || threatDistance >= bestDistance)
-        {
-            return;
-        }
+                                      const auto threatDistance = DefensiveThreatDistance(PMob, PMaster);
+                                      if (threatDistance > DefensiveEngageDistance || threatDistance >= bestDistance)
+                                      {
+                                          return;
+                                      }
 
-        PBestTarget  = PMob;
-        bestDistance = threatDistance;
-    });
+                                      PBestTarget  = PMob;
+                                      bestDistance = threatDistance;
+                                  });
 
     return PBestTarget;
 }
@@ -310,12 +311,12 @@ auto GetTrustDefensiveTarget(CCharEntity* PMaster) -> CMobEntity*
 
     CMobEntity* PTarget = nullptr;
     ForTrustDefendedGroup(PMaster, [&](CBattleEntity* PEntity)
-    {
-        if (PTarget == nullptr)
-        {
-            PTarget = GetDefensiveTargetFrom(PEntity, PMaster);
-        }
-    });
+                          {
+                              if (PTarget == nullptr)
+                              {
+                                  PTarget = GetDefensiveTargetFrom(PEntity, PMaster);
+                              }
+                          });
 
     if (PTarget == nullptr)
     {
@@ -372,35 +373,40 @@ auto IsDefendedGroupMember(CCharEntity* PMaster, CBattleEntity* PTarget) -> bool
 {
     bool found = false;
     ForTrustDefendedGroup(PMaster, [&](CBattleEntity* PEntity)
-    {
-        if (PEntity == PTarget)
-        {
-            found = true;
-        }
-    });
+                          {
+                              if (PEntity == PTarget)
+                              {
+                                  found = true;
+                              }
+                          });
 
     return found;
 }
 
 auto FindTankTrust(CCharEntity* PMaster, CMobEntity* PMob) -> CTrustEntity*
 {
-    CTrustEntity* PTank = nullptr;
+    uint16 tankTargId = 0;
     ForTrustDefendedGroup(PMaster, [&](CBattleEntity* PEntity)
+                          {
+                              if (tankTargId != 0 || !PEntity || PEntity->objtype != TYPE_TRUST || !PEntity->isAlive() || !IsTankTrust(PEntity))
+                              {
+                                  return;
+                              }
+
+                              if (PMob && distance(PEntity->loc.p, PMob->loc.p) > DefensiveEngageDistance)
+                              {
+                                  return;
+                              }
+
+                              tankTargId = PEntity->targid;
+                          });
+
+    if (tankTargId == 0)
     {
-        if (PTank || !PEntity || PEntity->objtype != TYPE_TRUST || !PEntity->isAlive() || !IsTankTrust(PEntity))
-        {
-            return;
-        }
+        return nullptr;
+    }
 
-        if (PMob && distance(PEntity->loc.p, PMob->loc.p) > DefensiveEngageDistance)
-        {
-            return;
-        }
-
-        PTank = static_cast<CTrustEntity*>(PEntity);
-    });
-
-    return PTank;
+    return dynamic_cast<CTrustEntity*>(PMaster->GetEntity(tankTargId, TYPE_TRUST));
 }
 
 void SetTrustFocusVars(CTrustEntity* PTrust, const TrustFocusResult& focus)
@@ -624,12 +630,12 @@ auto TrustPartyNeedsCasterNow(CTrustEntity* PTrust, CCharEntity* PMaster, uint8 
 
     bool needs = false;
     ForTrustDefendedGroup(PMaster, [&](CBattleEntity* PEntity)
-    {
-        if (!needs && needsCaster(PEntity))
-        {
-            needs = true;
-        }
-    });
+                          {
+                              if (!needs && needsCaster(PEntity))
+                              {
+                                  needs = true;
+                              }
+                          });
 
     return needs;
 }
@@ -1466,7 +1472,29 @@ bool CTrustController::Cast(uint16 targid, SpellID spellid)
         targid = POwner->targid;
     }
 
-    auto PTarget      = (CBattleEntity*)POwner->GetEntity(targid, TYPE_MOB | TYPE_PC | TYPE_PET | TYPE_TRUST);
+    auto* PTarget = static_cast<CBattleEntity*>(POwner->GetEntity(targid, TYPE_MOB | TYPE_PC | TYPE_PET | TYPE_TRUST));
+
+    if (PSpell->canTargetEnemy())
+    {
+        std::unique_ptr<CBasicPacket> errMsg;
+        auto*                         PValidTarget = POwner->IsValidTarget(targid, PSpell->getValidTarget(), errMsg);
+        auto*                         PMobTarget   = dynamic_cast<CMobEntity*>(PValidTarget);
+        auto*                         PMaster      = dynamic_cast<CCharEntity*>(POwner->PMaster);
+        auto*                         PCurrentMob  = dynamic_cast<CMobEntity*>(POwner->GetBattleTarget());
+
+        const auto focusTargId          = static_cast<uint16>(POwner->GetLocalVar(TrustFocusTargetTargIdVar));
+        const bool targetMatchesContext = PMobTarget != nullptr &&
+                                          ((PCurrentMob != nullptr && PCurrentMob->id == PMobTarget->id) ||
+                                           (focusTargId != 0 && focusTargId == PMobTarget->targid) ||
+                                           (PMaster != nullptr && MobThreatensTrustParty(PMobTarget, PMaster)));
+
+        if (PValidTarget == nullptr || !PValidTarget->isAlive() || PValidTarget->loc.zone != POwner->loc.zone || !targetMatchesContext)
+        {
+            trustutils::LogTrustActionSkip(POwner, PTarget, static_cast<uint16>(spellid), "trust_cast_guard", "stale_hostile_magic_target");
+            return false;
+        }
+    }
+
     auto PSpellFamily = PSpell->getSpellFamily();
     bool canCast      = true;
 
