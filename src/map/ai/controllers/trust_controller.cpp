@@ -40,6 +40,7 @@
 #include "recast_container.h"
 #include "status_effect_container.h"
 #include "utils/charutils.h"
+#include "utils/trustutils.h"
 #include "zone.h"
 
 #include <algorithm>
@@ -1466,7 +1467,29 @@ bool CTrustController::Cast(uint16 targid, SpellID spellid)
         targid = POwner->targid;
     }
 
-    auto PTarget      = (CBattleEntity*)POwner->GetEntity(targid, TYPE_MOB | TYPE_PC | TYPE_PET | TYPE_TRUST);
+    auto* PTarget = static_cast<CBattleEntity*>(POwner->GetEntity(targid, TYPE_MOB | TYPE_PC | TYPE_PET | TYPE_TRUST));
+
+    if (PSpell->canTargetEnemy())
+    {
+        std::unique_ptr<CBasicPacket> errMsg;
+        auto*                         PValidTarget = POwner->IsValidTarget(targid, PSpell->getValidTarget(), errMsg);
+        auto*                         PMobTarget   = dynamic_cast<CMobEntity*>(PValidTarget);
+        auto*                         PMaster      = dynamic_cast<CCharEntity*>(POwner->PMaster);
+        auto*                         PCurrentMob  = dynamic_cast<CMobEntity*>(POwner->GetBattleTarget());
+
+        const auto focusTargId          = static_cast<uint16>(POwner->GetLocalVar(TrustFocusTargetTargIdVar));
+        const bool targetMatchesContext = PMobTarget != nullptr &&
+                                          ((PCurrentMob != nullptr && PCurrentMob->id == PMobTarget->id) ||
+                                           (focusTargId != 0 && focusTargId == PMobTarget->targid) ||
+                                           (PMaster != nullptr && MobThreatensTrustParty(PMobTarget, PMaster)));
+
+        if (PValidTarget == nullptr || !PValidTarget->isAlive() || PValidTarget->loc.zone != POwner->loc.zone || !targetMatchesContext)
+        {
+            trustutils::LogTrustActionSkip(POwner, PTarget, static_cast<uint16>(spellid), "trust_cast_guard", "stale_hostile_magic_target");
+            return false;
+        }
+    }
+
     auto PSpellFamily = PSpell->getSpellFamily();
     bool canCast      = true;
 

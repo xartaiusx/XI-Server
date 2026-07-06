@@ -345,6 +345,15 @@ def generate_report(repo_root: Path, runtime_root: Path, player: str) -> Path:
             for keys, group in top_groups(group_rows(issues, ("trust", "event", "source", "action_name_resolved", "target_name")), 60):
                 lines.append(f"| {keys[0]} | {keys[1]} | {keys[2]} | {keys[3]} | {keys[4]} | {context(group)} | {max_distance(group)} | {len(group)} |")
 
+        lines += ["", "## Hostile Magic Stale Target Skips"]
+        stale_skips = [row for row in rows if row.get("event") == "stale_target_skip"]
+        if not stale_skips:
+            lines.append("- None found in latest log rows.")
+        else:
+            lines += ["| Trust | Action ID | Reason | Current Target | Packet Target | Context | Count |", "| --- | ---: | --- | --- | --- | --- | ---: |"]
+            for keys, group in top_groups(group_rows(stale_skips, ("trust", "action_id", "skip_reason", "current_battle_target_name", "packet_target_name")), 60):
+                lines.append(f"| {keys[0]} | {keys[1]} | {keys[2]} | {keys[3]} | {keys[4]} | {context(group)} | {len(group)} |")
+
         lines += ["", "## TP Skill Guard Skips"]
         skips = [row for row in rows if row.get("tp_skill_skip_reason_name") not in (None, "", "none")]
         if not skips:
@@ -447,7 +456,7 @@ def generate_report(repo_root: Path, runtime_root: Path, player: str) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate a Mochirii Trust parity audit report.")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
-    parser.add_argument("--runtime-root", type=Path, default=Path("/root/projects/FFXI/FFXI-Runtime"))
+    parser.add_argument("--runtime-root", type=Path, default=Path("/root/projects/FFXI-Runtime"))
     parser.add_argument("--player", default="Twills")
     args = parser.parse_args()
     print(generate_report(args.repo_root.resolve(), args.runtime_root.resolve(), args.player))

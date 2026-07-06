@@ -696,6 +696,59 @@ auto ResolvePacketTarget(CTrustEntity* PTrust, const CBattleEntity* PPrimaryTarg
     return nullptr;
 }
 
+void trustutils::LogTrustActionSkip(CBattleEntity* PActor, const CBattleEntity* PTarget, uint16 actionId, const char* source, const char* reason)
+{
+    auto* PTrust = dynamic_cast<CTrustEntity*>(PActor);
+    if (!PTrust)
+    {
+        return;
+    }
+
+    auto* PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    if (!ShouldLogTrustPacket(PTrust, PMaster))
+    {
+        return;
+    }
+
+    auto* PBattleTarget = PTrust->GetBattleTarget();
+
+    std::ostringstream line;
+    line << "time=" << NowLogStamp();
+    line << "\tevent=stale_target_skip";
+    line << "\towner=" << SafeLogValue(PMaster->getName());
+    line << "\ttrust=" << SafeLogValue(PTrust->getName());
+    line << "\ttrust_id=" << PTrust->trustID();
+    line << "\ttrust_entity_id=" << PTrust->id;
+    line << "\ttrust_targid=" << PTrust->targid;
+    line << "\ttrust_hp=" << PTrust->health.hp;
+    line << "\ttrust_maxhp=" << PTrust->GetMaxHP();
+    line << "\ttrust_hpp=" << static_cast<uint16>(PTrust->GetHPP());
+    line << "\ttrust_mp=" << PTrust->health.mp;
+    line << "\ttrust_maxmp=" << PTrust->GetMaxMP();
+    line << "\ttrust_mpp=" << static_cast<uint16>(PTrust->GetMPP());
+    line << "\ttrust_tp=" << PTrust->health.tp;
+    line << "\tzone=" << PTrust->getZone();
+    line << "\tsource=" << SafeLogValue(source ? source : "unknown");
+    line << "\taction_category_name=MagicSkip";
+    line << "\taction_id=" << actionId;
+    line << "\tskip_reason=" << SafeLogValue(reason ? reason : "unknown");
+    line << "\tfocus_target_targid=" << PTrust->GetLocalVar("MochiTrustFocusTargetTargId");
+    line << "\tfocus_reason=" << PTrust->GetLocalVar("MochiTrustFocusReason");
+    line << "\tgambit_target=" << PTrust->GetLocalVar("MochiTrustGambitTargetSelector");
+    line << "\tgambit_reaction=" << PTrust->GetLocalVar("MochiTrustGambitReaction");
+    line << "\tgambit_select=" << PTrust->GetLocalVar("MochiTrustGambitSelect");
+    line << "\tgambit_select_arg=" << PTrust->GetLocalVar("MochiTrustGambitSelectArg");
+    line << "\tgambit_resolved_id=" << PTrust->GetLocalVar("MochiTrustGambitResolvedId");
+    line << "\tgambit_target_targid=" << PTrust->GetLocalVar("MochiTrustGambitTargetTargId");
+    line << "\tcurrent_battle_target_name=" << EntityName(PBattleTarget);
+    line << "\tcurrent_battle_target_targid=" << (PBattleTarget ? PBattleTarget->targid : 0);
+    line << "\tdistance_to_current_target=" << EntityDistance(PTrust, PBattleTarget);
+    line << "\tdistance_to_packet_target=" << EntityDistance(PTrust, PTarget);
+    AddEntityFields(line, "packet_target", PTarget);
+
+    AppendTrustLogLine(PMaster, line.str());
+}
+
 void trustutils::LogTrustActionPacket(CBattleEntity* PActor, const action_t& action, const CBattleEntity* PPrimaryTarget, const char* source)
 {
     auto* PTrust = dynamic_cast<CTrustEntity*>(PActor);

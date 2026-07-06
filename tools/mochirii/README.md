@@ -66,10 +66,10 @@ Trust parity report from the WSL checkout so the audit reads the active live log
 without copying runtime files:
 
 ```bash
-python3 tools/mochirii/trust_parity_audit.py --repo-root . --runtime-root /root/projects/FFXI/FFXI-Runtime --player Twills
+python3 tools/mochirii/trust_parity_audit.py --repo-root . --runtime-root /root/projects/FFXI-Runtime --player Twills
 ```
 
-The report is written under `/root/projects/FFXI/FFXI-Runtime/reports`. Use it
+The report is written under `/root/projects/FFXI-Runtime/reports`. Use it
 after `!trustparty summonqa`, the summon-complete message, `!trustparty audit
 active`, and a controlled combat test. Fix Trust AI only from report evidence:
 unresolved names, runtime action issues, role mistakes, early buff/debuff
