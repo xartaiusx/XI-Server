@@ -1078,7 +1078,7 @@ void CCharEntity::ClearTrusts(const bool notifyClient)
     ReloadPartyInc();
 
     if (notifyClient && hadTrusts && PParty != nullptr && PParty->GetLeader() != nullptr &&
-        status != STATUS_TYPE::DISAPPEAR && status != STATUS_TYPE::SHUTDOWN)
+        status != xi::Status::Disappear && status != xi::Status::Shutdown)
     {
         PParty->ReloadParty();
     }
