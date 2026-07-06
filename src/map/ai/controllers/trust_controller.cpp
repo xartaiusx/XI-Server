@@ -385,10 +385,10 @@ auto IsDefendedGroupMember(CCharEntity* PMaster, CBattleEntity* PTarget) -> bool
 
 auto FindTankTrust(CCharEntity* PMaster, CMobEntity* PMob) -> CTrustEntity*
 {
-    CTrustEntity* PTank = nullptr;
+    uint16 tankTargId = 0;
     ForTrustDefendedGroup(PMaster, [&](CBattleEntity* PEntity)
                           {
-                              if (PTank || !PEntity || PEntity->objtype != TYPE_TRUST || !PEntity->isAlive() || !IsTankTrust(PEntity))
+                              if (tankTargId != 0 || !PEntity || PEntity->objtype != TYPE_TRUST || !PEntity->isAlive() || !IsTankTrust(PEntity))
                               {
                                   return;
                               }
@@ -398,10 +398,15 @@ auto FindTankTrust(CCharEntity* PMaster, CMobEntity* PMob) -> CTrustEntity*
                                   return;
                               }
 
-                              PTank = static_cast<CTrustEntity*>(PEntity);
+                              tankTargId = PEntity->targid;
                           });
 
-    return PTank;
+    if (tankTargId == 0)
+    {
+        return nullptr;
+    }
+
+    return dynamic_cast<CTrustEntity*>(PMaster->GetEntity(tankTargId, TYPE_TRUST));
 }
 
 void SetTrustFocusVars(CTrustEntity* PTrust, const TrustFocusResult& focus)
