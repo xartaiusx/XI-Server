@@ -54,3 +54,7 @@ The static resolver writes reports to `/root/projects/FFXI-Runtime/logs/gearswap
 The live GearSwap command writes TSV evidence to
 `C:\Users\xtyty\Documents\FFXI-Runtime\logs\gearswap_qa`. Keep those
 runtime reports out of git.
+
+## GearSwap Visual-Model Audit
+
+Twills GearSwap QA validates visible equipment model ids. Final action sets fail when `main`, `sub`, `head`, `body`, `hands`, `legs`, or `feet` resolve to a local equipment row with `MId=0`, because Mochirii sends `item_equipment.MId` as the rendered model id. Ammo, ranged, and accessory rows with `MId=0` are informational unless they affect a visible character model. Use `//gs c qa visual` for a live Windower snapshot under `FFXI-Runtime/logs/gearswap_qa`.

@@ -44,4 +44,5 @@ custom/lua/trust_action_logger.lua
 custom/sql/master_levels.sql
 custom/sql/rdm_master_spells.sql
 custom/sql/trust_retail_parity.sql
+custom/sql/twills_gearswap_visual_models.sql
 custom/cpp/twills_admin.cpp

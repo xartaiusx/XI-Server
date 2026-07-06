@@ -483,3 +483,7 @@ Pending in-client verification after Twills logs back in:
   Master Level rows at ML50, Sylvie Unity rank 1, complete travel categories,
   and veteran currency floors.
 - Run `//gs reload`, `//gs validate sets`, `//gs validate inv`, and `//gs c status` against the v11 GearSwap profile.
+
+## GearSwap Visual-Model Audit
+
+Twills GearSwap QA validates visible equipment model ids. Final action sets fail when `main`, `sub`, `head`, `body`, `hands`, `legs`, or `feet` resolve to a local equipment row with `MId=0`, because Mochirii sends `item_equipment.MId` as the rendered model id. Ammo, ranged, and accessory rows with `MId=0` are informational unless they affect a visible character model. Use `//gs c qa visual` for a live Windower snapshot under `FFXI-Runtime/logs/gearswap_qa`.
