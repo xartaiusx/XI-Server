@@ -1,10 +1,10 @@
 param(
-    [Parameter(Mandatory = $true)]
-    [string] $Text,
+    [string] $Text = '',
 
     [switch] $PressEnterBefore,
     [switch] $PressSpaceBefore,
     [switch] $PressEnterAfter,
+    [switch] $NoClearInputBefore,
     [int] $EscapeCount = 0,
     [int] $KeyDelayMs = 35
 )
@@ -34,7 +34,10 @@ public static class MochiriiFocusWindow
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll")]
-    public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+    public static extern bool BringWindowToTop(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr SetActiveWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
@@ -45,8 +48,11 @@ public static class MochiriiFocusWindow
     [DllImport("user32.dll")]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 
-    public const byte VK_MENU = 0x12;
-    public const uint KEYEVENTF_KEYUP = 0x0002;
+    [DllImport("user32.dll")]
+    public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+    [DllImport("kernel32.dll")]
+    public static extern uint GetCurrentThreadId();
 }
 '@ -ErrorAction SilentlyContinue
 
@@ -99,10 +105,23 @@ if ($targetWindow -eq $null)
 Start-Sleep -Milliseconds 250
 for ($i = 0; $i -lt 8; $i++)
 {
-    # Tapping Alt allows SetForegroundWindow to succeed more reliably from automation.
-    [MochiriiFocusWindow]::keybd_event([MochiriiFocusWindow]::VK_MENU, 0, 0, [UIntPtr]::Zero)
-    [MochiriiFocusWindow]::keybd_event([MochiriiFocusWindow]::VK_MENU, 0, [MochiriiFocusWindow]::KEYEVENTF_KEYUP, [UIntPtr]::Zero)
+    $foregroundHandle = [MochiriiFocusWindow]::GetForegroundWindow()
+    $foregroundProcessId = 0
+    $targetProcessId = 0
+    $foregroundThreadId = [MochiriiFocusWindow]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundProcessId)
+    $targetThreadId = [MochiriiFocusWindow]::GetWindowThreadProcessId($targetWindow.MainWindowHandle, [ref]$targetProcessId)
+    $currentThreadId = [MochiriiFocusWindow]::GetCurrentThreadId()
+
+    if ($foregroundThreadId -ne 0) { [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $foregroundThreadId, $true) }
+    if ($targetThreadId -ne 0) { [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $targetThreadId, $true) }
+
+    [void][MochiriiFocusWindow]::BringWindowToTop($targetWindow.MainWindowHandle)
+    [void][MochiriiFocusWindow]::SetActiveWindow($targetWindow.MainWindowHandle)
     [void][MochiriiFocusWindow]::SetForegroundWindow($targetWindow.MainWindowHandle)
+
+    if ($targetThreadId -ne 0) { [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $targetThreadId, $false) }
+    if ($foregroundThreadId -ne 0) { [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $foregroundThreadId, $false) }
+
     Start-Sleep -Milliseconds 250
 
     $focusCheck = Get-MochiriiForegroundSnapshot
@@ -116,6 +135,16 @@ for ($i = 0; $i -lt 8; $i++)
     {
         $focusCheck | ConvertTo-Json -Compress | Write-Output
         exit 2
+    }
+}
+
+function Assert-MochiriiForeground
+{
+    $focusCheck = Get-MochiriiForegroundSnapshot
+    if (-not $focusCheck.IsWindowerClient)
+    {
+        $focusCheck | ConvertTo-Json -Compress | Write-Output
+        throw 'Final Fantasy XI client lost foreground focus before command entry.'
     }
 }
 
@@ -251,6 +280,16 @@ function Send-TextChar([char] $ch)
     if (($mods -band 1) -ne 0) { [MochiriiSendInput]::Key([MochiriiSendInput]::VK_SHIFT, $true) }
 }
 
+Assert-MochiriiForeground
+
+if (-not $NoClearInputBefore)
+{
+    Send-Key ([MochiriiSendInput]::VK_ESCAPE)
+    Start-Sleep -Milliseconds 75
+    Send-Key ([MochiriiSendInput]::VK_ESCAPE)
+    Start-Sleep -Milliseconds 75
+}
+
 if ($PressEnterBefore)
 {
     Send-Key ([MochiriiSendInput]::VK_RETURN)
@@ -262,10 +301,15 @@ for ($i = 0; $i -lt $EscapeCount; $i++)
     Start-Sleep -Milliseconds 75
 }
 
+Assert-MochiriiForeground
+
 if ($PressSpaceBefore)
 {
     Send-Key ([MochiriiSendInput]::VK_SPACE)
 }
+
+Start-Sleep -Milliseconds 100
+Assert-MochiriiForeground
 
 foreach ($ch in $Text.ToCharArray())
 {

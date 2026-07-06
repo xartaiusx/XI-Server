@@ -47,6 +47,11 @@ when referring to the game.
 - For client-visible state, use only native Windower screenshots. Run
   `tools\mochirii\assert_windower_foreground.ps1` first, then
   `tools\mochirii\capture_windower_window.ps1`.
+- For Windower commands, Final Fantasy XI chat commands, and GM commands, use
+  `tools\mochirii\Invoke-WindowerCommand.ps1` so the Twills game client is
+  foregrounded and verified before the command request is submitted. Use
+  `tools\mochirii\send_windower_text.ps1` only for raw keystroke cases that
+  cannot go through the Windower command bridge.
 - OS screenshots, Snipping Tool captures, cropped screen clips, and
   `CopyFromScreen` captures are not accepted as in-game verification evidence.
 - A successful key-send helper only proves Windows sent keys; verify command

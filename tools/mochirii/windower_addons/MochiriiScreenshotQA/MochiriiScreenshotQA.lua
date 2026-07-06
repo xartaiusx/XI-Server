@@ -1,6 +1,6 @@
 _addon.name = 'MochiriiScreenshotQA'
 _addon.author = 'Mochirii'
-_addon.version = '1.0.1'
+_addon.version = '1.0.3'
 _addon.commands = {'mochiriiscreenshotqa', 'mscreenshotqa'}
 
 local resources = require('resources')
@@ -112,7 +112,16 @@ local function run_command_request(request)
                 write_equipment_snapshot()
             else
                 windower.add_to_chat(207, 'MochiriiScreenshotQA: ' .. command)
-                windower.send_command(command)
+                if command:match('^input%s+') then
+                    local game_command = trim((command:gsub('^input%s+', '', 1)))
+                    if game_command ~= '' then
+                        windower.chat.input('//input ' .. game_command)
+                    end
+                elseif command:match('^/') or command:match('^!') then
+                    windower.chat.input(command)
+                else
+                    windower.send_command(command)
+                end
             end
         end
     end
