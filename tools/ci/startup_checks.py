@@ -28,12 +28,29 @@ login = os.getenv("XI_NETWORK_SQL_LOGIN")
 password = os.getenv("XI_NETWORK_SQL_PASSWORD")
 
 DEFAULT_MAP_PORT = 54230
+DEFAULT_ZMQ_PORT = 54003
+
+
+def get_available_tcp_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
 
 
 def get_available_udp_port():
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.bind(("127.0.0.1", 0))
         return int(sock.getsockname()[1])
+
+
+def get_ci_zmq_port():
+    if env_port := os.getenv("XI_NETWORK_ZMQ_PORT"):
+        return int(env_port)
+
+    if platform.system() == "Windows":
+        return get_available_tcp_port()
+
+    return DEFAULT_ZMQ_PORT
 
 
 def get_ci_map_ports():
@@ -51,6 +68,9 @@ def get_ci_map_ports():
 
     return DEFAULT_MAP_PORT, DEFAULT_MAP_PORT + 1
 
+
+zmq_port = get_ci_zmq_port()
+os.environ["XI_NETWORK_ZMQ_PORT"] = str(zmq_port)
 
 map_port, multi_map_port = get_ci_map_ports()
 
