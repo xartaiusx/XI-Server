@@ -26,12 +26,12 @@
 
 #include <algorithm>
 #include <cctype>
-#include <ctime>
 #include <cstring>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
-#include <sstream>
 #include <limits>
+#include <sstream>
 #include <vector>
 
 #include "battleutils.h"
@@ -43,10 +43,10 @@
 #include "grades.h"
 #include "mob_spell_list.h"
 
+#include "action/action.h"
 #include "ai/ai_container.h"
 #include "ai/controllers/trust_controller.h"
 #include "ai/helpers/gambits_container.h"
-#include "action/action.h"
 #include "entities/char_entity.h"
 #include "entities/mob_entity.h"
 #include "entities/trust_entity.h"
@@ -502,10 +502,10 @@ auto CurrentArchivePathForOwner(const std::string& ownerName) -> std::filesystem
     auto archive = root / "archive";
     std::filesystem::create_directories(archive);
 
-    const auto prefix = fmt::format("{}-", SafeLogName(ownerName));
-    std::filesystem::path bestPath;
+    const auto                      prefix = fmt::format("{}-", SafeLogName(ownerName));
+    std::filesystem::path           bestPath;
     std::filesystem::file_time_type bestTime{};
-    std::error_code error;
+    std::error_code                 error;
 
     for (const auto& entry : std::filesystem::directory_iterator(archive, error))
     {
@@ -1026,8 +1026,8 @@ void ApplyTrustAlterEgoPointVitals(CTrustEntity* PTrust)
         return;
     }
 
-    const auto hpRank = GetAlterEgoPointRank(PMaster, "AlterEgoPoints_HP");
-    const auto mpRank = GetAlterEgoPointRank(PMaster, "AlterEgoPoints_MP");
+    const auto hpRank  = GetAlterEgoPointRank(PMaster, "AlterEgoPoints_HP");
+    const auto mpRank  = GetAlterEgoPointRank(PMaster, "AlterEgoPoints_MP");
     const auto hpBonus = hpRank * settings::get<uint8>("main.TRUST_ALTER_EGO_POINT_HP_PER_RANK");
     const auto mpBonus = mpRank * settings::get<uint8>("main.TRUST_ALTER_EGO_POINT_MP_PER_RANK");
 
@@ -1098,9 +1098,9 @@ void ApplyTrustUnityRankParity(CTrustEntity* PTrust)
         return;
     }
 
-    auto* PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
-    const auto rank  = GetTrustUnityRank(PMaster);
-    const auto bonus = GetTrustUnityStatBonus(PMaster);
+    auto*      PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    const auto rank    = GetTrustUnityRank(PMaster);
+    const auto bonus   = GetTrustUnityStatBonus(PMaster);
 
     ApplyTrustStatBonus(PTrust, bonus);
 
