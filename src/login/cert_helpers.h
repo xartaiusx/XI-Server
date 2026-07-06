@@ -42,7 +42,7 @@ inline bool hasReadablePrivateKey()
         return false;
     }
 
-    EVP_PKEY* pkey = PEM_read_PrivateKey(fileHandle, nullptr, nullptr, nullptr);
+    EVP_PKEY*  pkey       = PEM_read_PrivateKey(fileHandle, nullptr, nullptr, nullptr);
     const bool isReadable = pkey != nullptr;
 
     if (isReadable)
@@ -68,7 +68,7 @@ inline bool hasReadableCertificate()
         return false;
     }
 
-    X509* cert = PEM_read_X509(fileHandle, nullptr, nullptr, nullptr);
+    X509*      cert       = PEM_read_X509(fileHandle, nullptr, nullptr, nullptr);
     const bool isReadable = cert != nullptr;
 
     if (isReadable)

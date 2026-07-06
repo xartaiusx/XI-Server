@@ -37,23 +37,25 @@
 
 namespace
 {
-    constexpr uint8 kTrustAutoAllianceMembersPerParty = 6;
-    constexpr uint8 kTrustAutoAllianceMaxPartyNo      = 2;
 
-    auto trustAutoAllianceEnabled() -> bool
+constexpr uint8 kTrustAutoAllianceMembersPerParty = 6;
+constexpr uint8 kTrustAutoAllianceMaxPartyNo      = 2;
+
+auto trustAutoAllianceEnabled() -> bool
+{
+    return settings::get<bool>("main.ENABLE_TRUST_AUTO_ALLIANCE");
+}
+
+auto trustVirtualPartyNo(uint8 memberIndex) -> uint8
+{
+    if (!trustAutoAllianceEnabled())
     {
-        return settings::get<bool>("main.ENABLE_TRUST_AUTO_ALLIANCE");
+        return 0;
     }
 
-    auto trustVirtualPartyNo(uint8 memberIndex) -> uint8
-    {
-        if (!trustAutoAllianceEnabled())
-        {
-            return 0;
-        }
+    return std::min<uint8>(memberIndex / kTrustAutoAllianceMembersPerParty, kTrustAutoAllianceMaxPartyNo);
+}
 
-        return std::min<uint8>(memberIndex / kTrustAutoAllianceMembersPerParty, kTrustAutoAllianceMaxPartyNo);
-    }
 } // namespace
 
 GP_SERV_COMMAND_GROUP_TBL::GP_SERV_COMMAND_GROUP_TBL(CParty* PParty, const bool loadTrust)

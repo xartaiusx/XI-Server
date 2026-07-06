@@ -88,19 +88,19 @@ GP_SERV_COMMAND_GROUP_LIST::GP_SERV_COMMAND_GROUP_LIST(const CTrustEntity* PTrus
 
     auto& packet = this->data();
 
-    packet.UniqueNo           = PTrust->id;
-    packet.GAttr.PartyNo      = PartyNo & 0x03;
-    packet.Hp           = PTrust->health.hp;
-    packet.Mp           = PTrust->health.mp;
-    packet.Tp           = PTrust->health.tp;
-    packet.ActIndex     = PTrust->targid;
-    packet.MemberNumber = MemberNumber;
-    packet.Hpp          = PTrust->GetHPP();
-    packet.Mpp          = PTrust->GetMPP();
-    packet.mjob_no      = PTrust->GetMJob();
-    packet.mjob_lv      = PTrust->GetMLevel();
-    packet.sjob_no      = PTrust->GetSJob();
-    packet.sjob_lv      = PTrust->GetSLevel();
+    packet.UniqueNo      = PTrust->id;
+    packet.GAttr.PartyNo = PartyNo & 0x03;
+    packet.Hp            = PTrust->health.hp;
+    packet.Mp            = PTrust->health.mp;
+    packet.Tp            = PTrust->health.tp;
+    packet.ActIndex      = PTrust->targid;
+    packet.MemberNumber  = MemberNumber;
+    packet.Hpp           = PTrust->GetHPP();
+    packet.Mpp           = PTrust->GetMPP();
+    packet.mjob_no       = PTrust->GetMJob();
+    packet.mjob_lv       = PTrust->GetMLevel();
+    packet.sjob_no       = PTrust->GetSJob();
+    packet.sjob_lv       = PTrust->GetSLevel();
 
     const auto nameSize       = std::min<size_t>(PTrust->getName().size(), sizeof(packet.Name));
     const auto packetNameSize = roundUpToNearestFour(static_cast<uint32_t>(nameSize)) + 4; // Always 4 bytes of padding after name

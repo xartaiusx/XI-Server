@@ -49,110 +49,112 @@ namespace gambits
 
 namespace
 {
-    auto TrustRefreshWindow(timer::duration duration) -> timer::duration
+
+auto TrustRefreshWindow(timer::duration duration) -> timer::duration
+{
+    if (duration <= 0s)
     {
-        if (duration <= 0s)
-        {
-            return 0s;
-        }
-
-        if (duration <= 60s)
-        {
-            return 5s;
-        }
-
-        if (duration <= 180s)
-        {
-            return 15s;
-        }
-
-        if (duration <= 600s)
-        {
-            return 30s;
-        }
-
-        return 60s;
+        return 0s;
     }
 
-    auto StatusMissingOrExpiring(const CBattleEntity* PEntity, xi::StatusEffect effect) -> bool
+    if (duration <= 60s)
     {
-        if (!PEntity)
-        {
-            return false;
-        }
-
-        auto* PEffect = PEntity->StatusEffectContainer->GetStatusEffect(effect);
-        if (PEffect == nullptr || PEffect->GetDuration() <= 0s)
-        {
-            return true;
-        }
-
-        const auto refreshWindow = TrustRefreshWindow(PEffect->GetDuration());
-        return PEffect->GetStartTime() + PEffect->GetDuration() <= timer::now() + refreshWindow;
+        return 5s;
     }
 
-    enum class TrustTpSkillSkipReason : uint8
+    if (duration <= 180s)
     {
-        None          = 0,
-        InvalidTarget = 1,
-        CannotSee     = 2,
-        OutOfRange    = 3,
-    };
-
-    void SetTrustTpSkillSkip(CTrustEntity* POwner, TrustTpSkillSkipReason reason, uint32 skillId = 0, CBattleEntity* PTarget = nullptr)
-    {
-        if (!POwner)
-        {
-            return;
-        }
-
-        POwner->SetLocalVar("MochiTrustTpSkillSkipReason", static_cast<uint16>(reason));
-        POwner->SetLocalVar("MochiTrustTpSkillSkipId", skillId);
-        POwner->SetLocalVar("MochiTrustTpSkillSkipTargetTargId", PTarget ? PTarget->targid : 0);
+        return 15s;
     }
 
-    auto IsValidTrustTpSkillTarget(CTrustEntity* POwner, CBattleEntity* PTarget, uint32 skillId) -> TrustTpSkillSkipReason
+    if (duration <= 600s)
     {
-        if (!POwner || !PTarget || !PTarget->isAlive() || POwner->loc.zone != PTarget->loc.zone)
+        return 30s;
+    }
+
+    return 60s;
+}
+
+auto StatusMissingOrExpiring(const CBattleEntity* PEntity, xi::StatusEffect effect) -> bool
+{
+    if (!PEntity)
+    {
+        return false;
+    }
+
+    auto* PEffect = PEntity->StatusEffectContainer->GetStatusEffect(effect);
+    if (PEffect == nullptr || PEffect->GetDuration() <= 0s)
+    {
+        return true;
+    }
+
+    const auto refreshWindow = TrustRefreshWindow(PEffect->GetDuration());
+    return PEffect->GetStartTime() + PEffect->GetDuration() <= timer::now() + refreshWindow;
+}
+
+enum class TrustTpSkillSkipReason : uint8
+{
+    None          = 0,
+    InvalidTarget = 1,
+    CannotSee     = 2,
+    OutOfRange    = 3,
+};
+
+void SetTrustTpSkillSkip(CTrustEntity* POwner, TrustTpSkillSkipReason reason, uint32 skillId = 0, CBattleEntity* PTarget = nullptr)
+{
+    if (!POwner)
+    {
+        return;
+    }
+
+    POwner->SetLocalVar("MochiTrustTpSkillSkipReason", static_cast<uint16>(reason));
+    POwner->SetLocalVar("MochiTrustTpSkillSkipId", skillId);
+    POwner->SetLocalVar("MochiTrustTpSkillSkipTargetTargId", PTarget ? PTarget->targid : 0);
+}
+
+auto IsValidTrustTpSkillTarget(CTrustEntity* POwner, CBattleEntity* PTarget, uint32 skillId) -> TrustTpSkillSkipReason
+{
+    if (!POwner || !PTarget || !PTarget->isAlive() || POwner->loc.zone != PTarget->loc.zone)
+    {
+        return TrustTpSkillSkipReason::InvalidTarget;
+    }
+
+    if (PTarget != POwner && !POwner->CanSeeTarget(PTarget))
+    {
+        return TrustTpSkillSkipReason::CannotSee;
+    }
+
+    if (skillId <= 255)
+    {
+        auto* PWeaponSkill = battleutils::GetWeaponSkill(skillId);
+        if (!PWeaponSkill)
         {
             return TrustTpSkillSkipReason::InvalidTarget;
         }
 
-        if (PTarget != POwner && !POwner->CanSeeTarget(PTarget))
-        {
-            return TrustTpSkillSkipReason::CannotSee;
-        }
-
-        if (skillId <= 255)
-        {
-            auto* PWeaponSkill = battleutils::GetWeaponSkill(skillId);
-            if (!PWeaponSkill)
-            {
-                return TrustTpSkillSkipReason::InvalidTarget;
-            }
-
-            if (distance(POwner->loc.p, PTarget->loc.p) > PWeaponSkill->getRange() + POwner->modelHitboxSize + PTarget->modelHitboxSize)
-            {
-                return TrustTpSkillSkipReason::OutOfRange;
-            }
-
-            return TrustTpSkillSkipReason::None;
-        }
-
-        auto* PMobSkill = battleutils::GetMobSkill(skillId);
-        if (!PMobSkill)
-        {
-            return TrustTpSkillSkipReason::InvalidTarget;
-        }
-
-        const bool isSelfCenteredAoE = PMobSkill->getAoe() == static_cast<uint8>(AOE_RADIUS::ATTACKER);
-        if (!isSelfCenteredAoE && distance(POwner->loc.p, PTarget->loc.p) > PMobSkill->getDistance() + POwner->modelHitboxSize + PTarget->modelHitboxSize)
+        if (distance(POwner->loc.p, PTarget->loc.p) > PWeaponSkill->getRange() + POwner->modelHitboxSize + PTarget->modelHitboxSize)
         {
             return TrustTpSkillSkipReason::OutOfRange;
         }
 
         return TrustTpSkillSkipReason::None;
     }
+
+    auto* PMobSkill = battleutils::GetMobSkill(skillId);
+    if (!PMobSkill)
+    {
+        return TrustTpSkillSkipReason::InvalidTarget;
+    }
+
+    const bool isSelfCenteredAoE = PMobSkill->getAoe() == static_cast<uint8>(AOE_RADIUS::ATTACKER);
+    if (!isSelfCenteredAoE && distance(POwner->loc.p, PTarget->loc.p) > PMobSkill->getDistance() + POwner->modelHitboxSize + PTarget->modelHitboxSize)
+    {
+        return TrustTpSkillSkipReason::OutOfRange;
+    }
+
+    return TrustTpSkillSkipReason::None;
+}
+
 } // namespace
 
 // Return a new unique identifier for a gambit
@@ -719,7 +721,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                             continue;
                         }
 
-                        auto  spell_id = POwner->SpellContainer->GetBestIndiSpell(PMaster);
+                        auto spell_id = POwner->SpellContainer->GetBestIndiSpell(PMaster);
                         if (spell_id.has_value())
                         {
                             controller->Cast(target->targid, spell_id.value());

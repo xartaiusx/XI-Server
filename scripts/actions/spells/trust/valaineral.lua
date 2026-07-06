@@ -120,7 +120,11 @@ spellObject.onMobSpawn = function(mob)
                     primaryTargetId = skill:getPrimaryTargetID()
                 end
 
-                if primaryTargetId == nil or primaryTargetId == 0 or target:getID() == primaryTargetId then
+                if
+                    primaryTargetId == nil or
+                    primaryTargetId == 0 or
+                    target:getID() == primaryTargetId
+                then
                     xi.trust.message(mobArg, xi.trust.messageOffset.SPECIAL_MOVE_1)
                 end
             end

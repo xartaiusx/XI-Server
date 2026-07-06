@@ -29,10 +29,12 @@ namespace ActionInterrupts
 {
 namespace
 {
+
 void LogInterruptPacket(CBattleEntity* PEntity, action_t& action, const CBattleEntity* PTarget, const char* source)
 {
     trustutils::LogTrustActionPacket(PEntity, action, PTarget, source);
 }
+
 } // namespace
 
 void AvatarOutOfRange(CBattleEntity* PAvatar, const CPetSkill* PSkill, const CBattleEntity* PTarget)

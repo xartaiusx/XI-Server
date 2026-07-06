@@ -28,7 +28,8 @@
 
 namespace
 {
-constexpr uint8 kAlterEgoCategoryCap = 50;
+
+constexpr uint8 kAlterEgoCategoryCap            = 50;
 constexpr uint8 kLegacyCombatSkillsDisplayIndex = 0;
 constexpr uint8 kLegacyMagicSkillsDisplayIndex  = 1;
 
@@ -58,11 +59,12 @@ void populateCategory(CCharEntity* PChar, GP_SERV_PACKET_ALTER_EGO_POINTS::Packe
 
 void populateDisplaySlot(CCharEntity* PChar, GP_SERV_PACKET_ALTER_EGO_POINTS::PacketData& packet, uint8 index, const char* varName)
 {
-    const auto rank  = clampUpgrade(charutils::GetCharVar(PChar, varName));
+    const auto rank = clampUpgrade(charutils::GetCharVar(PChar, varName));
 
     packet.Upgrades[index] = rank;
     packet.Costs[index]    = nextUpgradeCost(rank);
 }
+
 } // namespace
 
 GP_SERV_PACKET_ALTER_EGO_POINTS::GP_SERV_PACKET_ALTER_EGO_POINTS(CCharEntity* PChar)

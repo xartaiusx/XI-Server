@@ -301,9 +301,9 @@ public:
 
     MapSession* PSession = nullptr;
 
-    jobs_t                 jobs{};         // Available Character jobs
+    jobs_t                         jobs{};         // Available Character jobs
     std::array<uint8, MAX_JOBTYPE> masterLevels{}; // Retail Master Levels per job.
-    keyitems_t             keys{};         // Table key objects
+    keyitems_t                     keys{};         // Table key objects
 
     EventPrep*            eventPreparation = nullptr; // Information about a potential upcoming event
     EventInfo*            currentEvent     = nullptr; // The currently ongoing event playing for the player

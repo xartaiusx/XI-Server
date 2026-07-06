@@ -64,33 +64,35 @@ struct CParty::partyInfo_t
 
 namespace
 {
-    constexpr uint8 kTrustAutoAllianceMembersPerParty = 6;
-    constexpr uint8 kTrustAutoAllianceMaxPartyNo      = 2;
 
-    auto trustAutoAllianceEnabled() -> bool
+constexpr uint8 kTrustAutoAllianceMembersPerParty = 6;
+constexpr uint8 kTrustAutoAllianceMaxPartyNo      = 2;
+
+auto trustAutoAllianceEnabled() -> bool
+{
+    return settings::get<bool>("main.ENABLE_TRUST_AUTO_ALLIANCE");
+}
+
+auto trustVirtualPartyNo(uint8 globalMemberIndex) -> uint8
+{
+    if (!trustAutoAllianceEnabled())
     {
-        return settings::get<bool>("main.ENABLE_TRUST_AUTO_ALLIANCE");
+        return 0;
     }
 
-    auto trustVirtualPartyNo(uint8 globalMemberIndex) -> uint8
-    {
-        if (!trustAutoAllianceEnabled())
-        {
-            return 0;
-        }
+    return std::min<uint8>(globalMemberIndex / kTrustAutoAllianceMembersPerParty, kTrustAutoAllianceMaxPartyNo);
+}
 
-        return std::min<uint8>(globalMemberIndex / kTrustAutoAllianceMembersPerParty, kTrustAutoAllianceMaxPartyNo);
+auto trustVirtualMemberNo(uint8 globalMemberIndex) -> uint8
+{
+    if (!trustAutoAllianceEnabled())
+    {
+        return globalMemberIndex;
     }
 
-    auto trustVirtualMemberNo(uint8 globalMemberIndex) -> uint8
-    {
-        if (!trustAutoAllianceEnabled())
-        {
-            return globalMemberIndex;
-        }
+    return globalMemberIndex % kTrustAutoAllianceMembersPerParty;
+}
 
-        return globalMemberIndex % kTrustAutoAllianceMembersPerParty;
-    }
 } // namespace
 
 // Constructor
@@ -923,8 +925,8 @@ void CParty::ReloadParty()
             {
                 CCharEntity* PChar = (CCharEntity*)member;
                 PChar->ReloadPartyDec();
-                uint16 alliance  = 0;
-                uint8  memberIdx = 0;
+                uint16     alliance   = 0;
+                uint8      memberIdx  = 0;
                 const bool loadTrusts = PAllianceTrustLeader && PChar->getZone() == PAllianceTrustLeader->getZone();
 
                 PChar->pushPacket<GP_SERV_COMMAND_GROUP_TBL>(PAllianceTableParty, loadTrusts);
@@ -971,9 +973,9 @@ void CParty::ReloadParty()
     else
     {
         RefreshFlags(info);
-        CBattleEntity* PLeader    = GetLeader();
+        CBattleEntity* PLeader     = GetLeader();
         auto*          PLeaderChar = dynamic_cast<CCharEntity*>(PLeader);
-        size_t         trustCount = 0;
+        size_t         trustCount  = 0;
 
         if (PLeaderChar != nullptr)
         {
@@ -1041,8 +1043,8 @@ void CParty::ReloadPartyMembers(CCharEntity* PChar)
         PTableParty = m_PAlliance->getMainParty();
     }
 
-    auto* PTrustLeader = dynamic_cast<CCharEntity*>(PTableParty->GetLeader());
-    const bool loadTrusts = PTrustLeader && PChar->getZone() == PTrustLeader->getZone();
+    auto*      PTrustLeader = dynamic_cast<CCharEntity*>(PTableParty->GetLeader());
+    const bool loadTrusts   = PTrustLeader && PChar->getZone() == PTrustLeader->getZone();
 
     PChar->pushPacket<GP_SERV_COMMAND_GROUP_TBL>(PTableParty, loadTrusts);
 

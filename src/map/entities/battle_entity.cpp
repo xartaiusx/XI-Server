@@ -1742,7 +1742,7 @@ void CBattleEntity::SetSLevel(uint8 slvl)
                         if (mainJob > JOB_NON && mainJob < MAX_JOBTYPE)
                         {
                             const auto masterLevelBonus = static_cast<uint8>(PChar->masterLevels[mainJob] / 5);
-                            subJobCap                  = std::min<uint8>(59, subJobCap + masterLevelBonus);
+                            subJobCap                   = std::min<uint8>(59, subJobCap + masterLevelBonus);
                         }
                     }
                 }
