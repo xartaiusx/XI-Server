@@ -67,6 +67,15 @@ The helper backs up `Windower\addons\XivParty\xivparty.lua` under
 login. Verify with `//lua reload XivParty`, `//xp setup on`, `//xp setup off`,
 and a native Windower screenshot.
 
+For layout persistence, keep XivParty positions synchronized between the live
+client file `D:\Steam\steamapps\common\FFXINA\Windower\addons\XivParty\data\settings.xml`
+and the runtime golden-state file
+`C:\Users\xtyty\Documents\FFXI-Runtime\windower-golden-state\addons\XivParty\data\settings.xml`.
+The current Twills layout is party `0.765,0.815`, alliance1 `0.765,0.675`,
+alliance2 `0.765,0.535`, scale `0.72`. Verify changes through native XivParty
+commands, addon reload, and native Windower screenshots before updating tracked
+restore state.
+
 Use `Invoke-WindowerCommand.ps1` for normal Windower, Final Fantasy XI chat,
 and GM command execution. It foregrounds the Twills/Windower client, clears any
 stale chat/menu input through `send_windower_text.ps1`, then writes a request for

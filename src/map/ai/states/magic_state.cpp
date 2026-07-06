@@ -30,6 +30,7 @@
 #include "enmity_container.h"
 #include "entities/battle_entity.h"
 #include "entities/mob_entity.h"
+#include "entities/trust_entity.h"
 #include "job_points.h"
 #include "lua/luautils.h"
 #include "mob_modifier.h"
@@ -160,11 +161,23 @@ bool CMagicState::Update(timer::time_point tick)
         return true;
     };
 
+    auto shouldDropStaleTrustHostileMagic = [&]()
+    {
+        return dynamic_cast<CTrustEntity*>(m_PEntity) != nullptr && m_PSpell && m_PSpell->canTargetEnemy();
+    };
+
     // Check if target is still valid during mid-cast (mostly to check if the target has died and to cancel.)
     if (!IsCompleted())
     {
         if (!isTargetValid())
         {
+            if (shouldDropStaleTrustHostileMagic())
+            {
+                trustutils::LogTrustActionSkip(m_PEntity, PTarget, static_cast<uint16>(m_PSpell->getID()), "magic_state_guard", "stale_hostile_magic_target_midcast");
+                Complete();
+                return false;
+            }
+
             // guessed, but cancels correctly.
             m_PEntity->OnCastInterrupted(*this, action, msg, false);
             trustutils::LogTrustActionPacket(m_PEntity, action, PTarget, "magic_state_invalid_target");
@@ -178,7 +191,15 @@ bool CMagicState::Update(timer::time_point tick)
     if (tick > GetEntryTime() + m_castTime && !IsCompleted())
     {
         // CanCastSpell also does a range check which we don't want to check during midcast - mobs don't cancel spells during casting for being out of range
-        if (!isTargetValid() || !CanCastSpell(PTarget, true) || HasMoved())
+        const bool targetStillValid = isTargetValid();
+        if (!targetStillValid && shouldDropStaleTrustHostileMagic())
+        {
+            trustutils::LogTrustActionSkip(m_PEntity, PTarget, static_cast<uint16>(m_PSpell->getID()), "magic_state_guard", "stale_hostile_magic_target_finish");
+            Complete();
+            return false;
+        }
+
+        if (!targetStillValid || !CanCastSpell(PTarget, true) || HasMoved())
         {
             m_PEntity->OnCastInterrupted(*this, action, msg, false);
 

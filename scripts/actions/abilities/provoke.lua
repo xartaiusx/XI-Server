@@ -10,7 +10,7 @@ abilityObject.onAbilityCheck = function(player, target, ability)
 end
 
 abilityObject.onUseAbility = function(user, target, ability)
-    --Leave blank.
+    return 0
 end
 
 return abilityObject

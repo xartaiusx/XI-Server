@@ -64,6 +64,14 @@ when referring to the game.
   `/root/projects/FFXI-Runtime` in WSL. Keep only the small Windows-side
   Windower bridge under `C:\Users\xtyty\Documents\FFXI-Runtime` because
   the game client and native screenshot trigger run on Windows.
+- For Windower addon/plugin settings persistence, keep the live client copy
+  under `D:\Steam\steamapps\common\FFXINA\Windower`, the Windows runtime
+  golden-state copy under
+  `C:\Users\xtyty\Documents\FFXI-Runtime\windower-golden-state`, and any
+  tracked restore copy aligned. Verify layout/settings changes with file
+  positions or hashes plus a native Windower screenshot after addon reload; for
+  session-persistence regressions, relaunch through the desktop Windower shortcut
+  and verify again before calling the setting durable.
 
 ## Standard In-Game QA Workflow
 
