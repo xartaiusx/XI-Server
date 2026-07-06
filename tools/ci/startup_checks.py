@@ -26,6 +26,19 @@ port = int(os.getenv("XI_NETWORK_SQL_PORT"))
 login = os.getenv("XI_NETWORK_SQL_LOGIN")
 password = os.getenv("XI_NETWORK_SQL_PASSWORD")
 
+DEFAULT_MAP_PORT = 54230
+WINDOWS_CI_MAP_PORT = 15030
+map_port = int(
+    os.getenv(
+        "XI_CI_MAP_PORT",
+        str(
+            WINDOWS_CI_MAP_PORT
+            if platform.system() == "Windows"
+            else DEFAULT_MAP_PORT
+        ),
+    )
+)
+
 
 server_dir_path = os.path.normpath(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -186,7 +199,7 @@ def main():
                 "--ip",
                 "127.0.0.1",
                 "--port",
-                "54230",
+                str(map_port),
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -205,7 +218,7 @@ def main():
             connect()
             if cur:
                 cur.execute(
-                    "UPDATE xidb.zone_settings SET zoneport = 54231 WHERE zoneid % 2 = 1;"
+                    f"UPDATE xidb.zone_settings SET zoneport = {map_port + 1} WHERE zoneid % 2 = 1;"
                 )
                 db.commit()
                 processes.insert(
@@ -219,7 +232,7 @@ def main():
                             "--ip",
                             "127.0.0.1",
                             "--port",
-                            "54231",
+                            str(map_port + 1),
                         ],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT,
