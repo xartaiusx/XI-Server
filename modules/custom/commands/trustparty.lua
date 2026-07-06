@@ -103,6 +103,62 @@ commandObj.onTrigger = function(player, action, target)
         return
     end
 
+
+    if action == 'combattest' then
+        local zone = player:getZone()
+        if zone == nil then
+            printLine(player, 'Mochirii Trust combat test failed: player has no zone.')
+            return
+        end
+
+        local mobId = tonumber(target)
+        if mobId == nil then
+            if player:getZoneID() == 291 then
+                mobId = 16781313 -- Reisenjima Snipper, low-risk local test target.
+            else
+                printLine(player, '!trustparty combattest <same-zone mobId>')
+                return
+            end
+        end
+
+        local mob = GetMobByID(mobId)
+        if mob == nil then
+            printLine(player, string.format('Mochirii Trust combat test failed: invalid mobId=%u.', mobId))
+            return
+        end
+
+        if mob:getZoneID() ~= player:getZoneID() then
+            printLine(player, string.format(
+                'Mochirii Trust combat test failed: mobId=%u is in zone %u, but Twills is in zone %u.',
+                mobId,
+                mob:getZoneID(),
+                player:getZoneID()
+            ))
+            return
+        end
+
+        if not mob:isSpawned() then
+            SpawnMob(mobId)
+        end
+
+        mob:setPos(player:getXPos() + 2, player:getYPos(), player:getZPos() + 2, player:getRotPos(), player:getZoneID())
+        mob:updateClaim(player)
+        mob:addEnmity(player, 1, 1200)
+        player:setCharVar('TrustEngageType', 1)
+        player:engage(mob:getTargID())
+
+        print(string.format(
+            'Mochirii Trust combat test: player=%s mob=%s mobId=%u targid=%u zone=%u',
+            player:getName(),
+            mob:getName(),
+            mobId,
+            mob:getTargID(),
+            player:getZoneID()
+        ))
+        printLine(player, string.format('Mochirii Trust combat test started against %s (%u).', mob:getName(), mobId))
+        return
+    end
+
     if action == 'summonqa' then
         if parity.autoSummonQaParty == nil then
             printLine(player, 'Trust QA summon helper is not available.')
@@ -136,6 +192,7 @@ commandObj.onTrigger = function(player, action, target)
     printLine(player, '!trustparty audit active|all|<trust>')
     printLine(player, '!trustparty composition')
     printLine(player, '!trustparty summonqa')
+    printLine(player, '!trustparty combattest [same-zone mobId]')
 end
 
 return commandObj
