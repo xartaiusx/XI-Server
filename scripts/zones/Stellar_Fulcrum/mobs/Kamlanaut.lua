@@ -30,7 +30,7 @@ end
 
 entity.onMobFight = function(mob, target)
     if GetSystemTime() > mob:getLocalVar('nextEnSkill') then
-        local skill = math.random(823, 828)
+        local skill = math.randomInt(823, 828)
         mob:setLocalVar('currentTP', mob:getTP())
         mob:useMobAbility(skill)
         mob:setLocalVar('nextEnSkill', GetSystemTime() + 20)
@@ -60,6 +60,25 @@ entity.onMobWeaponSkill = function(mob, target, skill, action)
         -- return TP
         mob:setTP(mob:getLocalVar('currentTP'))
     end
+end
+
+entity.onMobSpellChoose = function(mob, target)
+    local spellList =
+    {
+        [1] = { xi.magic.spell.SLOWGA,    target, false, xi.action.type.ENFEEBLING_TARGET, xi.effect.SLOW,      3, 100 },
+        [2] = { xi.magic.spell.SILENCEGA, target, false, xi.action.type.ENFEEBLING_TARGET, xi.effect.SILENCE,   0, 100 },
+        [3] = { xi.magic.spell.PARALYGA,  target, false, xi.action.type.ENFEEBLING_TARGET, xi.effect.PARALYSIS, 0, 100 },
+        [4] = { xi.magic.spell.GRAVIGA,   target, false, xi.action.type.ENFEEBLING_TARGET, xi.effect.WEIGHT,    0, 100 },
+    }
+
+    if
+        target:hasStatusEffectByFlag(xi.effectFlag.DISPELABLE) and
+        mob:isEngaged()
+    then
+        table.insert(spellList, #spellList + 1, { xi.magic.spell.DISPELGA, target, false, xi.action.type.NONE, nil, 100 })
+    end
+
+    return xi.combat.behavior.chooseAction(mob, target, nil, spellList)
 end
 
 return entity

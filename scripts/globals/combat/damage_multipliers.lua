@@ -14,10 +14,10 @@ xi.combat.damage.physicalElementSDT = function(target, physicalElement)
 
     local physicalElementSDTModifier =
     {
-        [xi.damageType.PIERCING] = xi.mod.PIERCE_SDT,
-        [xi.damageType.SLASHING] = xi.mod.SLASH_SDT,
-        [xi.damageType.BLUNT   ] = xi.mod.IMPACT_SDT,
-        [xi.damageType.HAND_TO_HAND     ] = xi.mod.HTH_SDT,
+        [xi.damageType.PIERCING    ] = xi.mod.PIERCE_SDT,
+        [xi.damageType.SLASHING    ] = xi.mod.SLASH_SDT,
+        [xi.damageType.BLUNT       ] = xi.mod.IMPACT_SDT,
+        [xi.damageType.HAND_TO_HAND] = xi.mod.HTH_SDT,
     }
 
     local sdt = 1 + target:getMod(physicalElementSDTModifier[physicalElement]) / 10000
@@ -74,6 +74,50 @@ xi.combat.damage.calculateDamageAdjustment = function(target, isPhysical, isMagi
     targetDamageTaken = utils.clamp(targetDamageTaken + physicalDamageTakenUncapped + magicDamageTakenUncapped + rangedDamageTakenUncapped + breathDamageTakenUncapped, 0, 2)
 
     return targetDamageTaken
+end
+
+xi.combat.damage.ecosystemMultiplier = function(actor, target, actionEcosystem)
+    local ecosystemMultiplier = 1
+    local actorEcosystem      = actor:getEcosystem()
+    local targetEcosystem     = target:getEcosystem()
+    local actorNMFactor       = actor:isNM() and 1 or 0
+    local targetNMFactor      = target:isNM() and 1 or 0
+
+    -- Killer effects can be augmented to apply damage bonuses. (Ex: Ferine, Nukumi Gausapes or Founder's Breastplate)
+    local actorKillerMod    = xi.data.entityCorrelation.getEcosystemKillerMod(actorEcosystem)
+    local targetKillerMod   = xi.data.entityCorrelation.getEcosystemKillerMod(targetEcosystem)
+    local actorKillerBonus  = actor:getMod(targetKillerMod) * (actor:getMod(xi.mod.AUGMENT_KILLER_EFFECTS) / (1 + targetNMFactor)) / 100
+    local targetKillerBonus = target:getMod(actorKillerMod) * (target:getMod(xi.mod.AUGMENT_KILLER_EFFECTS) / (1 + actorNMFactor)) / 100
+
+    ecosystemMultiplier = ecosystemMultiplier + math.floor(actorKillerBonus) / 100 - math.floor(targetKillerBonus) / 100
+
+    -- Circles apply an additive damage multiplier and also a damage reduction.
+    local damageMultiplierMod   = xi.data.entityCorrelation.getEcosystemDamageMultiplierMod(targetEcosystem)
+    local damageResistanceMod   = xi.data.entityCorrelation.getEcosystemDamageReductionMod(actorEcosystem)
+    local damageMultiplierValue = actor:getMod(damageMultiplierMod) / (1 + targetNMFactor)
+    local damageResistanceValue = target:getMod(damageResistanceMod) / (1 + actorNMFactor)
+
+    ecosystemMultiplier = ecosystemMultiplier + math.floor(damageMultiplierValue) / 100 - math.floor(damageResistanceValue) / 100
+
+    -- Action ecosystem property. Mostly blue spells. Can be positive or negative. Additive to everything else, not multiplicative.
+    if actionEcosystem > 0 then
+        local strongAgainstEco = xi.data.entityCorrelation.getEcosystemStrongAgainst(actionEcosystem)
+        local weakAgainstEco   = xi.data.entityCorrelation.getEcosystemWeakAgainst(actionEcosystem)
+
+        -- This action property is strong against target's ecosystem.
+        if strongAgainstEco and strongAgainstEco == targetEcosystem then
+            ecosystemMultiplier = ecosystemMultiplier + 0.25 + actor:getMerit(xi.merit.MONSTER_CORRELATION) / 100
+
+        -- This action property is weak against target's ecosystem.
+        elseif weakAgainstEco and weakAgainstEco == targetEcosystem then
+            ecosystemMultiplier = ecosystemMultiplier - 0.25
+        end
+    end
+
+    -- Final multiplier caps. TODO: confirm.
+    ecosystemMultiplier = utils.clamp(ecosystemMultiplier, 0.5, 1.5)
+
+    return ecosystemMultiplier
 end
 
 xi.combat.damage.scarletDeliriumMultiplier = function(actor)

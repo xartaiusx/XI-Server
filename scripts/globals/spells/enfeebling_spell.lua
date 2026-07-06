@@ -83,8 +83,8 @@ local pTable =
     [xi.magic.spell.LUMINOHELIX_II] = { xi.effect.HELIX,              2, xi.mod.INT,    0,  10,  30, 0, false,   0 },
 
     -- White Magic
-    [xi.magic.spell.ADDLE         ] = { xi.effect.ADDLE,              1, xi.mod.MND,   30,   0, 180, 0, true,    0 },
-    [xi.magic.spell.ADDLE_II      ] = { xi.effect.ADDLE,              2, xi.mod.MND,   30,   0, 180, 0, true,    0 },
+    [xi.magic.spell.ADDLE         ] = { xi.effect.ADDLE,              1, xi.mod.MND,   20,   0, 180, 0, true,   20 },
+    [xi.magic.spell.ADDLE_II      ] = { xi.effect.ADDLE,              2, xi.mod.MND,   50,   0, 180, 0, true,   20 },
     [xi.magic.spell.FLASH         ] = { xi.effect.FLASH,              1, xi.mod.MND,    0,   0,  12, 0, true,  512 },
     [xi.magic.spell.INUNDATION    ] = { xi.effect.INUNDATION,         1, xi.mod.MND,    1,   0, 300, 0, false,   0 },
     [xi.magic.spell.PARALYZE      ] = { xi.effect.PARALYSIS,          1, xi.mod.MND,    0,   0, 120, 0, true,  -10 },
@@ -181,7 +181,7 @@ local function executeImmunobreak(caster, target, spell, effectId)
 
     -- Calculate Immunobreack chance.
     local immunobreakChance = caster:getMerit(xi.merit.IMMUNOBREAK_CHANCE) + 20 / (immunobreakValue + 1) -- TODO: Add immunobreak gear?
-    if math.random(1, 100) > immunobreakChance then
+    if math.randomInt(1, 100) > immunobreakChance then
         return
     end
 
@@ -199,6 +199,10 @@ xi.spells.enfeebling.calculatePotency = function(caster, target, spellId, spellE
     -- Calculate base potency for spells.
     switch (spellEffect) : caseof
     {
+        [xi.effect.ADDLE] = function()
+            potency = potency + utils.clamp(math.floor(statDiff / 5), 0, 20) -- Values from JP wiki: http://wiki.ffo.jp/html/21127.html
+        end,
+
         [xi.effect.BLINDNESS] = function()
             statDiff = caster:getStat(statUsed) - target:getStat(xi.mod.MND)
 
@@ -321,7 +325,7 @@ xi.spells.enfeebling.calculateDuration = function(caster, target, spellId, spell
     local duration = pTable[spellId][column.BASE_DURATION] -- Get base duration.
 
     if spellEffect == xi.effect.BIND then
-        duration = math.random(13, 60)
+        duration = math.randomInt(13, 60)
     end
 
     -- Additions to base duration.
@@ -464,7 +468,7 @@ xi.spells.enfeebling.useEnfeeblingSpell = function(caster, target, spell)
     elseif spellEffect == xi.effect.SLEEP_I then
         subpotency = spellElement
 
-    -- Addle: Has sub-effect.
+    -- Addle: Sub-effect -> Slows casting time.
     elseif spellEffect == xi.effect.ADDLE then
         subpotency = 20 + utils.clamp(math.floor((caster:getStat(statUsed) - target:getStat(statUsed)) / 5), 0, 20)
 

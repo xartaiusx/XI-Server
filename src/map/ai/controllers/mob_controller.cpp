@@ -79,7 +79,7 @@ auto CMobController::Tick(const timer::time_point tick) -> Task<void>
         }
         else if (!PMob->isDead())
         {
-            if (PMob->SpellContainer->HasSpells() && DoBuffTick())
+            if (PMob->SpellContainer->HasSpells() && !PMob->PAI->PathFind->IsPatrolling() && DoBuffTick())
             {
                 co_return;
             }
@@ -426,7 +426,7 @@ auto CMobController::MobSkill(int listId) -> bool
         return false;
     }
 
-    std::shuffle(skillList.begin(), skillList.end(), xirand::rng());
+    xirand::ShuffleInPlace(skillList);
     CBattleEntity* PActionTarget{ nullptr };
 
     uint16 chosenSkillId = 0;
@@ -628,8 +628,16 @@ auto CMobController::TryCastSpell() -> bool
         return false; // Target out of range.
     }
 
-    // Perform cast.
-    CastSpell(chosenSpellId.value());
+    // Perform cast. If there is a valid target override, cast at that target, otherwise cast normally.
+    // We need this because CastSpell has its own targetfind and PCastTarget is not used for it.
+    if (maybeTargetOverride.has_value() && PCastTarget)
+    {
+        Cast(PCastTarget->targid, chosenSpellId.value());
+    }
+    else
+    {
+        CastSpell(chosenSpellId.value());
+    }
     return true;
 }
 
@@ -1260,7 +1268,7 @@ auto CMobController::DoRoamTick(timer::time_point tick) -> Task<void>
                                     false,
                                     [](CBaseEntity* MobEntity)
                                     {
-                                        MobEntity->status = STATUS_TYPE::INVISIBLE;
+                                        MobEntity->status = xi::Status::Invisible;
                                     }));
                         }
                     }
@@ -1344,7 +1352,7 @@ void CMobController::FollowRoamPath()
                 PMob->loc.zone->UpdateEntityPacket(PMob, ENTITY_UPDATE, UPDATE_POS);
 
                 // don't re-enter this block, but don't roam until emerging
-                PMob->status = STATUS_TYPE::UPDATE;
+                PMob->status = xi::Status::Update;
                 PMob->SetUntargetable(false);
                 Wait(2s);
                 PMob->PAI->QueueAction(

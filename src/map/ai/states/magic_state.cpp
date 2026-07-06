@@ -123,10 +123,11 @@ CMagicState::CMagicState(CBattleEntity* PEntity, uint16 targid, SpellID spellid,
     // if spell:setFlag(xi.magic.spellFlag.NO_START_MSG) is called, don't give spell start packet
     if (GetSpell()->getFlag() & SPELLFLAG_NO_START_MSG)
     {
-        action.ForEachResult([&](action_result_t& result)
-                             {
-                                 result.messageID = MsgBasic::None;
-                             });
+        action.ForEachResult(
+            [&](action_result_t& result)
+            {
+                result.messageID = MsgBasic::None;
+            });
     }
 
     trustutils::LogTrustActionPacket(m_PEntity, action, PTarget, "magic_state_start");
@@ -276,6 +277,16 @@ bool CMagicState::Update(timer::time_point tick)
             return false;
         }
 
+        // Slept/stunned/petrified/etc. at the moment of completion: the cast is interrupted.
+        // A prevent-action effect that lands mid-cast does not cancel the cast on retail;
+        // the interrupt is decided here, at the finish, mirroring CMobSkillState.
+        if (m_PEntity->StatusEffectContainer->HasPreventActionEffect())
+        {
+            m_PEntity->OnCastInterrupted(*this, action, msg, false);
+            Complete();
+            return false;
+        }
+
         if (m_interrupted)
         {
             m_PEntity->OnCastInterrupted(*this, action, msg, false);
@@ -298,10 +309,11 @@ bool CMagicState::Update(timer::time_point tick)
         // Zero messageID so spells dont emit messages
         if (GetSpell()->getFlag() & SPELLFLAG_NO_FINISH_MSG)
         {
-            action.ForEachResult([&](action_result_t& result)
-                                 {
-                                     result.messageID = MsgBasic::None;
-                                 });
+            action.ForEachResult(
+                [&](action_result_t& result)
+                {
+                    result.messageID = MsgBasic::None;
+                });
         }
 
         trustutils::LogTrustActionPacket(m_PEntity, action, PTarget, "magic_state_finish");

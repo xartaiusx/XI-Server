@@ -142,17 +142,6 @@ local function calculateHitrate(attacker, target, bonusacc)
     return xi.combat.physicalHitRate.getPhysicalHitRate(attacker, target, bonusacc + attacker:getMerit(xi.merit.PHYSICAL_POTENCY) * 2, xi.attackAnimation.RIGHT_ATTACK, false)
 end
 
--- Get the effect of ecosystem correlation
-local function calculateCorrelation(spellEcosystem, monsterEcosystem, merits)
-    local effect = utils.getEcosystemStrengthBonus(spellEcosystem, monsterEcosystem) * 0.25
-
-    if effect > 0 then -- merits don't impose a penalty, only a benefit in case of strength
-        effect = effect + 0.001 * merits
-    end
-
-    return effect
-end
-
 -- Consecutive Elemental Damage Penalty. Most commonly known as "Nuke Wall".
 -- NOTE: Duplicate of the same function in damage_spell.lua, until Blue magic gets rewritten.
 local function calculateNukeWallFactor(target, spellElement, finalDamage)
@@ -246,7 +235,7 @@ xi.spells.blue.usePhysicalSpell = function(caster, target, spell, params)
     local bonusWSC   = 0
 
     -- BLU AF3 bonus (triples the base WSC when it procs)
-    if  math.random(1, 100) <= caster:getMod(xi.mod.AUGMENT_BLU_MAGIC) then
+    if  math.randomInt(1, 100) <= caster:getMod(xi.mod.AUGMENT_BLU_MAGIC) then
         bonusWSC = 2
     end
 
@@ -263,7 +252,7 @@ xi.spells.blue.usePhysicalSpell = function(caster, target, spell, params)
     wsc       = wsc + wsc * bonusWSC -- Bonus WSC from AF3/CA
 
     -- Monster correlation
-    local correlationMultiplier = calculateCorrelation(params.ecosystem, target:getEcosystem(), caster:getMerit(xi.merit.MONSTER_CORRELATION))
+    local correlationMultiplier = xi.combat.damage.ecosystemMultiplier(caster, target, params.ecosystem)
 
     -- Azure Lore
     if caster:getStatusEffect(xi.effect.AZURE_LORE) then
@@ -319,7 +308,7 @@ xi.spells.blue.usePhysicalSpell = function(caster, target, spell, params)
     end
 
     while hitsdone < params.numhits do
-        local chance = math.random()
+        local chance = math.randomFloat(0, 1)
 
         if
             sneakIsApplicable or
@@ -328,10 +317,10 @@ xi.spells.blue.usePhysicalSpell = function(caster, target, spell, params)
             -- TODO: Check for shadow absorbs. Right now the whole spell will be absorbed by one shadow before it even gets here.
 
             -- Generate a random pDIF between min and max
-            local pdif = math.random(cratio[1] * 1000, cratio[2] * 1000)
+            local pdif = math.randomInt(cratio[1] * 1000, cratio[2] * 1000)
             pdif       = pdif / 1000
 
-            local isCritical = sneakIsApplicable or math.random() < params.critchance
+            local isCritical = sneakIsApplicable or math.randomFloat(0, 1) < params.critchance
             if isCritical then
                 pdif = pdif + 1
             end
@@ -388,7 +377,7 @@ xi.spells.blue.useMagicalSpell = function(caster, target, spell, params)
     local wscMultiplier = 1
 
     -- BLU AF3 bonus (triples the base WSC when it procs)
-    if math.random(1, 100) <= caster:getMod(xi.mod.AUGMENT_BLU_MAGIC) then
+    if math.randomInt(1, 100) <= caster:getMod(xi.mod.AUGMENT_BLU_MAGIC) then
         wscMultiplier = wscMultiplier + 1
     end
 
@@ -409,7 +398,7 @@ xi.spells.blue.useMagicalSpell = function(caster, target, spell, params)
     end
 
     -- Monster correlation
-    local correlationMultiplier = calculateCorrelation(params.ecosystem, target:getEcosystem(), caster:getMerit(xi.merit.MONSTER_CORRELATION))
+    local correlationMultiplier = xi.combat.damage.ecosystemMultiplier(caster, target, params.ecosystem)
 
     -- Data
     local spellId            = spell:getID()
@@ -560,7 +549,7 @@ xi.spells.blue.useBreathSpell = function(caster, target, spell, params)
     local damageType   = params.damageType or xi.damageType.NONE
 
     -- Multipliers
-    local correlationMultiplier       = 1 + calculateCorrelation(params.ecosystem, target:getEcosystem(), caster:getMerit(xi.merit.MONSTER_CORRELATION))
+    local correlationMultiplier       = xi.combat.damage.ecosystemMultiplier(caster, target, params.ecosystem)
     local breathSDT                   = 1 + caster:getMod(xi.mod.BREATH_DMG_DEALT) / 100
     local absorb                      = xi.spells.damage.calculateAbsorption(target, spellElement, false)
     local nullify                     = xi.spells.damage.calculateNullification(target, spellElement, false, true)

@@ -762,13 +762,17 @@ CTrustController::CTrustController(CCharEntity* PChar, CTrustEntity* PTrust)
 
 CTrustController::~CTrustController()
 {
-    if (POwner->PAI->IsEngaged())
+    if (POwner->PAI)
     {
-        POwner->PAI->Internal_Disengage();
+        if (POwner->PAI->IsEngaged())
+        {
+            POwner->PAI->Internal_Disengage();
+        }
+        POwner->PAI->PathFind.reset();
     }
-    POwner->PAI->PathFind.reset();
-    POwner->allegiance = ALLEGIANCE_TYPE::PLAYER;
-    POwner->status     = STATUS_TYPE::DISAPPEAR;
+
+    POwner->allegiance = xi::Allegiance::Player;
+    POwner->status     = xi::Status::Disappear;
     m_LastTopEnmity    = nullptr;
 }
 

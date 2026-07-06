@@ -23,6 +23,7 @@
 #define _MOBENTITY_H
 
 #include "battle_entity.h"
+#include <common/types/maybe.h>
 #include <unordered_map>
 
 enum class MsgBasic : uint16_t;
@@ -43,6 +44,13 @@ enum SPAWNTYPE
     SPAWNTYPE_LOTTERY   = 0x20,
     SPAWNTYPE_WINDOWED  = 0x40,
     SPAWNTYPE_SCRIPTED  = 0x80 // scripted spawn
+};
+
+// Per-mob spawn window in Vana'diel hours; the mob spawns only within [spawnHour, despawnHour) (wraps past midnight).
+struct SpawnWindow
+{
+    uint8 spawnHour;
+    uint8 despawnHour;
 };
 
 enum SPECIALFLAG
@@ -132,7 +140,12 @@ public:
     void              SetDespawnTime(timer::duration _duration);
     void              SetSpawnSlot(SpawnSlot* sharedSpawn);
     SpawnSlot*        GetSpawnSlot();
-    bool              TrySpawn();
+
+    // Optional per-mob spawn window; overrides the SPAWNTYPE time flags when set.
+    auto spawnWindow() const -> const Maybe<SpawnWindow>&;
+    void setSpawnWindow(uint8 spawnHour, uint8 despawnHour);
+
+    bool TrySpawn();
 
     uint32 GetRandomGil();   // returns a random amount of gil
     bool   CanRoamHome();    // is it possible for me to walk back?
@@ -171,6 +184,7 @@ public:
     virtual void HandleErrorMessage(std::unique_ptr<CBasicPacket>&) override
     {
     }
+
     virtual void Die() override;
 
     virtual void OnWeaponSkillFinished(CWeaponSkillState&, action_t&) override;
@@ -209,8 +223,6 @@ public:
 
     uint16 m_roamFlags;    // defines its roaming behavior
     uint8  m_specialFlags; // flags for special skill
-
-    bool m_StatPoppedMobs; // true if dyna statue has popped mobs
 
     uint8 strRank;
     uint8 dexRank;
@@ -263,10 +275,6 @@ public:
     uint32 m_flags;       // includes the CFH flag and whether the HP bar should be shown or not (e.g. Yilgeban doesnt)
     uint8  m_name_prefix; // The ding bats VS Ding bats
 
-    uint8 m_unk0; // possibly campaign related (entity 0x24)
-    uint8 m_unk1; // (entity_update 0x25)
-    uint8 m_unk2; // (entity_update 0x26)
-
     bool m_CallForHelpBlocked;
 
     CEnmityContainer* PEnmityContainer;
@@ -289,6 +297,7 @@ private:
     std::unordered_map<int, int16> m_mobModStatSave;
     static constexpr float         roam_home_distance{ 60.f };
     SpawnSlot*                     spawnSlot = nullptr;
+    Maybe<SpawnWindow>             spawnWindow_;
 };
 
 #endif

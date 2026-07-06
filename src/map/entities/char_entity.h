@@ -19,8 +19,7 @@
 ===========================================================================
 */
 
-#ifndef _CHARENTITY_H
-#define _CHARENTITY_H
+#pragma once
 
 #include "aman.h"
 #include "event_info.h"
@@ -32,11 +31,13 @@
 #include "map_session.h"
 #include "monstrosity.h"
 
-#include "common/cbasetypes.h"
-#include "common/mmo.h"
-#include "common/xi.h"
+#include <common/cbasetypes.h>
+#include <common/mmo.h>
+#include <common/types/flat_hash_map.h>
+#include <common/xi.h>
 
 #include <array>
+
 #include <bitset>
 #include <deque>
 #include <map>
@@ -282,8 +283,8 @@ class CRangeState;
 class CItemState;
 class CItemUsable;
 
-typedef std::map<uint32, CBaseEntity*> SpawnIDList_t;
-typedef std::vector<EntityID_t>        BazaarList_t;
+typedef FlatHashMap<uint32, CBaseEntity*> SpawnIDList_t;
+typedef std::vector<EntityID_t>           BazaarList_t;
 
 struct ItemLocation
 {
@@ -359,7 +360,6 @@ public:
     eminencecache_t  m_eminenceCache{};               // Caching data for Eminence lookups
     assaultlog_t     m_assaultLog{};                  // Assault mission list
     campaignlog_t    m_campaignLog{};                 // Campaign mission list
-    uint32           m_lastBcnmTimePrompt{};          // The last message prompt in seconds
     PetInfo_t        petZoningInfo{};                 // Used to repawn dragoons pets ect on zone
 
     void setPetZoningInfo();                            // Set pet zoning info (when zoning and logging out)
@@ -443,14 +443,6 @@ public:
 
     CBattleEntity* PClaimedMob = nullptr;
 
-    // These missions do not need a list of completed, because client automatically
-    // displays earlier missions completed
-
-    uint16 m_copCurrent; // current mission of Chains of Promathia
-    uint16 m_acpCurrent; // current mission of A Crystalline Prophecy
-    uint16 m_mkeCurrent; // current mission of A Moogle Kupo d'Etat
-    uint16 m_asaCurrent; // current mission of A Shantotto Ascension
-
     // currency_t        m_currency;                 // conquest points, imperial standing points etc
     teleport_t teleport{}; // Outposts, Runic Portals, Homepoints, Survival Guides, Maws, etc.
 
@@ -496,7 +488,6 @@ public:
     CLatentEffectContainer* PLatentEffectContainer;
     bool                    retriggerLatents; // used to retrigger all latent effects if some event requires them to be retriggered
 
-    CItemContainer* PGuildShop;
     EntityID_t      guildShopNpc_{}; // Lua-driven guild shop NPC the PC last opened
     CItemContainer* getStorage(uint8 locationId) const;
 
@@ -814,5 +805,3 @@ private:
     std::deque<std::unique_ptr<CBasicPacket>> PacketList;          // The list of packets to be sent to the character during the next network cycle
     std::unordered_map<uint32, CBasicPacket*> EntityUpdatePackets; // Keep track of entity update packets by ID, such that they can be updated
 };
-
-#endif

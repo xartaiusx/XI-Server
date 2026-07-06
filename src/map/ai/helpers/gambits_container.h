@@ -301,6 +301,7 @@ public:
     : POwner(trust)
     {
     }
+
     ~CGambitsContainer() = default;
 
     auto NewGambitIdentifier(const Gambit_t& gambit) const -> std::string;
