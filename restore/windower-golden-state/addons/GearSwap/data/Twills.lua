@@ -12,65 +12,34 @@ local mode_order = { 'idle', 'healer', 'buffer', 'debuffer', 'caster', 'melee' }
 local qa_sets_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-sets.tsv'
 local qa_equipment_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-equipment.tsv'
 local qa_visual_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-visual-models.tsv'
+local qa_action_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-action-family.tsv'
 local gear_slots = {
     'main', 'sub', 'range', 'ammo', 'head', 'body', 'hands', 'legs',
     'feet', 'neck', 'waist', 'left_ear', 'right_ear', 'left_ring',
     'right_ring', 'back',
 }
 local qa_visual_slots = { 'main', 'sub', 'head', 'body', 'hands', 'legs', 'feet' }
-local qa_visual_items = {
-    ["Agwu's Pigaches"] = { item_id = 23770, model_id = 442 },
-    ["Agwu's Robe"] = { item_id = 23764, model_id = 442 },
-    ["Amalric Coif +1"] = { item_id = 25541, model_id = 442 },
-    ["Amalric Doublet +1"] = { item_id = 25755, model_id = 442 },
-    ["Amalric Gages +1"] = { item_id = 25805, model_id = 442 },
-    ["Amalric Nails +1"] = { item_id = 25927, model_id = 442 },
-    ["Amalric Slops +1"] = { item_id = 25864, model_id = 442 },
-    ["Ammurapi Shield"] = { item_id = 26419, model_id = 42 },
-    ["Atrophy Boots +3"] = { item_id = 23647, model_id = 286 },
-    ["Atrophy Gloves +3"] = { item_id = 23513, model_id = 286 },
-    ["Atrophy Tabard +3"] = { item_id = 23446, model_id = 286 },
-    ["Bunzi's Hat"] = { item_id = 23754, model_id = 451 },
-    ["Bunzi's Pants"] = { item_id = 23766, model_id = 451 },
-    ["Bunzi's Rod"] = { item_id = 22122, model_id = 531 },
-    ["Crocea Mors"] = { item_id = 21611, model_id = 529 },
-    ["Daybreak"] = { item_id = 22040, model_id = 532 },
-    ["Ea Houppelande +1"] = { item_id = 25765, model_id = 442 },
-    ["Genmei Shield"] = { item_id = 26421, model_id = 42 },
-    ["Jhakri Cuffs +2"] = { item_id = 25821, model_id = 287 },
-    ["Jhakri Pigaches +2"] = { item_id = 25941, model_id = 287 },
-    ["Jhakri Robe +2"] = { item_id = 25783, model_id = 287 },
-    ["Kaykaus Boots +1"] = { item_id = 25922, model_id = 442 },
-    ["Kaykaus Cuffs +1"] = { item_id = 25800, model_id = 442 },
-    ["Kaykaus Mitra +1"] = { item_id = 25536, model_id = 442 },
-    ["Kaykaus Tights +1"] = { item_id = 25859, model_id = 442 },
-    ["Leth. Chappel +2"] = { item_id = 23089, model_id = 286 },
-    ["Leth. Fuseau +2"] = { item_id = 23290, model_id = 286 },
-    ["Leth. Ganth. +2"] = { item_id = 23223, model_id = 286 },
-    ["Leth. Houseaux +2"] = { item_id = 23357, model_id = 286 },
-    ["Lethargy Sayon +2"] = { item_id = 23156, model_id = 286 },
-    ["Malignance Boots"] = { item_id = 23736, model_id = 458 },
-    ["Malignance Chapeau"] = { item_id = 23732, model_id = 458 },
-    ["Malignance Gloves"] = { item_id = 23734, model_id = 458 },
-    ["Malignance Tabard"] = { item_id = 23733, model_id = 458 },
-    ["Malignance Tights"] = { item_id = 23735, model_id = 458 },
-    ["Maxentius"] = { item_id = 22043, model_id = 532 },
-    ["Naegling"] = { item_id = 21684, model_id = 529 },
-    ["Nyame Flanchard"] = { item_id = 23782, model_id = 451 },
-    ["Nyame Gauntlets"] = { item_id = 23775, model_id = 451 },
-    ["Nyame Helm"] = { item_id = 23753, model_id = 451 },
-    ["Nyame Mail"] = { item_id = 23760, model_id = 451 },
-    ["Nyame Sollerets"] = { item_id = 23789, model_id = 451 },
-    ["Tauret"] = { item_id = 21694, model_id = 530 },
-    ["Telchine Braconi"] = { item_id = 25843, model_id = 289 },
-    ["Telchine Cap"] = { item_id = 25547, model_id = 289 },
-    ["Telchine Gloves"] = { item_id = 25809, model_id = 289 },
-    ["Telchine Pigaches"] = { item_id = 25933, model_id = 289 },
-    ["Viti. Chapeau +3"] = { item_id = 23402, model_id = 286 },
-    ["Vitiation Boots +3"] = { item_id = 23670, model_id = 286 },
-    ["Vitiation Tights +2"] = { item_id = 23268, model_id = 286 },
-    ["Volte Gaiters"] = { item_id = 23726, model_id = 132 },
+local qa_visual_manifest_paths = {
+    'restore/windower-golden-state/addons/GearSwap/data/Twills-visual-models.lua',
+    'addons/GearSwap/data/Twills-visual-models.lua',
+    'D:/Steam/steamapps/common/FFXINA/Windower/addons/GearSwap/data/Twills-visual-models.lua',
 }
+if windower ~= nil and windower.addon_path ~= nil then
+    table.insert(qa_visual_manifest_paths, 1, windower.addon_path .. 'data/Twills-visual-models.lua')
+end
+
+local qa_visual_manifest_loaded = false
+local qa_visual_manifest_source = ''
+local qa_visual_items = {}
+for _, manifest_path in ipairs(qa_visual_manifest_paths) do
+    local ok, manifest = pcall(dofile, manifest_path)
+    if ok and type(manifest) == 'table' and type(manifest.items) == 'table' then
+        qa_visual_items = manifest.items
+        qa_visual_manifest_loaded = true
+        qa_visual_manifest_source = manifest_path
+        break
+    end
+end
 
 local mnd_enfeebles = {
     ['Addle'] = true, ['Addle II'] = true,
@@ -309,6 +278,85 @@ local function qa_write_set_row(handle, label, set)
     return status
 end
 
+local function qa_action_name(spell)
+    if type(spell) ~= 'table' then
+        return ''
+    end
+
+    return qa_clean(spell.english or spell.name)
+end
+
+local function qa_action_skill(spell)
+    if type(spell) ~= 'table' then
+        return ''
+    end
+
+    return qa_clean(spell.skill or spell.type or spell.action_type)
+end
+
+local function qa_action_target(spell)
+    if type(spell) ~= 'table' or type(spell.target) ~= 'table' then
+        return ''
+    end
+
+    return qa_clean(spell.target.name or spell.target.type)
+end
+
+local function qa_baseline_label()
+    if player and player.status == 'Engaged' and role_mode == 'melee' then
+        return 'engaged:' .. weapon_mode
+    elseif role_mode == 'idle' then
+        return idle_mode == 'refresh' and 'idle:refresh' or 'idle:dt'
+    end
+
+    return 'role:' .. role_mode
+end
+
+local function qa_append_action_row(event, phase, spell, label, set, outcome)
+    local existed = io.open(qa_action_path, 'r')
+    if existed then
+        existed:close()
+    end
+
+    local handle = io.open(qa_action_path, 'a')
+    if not handle then
+        return false
+    end
+
+    if not existed then
+        handle:write('timestamp_utc\tevent\tphase\taction\tskill\ttarget\trole\tidle\tweapon\tenfeeble\tnuke\tplayer_status\texpected_baseline\tselected_set\toutcome\tmissing_slots\tslots\n')
+    end
+
+    local missing = qa_missing_slots(set)
+    local row = {
+        os.date('!%Y-%m-%dT%H:%M:%SZ'),
+        qa_clean(event),
+        qa_clean(phase),
+        qa_action_name(spell),
+        qa_action_skill(spell),
+        qa_action_target(spell),
+        role_mode,
+        idle_mode,
+        weapon_mode,
+        enfeeble_mode,
+        nuke_mode,
+        player and qa_clean(player.status) or '',
+        qa_baseline_label(),
+        qa_clean(label),
+        qa_clean(outcome or (#missing == 0 and 'PASS' or 'FAIL')),
+        table.concat(missing, ','),
+        qa_slot_payload(set),
+    }
+    handle:write(table.concat(row, '\t') .. '\n')
+    handle:close()
+    return true
+end
+
+local function qa_equip(label, set, spell, phase)
+    qa_append_action_row('equip', phase or '', spell, label, set, nil)
+    equip(set)
+end
+
 local function qa_walk_sets(handle, path, value, visited, counts)
     if type(value) ~= 'table' or visited[value] then
         return
@@ -354,7 +402,7 @@ local function qa_write_visual_snapshot()
         return false
     end
 
-    handle:write('timestamp_utc\tslot\titem\titem_id\tmodel_id\tstatus\n')
+    handle:write('timestamp_utc\tslot\titem\titem_id\tmodel_id\tstatus\tmanifest\n')
     local equipment = player and player.equipment or {}
     local fail_count = 0
     for _, slot in ipairs(qa_visual_slots) do
@@ -365,19 +413,81 @@ local function qa_write_visual_snapshot()
         local model_id = ''
         if item == '' or item == '__empty__' then
             status = 'EMPTY'
+        elseif not qa_visual_manifest_loaded then
+            status = 'MANIFEST_MISSING'
         elseif visual then
             item_id = tostring(visual.item_id)
             model_id = tostring(visual.model_id)
             status = visual.model_id == 0 and 'FAIL' or 'PASS'
         end
-        if status == 'FAIL' then
+        if status == 'FAIL' or status == 'UNKNOWN' or status == 'MANIFEST_MISSING' then
             fail_count = fail_count + 1
         end
-        handle:write(table.concat({ os.date('!%Y-%m-%dT%H:%M:%SZ'), slot, item, item_id, model_id, status }, '\t') .. '\n')
+        handle:write(table.concat({ os.date('!%Y-%m-%dT%H:%M:%SZ'), slot, item, item_id, model_id, status, qa_visual_manifest_source }, '\t') .. '\n')
     end
     handle:close()
-    chat('QA visual FAIL=' .. fail_count .. '; evidence=' .. qa_visual_path)
+    chat('QA visual FAIL=' .. fail_count .. '; manifest=' .. (qa_visual_manifest_source ~= '' and qa_visual_manifest_source or 'missing') .. '; evidence=' .. qa_visual_path)
     return fail_count == 0
+end
+
+local function qa_write_action_family_matrix()
+    local handle = io.open(qa_action_path, 'w')
+    if not handle then
+        chat('QA could not write ' .. qa_action_path)
+        return false
+    end
+
+    handle:write('timestamp_utc\tevent\tphase\taction\tskill\ttarget\trole\tidle\tweapon\tenfeeble\tnuke\tplayer_status\texpected_baseline\tselected_set\toutcome\tmissing_slots\tslots\n')
+    local families = {
+        { 'idle_dt', 'sets.idle', sets.idle },
+        { 'idle_refresh', 'sets.idle.Refresh', sets.idle.Refresh },
+        { 'engaged_tp', 'sets.engaged', sets.engaged },
+        { 'fast_cast', 'sets.precast.FC', sets.precast.FC },
+        { 'cure', 'sets.midcast.Cure', sets.midcast.Cure },
+        { 'status_removal', 'sets.midcast.StatusRemoval', sets.midcast.StatusRemoval },
+        { 'refresh_iii', 'sets.midcast.Refresh', sets.midcast.Refresh },
+        { 'phalanx_ii', 'sets.midcast.Phalanx', sets.midcast.Phalanx },
+        { 'temper_enspell', 'sets.midcast.Enspell', sets.midcast.Enspell },
+        { 'barspell', 'sets.midcast.Barspell', sets.midcast.Barspell },
+        { 'enfeeble_accuracy', 'sets.midcast.Enfeebling', sets.midcast.Enfeebling },
+        { 'enfeeble_mnd', 'sets.midcast.EnfeeblingMND', sets.midcast.EnfeeblingMND },
+        { 'enfeeble_int', 'sets.midcast.EnfeeblingINT', sets.midcast.EnfeeblingINT },
+        { 'nuke', 'sets.midcast.Nuke', sets.midcast.Nuke },
+        { 'magic_burst', 'sets.midcast.MagicBurst', sets.midcast.MagicBurst },
+        { 'dark_magic', 'sets.midcast.Dark', sets.midcast.Dark },
+        { 'savage_blade', "sets.precast.WS['Savage Blade']", sets.precast.WS['Savage Blade'] },
+        { 'sanguine_blade', "sets.precast.WS['Sanguine Blade']", sets.precast.WS['Sanguine Blade'] },
+        { 'black_halo', "sets.precast.WS['Black Halo']", sets.precast.WS['Black Halo'] },
+    }
+
+    local counts = { PASS = 0, FAIL = 0 }
+    for _, family in ipairs(families) do
+        local missing = qa_missing_slots(family[3])
+        local status = #missing == 0 and 'PASS' or 'FAIL'
+        counts[status] = (counts[status] or 0) + 1
+        handle:write(table.concat({
+            os.date('!%Y-%m-%dT%H:%M:%SZ'),
+            'family',
+            'matrix',
+            family[1],
+            '',
+            '',
+            role_mode,
+            idle_mode,
+            weapon_mode,
+            enfeeble_mode,
+            nuke_mode,
+            player and qa_clean(player.status) or '',
+            qa_baseline_label(),
+            family[2],
+            status,
+            table.concat(missing, ','),
+            qa_slot_payload(family[3]),
+        }, '\t') .. '\n')
+    end
+    handle:close()
+    chat('QA action families PASS=' .. counts.PASS .. ', FAIL=' .. counts.FAIL .. '; evidence=' .. qa_action_path)
+    return counts.FAIL == 0
 end
 
 local function qa_run_sets()
@@ -393,6 +503,7 @@ local function qa_run_sets()
     handle:close()
     qa_write_equipment_snapshot()
     qa_write_visual_snapshot()
+    qa_write_action_family_matrix()
     chat('QA sets PASS=' .. counts.PASS .. ', FAIL=' .. counts.FAIL .. '; evidence=' .. qa_sets_path)
 end
 
@@ -401,6 +512,7 @@ local function qa_status()
     chat('QA live sets: ' .. qa_sets_path)
     chat('QA live equipment: ' .. qa_equipment_path)
     chat('QA live visual models: ' .. qa_visual_path)
+    chat('QA live action families: ' .. qa_action_path)
 end
 
 local function set_role(mode)
@@ -661,53 +773,53 @@ end
 
 function precast(spell)
     if spell.type == 'WeaponSkill' then
-        equip(sets.precast.WS[spell.english] or sets.precast.WS)
+        qa_equip('sets.precast.WS.' .. spell.english, sets.precast.WS[spell.english] or sets.precast.WS, spell, 'precast')
     elseif spell.type == 'JobAbility' then
-        equip(sets.precast.JA[spell.english] or sets.precast.JA)
+        qa_equip('sets.precast.JA.' .. spell.english, sets.precast.JA[spell.english] or sets.precast.JA, spell, 'precast')
     elseif spell.action_type == 'Magic' then
-        equip(sets.precast.FC)
+        qa_equip('sets.precast.FC', sets.precast.FC, spell, 'precast')
     end
 end
 
 function midcast(spell)
     if starts_with(spell.english, 'Cure') or starts_with(spell.english, 'Curaga') then
-        equip(sets.midcast.Cure)
+        qa_equip('sets.midcast.Cure', sets.midcast.Cure, spell, 'midcast')
         if spell_matches_day_or_weather(spell) then
             equip(sets.utility.Obi)
         end
     elseif status_removal_spells[spell.english] then
-        equip(sets.midcast.StatusRemoval)
+        qa_equip('sets.midcast.StatusRemoval', sets.midcast.StatusRemoval, spell, 'midcast')
     elseif starts_with(spell.english, 'Raise') or starts_with(spell.english, 'Reraise') then
-        equip(sets.midcast.Raise)
+        qa_equip('sets.midcast.Raise', sets.midcast.Raise, spell, 'midcast')
     elseif skill_is(spell, 'Healing Magic', 'HealingMagic') then
-        equip(sets.midcast.Cure)
+        qa_equip('sets.midcast.Cure', sets.midcast.Cure, spell, 'midcast')
     elseif skill_is(spell, 'Enhancing Magic', 'EnhancingMagic') then
         if starts_with(spell.english, 'Refresh') then
-            equip(sets.midcast.Refresh)
+            qa_equip('sets.midcast.Refresh', sets.midcast.Refresh, spell, 'midcast')
         elseif starts_with(spell.english, 'Phalanx') then
-            equip(sets.midcast.Phalanx)
+            qa_equip('sets.midcast.Phalanx', sets.midcast.Phalanx, spell, 'midcast')
         elseif spell.english == 'Stoneskin' then
-            equip(sets.midcast.Stoneskin)
+            qa_equip('sets.midcast.Stoneskin', sets.midcast.Stoneskin, spell, 'midcast')
         elseif spell.english == 'Aquaveil' then
-            equip(sets.midcast.Aquaveil)
+            qa_equip('sets.midcast.Aquaveil', sets.midcast.Aquaveil, spell, 'midcast')
         elseif is_barspell(spell) then
-            equip(sets.midcast.Barspell)
+            qa_equip('sets.midcast.Barspell', sets.midcast.Barspell, spell, 'midcast')
         elseif is_enspell(spell) or enhancing_skill_spells[spell.english] then
-            equip(sets.midcast.Enspell)
+            qa_equip('sets.midcast.Enspell', sets.midcast.Enspell, spell, 'midcast')
         elseif is_storm_spell(spell) then
-            equip(sets.midcast.Storm)
+            qa_equip('sets.midcast.Storm', sets.midcast.Storm, spell, 'midcast')
         elseif duration_spells[spell.english] then
-            equip(is_self_target(spell) and sets.midcast.EnhancingSelf or sets.midcast.EnhancingDuration)
+            qa_equip(is_self_target(spell) and 'sets.midcast.EnhancingSelf' or 'sets.midcast.EnhancingDuration', is_self_target(spell) and sets.midcast.EnhancingSelf or sets.midcast.EnhancingDuration, spell, 'midcast')
         else
-            equip(sets.midcast.EnhancingSkill)
+            qa_equip('sets.midcast.EnhancingSkill', sets.midcast.EnhancingSkill, spell, 'midcast')
         end
     elseif skill_is(spell, 'Enfeebling Magic', 'EnfeeblingMagic') then
-        equip(enfeebling_set_for(spell))
+        qa_equip('sets.midcast.Enfeebling:' .. enfeeble_mode, enfeebling_set_for(spell), spell, 'midcast')
     elseif skill_is(spell, 'Elemental Magic', 'ElementalMagic') then
-        equip(nuke_set_for(spell))
+        qa_equip('sets.midcast.Nuke:' .. nuke_mode, nuke_set_for(spell), spell, 'midcast')
         equip_waist_for_magic(spell)
     elseif skill_is(spell, 'Dark Magic', 'DarkMagic') then
-        equip(sets.midcast.Dark)
+        qa_equip('sets.midcast.Dark', sets.midcast.Dark, spell, 'midcast')
         equip_waist_for_magic(spell)
     end
 end
@@ -792,6 +904,8 @@ function self_command(command)
         set_role(role_mode)
     elseif action == 'qa' and (value == 'all' or value == 'sets') then
         qa_run_sets()
+    elseif action == 'qa' and (value == 'family' or value == 'families' or value == 'actions') then
+        qa_write_action_family_matrix()
     elseif action == 'qa' and value == 'snapshot' then
         qa_write_equipment_snapshot()
         chat('QA equipment snapshot=' .. qa_equipment_path)
@@ -815,20 +929,20 @@ function self_command(command)
             chat(label .. ': ' .. detail)
         end
     else
-        chat('Commands: idle, healer, buffer, debuffer, caster, melee, cycle, dt, refresh, enf acc/mnd/int/potency, nuke free/burst, weapon daybreak/crocea/naegling/maxentius/bunzi/tauret, validate, qa all/status/snapshot/visual, status, gearscore, reset')
+        chat('Commands: idle, healer, buffer, debuffer, caster, melee, cycle, dt, refresh, enf acc/mnd/int/potency, nuke free/burst, weapon daybreak/crocea/naegling/maxentius/bunzi/tauret, validate, qa all/status/snapshot/visual/families, status, gearscore, reset')
     end
 end
 
 function equip_current()
     if player and player.status == 'Engaged' and role_mode == 'melee' then
-        equip(set_combine(sets.engaged, sets.weapons[weapon_mode] or sets.weapons.crocea))
+        qa_equip('baseline:engaged:' .. weapon_mode, set_combine(sets.engaged, sets.weapons[weapon_mode] or sets.weapons.crocea), nil, 'baseline')
         return
     end
 
     if role_mode == 'idle' then
-        equip(idle_mode == 'refresh' and sets.idle.Refresh or sets.idle)
+        qa_equip(idle_mode == 'refresh' and 'baseline:idle:refresh' or 'baseline:idle:dt', idle_mode == 'refresh' and sets.idle.Refresh or sets.idle, nil, 'baseline')
         return
     end
 
-    equip(sets.role[role_mode] or sets.idle)
+    qa_equip('baseline:role:' .. role_mode, sets.role[role_mode] or sets.idle, nil, 'baseline')
 end

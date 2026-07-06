@@ -71,6 +71,14 @@ database dumps.
     swaps still handle fast cast, cures, status removal, enhancing duration,
     Phalanx, Refresh, Hachirin-no-Obi/day/weather, Orpheus distance,
     MND/INT enfeebles, nuking/magic-burst mode, and weaponskills.
+  - Live QA writes set, equipment, generated visual-model, action-family, and
+    return-to-baseline evidence under `FFXI-Runtime/logs/gearswap_qa` through
+    `//gs c qa all`, `//gs c qa visual`, and `//gs c qa families`.
+- `D:\Steam\steamapps\common\FFXINA\Windower\addons\GearSwap\data\Twills-visual-models.lua`
+  - Generated from local Mochirii `item_basic` and `item_equipment` rows by
+    `tools/mochirii/gearswap_action_qa.py`; do not edit by hand.
+  - Unknown visible items, missing manifests, and visible-slot `MId=0` rows are
+    QA failures because they can cause invisible or invalid displayed gear.
 
 ## Gear Bundle
 
