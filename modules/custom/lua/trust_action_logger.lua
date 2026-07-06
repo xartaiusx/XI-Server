@@ -25,7 +25,7 @@ local lastMagicTargetHpVar = 'MochiTrustLogMagicTargetHp'
 local lastMagicTargetMaxHpVar = 'MochiTrustLogMagicTargetMaxHp'
 local lastMagicTargetHppVar = 'MochiTrustLogMagicTargetHpp'
 local lastMagicTrustMppVar = 'MochiTrustLogMagicTrustMpp'
-local defaultLogDir = '../FFXI-Runtime/logs/trust_actions'
+local defaultLogDir = '/root/projects/FFXI-Runtime/logs/trust_actions'
 
 local activeArchives = {}
 local ensuredDirs = {}

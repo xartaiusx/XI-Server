@@ -104,7 +104,7 @@ Trust action logs:
 
 - `ENABLE_TRUST_ACTION_LOG = true` enables the Mochirii Trust action logger.
 - `TRUST_ACTION_LOG_PLAYER = 'Twills'` limits the trace to Twills' Trust party by default. Set it to an empty string only when intentionally tracing every player's Trusts.
-- `TRUST_ACTION_LOG_DIR = '../FFXI-Runtime/logs/trust_actions'` writes logs outside the repo working tree.
+- `TRUST_ACTION_LOG_DIR = '/root/projects/FFXI-Runtime/logs/trust_actions'` writes logs to the live WSL runtime root outside the repo working tree.
 - `live/Twills.log` is truncated on each real Twills client login, not on normal zoning.
 - `archive/Twills-YYYYMMDD-HHMMSS.log` is created for each login session and keeps the same action lines for later analysis.
 - The logger attaches to every active Trust it sees through normal Trust magic, `!trustparty status`, `!trustparty repair`, and the Mochirii Trust QA summon helper. It records spell start/use/interruption/exit, ability start/use/exit, weapon skill start/exit, logical rest start/stop/tick, and target changes from `COMBAT_TICK`.
