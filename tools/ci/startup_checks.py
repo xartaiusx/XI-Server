@@ -5,6 +5,7 @@ import mariadb
 import os
 import platform
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -27,17 +28,31 @@ login = os.getenv("XI_NETWORK_SQL_LOGIN")
 password = os.getenv("XI_NETWORK_SQL_PASSWORD")
 
 DEFAULT_MAP_PORT = 54230
-WINDOWS_CI_MAP_PORT = 15030
-map_port = int(
-    os.getenv(
-        "XI_CI_MAP_PORT",
-        str(
-            WINDOWS_CI_MAP_PORT
-            if platform.system() == "Windows"
-            else DEFAULT_MAP_PORT
-        ),
-    )
-)
+
+
+def get_available_udp_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def get_ci_map_ports():
+    if env_port := os.getenv("XI_CI_MAP_PORT"):
+        first_port = int(env_port)
+        return first_port, first_port + 1
+
+    if platform.system() == "Windows":
+        first_port = get_available_udp_port()
+        second_port = get_available_udp_port()
+        while second_port == first_port:
+            second_port = get_available_udp_port()
+
+        return first_port, second_port
+
+    return DEFAULT_MAP_PORT, DEFAULT_MAP_PORT + 1
+
+
+map_port, multi_map_port = get_ci_map_ports()
 
 
 server_dir_path = os.path.normpath(
@@ -218,7 +233,7 @@ def main():
             connect()
             if cur:
                 cur.execute(
-                    f"UPDATE xidb.zone_settings SET zoneport = {map_port + 1} WHERE zoneid % 2 = 1;"
+                    f"UPDATE xidb.zone_settings SET zoneport = {multi_map_port} WHERE zoneid % 2 = 1;"
                 )
                 db.commit()
                 processes.insert(
@@ -232,7 +247,7 @@ def main():
                             "--ip",
                             "127.0.0.1",
                             "--port",
-                            str(map_port + 1),
+                            str(multi_map_port),
                         ],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT,
