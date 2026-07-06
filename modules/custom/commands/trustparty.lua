@@ -103,7 +103,6 @@ commandObj.onTrigger = function(player, action, target)
         return
     end
 
-
     if action == 'combattest' then
         local zone = player:getZone()
         if zone == nil then
