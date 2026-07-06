@@ -113,7 +113,7 @@ commandObj.onTrigger = function(player, action, target)
         local mobId = tonumber(target)
         if mobId == nil then
             if player:getZoneID() == 291 then
-                mobId = 16781313 -- Reisenjima Snipper, low-risk local test target.
+                mobId = 17969170 -- Agitated Chapuli, same-zone Reisenjima QA target.
             else
                 printLine(player, '!trustparty combattest <same-zone mobId>')
                 return

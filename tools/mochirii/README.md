@@ -26,6 +26,29 @@ The source copy for the Windower-side bridge is kept at
 `tools\mochirii\windower_addons\MochiriiScreenshotQA\MochiriiScreenshotQA.lua`
 and installed into `Windower\addons\MochiriiScreenshotQA`.
 
+## Repeatable Native Command Sequence
+
+For every in-client test, keep the command surface stable and native:
+
+1. Foreground and verify the Twills/Windower client with
+   `assert_windower_foreground.ps1`.
+2. Submit commands with `Invoke-WindowerCommand.ps1`; it is the single normal
+   bridge for Windower commands, Final Fantasy XI input commands, GearSwap
+   commands, XivParty commands, and Mochirii GM commands.
+3. Prefer existing client/server commands before creating helpers: `//lua list`,
+   `//lua reload <addon>`, `//xp setup off`, `//gs reload`,
+   `//gs validate sets`, `//gs validate inv`, `//gs c status`,
+   `!trustparty summonqa`, and `!trustparty audit active`.
+4. For Trust alliance QA, wait for the `!trustparty summonqa` completion message
+   before any repair, audit, screenshot, or combat command. The summon helper
+   owns the repair pass while it is active.
+5. Use `capture_windower_window.ps1` for proof. The helper must trigger native
+   Windower screenshot output and must report full client dimensions.
+
+Do not add another helper for a task already covered here unless a native
+Windower/Final Fantasy XI/GearSwap/XivParty/Mochirii command cannot do the job.
+Never run command, raw-key, and screenshot helpers in parallel; each client step must finish before the next one starts.
+
 ## XivParty Runtime Guard
 
 Mochirii tracks XivParty settings in Git, while the full third-party addon
@@ -43,6 +66,15 @@ The helper backs up `Windower\addons\XivParty\xivparty.lua` under
 `view:setModel()` or `view:setUiLocked()` before XivParty has initialized after
 login. Verify with `//lua reload XivParty`, `//xp setup on`, `//xp setup off`,
 and a native Windower screenshot.
+
+For layout persistence, keep XivParty positions synchronized between the live
+client file `D:\Steam\steamapps\common\FFXINA\Windower\addons\XivParty\data\settings.xml`
+and the runtime golden-state file
+`C:\Users\xtyty\Documents\FFXI-Runtime\windower-golden-state\addons\XivParty\data\settings.xml`.
+The current Twills layout is party `0.765,0.815`, alliance1 `0.765,0.675`,
+alliance2 `0.765,0.535`, scale `0.72`. Verify changes through native XivParty
+commands, addon reload, and native Windower screenshots before updating tracked
+restore state.
 
 Use `Invoke-WindowerCommand.ps1` for normal Windower, Final Fantasy XI chat,
 and GM command execution. It foregrounds the Twills/Windower client, clears any

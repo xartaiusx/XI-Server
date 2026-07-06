@@ -64,6 +64,47 @@ when referring to the game.
   `/root/projects/FFXI-Runtime` in WSL. Keep only the small Windows-side
   Windower bridge under `C:\Users\xtyty\Documents\FFXI-Runtime` because
   the game client and native screenshot trigger run on Windows.
+- For Windower addon/plugin settings persistence, keep the live client copy
+  under `D:\Steam\steamapps\common\FFXINA\Windower`, the Windows runtime
+  golden-state copy under
+  `C:\Users\xtyty\Documents\FFXI-Runtime\windower-golden-state`, and any
+  tracked restore copy aligned. Verify layout/settings changes with file
+  positions or hashes plus a native Windower screenshot after addon reload; for
+  session-persistence regressions, relaunch through the desktop Windower shortcut
+  and verify again before calling the setting durable.
+
+## Standard In-Game QA Workflow
+
+Use the same native command path for every client test so results are
+repeatable and logs line up with screenshots. Prefer Final Fantasy XI,
+Windower, GearSwap, XivParty, and Mochirii GM commands before adding any new
+helper script. The helper layer may foreground the client and submit commands,
+but the command itself should stay native whenever possible.
+
+1. Launch only through `C:\Users\xtyty\Desktop\Windower.lnk`.
+2. Before every command or screenshot, run
+   `C:\Users\xtyty\Documents\FFXI-Runtime\client-tools\assert_windower_foreground.ps1`.
+3. Send normal Windower, Final Fantasy XI, GearSwap, XivParty, and GM commands
+   with `C:\Users\xtyty\Documents\FFXI-Runtime\client-tools\Invoke-WindowerCommand.ps1`.
+4. For addon state checks, use `//lua list`, `//lua reload <addon>`, native
+   addon commands such as `//xp setup off`, and native GearSwap commands such
+   as `//gs reload`, `//gs validate sets`, `//gs validate inv`, and
+   `//gs c status`.
+5. For Trust QA, use `!trustparty summonqa`, wait for the summon-complete
+   message, then run `!trustparty audit active`. Do not send `!trustparty
+   repair` or combat commands while `summonqa` is still running.
+6. Capture UI proof with
+   `C:\Users\xtyty\Documents\FFXI-Runtime\client-tools\capture_windower_window.ps1`
+   only.
+7. After combat tests, generate the report from WSL with
+   `python3 tools/mochirii/trust_parity_audit.py --repo-root . --runtime-root /root/projects/FFXI-Runtime --player Twills`.
+
+Keep the source tree organized: one canonical helper per job, no duplicate
+Windows/WSL scripts for the same operation, no runtime logs or screenshots in
+git, and no duplicate server checkout outside `/root/projects/FFXI/XI-Server`.
+When tracked Windower golden-state files change, update the corresponding
+manifest under `restore/manifests` in the same commit.
+Never run Windower command helpers, raw key helpers, or native screenshot helpers in parallel; they share foreground focus and request files, so parallel execution can invalidate the test.
 
 ## Trust Development Rules
 

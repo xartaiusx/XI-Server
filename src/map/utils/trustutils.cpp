@@ -675,11 +675,26 @@ auto ResultIsDefeated(const action_result_t& result) -> bool
     return (static_cast<uint8>(result.info) & static_cast<uint8>(ActionInfo::Defeated)) != 0;
 }
 
-auto ResolvePacketTarget(CTrustEntity* PTrust, const CBattleEntity* PPrimaryTarget, uint32 targetId) -> const CBaseEntity*
+auto ResolvePacketTarget(CTrustEntity* PTrust, CCharEntity* PMaster, const CBattleEntity* PPrimaryTarget, uint32 targetId) -> const CBaseEntity*
 {
     if (PPrimaryTarget && PPrimaryTarget->id == targetId)
     {
         return PPrimaryTarget;
+    }
+
+    if (targetId == 0 && PMaster)
+    {
+        return PMaster;
+    }
+
+    if (targetId < 0x1000)
+    {
+        if (PPrimaryTarget && PPrimaryTarget->targid == targetId)
+        {
+            return PPrimaryTarget;
+        }
+
+        return nullptr;
     }
 
     if (auto* PTarget = zoneutils::GetEntity(targetId))
@@ -794,7 +809,13 @@ void trustutils::LogTrustActionPacket(CBattleEntity* PActor, const action_t& act
     uint32 targetIndex = 0;
     for (const auto& actionTarget : action.targets)
     {
-        auto* PPacketTarget = ResolvePacketTarget(PTrust, PPrimaryTarget, actionTarget.actorId);
+        auto*       PPacketTarget          = ResolvePacketTarget(PTrust, PMaster, PPrimaryTarget, actionTarget.actorId);
+        const char* packetResolutionReason = PPacketTarget ? "entity" : "none";
+        if (actionTarget.actorId == 0 && PMaster)
+        {
+            PPacketTarget          = PMaster;
+            packetResolutionReason = "master_zero_id";
+        }
 
         uint32 resultIndex = 0;
         for (const auto& result : actionTarget.results)
@@ -802,8 +823,9 @@ void trustutils::LogTrustActionPacket(CBattleEntity* PActor, const action_t& act
             std::ostringstream line;
             AddTrustActionContext(line, PTrust, PMaster, action, PPrimaryTarget, source, "action_result");
             line << "\tpacket_actor_id=" << action.actorId;
-            line << "\tpacket_target_id=" << actionTarget.actorId;
-            line << "\tpacket_target_targid=" << TargetTargId(actionTarget.actorId);
+            line << "\tpacket_raw_target_id=" << actionTarget.actorId;
+            line << "\tpacket_raw_target_targid=" << TargetTargId(actionTarget.actorId);
+            line << "\tpacket_target_resolution=" << packetResolutionReason;
             line << "\ttarget_index=" << targetIndex;
             line << "\tresult_index=" << resultIndex;
             line << "\tresult_resolution=" << static_cast<uint16>(result.resolution);

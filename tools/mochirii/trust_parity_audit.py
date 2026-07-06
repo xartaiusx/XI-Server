@@ -37,6 +37,13 @@ SPELL_NAME_OVERRIDES = {
     "462": "magic_finale",
 }
 
+MONBERAUX_SUPPORT_SKILLS = {
+    "4231", "4237", "4238", "4239", "4240", "4241", "4242", "4243",
+    "4244", "4245", "4246", "4247", "4248", "4249", "4250", "4251",
+    "4252", "4253", "4254", "4255", "4256", "4257", "4258", "4259",
+    "4261",
+}
+
 REQUIRED_SPELL_ROWS = [
     ("Yoran-Oran UC", 393, 54, "Stoneskin"),
     ("Sylvie UC", 394, 143, "Erase"),
@@ -246,6 +253,42 @@ def max_distance(rows: list[dict[str, str]]) -> str:
     return f"{max(values):.2f}" if values else ""
 
 
+def is_support_scope(row: dict[str, str]) -> bool:
+    if normalize_name(row.get("trust", "")) == "monberaux":
+        for key in ("gambit_resolved_id", "gambit_select_arg", "action_id", "result_param"):
+            if row.get(key) in MONBERAUX_SUPPORT_SKILLS:
+                return True
+    if row.get("gambit_target_name") in {"self", "party", "melee"}:
+        return True
+    if (to_int(row.get("target_count")) or 0) > 1 or (to_int(row.get("result_count")) or 0) > 1:
+        return True
+    message = row.get("message_name_resolved", "")
+    if re.search(r"roll|receives_effect|starts_casting_self|uses_job_ability|uses_ability_gains_effect", message):
+        return True
+    if row.get("packet_target_objtype") == "32" and row.get("packet_target_name") not in ("", "none", "nil"):
+        return True
+    return False
+
+
+def is_hostile_scope(row: dict[str, str]) -> bool:
+    if is_support_scope(row):
+        return False
+    if row.get("packet_target_objtype") == "4":
+        return True
+    category = row.get("action_category_name", "")
+    message = row.get("message_name_resolved", "")
+    if re.search(r"attack|weaponskill|takes_damage|is_hit|casts", f"{category} {message}", re.IGNORECASE):
+        return True
+    return False
+
+
+def is_support_result_scope(row: dict[str, str]) -> bool:
+    if not is_support_scope(row):
+        return False
+    message = row.get("message_name_resolved", "")
+    return bool(re.search(r"receives_effect|gains_effect|target_receives_effect|magic_gains_effect", message))
+
+
 def context(rows: list[dict[str, str]]) -> str:
     parts = []
     for row in rows[:3]:
@@ -363,21 +406,49 @@ def generate_report(repo_root: Path, runtime_root: Path, player: str) -> Path:
             for keys, group in top_groups(group_rows(skips, ("trust", "tp_skill_skip_reason_name", "tp_skill_skip_id", "tp_skill_skip_target_targid", "current_battle_target_name")), 60):
                 lines.append(f"| {keys[0]} | {keys[1]} | {keys[2]} | {keys[3]} | {keys[4]} | {len(group)} |")
 
-        lines += ["", "## Distance Diagnostics"]
-        distances: list[tuple[str, str, str, str, str, str]] = []
+        lines += ["", "## Hostile Distance Diagnostics"]
+        hostile_distances: list[tuple[str, str, str, str, str, str]] = []
+        support_distances: list[tuple[str, str, str, str, str]] = []
+        current_notes: list[tuple[str, str, str, str, str]] = []
         for row in rows:
+            if row.get("event") == "combat_diag":
+                continue
             current = to_float(row.get("distance_to_current_target"))
             packet = to_float(row.get("distance_to_packet_target"))
-            if current is not None and current >= 20:
-                distances.append((row.get("trust", ""), row.get("event", ""), row.get("action_name_resolved", ""), row.get("current_battle_target_name", ""), "current", distance_bucket(current)))
-            if packet is not None and packet >= 20:
-                distances.append((row.get("trust", ""), row.get("event", ""), row.get("action_name_resolved", ""), row.get("packet_target_name", ""), "packet", distance_bucket(packet)))
-        if not distances:
-            lines.append("- No action rows at 20+ yalms from current or packet target.")
+            if is_hostile_scope(row):
+                if current is not None and current >= 20:
+                    hostile_distances.append((row.get("trust", ""), row.get("event", ""), row.get("action_name_resolved", ""), row.get("current_battle_target_name", ""), "current", distance_bucket(current)))
+                if packet is not None and packet >= 20:
+                    hostile_distances.append((row.get("trust", ""), row.get("event", ""), row.get("action_name_resolved", ""), row.get("packet_target_name", ""), "packet", distance_bucket(packet)))
+            elif is_support_scope(row):
+                if packet is not None and packet >= 20 and row.get("packet_target_objtype") != "4":
+                    support_distances.append((row.get("trust", ""), row.get("event", ""), row.get("action_name_resolved", ""), row.get("packet_target_name", ""), distance_bucket(packet)))
+                if current is not None and current >= 20:
+                    current_notes.append((row.get("trust", ""), row.get("event", ""), row.get("action_name_resolved", ""), row.get("current_battle_target_name", ""), distance_bucket(current)))
+        if not hostile_distances:
+            lines.append("- No hostile action rows at 20+ yalms from current or packet target.")
         else:
             lines += ["| Trust | Event | Action | Target | Distance Field | Bucket | Count |", "| --- | --- | --- | --- | --- | --- | ---: |"]
-            for keys, count in Counter(distances).most_common(60):
+            for keys, count in Counter(hostile_distances).most_common(60):
                 lines.append(f"| {keys[0]} | {keys[1]} | {keys[2]} | {keys[3]} | {keys[4]} | {keys[5]} | {count} |")
+
+        lines += ["", "## Support Distance Diagnostics"]
+        if not support_distances:
+            lines.append("- No support packet targets at 20+ yalms.")
+        else:
+            lines.append("- Support rows use packet-target distance for party/alliance coverage. Current hostile-target distance is tracked separately and is not by itself a movement failure.")
+            lines += ["| Trust | Event | Action | Packet Target | Packet Distance Bucket | Count |", "| --- | --- | --- | --- | --- | ---: |"]
+            for keys, count in Counter(support_distances).most_common(60):
+                lines.append(f"| {keys[0]} | {keys[1]} | {keys[2]} | {keys[3]} | {keys[4]} | {count} |")
+
+        lines += ["", "## Support Current-Target Distance Notes"]
+        if not current_notes:
+            lines.append("- No support rows had a 20+ yalm current hostile-target context.")
+        else:
+            lines.append("- These rows explain why a support action can look far from the current enemy while still correctly targeting self, party, or alliance members.")
+            lines += ["| Trust | Event | Action | Current Target | Current Distance Bucket | Count |", "| --- | --- | --- | --- | --- | ---: |"]
+            for keys, count in Counter(current_notes).most_common(60):
+                lines.append(f"| {keys[0]} | {keys[1]} | {keys[2]} | {keys[3]} | {keys[4]} | {count} |")
 
         lines += ["", "## Role Enmity Decisions"]
         role_rows = [row for row in rows if row.get("role_enmity_action_name") not in (None, "", "none")]
@@ -387,6 +458,19 @@ def generate_report(repo_root: Path, runtime_root: Path, player: str) -> Path:
             lines += ["| Action | Trusts | Rows |", "| --- | --- | ---: |"]
             for (action,), group in top_groups(group_rows(role_rows, ("role_enmity_action_name",))):
                 lines.append(f"| {action} | {', '.join(sorted({row.get('trust', '') for row in group}))} | {len(group)} |")
+
+        lines += ["", "## Support Target Anomalies"]
+        support_target_anomalies = [
+            row for row in rows
+            if is_support_result_scope(row)
+            and row.get("packet_target_objtype") not in ("", "1", "32", "nil", "none")
+        ]
+        if not support_target_anomalies:
+            lines.append("- None found in latest log rows.")
+        else:
+            lines += ["| Trust | Source | Action | Packet Target | ObjType | Context | Count |", "| --- | --- | --- | --- | ---: | --- | ---: |"]
+            for keys, group in top_groups(group_rows(support_target_anomalies, ("trust", "source", "action_name_resolved", "packet_target_name", "packet_target_objtype")), 60):
+                lines.append(f"| {keys[0]} | {keys[1]} | {keys[2]} | {keys[3]} | {keys[4]} | {context(group)} | {len(group)} |")
 
         lines += ["", "## Alliance Support Scope"]
         support_rows = [row for row in rows if (to_int(row.get("target_count")) or 0) > 1 or (to_int(row.get("result_count")) or 0) > 1]
