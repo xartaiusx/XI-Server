@@ -87,4 +87,20 @@ jobs:
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
       with:
-        category: "/language:${{ matrix.language }}"
+        # https://josh-ops.com/posts/github-codeql-ignore-files/
+        upload: false # disable the upload here - we will upload in a different action
+        output: sarif-results
+
+    - name: Filter SARIF
+      uses: zbazztian/filter-sarif@master
+      with:
+        patterns: |
+          -ext/**/*
+          -build/**/*
+        input: sarif-results/${{ matrix.language }}.sarif
+        output: sarif-results/${{ matrix.language }}.sarif
+
+    - name: Upload SARIF
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: sarif-results/${{ matrix.language }}.sarif
