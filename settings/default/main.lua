@@ -231,6 +231,9 @@ xi.settings.main =
     -- Multiplier to NM lottery cooldown time (Default 1.0) eg. 2.0 = twice as long. 0 = no cooldowns.
     NM_LOTTERY_COOLDOWN = 1.0,
 
+    -- CONQUEST SETTINGS
+    CONQUEST_INFLUENCE_CAP = 250000, -- Combined influence pool per region shared across the 4 nations. Ceiling is 20 million.
+
     -- GARRISON SETTINGS
     ENABLE_GARRISON        = true,  -- If true, enables garrison functionality
     GARRISON_LOCKOUT       = 1800,  -- Time in seconds before a new garrison can be started (default: 1800)
@@ -352,6 +355,7 @@ xi.settings.main =
     EQUIP_FROM_OTHER_CONTAINERS  = false, -- true/false. Allows equipping items from Mog Satchel, Sack, and Case. Only possible with the use of client addons.
     REGIME_REWARD_THRESHOLD      = 15,    -- If the player is more than N levels below the minimum suggested range, do not award experience.
     PERSIST_SEAL_TIMERS          = false, -- Persist seal (Beastmen/Kindred) recast timers across zone changes and logout.
+    GUILD_SHOP_HOLIDAYS          = false, -- true/false. Close each guild shop on its weekly holiday.
 
     -- TRUST QA LOGGING
     ENABLE_TRUST_ACTION_LOG     = true,                                      -- true/false. Writes Trust action traces for QA.

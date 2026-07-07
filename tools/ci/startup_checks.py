@@ -5,6 +5,7 @@ import mariadb
 import os
 import platform
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -25,6 +26,53 @@ host = os.getenv("XI_NETWORK_SQL_HOST")
 port = int(os.getenv("XI_NETWORK_SQL_PORT"))
 login = os.getenv("XI_NETWORK_SQL_LOGIN")
 password = os.getenv("XI_NETWORK_SQL_PASSWORD")
+
+DEFAULT_MAP_PORT = 54230
+DEFAULT_ZMQ_PORT = 54003
+
+
+def get_available_tcp_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def get_available_udp_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def get_ci_zmq_port():
+    if env_port := os.getenv("XI_NETWORK_ZMQ_PORT"):
+        return int(env_port)
+
+    if platform.system() == "Windows":
+        return get_available_tcp_port()
+
+    return DEFAULT_ZMQ_PORT
+
+
+def get_ci_map_ports():
+    if env_port := os.getenv("XI_CI_MAP_PORT"):
+        first_port = int(env_port)
+        return first_port, first_port + 1
+
+    if platform.system() == "Windows":
+        first_port = get_available_udp_port()
+        second_port = get_available_udp_port()
+        while second_port == first_port:
+            second_port = get_available_udp_port()
+
+        return first_port, second_port
+
+    return DEFAULT_MAP_PORT, DEFAULT_MAP_PORT + 1
+
+
+zmq_port = get_ci_zmq_port()
+os.environ["XI_NETWORK_ZMQ_PORT"] = str(zmq_port)
+
+map_port, multi_map_port = get_ci_map_ports()
 
 
 server_dir_path = os.path.normpath(
@@ -72,6 +120,19 @@ def db_query(query):
         text=True,
     )
     return result
+
+
+def configure_zone_ports(use_multi_map):
+    connect()
+    if cur:
+        cur.execute(
+            f"UPDATE xidb.zone_settings SET zoneport = {map_port} WHERE zoneport != 0;"
+        )
+        if use_multi_map:
+            cur.execute(
+                f"UPDATE xidb.zone_settings SET zoneport = {multi_map_port} WHERE zoneid % 2 = 1 AND zoneport != 0;"
+            )
+        db.commit()
 
 
 def setup_test_character():
@@ -163,6 +224,9 @@ def main():
     runCI = platform.system() != "Linux"
     runHXIClient = platform.system() == "Linux"
 
+    use_multi_map = len(sys.argv) > 1 and "multi" == str(sys.argv[1])
+    configure_zone_ports(use_multi_map)
+
     # Start the processes
     processes = [
         subprocess.Popen(
@@ -186,7 +250,7 @@ def main():
                 "--ip",
                 "127.0.0.1",
                 "--port",
-                "54230",
+                str(map_port),
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -200,32 +264,25 @@ def main():
         ),
     ]
 
-    if len(sys.argv) > 1:
-        if "multi" == str(sys.argv[1]):
-            connect()
-            if cur:
-                cur.execute(
-                    "UPDATE xidb.zone_settings SET zoneport = 54231 WHERE zoneid % 2 = 1;"
-                )
-                db.commit()
-                processes.insert(
-                    3,
-                    subprocess.Popen(
-                        [
-                            from_server_path("xi_map"),
-                            *(["--ci"] if runCI else []),
-                            "--log",
-                            "log/map-server-(2).log",
-                            "--ip",
-                            "127.0.0.1",
-                            "--port",
-                            "54231",
-                        ],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                    ),
-                )
+    if use_multi_map:
+        processes.insert(
+            3,
+            subprocess.Popen(
+                [
+                    from_server_path("xi_map"),
+                    *(["--ci"] if runCI else []),
+                    "--log",
+                    "log/map-server-(2).log",
+                    "--ip",
+                    "127.0.0.1",
+                    "--port",
+                    str(multi_map_port),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            ),
+        )
 
     # Keep track of which processes have reported "ready to work"
     ready_status = {proc: False for proc in processes}

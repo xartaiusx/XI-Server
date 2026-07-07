@@ -347,6 +347,20 @@ xi.mod =
     LUMINIAN_KILLER                 = 237,
     LUMINION_KILLER                 = 238,
 
+    AUGMENT_KILLER_EFFECTS          = 1201, -- Augments "Killer" effects (Examples: Ferine Gausape +1 and +2, Kukumi Gausape...)
+
+    -- Circle modifiers for damage done.
+    ARCANA_DMG_MULTIPLIER           = 1202,
+    DEMON_DMG_MULTIPLIER            = 1203,
+    DRAGON_DMG_MULTIPLIER           = 1204,
+    UNDEAD_DMG_MULTIPLIER           = 1205,
+
+    -- Circle modifiers for damage recieved.
+    ARCANA_RES_MULTIPLIER           = 1206,
+    DEMON_RES_MULTIPLIER            = 1207,
+    DRAGON_RES_MULTIPLIER           = 1208,
+    UNDEAD_RES_MULTIPLIER           = 1209,
+
     -- Status effect Job trait resistance modifiers.
     SLEEPRES                        = 240,
     POISONRES                       = 241,
@@ -481,8 +495,9 @@ xi.mod =
     SPIKES                          = 342,
     ENSPELL_DMG                     = 343,
     ENSPELL_CHANCE                  = 856,
-    ENSPELL_DMG_BONUS               = 432, -- Adds to the base damage of the enspell before bonuses and reductions
+    ENSPELL_DMG_BONUS               = 432,  -- Adds to the base damage of the enspell before bonuses and reductions
     ENSPELL_DMG_PCT                 = 1195, -- Adds to the multiplier applied to enspell damage after base damage is calculated, before day and weather bonuses and reductions
+    ENSPELL_DURATION                = 938,  -- Adds a flat bonus to duration in seconds. Examples: Buzzard tuck, Brilliance.
     SPIKES_DMG                      = 344,
     TP_BONUS                        = 345,
     SPIKES_DMG_BONUS                = 1079, -- Increases Blaze/Ice/Shock spikes damage by percentage (e.g. mod value 50 = +50% spikes damage)

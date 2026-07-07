@@ -22,6 +22,7 @@
 
 namespace
 {
+
 constexpr uint16 kMaxCapacityPoints      = 29999;
 constexpr uint16 kMaxJobPoints           = 500;
 constexpr uint16 kMaxJobPointsSpent      = 2100;
@@ -1024,6 +1025,7 @@ void repairProfileAndStorage(uint32 charId)
         "INSERT IGNORE INTO char_pet (charid) VALUES (?)",
         charId);
 }
+
 } // namespace
 
 class TwillsAdminModule : public CPPModule

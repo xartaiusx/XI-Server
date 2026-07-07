@@ -308,6 +308,8 @@ xi.trust.onTradeCipher = function(player, trade, csid, rovCs, arkAngelCs)
     end
 end
 
+-- Disable cyclomatic complexity check for this Trust summon gate:
+-- luacheck: ignore 561
 xi.trust.canCast = function(caster, spell, notAllowedTrustIds)
     -- Trusts must be enabled in settings
     if xi.settings.main.ENABLE_TRUST_CASTING == 0 then
@@ -322,7 +324,10 @@ xi.trust.canCast = function(caster, spell, notAllowedTrustIds)
     -- Retail does not allow Trusts in alliances. Mochirii can opt into a
     -- custom virtual Trust-alliance layout that keeps real player alliance
     -- rows untouched while presenting Trusts in 6-member alliance parties.
-    if caster:checkSoloPartyAlliance() == 2 and not settingEnabled('ENABLE_TRUST_AUTO_ALLIANCE', false) then
+    if
+        caster:checkSoloPartyAlliance() == 2 and
+        not settingEnabled('ENABLE_TRUST_AUTO_ALLIANCE', false)
+    then
         return xi.msg.basic.TRUST_NO_CAST_TRUST
     end
 
@@ -517,7 +522,7 @@ xi.trust.teamworkMessage = function(mob, teamwork_messages)
     end
 
     if #messages > 0 then
-        xi.trust.message(mob, messages[math.random(1, #messages)])
+        xi.trust.message(mob, messages[math.randomInt(1, #messages)])
     else
         -- Defaults to regular spawn message
         xi.trust.message(mob, xi.trust.messageOffset.SPAWN)

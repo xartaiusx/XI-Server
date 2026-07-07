@@ -122,7 +122,7 @@ bool CBattleEntity::IsDualWielding()
 
 auto CBattleEntity::isDead() const -> bool
 {
-    return (health.hp <= 0 || status == STATUS_TYPE::DISAPPEAR || PAI->IsCurrentState<CDeathState>() || PAI->IsCurrentState<CDespawnState>());
+    return (health.hp <= 0 || status == xi::Status::Disappear || PAI->IsCurrentState<CDeathState>() || PAI->IsCurrentState<CDespawnState>());
 }
 
 bool CBattleEntity::isAlive()
@@ -1742,7 +1742,7 @@ void CBattleEntity::SetSLevel(uint8 slvl)
                         if (mainJob > JOB_NON && mainJob < MAX_JOBTYPE)
                         {
                             const auto masterLevelBonus = static_cast<uint8>(PChar->masterLevels[mainJob] / 5);
-                            subJobCap                  = std::min<uint8>(59, subJobCap + masterLevelBonus);
+                            subJobCap                   = std::min<uint8>(59, subJobCap + masterLevelBonus);
                         }
                     }
                 }
@@ -2291,20 +2291,20 @@ bool CBattleEntity::ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags)
         if (!isDead())
         {
             // Teams PVP
-            if (allegiance >= ALLEGIANCE_TYPE::WYVERNS && PInitiator->allegiance >= ALLEGIANCE_TYPE::WYVERNS)
+            if (allegiance >= xi::Allegiance::Wyverns && PInitiator->allegiance >= xi::Allegiance::Wyverns)
             {
                 return allegiance != PInitiator->allegiance;
             }
 
             // Nation PVP
-            if ((allegiance >= ALLEGIANCE_TYPE::SAN_DORIA && allegiance <= ALLEGIANCE_TYPE::WINDURST) &&
-                (PInitiator->allegiance >= ALLEGIANCE_TYPE::SAN_DORIA && PInitiator->allegiance <= ALLEGIANCE_TYPE::WINDURST))
+            if ((allegiance >= xi::Allegiance::SanDoria && allegiance <= xi::Allegiance::Windurst) &&
+                (PInitiator->allegiance >= xi::Allegiance::SanDoria && PInitiator->allegiance <= xi::Allegiance::Windurst))
             {
                 return allegiance != PInitiator->allegiance;
             }
 
             // PVE
-            if (allegiance <= ALLEGIANCE_TYPE::PLAYER && PInitiator->allegiance <= ALLEGIANCE_TYPE::PLAYER)
+            if (allegiance <= xi::Allegiance::Player && PInitiator->allegiance <= xi::Allegiance::Player)
             {
                 bool haveDiffAllegiances = allegiance != PInitiator->allegiance;
 
@@ -2705,6 +2705,13 @@ void CBattleEntity::OnCastFinished(CMagicState& state, action_t& action)
     this->processActionEffectFlags(action);
 
     StatusEffectContainer->DelStatusEffectsByFlag(xi::StatusEffectFlag::MagicEnd);
+
+    // Remove Cascade effect and consume TP.
+    if (PSpell->getSkillType() == SKILL_ELEMENTAL_MAGIC && StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Cascade))
+    {
+        StatusEffectContainer->DelStatusEffect(xi::StatusEffect::Cascade);
+        this->health.tp = 0;
+    }
 
     PRecastContainer->Add(RECAST_MAGIC, static_cast<Recast>(PSpell->getID()), action.recast);
 }
@@ -3134,7 +3141,7 @@ void CBattleEntity::OnMobSkillFinished(CMobSkillState& state, action_t& action)
 
     if (PTarget)
     {
-        if (PTarget->objtype == TYPE_MOB && this->allegiance == ALLEGIANCE_TYPE::PLAYER)
+        if (PTarget->objtype == TYPE_MOB && this->allegiance == xi::Allegiance::Player)
         {
             bool isAvatar   = (this->objtype == TYPE_PET && static_cast<CPetEntity*>(this)->getPetType() == PET_TYPE::AVATAR); // this is here to prevent other pet types from calling ClaimMob.
             bool isKillShot = PTarget->isDead();

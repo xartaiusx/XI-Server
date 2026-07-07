@@ -107,7 +107,6 @@ CMobEntity::CMobEntity()
 , MPscale(1.0)
 , m_roamFlags(ROAMFLAG_NONE)
 , m_specialFlags(SPECIALFLAG_NONE)
-, m_StatPoppedMobs(false)
 , strRank(3)
 , dexRank(3)
 , vitRank(3)
@@ -146,16 +145,13 @@ CMobEntity::CMobEntity()
 , m_Pool(0)
 , m_flags(0)
 , m_name_prefix(0)
-, m_unk0(0)
-, m_unk1(8)
-, m_unk2(0)
 , m_CallForHelpBlocked(false)
 , m_IsPathingHome(false)
 {
     TracyZoneScoped;
 
     objtype     = ENTITYTYPE::TYPE_MOB;
-    allegiance  = ALLEGIANCE_TYPE::MOB;
+    allegiance  = xi::Allegiance::Mob;
     m_EcoSystem = xi::Ecosystem::Unclassified;
 
     m_SpellListContainer = nullptr;
@@ -240,6 +236,16 @@ void CMobEntity::SetSpawnSlot(SpawnSlot* sharedSpawn)
 SpawnSlot* CMobEntity::GetSpawnSlot()
 {
     return this->spawnSlot;
+}
+
+auto CMobEntity::spawnWindow() const -> const Maybe<SpawnWindow>&
+{
+    return spawnWindow_;
+}
+
+void CMobEntity::setSpawnWindow(uint8 spawnHour, uint8 despawnHour)
+{
+    spawnWindow_ = SpawnWindow{ spawnHour, despawnHour };
 }
 
 bool CMobEntity::TrySpawn()

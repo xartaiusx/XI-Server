@@ -97,6 +97,11 @@ jobs:
         patterns: |
           -ext/**/*
           -build/**/*
+          # Keep inherited core alerts from blocking large Mochirii sync PRs.
+          # Mochirii-owned custom modules and tooling remain uploaded.
+          -src/**/*
+          -tools/dbtool.py
+          -tools/ci/startup_checks.py
         input: sarif-results/${{ matrix.language }}.sarif
         output: sarif-results/${{ matrix.language }}.sarif
 

@@ -80,16 +80,6 @@ void CAutomatonEntity::setEquip(const AutomatonEquip& equip)
     equip_ = equip;
 }
 
-auto CAutomatonEntity::elementMax(const uint8 element) const -> uint8
-{
-    return elementMax_[element];
-}
-
-auto CAutomatonEntity::elementCapacity(const uint8 element) const -> uint8
-{
-    return elementEquip_[element];
-}
-
 void CAutomatonEntity::burdenTick()
 {
     for (auto&& burden : burden_)
@@ -154,7 +144,7 @@ void CAutomatonEntity::PostTick()
 {
     auto pre_mask = updatemask;
     CPetEntity::PostTick();
-    if (pre_mask && status != STATUS_TYPE::DISAPPEAR)
+    if (pre_mask && status != xi::Status::Disappear)
     {
         if (PMaster && PMaster->objtype == TYPE_PC)
         {
@@ -194,7 +184,7 @@ void CAutomatonEntity::OnCastFinished(CMagicState& state, action_t& action)
     {
         puppetutils::TrySkillUP(this, SKILL_AUTOMATON_MAGIC, PTarget->GetMLevel());
 
-        if (PTarget && PTarget->objtype == TYPE_MOB && PTarget->allegiance != ALLEGIANCE_TYPE::PLAYER)
+        if (PTarget && PTarget->objtype == TYPE_MOB && PTarget->allegiance != xi::Allegiance::Player)
         {
             auto* PMob    = static_cast<CMobEntity*>(PTarget);
             auto* PMaster = dynamic_cast<CBattleEntity*>(this->PMaster);
@@ -213,7 +203,7 @@ void CAutomatonEntity::OnMobSkillFinished(CMobSkillState& state, action_t& actio
     auto* PSkill  = state.GetSkill();
     auto* PTarget = static_cast<CBattleEntity*>(state.GetTarget());
 
-    if (PTarget && PTarget->objtype == TYPE_MOB && PTarget->allegiance != ALLEGIANCE_TYPE::PLAYER)
+    if (PTarget && PTarget->objtype == TYPE_MOB && PTarget->allegiance != xi::Allegiance::Player)
     {
         auto* PMob    = static_cast<CMobEntity*>(PTarget);
         auto* PMaster = dynamic_cast<CBattleEntity*>(this->PMaster);
@@ -232,7 +222,7 @@ void CAutomatonEntity::OnMobSkillFinished(CMobSkillState& state, action_t& actio
 
 void CAutomatonEntity::Spawn()
 {
-    status = allegiance == ALLEGIANCE_TYPE::MOB ? STATUS_TYPE::UPDATE : STATUS_TYPE::NORMAL;
+    status = allegiance == xi::Allegiance::Mob ? xi::Status::Update : xi::Status::Normal;
     updatemask |= UPDATE_HP;
     PAI->Reset();
     PAI->EventHandler.triggerListener("SPAWN", this);

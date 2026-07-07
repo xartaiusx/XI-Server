@@ -417,11 +417,11 @@ function CBaseEntity:resetAI()
 end
 
 ---@nodiscard
----@return integer
+---@return xi.status
 function CBaseEntity:getStatus()
 end
 
----@param status integer
+---@param status xi.status
 ---@return nil
 function CBaseEntity:setStatus(status)
 end
@@ -630,20 +630,12 @@ function CBaseEntity:sendMenu(menu)
 end
 
 ---@nodiscard
----@param guildID integer
----@param open integer
----@param close integer
----@param holiday integer
----@return boolean
-function CBaseEntity:sendGuild(guildID, open, close, holiday)
-end
-
----@nodiscard
 ---@param npc CBaseEntity
 ---@param open integer
 ---@param close integer
+---@param holiday? integer Weekday the shop is closed (0-7); omit for none
 ---@return boolean
-function CBaseEntity:openGuildShop(npc, open, close)
+function CBaseEntity:openGuildShop(npc, open, close, holiday)
 end
 
 ---@return nil
@@ -791,7 +783,7 @@ end
 function CBaseEntity:clearPlayerTriggerAreas()
 end
 
----@param statusID integer
+---@param statusID xi.status
 ---@param animation integer
 ---@param matchTime boolean?
 ---@return nil
@@ -812,10 +804,6 @@ end
 
 ---@return nil
 function CBaseEntity:forceRezone()
-end
-
----@return nil
-function CBaseEntity:forceLogout()
 end
 
 ---@nodiscard
@@ -1394,11 +1382,11 @@ function CBaseEntity:setNation(nation)
 end
 
 ---@nodiscard
----@return integer
+---@return xi.allegiance
 function CBaseEntity:getAllegiance()
 end
 
----@param allegiance integer
+---@param allegiance xi.allegiance
 ---@return nil
 function CBaseEntity:setAllegiance(allegiance)
 end

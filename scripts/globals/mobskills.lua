@@ -363,7 +363,7 @@ local function handleSinglePhysicalHit(mob, target, baseHitDamage, params)
     if params.canCrit then
         local critRate = xi.combat.physical.calculateSwingCriticalRate(mob, target, params.tpValue, xi.slot.MAIN, params.critModTable)
 
-        isCritical = math.random(1, 1000) <= critRate * 1000
+        isCritical = math.randomInt(1, 1000) <= critRate * 1000
     end
 
     ----------------------------------
@@ -481,7 +481,7 @@ local function handleSingleRangedHit(mob, target, baseHitDamage, params)
     if params.canCrit then
         local critRate = xi.combat.physical.calculateRangedCriticalRate(mob, target, params.tpValue, xi.slot.MAIN, params.critModTable)
 
-        isCritical = math.random(1, 1000) <= critRate * 1000
+        isCritical = math.randomInt(1, 1000) <= critRate * 1000
     end
 
     ----------------------------------
@@ -696,7 +696,7 @@ xi.mobskills.mobRangedMove = function(mob, target, skill, action, skillParams)
                 hitInfo                = defaultHitInfo(hitNumber)
                 hitInfo.hitAnticipated = true
                 hitInfo.missType       = 'Anticipated'
-            elseif math.random(1, 100) <= hitChance * 100 then
+            elseif math.randomInt(1, 100) <= hitChance * 100 then
                 hitParams.hitNumber = hitNumber
 
                 local damageForThisHit = (hitNumber == 1) and baseDamage or subsequentDamage
@@ -935,7 +935,7 @@ xi.mobskills.mobPhysicalMove = function(mob, target, skill, action, skillParams)
                 hitInfo                = defaultHitInfo(hitNumber)
                 hitInfo.hitAnticipated = true
                 hitInfo.missType       = 'Anticipated'
-            elseif math.random(1, 100) <= hitChance * 100 then
+            elseif math.randomInt(1, 100) <= hitChance * 100 then
                 hitParams.hitNumber = hitNumber
 
                 local damageForThisHit = (hitNumber == 1) and baseDamage or subsequentDamage
@@ -1401,7 +1401,7 @@ xi.mobskills.mobBreathMove = function(mob, target, skill, action, skillParams)
     mAccuracyBonus = xi.combat.physical.calculateTPfactor(tpValue, mAccuracyBonusfTP)
 
     -- Damage Multipliers
-    local systemBonus            = 1 -- 1 + utils.getEcosystemStrengthBonus(mob:getEcosystem(), target:getEcosystem()) / 4
+    local systemBonus            = xi.combat.damage.ecosystemMultiplier(mob, target, mob:getEcosystem())
     local elementalSDT           = xi.combat.damage.magicalElementSDT(target, actionElement)
     local resistRate             = 1
     local dayAndWeather          = xi.spells.damage.calculateDayAndWeather(mob, actionElement, false)
@@ -1434,7 +1434,7 @@ xi.mobskills.mobBreathMove = function(mob, target, skill, action, skillParams)
     end
 
     -- TODO: Need more research about monster correlation.
-    -- local systemBonus     = 1 + utils.getEcosystemStrengthBonus(mob:getEcosystem(), target:getEcosystem()) / 4
+    -- local systemBonus     = xi.combat.damage.ecosystemMultiplier(mob, target, mob:getEcosystem())
 
     damage = math.floor(damage * systemBonus)
     damage = math.floor(damage * elementalSDT)
@@ -1708,7 +1708,7 @@ xi.mobskills.unequipRandomSlots = function(target, numberToUnequip)
     end
 
     for _ = 1, math.min(numberToUnequip, #slots) do
-        local index = math.random(#slots)
+        local index = math.randomInt(1, #slots)
         target:unequipItem(table.remove(slots, index))
     end
 end

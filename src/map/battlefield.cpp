@@ -66,9 +66,9 @@ CBattlefield::CBattlefield(uint16 id, CZone* PZone, uint8 area, CCharEntity* PIn
 {
     m_Initiator.id     = PInitiator->id;
     m_Initiator.name   = PInitiator->name;
-    m_Record.name      = "Meme";
+    m_Record.name      = "Someone";
     m_Record.time      = 24h;
-    m_Record.partySize = 69;
+    m_Record.partySize = 6;
     m_Tick             = m_StartTime;
     m_RegisteredPlayers.emplace(PInitiator->id);
 }
@@ -357,7 +357,7 @@ bool CBattlefield::InsertEntity(CBaseEntity* PEntity, bool enter, BATTLEFIELDMOB
     }
     else if (PEntity->objtype == TYPE_NPC)
     {
-        PEntity->status = (conditions & CONDITION_DISAPPEAR_AT_START) == CONDITION_DISAPPEAR_AT_START ? STATUS_TYPE::DISAPPEAR : STATUS_TYPE::NORMAL;
+        PEntity->status = (conditions & CONDITION_DISAPPEAR_AT_START) == CONDITION_DISAPPEAR_AT_START ? xi::Status::Disappear : xi::Status::Normal;
         PEntity->loc.zone->UpdateEntityPacket(PEntity, ENTITY_SPAWN, UPDATE_ALL_MOB);
         m_NpcList.emplace_back(static_cast<CNpcEntity*>(PEntity));
     }
@@ -457,7 +457,7 @@ CBaseEntity* CBattlefield::GetEntity(CBaseEntity* PEntity)
     }
     else if (PEntity->objtype == TYPE_MOB)
     {
-        if (PEntity->allegiance == ALLEGIANCE_TYPE::MOB)
+        if (PEntity->allegiance == xi::Allegiance::Mob)
         {
             for (const auto& mob : m_AdditionalEnemyList)
             {
@@ -474,7 +474,7 @@ CBaseEntity* CBattlefield::GetEntity(CBaseEntity* PEntity)
                 }
             }
         }
-        else if (PEntity->allegiance == ALLEGIANCE_TYPE::PLAYER)
+        else if (PEntity->allegiance == xi::Allegiance::Player)
         {
             for (auto* PAlly : m_AllyList)
             {
@@ -635,7 +635,7 @@ bool CBattlefield::RemoveEntity(CBaseEntity* PEntity, uint8 leavecode)
 
         if (PEntity->objtype == TYPE_NPC)
         {
-            PEntity->status = STATUS_TYPE::DISAPPEAR;
+            PEntity->status = xi::Status::Disappear;
             PEntity->loc.zone->UpdateEntityPacket(PEntity, ENTITY_DESPAWN, UPDATE_ALL_MOB);
 
             if (auto* PNpcEntity = dynamic_cast<CNpcEntity*>(PEntity))
@@ -656,7 +656,7 @@ bool CBattlefield::RemoveEntity(CBaseEntity* PEntity, uint8 leavecode)
                 auto* PPetEntity = dynamic_cast<CPetEntity*>(PEntity);
                 if (PPetEntity && (!PPetEntity->PMaster || PPetEntity->PMaster->objtype != TYPE_PC))
                 {
-                    PEntity->status = STATUS_TYPE::DISAPPEAR;
+                    PEntity->status = xi::Status::Disappear;
                 }
 
                 if (auto* PMobEntity = dynamic_cast<CMobEntity*>(PEntity))
@@ -667,7 +667,7 @@ bool CBattlefield::RemoveEntity(CBaseEntity* PEntity, uint8 leavecode)
                         // but not despawned (for example Prishe in Dawn fight)
                         if (PMobEntity->PAI->IsSpawned())
                         {
-                            PEntity->status = STATUS_TYPE::DISAPPEAR;
+                            PEntity->status = xi::Status::Disappear;
                             PEntity->loc.zone->UpdateEntityPacket(PEntity, ENTITY_DESPAWN, UPDATE_NONE);
                         }
 
@@ -762,6 +762,12 @@ bool CBattlefield::Cleanup(timer::time_point time, bool force)
 
     for (const auto& mob : m_RequiredEnemyList)
     {
+        // Negate the no despawn bit to allow mobs that may use no despawn mechanics to despawn properly
+        if (mob.PMob->m_Behavior & BEHAVIOR_NO_DESPAWN)
+        {
+            mob.PMob->m_Behavior &= ~BEHAVIOR_NO_DESPAWN;
+        }
+
         if (mob.PMob->isAlive() && mob.PMob->PAI->IsSpawned())
         {
             mob.PMob->PAI->Despawn();
@@ -770,6 +776,12 @@ bool CBattlefield::Cleanup(timer::time_point time, bool force)
 
     for (const auto& mob : m_AdditionalEnemyList)
     {
+        // Negate the no despawn bit to allow mobs that may use no despawn mechanics to despawn properly
+        if (mob.PMob->m_Behavior & BEHAVIOR_NO_DESPAWN)
+        {
+            mob.PMob->m_Behavior &= ~BEHAVIOR_NO_DESPAWN;
+        }
+
         if (mob.PMob->isAlive() && mob.PMob->PAI->IsSpawned())
         {
             mob.PMob->PAI->Despawn();

@@ -88,11 +88,11 @@
 #include "mobskill.h"
 #include "modifier.h"
 #include "notoriety_container.h"
-#include "party.h"
 #include "packets/s2c/0x020_item_attr.h"
 #include "packets/s2c/0x028_battle2.h"
 #include "packets/s2c/0x029_battle_message.h"
 #include "packets/s2c/0x063_miscdata_status_icons.h"
+#include "party.h"
 #include "petskill.h"
 #include "spell.h"
 #include "status_effect_container.h"
@@ -130,7 +130,7 @@ CCharEntity::CCharEntity()
     m_GMlevel    = 0;
     m_isGMHidden = false;
 
-    allegiance = ALLEGIANCE_TYPE::PLAYER;
+    allegiance = xi::Allegiance::Player;
 
     TradeContainer = new CTradeContainer();
     Container      = new CTradeContainer();
@@ -189,11 +189,6 @@ CCharEntity::CCharEntity()
         i.statusLower = 0;
     }
 
-    m_copCurrent = 0;
-    m_acpCurrent = 0;
-    m_mkeCurrent = 0;
-    m_asaCurrent = 0;
-
     m_PMonstrosity = nullptr;
 
     m_Costume            = 0;
@@ -203,7 +198,6 @@ CCharEntity::CCharEntity()
     m_weaknessLvl        = 0;
     m_hasArise           = false;
     m_LevelRestriction   = 0;
-    m_lastBcnmTimePrompt = 0;
     servmesLastOffset_   = std::nullopt;
     m_AHHistoryTimestamp = timer::time_point::min();
     m_DeathTimestamp     = timer::time_point::min();
@@ -215,8 +209,6 @@ CCharEntity::CCharEntity()
     MeritMode    = false;
     PMeritPoints = nullptr;
     PJobPoints   = nullptr;
-
-    PGuildShop = nullptr;
 
     m_isStyleLocked = false;
     m_isBlockingAid = false;
@@ -382,8 +374,6 @@ CCharEntity::~CCharEntity()
     destroy(UContainer);
     destroy(PLatentEffectContainer);
 
-    PGuildShop = nullptr;
-
     destroy(eventPreparation);
     destroy(currentEvent);
 
@@ -457,7 +447,17 @@ void CCharEntity::updateEntityPacket(CBaseEntity* PEntity, ENTITYUPDATE type, ui
 {
     auto       itr              = EntityUpdatePackets.find(PEntity->id);
     const bool hasPendingPacket = itr != EntityUpdatePackets.end() && itr->second != nullptr;
-    auto*      PChar            = dynamic_cast<CCharEntity*>(PEntity);
+
+    auto* PChar = [&]() -> CCharEntity*
+    {
+        if (PEntity->objtype == TYPE_PC)
+        {
+            return static_cast<CCharEntity*>(PEntity);
+        }
+
+        return nullptr;
+    }();
+
     if (hasPendingPacket)
     {
         // Found existing packet update for the given entity, so we update it instead of pushing new
@@ -679,6 +679,7 @@ void CCharEntity::setAutomatonElementMax(const uint8 element, const uint8 max)
 {
     automatonInfo_.elementMax[element] = max;
 }
+
 void CCharEntity::addAutomatonElementCapacity(const uint8 element, const int8 value)
 {
     automatonInfo_.elementEquip[element] += value;
@@ -1077,7 +1078,7 @@ void CCharEntity::ClearTrusts(const bool notifyClient)
     ReloadPartyInc();
 
     if (notifyClient && hadTrusts && PParty != nullptr && PParty->GetLeader() != nullptr &&
-        status != STATUS_TYPE::DISAPPEAR && status != STATUS_TYPE::SHUTDOWN)
+        status != xi::Status::Disappear && status != xi::Status::Shutdown)
     {
         PParty->ReloadParty();
     }
@@ -2364,7 +2365,7 @@ CBattleEntity* CCharEntity::IsValidTarget(uint16 targid, uint16 validTargetFlags
     {
         // Check if target is a BEHAVIOR_NO_ASSIST mob with player allegiance
         auto* PEntity = GetEntity(targid, TYPE_MOB | TYPE_PC | TYPE_PET | TYPE_TRUST);
-        if (PEntity && PEntity->objtype == TYPE_MOB && static_cast<CMobEntity*>(PEntity)->allegiance == ALLEGIANCE_TYPE::PLAYER &&
+        if (PEntity && PEntity->objtype == TYPE_MOB && static_cast<CMobEntity*>(PEntity)->allegiance == xi::Allegiance::Player &&
             (static_cast<CMobEntity*>(PEntity)->m_Behavior & BEHAVIOR_NO_ASSIST))
         {
             errMsg = std::make_unique<GP_SERV_COMMAND_BATTLE_MESSAGE>(this, this, 0, 0, MsgBasic::CannotOnThatTarget);
@@ -2440,7 +2441,7 @@ void CCharEntity::Die(timer::duration _duration)
     PAI->Internal_Die(_duration);
 
     // If player allegiance is not reset on death they will auto-homepoint
-    allegiance = ALLEGIANCE_TYPE::PLAYER;
+    allegiance = xi::Allegiance::Player;
 
     // reraise modifiers
     if (this->getMod(Mod::RERAISE_I) > 0)
@@ -2571,7 +2572,6 @@ void CCharEntity::UpdateMoghancement()
 
     // Determine which moghancement to use from the dominant element
     uint8  bestAura          = 0;
-    uint8  bestOrder         = 255;
     uint16 newMoghancementID = 0;
     if (!hasTiedElements && dominantAura > 0)
     {
@@ -2584,13 +2584,16 @@ void CCharEntity::UpdateMoghancement()
                 if (PItem != nullptr && PItem->isType(ITEM_FURNISHING))
                 {
                     CItemFurnishing* PFurniture = static_cast<CItemFurnishing*>(PItem);
-                    // If aura is tied then use whichever furniture was placed most recently
-                    if (PFurniture->isInstalled() && !PFurniture->getOn2ndFloor() && PFurniture->getElement() == dominantElement &&
-                        (PFurniture->getAura() > bestAura || (PFurniture->getAura() == bestAura && PFurniture->getOrder() < bestOrder)))
+                    // Highest aura wins, ties broken by highest moghancement id.
+                    if (PFurniture->isInstalled() && !PFurniture->getOn2ndFloor() && PFurniture->getElement() == dominantElement)
                     {
-                        bestAura          = PFurniture->getAura();
-                        bestOrder         = PFurniture->getOrder();
-                        newMoghancementID = PFurniture->getMoghancement();
+                        const uint8  aura         = PFurniture->getAura();
+                        const uint16 moghancement = PFurniture->getMoghancement();
+                        if (aura > bestAura || (aura == bestAura && moghancement > newMoghancementID))
+                        {
+                            bestAura          = aura;
+                            newMoghancementID = moghancement;
+                        }
                     }
                 }
             }

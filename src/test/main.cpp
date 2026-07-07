@@ -19,10 +19,12 @@
 ===========================================================================
 */
 
-#include "common/lua.h"
-#include "common/tracy.h"
-#include "test_application.h"
+#include <test/test_application.h>
 
+#include <common/lua.h>
+#include <common/tracy.h>
+
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 
@@ -32,7 +34,9 @@ int main(int argc, char** argv)
 
     auto testApp = std::make_unique<TestApplication>(argc, argv);
 
-    testApp->run();
+    const auto success = testApp->run();
+
+    const auto exitCode = success ? EXIT_SUCCESS : EXIT_FAILURE;
 
     // Explicitly destroy TestApplication before the lua state get cleaned up
     testApp.reset();
@@ -48,5 +52,5 @@ int main(int argc, char** argv)
     std::cin.get();
 #endif
 
-    return 0;
+    return exitCode;
 }
