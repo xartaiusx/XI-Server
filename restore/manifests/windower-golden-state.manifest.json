@@ -1,12 +1,22 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-05T10:58:26-07:00",
+  "generatedAt": "2026-07-07T04:03:25-07:00",
   "trackedGoldenStateRoot": "restore/windower-golden-state",
   "trackedFiles": [
     {
+      "relativePath": "addons/GearSwap/data/Twills-visual-models.lua",
+      "bytes": 8107,
+      "sha256": "1c9adff61da58199a18049d1e1768275e0131359a7426e1ae63baf4b6a839270"
+    },
+    {
       "relativePath": "addons/GearSwap/data/Twills.lua",
-      "bytes": 22900,
-      "sha256": "c76229874f065245960a010f767ad69771ec5e4a5ed667c52680b4dd301ffaf2"
+      "bytes": 32194,
+      "sha256": "a37d6ce5c59d4744da370610d1e9bc6fef2fa1c276d7e40ed164fe3b5231482e"
+    },
+    {
+      "relativePath": "addons/GearSwap/flow.lua",
+      "bytes": 19423,
+      "sha256": "27ff9a42182f6ca825f0b1dd5c7443789d2d03a2ba3dd6737968961da2dc6db5"
     },
     {
       "relativePath": "addons/MochiriiScreenshotQA/MochiriiScreenshotQA.lua",
@@ -22,6 +32,11 @@
       "relativePath": "addons/XivParty/data/settings.xml",
       "bytes": 1667,
       "sha256": "7d72acfdb5fd3592c8ce40b44bf44c8cb81c188ac2e1d8737c01eece7f6f5deb"
+    },
+    {
+      "relativePath": "addons/XivParty/player.lua",
+      "bytes": 9954,
+      "sha256": "cf21b44481bdd8fe6f21b575c344c2fdd62f8bdc7db036f9b59d1e594930c176"
     },
     {
       "relativePath": "addons/battlemod/data/filters/filters-RDM.xml",
@@ -54,14 +69,34 @@
       "sha256": "1c1318ab72df44e23c71f7d21c92d583f9b43e5a73659b6974a2050456a9ce02"
     },
     {
+      "relativePath": "addons/xivhotbar/defaults.lua",
+      "bytes": 4086,
+      "sha256": "2e60003531ae48a7fd551991e4c9673009fe459cd7ba0c8e93a7e2cdb631b705"
+    },
+    {
+      "relativePath": "addons/xivhotbar/lib/player.lua",
+      "bytes": 5574,
+      "sha256": "5732db3c7c16930d3bd3b923966319a377c0866205d752ed2aad6dceed2f41e6"
+    },
+    {
+      "relativePath": "addons/xivhotbar/xivhotbar.lua",
+      "bytes": 16025,
+      "sha256": "31ad2faf2536c0c61660a750da9e4428ac7bd84a8980d05f54557e4effdd3046"
+    },
+    {
       "relativePath": "plugins/settings/Config.xml",
       "bytes": 1115,
       "sha256": "22ddecbd64d14042b5bcdb77c6fdd0ffa29b208134a970c815e3add10d5992f8"
     },
     {
       "relativePath": "scripts/init.txt",
-      "bytes": 343,
-      "sha256": "858a5ea620726fffb8a7d9286dd8270607ce1c23f2010dbdefe120e05896141c"
+      "bytes": 323,
+      "sha256": "65ce26eebe7b2f199da299140762e115f0dc195acae611920f3e34d63f0d7294"
+    },
+    {
+      "relativePath": "settings.xml",
+      "bytes": 724,
+      "sha256": "144e654d8881c258a836813354ee5e0de5eae328e56dc278799794b3ca468414"
     }
   ],
   "encryptedFullBundle": {

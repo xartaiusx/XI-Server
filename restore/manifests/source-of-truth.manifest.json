@@ -1,0 +1,52 @@
+{
+  "schema": "mochirii-source-of-truth-v1",
+  "updated": "2026-07-07",
+  "canonical": {
+    "server_repo_wsl": "/root/projects/FFXI/XI-Server",
+    "runtime_wsl": "/root/projects/FFXI-Runtime",
+    "runtime_windows_bridge": "C:\\Users\\xtyty\\Documents\\FFXI-Runtime",
+    "client_root_windows": "D:\\Steam\\steamapps\\common\\FFXINA",
+    "windower_root_windows": "D:\\Steam\\steamapps\\common\\FFXINA\\Windower"
+  },
+  "desktop_shortcuts": {
+    "windower": "C:\\Users\\xtyty\\Desktop\\Windower.lnk",
+    "start_server": "C:\\Users\\xtyty\\Desktop\\Start Mochirii FFXI Server (WSL).lnk",
+    "stop_server": "C:\\Users\\xtyty\\Desktop\\Stop Mochirii FFXI Server (WSL).lnk",
+    "open_mariadb": "C:\\Users\\xtyty\\Desktop\\Open Mochirii MariaDB (WSL).lnk"
+  },
+  "runtime_scripts": {
+    "windows_server_control": "C:\\Users\\xtyty\\Documents\\FFXI-Runtime\\server-control",
+    "wsl_server_control": "/root/projects/FFXI-Runtime/server-control",
+    "windows_client_tools": "C:\\Users\\xtyty\\Documents\\FFXI-Runtime\\client-tools"
+  },
+  "windower": {
+    "profile": "Mochirii",
+    "init_file": "D:\\Steam\\steamapps\\common\\FFXINA\\Windower\\scripts\\init.txt",
+    "golden_state": "C:\\Users\\xtyty\\Documents\\FFXI-Runtime\\windower-golden-state",
+    "xipivot_overlay_order": [
+      "Mochirii-GeoBubblesClear",
+      "Mochirii-BardNotesHD",
+      "Mochirii-LevelMeritJobPoints",
+      "Mochirii-MissionRankUps",
+      "AshenbubsHD-Prime",
+      "ALL-Dat-Mods"
+    ]
+  },
+  "cleanup_policy": {
+    "manifest_before_delete": true,
+    "leave_bridge_reparse_points": [
+      "C:\\Users\\xtyty\\Documents\\FFXI\\.git",
+      "C:\\Users\\xtyty\\Documents\\FFXI\\.agents",
+      "C:\\Users\\xtyty\\Documents\\FFXI\\.codex"
+    ],
+    "do_not_commit": [
+      "runtime logs",
+      "screenshots",
+      "database dumps",
+      "secrets",
+      "client files",
+      "DAT files",
+      "downloaded mod archives"
+    ]
+  }
+}

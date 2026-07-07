@@ -1,37 +1,54 @@
 param(
-    [string]$RuntimeRoot = 'C:\Users\xtyty\Documents\FFXI-Runtime'
+    [string]$RuntimeRoot = 'C:\Users\xtyty\Documents\FFXI-Runtime',
+    [string]$WindowerRoot = 'D:\Steam\steamapps\common\FFXINA\Windower'
 )
 
 $ErrorActionPreference = 'Stop'
 
 $desktop = [Environment]::GetFolderPath('Desktop')
 $serverControl = Join-Path $RuntimeRoot 'server-control'
+$clientTools = Join-Path $RuntimeRoot 'client-tools'
 $startScript = Join-Path $serverControl 'Start-MochiriiServer.ps1'
 $stopScript = Join-Path $serverControl 'Stop-MochiriiServer.ps1'
+$dbScript = Join-Path $serverControl 'Open-MochiriiMariaDB.ps1'
+$windowerScript = Join-Path $clientTools 'Launch-Mochirii-Windower.ps1'
+$windowerExe = Join-Path $WindowerRoot 'Windower.exe'
 
-foreach ($script in @($startScript, $stopScript)) {
+foreach ($script in @($startScript, $stopScript, $dbScript, $windowerScript)) {
     if (-not (Test-Path -LiteralPath $script)) {
-        throw "Missing runtime server-control script: $script"
+        throw "Missing runtime script: $script"
     }
+}
+
+if (-not (Test-Path -LiteralPath $windowerExe)) {
+    throw "Missing Windower executable for shortcut icon: $windowerExe"
 }
 
 $shell = New-Object -ComObject WScript.Shell
 
-function Set-Shortcut {
+function Set-PowerShellShortcut {
     param(
         [string]$Name,
-        [string]$ScriptPath
+        [string]$ScriptPath,
+        [string]$WorkingDirectory,
+        [switch]$NoExit,
+        [string]$IconLocation
     )
 
     $shortcutPath = Join-Path $desktop $Name
     $shortcut = $shell.CreateShortcut($shortcutPath)
     $shortcut.TargetPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
-    $shortcut.Arguments = "-NoExit -NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`""
-    $shortcut.WorkingDirectory = Split-Path -Parent $ScriptPath
-    $shortcut.IconLocation = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe,0"
+    $exitArg = if ($NoExit) { '-NoExit ' } else { '' }
+    $shortcut.Arguments = "${exitArg}-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`""
+    $shortcut.WorkingDirectory = $WorkingDirectory
+    $shortcut.IconLocation = $IconLocation
     $shortcut.Save()
     Write-Host "Updated $shortcutPath"
 }
 
-Set-Shortcut -Name 'Start Mochirii FFXI Server (WSL).lnk' -ScriptPath $startScript
-Set-Shortcut -Name 'Stop Mochirii FFXI Server (WSL).lnk' -ScriptPath $stopScript
+$powerShellIcon = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe,0"
+
+Set-PowerShellShortcut -Name 'Start Mochirii FFXI Server (WSL).lnk' -ScriptPath $startScript -WorkingDirectory $serverControl -NoExit -IconLocation $powerShellIcon
+Set-PowerShellShortcut -Name 'Stop Mochirii FFXI Server (WSL).lnk' -ScriptPath $stopScript -WorkingDirectory $serverControl -NoExit -IconLocation $powerShellIcon
+Set-PowerShellShortcut -Name 'Open Mochirii MariaDB (WSL).lnk' -ScriptPath $dbScript -WorkingDirectory $serverControl -NoExit -IconLocation $powerShellIcon
+Set-PowerShellShortcut -Name 'Windower.lnk' -ScriptPath $windowerScript -WorkingDirectory $WindowerRoot -IconLocation "$windowerExe,0"
