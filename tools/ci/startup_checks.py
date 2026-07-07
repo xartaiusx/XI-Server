@@ -122,6 +122,19 @@ def db_query(query):
     return result
 
 
+def configure_zone_ports(use_multi_map):
+    connect()
+    if cur:
+        cur.execute(
+            f"UPDATE xidb.zone_settings SET zoneport = {map_port} WHERE zoneport != 0;"
+        )
+        if use_multi_map:
+            cur.execute(
+                f"UPDATE xidb.zone_settings SET zoneport = {multi_map_port} WHERE zoneid % 2 = 1 AND zoneport != 0;"
+            )
+        db.commit()
+
+
 def setup_test_character():
     print("Setting up test character...")
     PASSWORD_HASH = "$2a$12$piFoDKvu80KK68xLgQFpt.ZCqVPTjPmhSUfA31.Yw9n404dTsrR6q"
@@ -211,6 +224,9 @@ def main():
     runCI = platform.system() != "Linux"
     runHXIClient = platform.system() == "Linux"
 
+    use_multi_map = len(sys.argv) > 1 and "multi" == str(sys.argv[1])
+    configure_zone_ports(use_multi_map)
+
     # Start the processes
     processes = [
         subprocess.Popen(
@@ -248,32 +264,25 @@ def main():
         ),
     ]
 
-    if len(sys.argv) > 1:
-        if "multi" == str(sys.argv[1]):
-            connect()
-            if cur:
-                cur.execute(
-                    f"UPDATE xidb.zone_settings SET zoneport = {multi_map_port} WHERE zoneid % 2 = 1;"
-                )
-                db.commit()
-                processes.insert(
-                    3,
-                    subprocess.Popen(
-                        [
-                            from_server_path("xi_map"),
-                            *(["--ci"] if runCI else []),
-                            "--log",
-                            "log/map-server-(2).log",
-                            "--ip",
-                            "127.0.0.1",
-                            "--port",
-                            str(multi_map_port),
-                        ],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                    ),
-                )
+    if use_multi_map:
+        processes.insert(
+            3,
+            subprocess.Popen(
+                [
+                    from_server_path("xi_map"),
+                    *(["--ci"] if runCI else []),
+                    "--log",
+                    "log/map-server-(2).log",
+                    "--ip",
+                    "127.0.0.1",
+                    "--port",
+                    str(multi_map_port),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            ),
+        )
 
     # Keep track of which processes have reported "ready to work"
     ready_status = {proc: False for proc in processes}
