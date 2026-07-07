@@ -49,9 +49,10 @@ outside the repository.
 - `C:\Users\xtyty\Desktop\Windower.lnk` is the canonical local client launch path. It targets the installed Windower executable and launches the local Mochirii profile; do not bypass it with ad hoc executable paths during QA.
 - Server identity is `Mochirii`.
 - Manual server control shortcuts are installed on the desktop:
-  - `Start Mochirii Server.lnk` starts public mode and refreshes `zone_settings.zoneip` to the current WAN IPv4 address.
-  - `Stop Mochirii Server.lnk` stops the four Mochirii processes and MariaDB.
-- Local same-machine QA mode remains available by manually running `C:\Users\xtyty\Documents\FFXI-Runtime\server-control\Start-Mochirii-Server.ps1 -Mode Local`, but the desktop intentionally keeps only one Start shortcut and one Stop shortcut.
+  - `Start Mochirii FFXI Server (WSL).lnk` starts MariaDB and the Mochirii services through the Windows runtime bridge.
+  - `Stop Mochirii FFXI Server (WSL).lnk` stops the Mochirii services and MariaDB.
+  - `Open Mochirii MariaDB (WSL).lnk` opens the `xidb` MariaDB shell without enabling MariaDB autostart.
+- Local same-machine QA mode remains available through the WSL runtime control scripts, but the desktop intentionally keeps one Start shortcut, one Stop shortcut, and one database shortcut.
 - Windows Firewall allows the Mochirii Final Fantasy XI-facing ports/executables on all profiles. MariaDB is bound to `127.0.0.1` and has an inbound block rule so the database is not exposed publicly.
 - Router/NAT still needs manual forwarding before external players can join: forward TCP `54001`, `54002`, `54230`, and `54231` to this PC's LAN address. The current LAN address observed during setup was `172.16.0.36`; use a DHCP reservation or static LAN IP before inviting testers.
 - No Mochirii Startup-folder entry, scheduled task, service, or Run-key autostart is configured; server launch is manual through the desktop shortcut.
