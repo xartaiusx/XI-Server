@@ -13,40 +13,33 @@ require('scripts/globals/quests')
 require('scripts/globals/teleports')
 require('scripts/globals/moghouse')
 require('scripts/globals/chocobo_raising')
-require('scripts/enum/augment')
-require('scripts/enum/chocobo')
-require('scripts/enum/craft_rank')
-require('scripts/enum/fame_area')
-require('scripts/enum/title')
-require('scripts/enum/unity_leader')
-require('scripts/enum/ws_unlock')
-require('scripts/enum/assault')
 require('scripts/globals/assault/data')
 require('scripts/globals/roe_records')
 require('scripts/globals/deeds')
 -----------------------------------
 local m = Module:new('twills_admin_bootstrap')
 
-local ADMIN_NAME = 'Twills'
-local CURRENT_BOOT_VERSION = 9
-local MAX_ENGINE_TITLE_ID = 1143
-local LONG_TIME_REPAIR_ACTIVE_VAR = 'TwillsLongTimeRepairActive'
-local VAR_STARTED = 'TwillsBootStartV9'
-local VAR_DONE = 'TwillsBootDone'
-local VAR_VERSION = 'TwillsBootVersion'
-local VAR_GEAR_VERSION = 'TwillsRdmSchGearVersion'
-local TARGET_MERITS = 75
-local TARGET_JOB_POINTS = 500
-local TARGET_CAPACITY_POINTS = 29999
-local TARGET_ALTER_EGO_POINTS = 1350
-local TARGET_GEAR_VERSION = 3
-local TARGET_INVENTORY_SIZE = 80
-local TARGET_WARDROBE_SIZE = 80
-local TARGET_LOCKER_LEASE_BRONZE = 7300
-local TARGET_FAME_VALUE = 613
-local TARGET_ABYSSEA_FAME_VALUE = 425
-local TARGET_MASTER_LEVEL = 50
-local TARGET_UNITY_LEADER = xi.unityLeader.SYLVIE
+local adminName = 'Twills'
+local currentBootVersion = 9
+local maxEngineTitleId = 1143
+local longTimeRepairActiveVar = 'TwillsLongTimeRepairActive'
+local varStarted = 'TwillsBootStartV9'
+local varDone = 'TwillsBootDone'
+local varVersion = 'TwillsBootVersion'
+local varGearVersion = 'TwillsRdmSchGearVersion'
+local targetMerits = 75
+local targetJobPoints = 500
+local targetCapacityPoints = 29999
+local targetAlterEgoPoints = 1350
+local targetGearVersion = 3
+local targetInventorySize = 80
+local targetWardrobeSize = 80
+local targetLockerLeaseBronze = 7300
+local targetFameValue = 613
+local targetAbysseaFameValue = 425
+local targetMasterLevel = 50
+local targetUnityLeader = xi.unityLeader.SYLVIE
+local corneliaSpellId = 1002
 
 local addAllSpells = require('scripts/commands/addallspells')
 xi.commands = xi.commands or {}
@@ -656,19 +649,6 @@ local function countGateGroup(player, groupName)
     return found, total, missing
 end
 
-local function addLongTimeKeyItems(player)
-    local added = 0
-
-    for _, entry in ipairs(getLongTimeKeyItems()) do
-        if not player:hasKeyItem(entry.id) then
-            player:addKeyItem(entry.id)
-            added = added + 1
-        end
-    end
-
-    return added, #getLongTimeKeyItems()
-end
-
 local function getAssaultMissionIds()
     local ids = {}
     local seen = {}
@@ -697,28 +677,6 @@ local function countAssaultProgress(player)
     end
 
     return complete, #ids
-end
-
-local function repairAssaultProgress(player)
-    local completed = 0
-
-    for _, missionId in ipairs(getAssaultMissionIds()) do
-        if not player:hasCompletedAssault(missionId) then
-            local currentAssault = player:getCurrentAssault()
-            if currentAssault ~= 0 and currentAssault ~= missionId then
-                player:delAssault(currentAssault)
-            end
-
-            if player:getCurrentAssault() ~= missionId then
-                player:addAssault(missionId)
-            end
-
-            player:completeAssault(missionId)
-            completed = completed + 1
-        end
-    end
-
-    return completed
 end
 
 local function isStableRoeRecord(recordId, record)
@@ -762,19 +720,6 @@ local function countStableRoeProgress(player)
     return completed, #ids
 end
 
-local function repairStableRoeProgress(player)
-    local completed = 0
-
-    for _, recordId in ipairs(getStableRoeRecordIds()) do
-        if not player:getEminenceCompleted(recordId) then
-            player:setEminenceCompleted(recordId)
-            completed = completed + 1
-        end
-    end
-
-    return completed, #getStableRoeRecordIds()
-end
-
 local function bitCount(value)
     local count = 0
     local current = value or 0
@@ -801,16 +746,6 @@ local function countClaimedDeeds(player)
     return count
 end
 
-local function claimEarnedDeeds(player)
-    local target = math.min(math.floor(player:getCurrency('deeds') / 10), 144)
-
-    for deedBit = 1, target do
-        player:setClaimedDeed(deedBit)
-    end
-
-    return countClaimedDeeds(player), target
-end
-
 local function getLocalTitleIds()
     local ids = {}
     local seen = {}
@@ -819,7 +754,7 @@ local function getLocalTitleIds()
         if
             type(titleId) == 'number' and
             titleId > 0 and
-            titleId <= MAX_ENGINE_TITLE_ID and
+            titleId <= maxEngineTitleId and
             not seen[titleId]
         then
             table.insert(ids, titleId)
@@ -873,11 +808,11 @@ local function countLearnedWeaponSkills(player)
 end
 
 local function queueLongTimeContentRepair(player)
-    if player:getCharVar(LONG_TIME_REPAIR_ACTIVE_VAR) == 1 then
+    if player:getCharVar(longTimeRepairActiveVar) == 1 then
         return false
     end
 
-    player:setCharVar(LONG_TIME_REPAIR_ACTIVE_VAR, 1)
+    player:setCharVar(longTimeRepairActiveVar, 1)
 
     local deedTarget = math.min(math.floor(player:getCurrency('deeds') / 10), 144)
     local deedBits = {}
@@ -1002,7 +937,7 @@ local function queueLongTimeContentRepair(player)
             local deedCount = countClaimedDeeds(playerArg)
             local titleFound, titleTotal = countLocalTitles(playerArg)
             local wsFound, wsTotal = countLearnedWeaponSkills(playerArg)
-            playerArg:setCharVar(LONG_TIME_REPAIR_ACTIVE_VAR, 0)
+            playerArg:setCharVar(longTimeRepairActiveVar, 0)
             playerArg:printToPlayer(string.format(
                 'Twills long-time v9 repair complete: +%i/%i KIs, +%i/%i Assault, +%i/%i RoE, Deeds %i/%i, zones +%i/%i, titles %i/%i, WS %i/%i.',
                 state.keyItemsAdded,
@@ -1086,11 +1021,13 @@ local function auditLongTimeContent(player)
     local atmaFound, atmaTotal = countLongTimeKeyItems(player, function(name)
         return string.match(name, '^ATMA_OF_') ~= nil
     end)
+
     table.insert(rows, auditLine(atmaFound == atmaTotal, 'Abyssea Atma', string.format('%i/%i locally defined Atma key items present', atmaFound, atmaTotal)))
 
     local abyssiteFound, abyssiteTotal = countLongTimeKeyItems(player, function(name)
         return string.find(name, 'ABYSSITE', 1, true) ~= nil
     end)
+
     table.insert(rows, auditLine(abyssiteFound == abyssiteTotal, 'Abyssea Abyssite', string.format('%i/%i locally defined abyssite key items present', abyssiteFound, abyssiteTotal)))
 
     for _, groupName in ipairs({ 'Escha', 'Odyssey', 'Ambuscade', 'Dynamis' }) do
@@ -1121,13 +1058,14 @@ local function auditLongTimeContent(player)
     local sortieFound, sortieTotal = countLongTimeKeyItems(player, function(name)
         return string.find(name, 'SORTIE', 1, true) ~= nil
     end)
+
     table.insert(rows, auditLine(true, 'Sortie Progression', sortieTotal > 0 and string.format('%i/%i local Sortie key items present', sortieFound, sortieTotal) or 'no local Sortie key-item progression enum; Gallimaufry/canteen currency remains the supported evidence'))
 
     return rows
 end
 
 local function ensureRetailStorageGates(player)
-    local inventoryAdjustment = TARGET_INVENTORY_SIZE - player:getContainerSize(xi.inv.INVENTORY)
+    local inventoryAdjustment = targetInventorySize - player:getContainerSize(xi.inv.INVENTORY)
     if inventoryAdjustment > 0 then
         player:changeContainerSize(xi.inv.INVENTORY, inventoryAdjustment)
     end
@@ -1147,7 +1085,7 @@ local function ensureRetailStorageGates(player)
         xi.inv.WARDROBE7,
         xi.inv.WARDROBE8,
     }) do
-        local adjustment = TARGET_WARDROBE_SIZE - player:getContainerSize(containerId)
+        local adjustment = targetWardrobeSize - player:getContainerSize(containerId)
         if adjustment > 0 then
             player:changeContainerSize(containerId, adjustment)
         end
@@ -1155,10 +1093,13 @@ local function ensureRetailStorageGates(player)
 
     xi.moghouse.unlockMogLocker(player)
     xi.moghouse.setMogLockerAccessType(player, xi.moghouse.lockerAccessType.ALLAREAS)
-    xi.moghouse.addMogLockerExpiryTime(player, TARGET_LOCKER_LEASE_BRONZE)
+    xi.moghouse.addMogLockerExpiryTime(player, targetLockerLeaseBronze)
 
     for _, questId in ipairs(gobbieBagQuests) do
-        if questId ~= nil and not player:hasCompletedQuest(xi.questLog.JEUNO, questId) then
+        if
+            questId ~= nil and
+            not player:hasCompletedQuest(xi.questLog.JEUNO, questId)
+        then
             player:completeQuest(xi.questLog.JEUNO, questId)
         end
     end
@@ -1166,9 +1107,14 @@ end
 
 local function setMaxFame(player)
     for _, fameArea in pairs(xi.fameArea) do
-        local value = fameArea >= xi.fameArea.ABYSSEA_KONSCHTAT and fameArea <= xi.fameArea.ABYSSEA_ULEGUERAND
-            and TARGET_ABYSSEA_FAME_VALUE
-            or TARGET_FAME_VALUE
+        local value = targetFameValue
+        if
+            fameArea >= xi.fameArea.ABYSSEA_KONSCHTAT and
+            fameArea <= xi.fameArea.ABYSSEA_ULEGUERAND
+        then
+            value = targetAbysseaFameValue
+        end
+
         player:setFame(fameArea, value)
     end
 end
@@ -1178,7 +1124,10 @@ local function completeKnownMissions(player)
     local terminal = 0
 
     for logId, areaName in pairs(xi.mission.area) do
-        if logId ~= xi.mission.log_id.ASSAULT and logId ~= xi.mission.log_id.CAMPAIGN then
+        if
+            logId ~= xi.mission.log_id.ASSAULT and
+            logId ~= xi.mission.log_id.CAMPAIGN
+        then
             local missions = xi.mission.id[areaName]
             local seen = {}
             local maxMissionId = 0
@@ -1286,15 +1235,15 @@ local function repairTravelUnlocks(player)
 end
 
 local function repairUnityAndLimitedTrusts(player)
-    if TARGET_UNITY_LEADER ~= nil then
-        player:setUnityLeader(TARGET_UNITY_LEADER)
+    if targetUnityLeader ~= nil then
+        player:setUnityLeader(targetUnityLeader)
     end
 
     if
         xi.settings.main.ENABLE_LIMITED_TIME_TRUST ~= 0 and
-        not player:hasSpell(1002)
+        not player:hasSpell(corneliaSpellId)
     then
-        player:addSpell(1002, { silentLog = true, saveToDB = true, sendUpdate = true })
+        player:addSpell(corneliaSpellId, { silentLog = true, saveToDB = true, sendUpdate = true })
     end
 end
 
@@ -1325,7 +1274,10 @@ local function completeKnownQuests(player)
 end
 
 local function ensureCustomChocobo(player)
-    if xi.twills_admin.native and type(xi.twills_admin.native.repairChocobo) == 'function' then
+    if
+        xi.twills_admin.native and
+        type(xi.twills_admin.native.repairChocobo) == 'function'
+    then
         player:registerChocobo(xi.chocobo.color.BLACK, { largeTalons = true, fullTail = true, largeBeak = true })
         return xi.twills_admin.native.repairChocobo(player:getID())
     end
@@ -1367,14 +1319,17 @@ local function ensureCustomChocobo(player)
 end
 
 local function grantRdmSchGear(player)
-    if player:getCharVar(VAR_GEAR_VERSION) >= TARGET_GEAR_VERSION then
+    if player:getCharVar(varGearVersion) >= targetGearVersion then
         return 0, 0
     end
 
     local granted = 0
     local failed = 0
 
-    if xi.twills_admin.native and type(xi.twills_admin.native.grantGear) == 'function' then
+    if
+        xi.twills_admin.native and
+        type(xi.twills_admin.native.grantGear) == 'function'
+    then
         granted, failed = xi.twills_admin.native.grantGear(player, rdmSchGear)
     else
         for _, item in ipairs(rdmSchGear) do
@@ -1403,14 +1358,17 @@ local function grantRdmSchGear(player)
     end
 
     if failed == 0 then
-        player:setCharVar(VAR_GEAR_VERSION, TARGET_GEAR_VERSION)
+        player:setCharVar(varGearVersion, targetGearVersion)
     end
 
     return granted, failed
 end
 
 local function grantProfessionItems(player)
-    if xi.twills_admin.native and type(xi.twills_admin.native.grantGear) == 'function' then
+    if
+        xi.twills_admin.native and
+        type(xi.twills_admin.native.grantGear) == 'function'
+    then
         return xi.twills_admin.native.grantGear(player, professionItems)
     end
 
@@ -1432,7 +1390,7 @@ local function grantProfessionItems(player)
 end
 
 local function repair(player, forced)
-    if not player or player:getName() ~= ADMIN_NAME then
+    if not player or player:getName() ~= adminName then
         return false
     end
 
@@ -1450,7 +1408,10 @@ local function repair(player, forced)
     setMaxFame(player)
 
     local nativeDbRepaired = false
-    if xi.twills_admin.native and type(xi.twills_admin.native.repairDbState) == 'function' then
+    if
+        xi.twills_admin.native and
+        type(xi.twills_admin.native.repairDbState) == 'function'
+    then
         nativeDbRepaired = xi.twills_admin.native.repairDbState(player:getID())
     end
 
@@ -1468,10 +1429,10 @@ local function repair(player, forced)
     local addedKeyItems = addRequiredKeyItems(player)
     local addedTitles = addCompletionTitles(player)
 
-    player:setCurrency('alter_ego_points', TARGET_ALTER_EGO_POINTS)
-    player:setMerits(TARGET_MERITS)
-    player:setJobPoints(TARGET_JOB_POINTS)
-    player:setCapacityPoints(TARGET_CAPACITY_POINTS)
+    player:setCurrency('alter_ego_points', targetAlterEgoPoints)
+    player:setMerits(targetMerits)
+    player:setJobPoints(targetJobPoints)
+    player:setCapacityPoints(targetCapacityPoints)
 
     local missionCount, terminalMissionLogs = completeKnownMissions(player)
     local questCount = completeKnownQuests(player)
@@ -1482,17 +1443,19 @@ local function repair(player, forced)
     -- Mission and quest logs are completed through local Mochirii APIs, not direct
     -- blob writes. Content not represented in the local mission/quest enums is
     -- documented in the Twills gear/completion manifest.
-    player:setCharVar(VAR_DONE, 1)
-    player:setCharVar(VAR_VERSION, CURRENT_BOOT_VERSION)
+    player:setCharVar(varDone, 1)
+    player:setCharVar(varVersion, currentBootVersion)
 
+    local longTimeSummary = longTimeRepair.queued and 'queued' or 'already running'
     local mode = forced and 'repair' or 'bootstrap'
     player:printToPlayer(string.format(
-        'Twills admin %s v%i complete: all jobs Master Level %i, active RDM/SCH support cap 59, %i travel unlocks refreshed, %i new key items, long-time content repair queued; run !twillsaudit after the queued pass finishes for Atma/Abyssite/Assault/RoE/Deeds/zones/titles/WS counts. %i missions newly completed, %i terminal progress logs, %i quests newly completed, %i gear items (%i failed), privileges kept, GM icon hidden%s. Relog to refresh all client-side views.',
+        'Twills admin %s v%i complete: all jobs Master Level %i, active RDM/SCH support cap 59, %i travel unlocks refreshed, %i new key items, long-time content repair %s; run !twillsaudit after the queued pass finishes for Atma/Abyssite/Assault/RoE/Deeds/zones/titles/WS counts. %i missions newly completed, %i terminal progress logs, %i quests newly completed, %i gear items (%i failed), privileges kept, GM icon hidden%s. Relog to refresh all client-side views.',
         mode,
-        CURRENT_BOOT_VERSION,
-        TARGET_MASTER_LEVEL,
+        currentBootVersion,
+        targetMasterLevel,
         travelAdded,
         addedKeyItems,
+        longTimeSummary,
         missionCount,
         terminalMissionLogs,
         questCount,
@@ -1505,8 +1468,8 @@ local function repair(player, forced)
 end
 
 xi.twills_admin = xi.twills_admin or {}
-xi.twills_admin.adminName = ADMIN_NAME
-xi.twills_admin.currentVersion = CURRENT_BOOT_VERSION
+xi.twills_admin.adminName = adminName
+xi.twills_admin.currentVersion = currentBootVersion
 xi.twills_admin.repair = repair
 xi.twills_admin.repairLongTimeContent = repairLongTimeContent
 xi.twills_admin.auditLongTimeContent = auditLongTimeContent
@@ -1515,18 +1478,18 @@ m:addOverride('xi.player.onGameIn', function(player, firstLogin, zoning)
     super(player, firstLogin, zoning)
 
     if
-        player:getName() ~= ADMIN_NAME or
-        player:getCharVar(VAR_VERSION) >= CURRENT_BOOT_VERSION or
-        player:getCharVar(VAR_STARTED) == 1
+        player:getName() ~= adminName or
+        player:getCharVar(varVersion) >= currentBootVersion or
+        player:getCharVar(varStarted) == 1
     then
         return
     end
 
-    player:setCharVar(VAR_STARTED, 1)
+    player:setCharVar(varStarted, 1)
     player:timer(2500, function(playerArg)
         if playerArg ~= nil then
             repair(playerArg, false)
-            playerArg:setCharVar(VAR_STARTED, 0)
+            playerArg:setCharVar(varStarted, 0)
         end
     end)
 end)

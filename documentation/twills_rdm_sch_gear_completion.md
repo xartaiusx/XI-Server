@@ -314,7 +314,6 @@ After rebuild and relog:
 - Run `//gs reload`, `//gs c healer`, and `//gs c damage`; use GearSwap's
   validation output to catch missing local item names before combat QA.
 
-
 ## 2026-07-08 v9 Long-Time Content Verification
 
 - `TwillsBootVersion = 9`; `TwillsRdmSchGearVersion = 3`; `gmlevel = 5` remains the intentional hidden-admin QA exception.
