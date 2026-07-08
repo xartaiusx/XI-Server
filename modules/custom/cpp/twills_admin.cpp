@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <string>
 #include <tuple>
 
@@ -36,7 +37,7 @@ constexpr uint32 kGuildPointWallet       = 200000;
 constexpr uint16 kMaxChocobucks          = 1000;
 constexpr uint8  kMaxFewell              = 99;
 constexpr uint8  kMaxMasterLevel         = 50;
-constexpr uint8  kCurrentBootVersion     = 8;
+constexpr uint8  kCurrentBootVersion     = 9;
 constexpr uint8  kSylvieUnityLeader      = 11;
 
 constexpr uint32 kOutpostMask       = ((1u << 19) - 1u) << 5; // Region bits 5-23.
@@ -201,6 +202,77 @@ auto countBlobBits(const auto& rset, const std::string& column, const size_t max
     }
 
     return countBits(rset->getBlobBytes(column), maxBytes);
+}
+
+auto isLongTimeVisitedZone(const uint16 zoneId, const uint16 zonePort, const std::string& name) -> bool
+{
+    if (zoneId == 0 || zonePort == 0 || name.empty() || name == "unknown" || name == "none" || name == "GM_Home")
+    {
+        return false;
+    }
+
+    return !std::all_of(name.begin(), name.end(), [](const unsigned char c)
+                        {
+                            return std::isdigit(c) != 0;
+                        });
+}
+
+auto countExpectedLongTimeVisitedZones() -> uint32
+{
+    uint32 count = 0;
+
+    if (const auto rset = db::preparedStmt("SELECT zoneid, zoneport, name FROM zone_settings WHERE zoneid BETWEEN 1 AND 303 ORDER BY zoneid");
+        rset && rset->rowsCount())
+    {
+        while (rset->next())
+        {
+            if (isLongTimeVisitedZone(rset->get<uint16>("zoneid"), rset->get<uint16>("zoneport"), rset->get<std::string>("name")))
+            {
+                ++count;
+            }
+        }
+    }
+
+    return count;
+}
+
+auto repairLongTimeVisitedZones(CLuaBaseEntity* luaEntity) -> std::tuple<uint32, uint32>
+{
+    auto* PChar = getCharacter(luaEntity);
+    if (PChar == nullptr)
+    {
+        return { 0, 0 };
+    }
+
+    uint32 added    = 0;
+    uint32 expected = 0;
+
+    if (const auto rset = db::preparedStmt("SELECT zoneid, zoneport, name FROM zone_settings WHERE zoneid BETWEEN 1 AND 303 ORDER BY zoneid");
+        rset && rset->rowsCount())
+    {
+        while (rset->next())
+        {
+            const auto zoneId = rset->get<uint16>("zoneid");
+            if (!isLongTimeVisitedZone(zoneId, rset->get<uint16>("zoneport"), rset->get<std::string>("name")))
+            {
+                continue;
+            }
+
+            ++expected;
+
+            const auto index = zoneId >> 3;
+            const auto mask  = static_cast<uint8>(1u << (zoneId % 8));
+            if (index < sizeof(PChar->m_ZonesVisitedList) && (PChar->m_ZonesVisitedList[index] & mask) == 0)
+            {
+                PChar->m_ZonesVisitedList[index] |= mask;
+                ++added;
+            }
+        }
+    }
+
+    charutils::SaveZonesVisited(PChar);
+
+    return { added, expected };
 }
 
 auto auditDbState(sol::this_state state, uint32 charId) -> sol::table
@@ -465,7 +537,42 @@ auto auditDbState(sol::this_state state, uint32 charId) -> sol::table
         rset && rset->rowsCount() && rset->next())
     {
         const bool ok = rset->get<uint8>("boot_ok") == 1 && rset->get<uint8>("gear_ok") == 1 && rset->get<uint8>("trust_ok") == 1;
-        addAuditLine(rows, index, ok, "Repair Markers", ok ? "boot v8, gear v3, TrustEngageType 1" : "repair marker mismatch");
+        addAuditLine(rows, index, ok, "Repair Markers", ok ? "boot v9, gear v3, TrustEngageType 1" : "repair marker mismatch");
+    }
+
+    if (const auto rset = db::preparedStmt(
+            "SELECT assault, campaign, eminence, titles, zones, weaponskills FROM chars WHERE charid = ? LIMIT 1",
+            charId);
+        rset && rset->rowsCount() && rset->next())
+    {
+        const auto assaultBits  = countBlobBits(rset, "assault", 130);
+        const auto campaignBits = countBlobBits(rset, "campaign", 514);
+        const auto roeBits      = countBlobBits(rset, "eminence", 700);
+        const auto titleBits    = countBlobBits(rset, "titles", 143);
+        const auto zoneBits     = countBlobBits(rset, "zones", 38);
+        const auto wsBits       = countBlobBits(rset, "weaponskills", 8);
+
+        const auto expectedZones = countExpectedLongTimeVisitedZones();
+        addAuditLine(rows, index, assaultBits > 0, "Assault Progression", std::to_string(assaultBits) + " assault completion bits set through local mission APIs");
+        addAuditLine(rows, index, true, "Campaign Progression", std::to_string(campaignBits) + " campaign bits set; local Campaign mission table is intentionally empty, campaign teleport masks are handled by Travel Unlocks");
+        addAuditLine(rows, index, roeBits > 0, "Records of Eminence", std::to_string(roeBits) + " supported record bits set");
+        addAuditLine(rows, index, expectedZones == 0 || zoneBits >= expectedZones, "Zone Visitation", std::to_string(zoneBits) + "/" + std::to_string(expectedZones) + " locally visitable zone bits set");
+        addAuditLine(rows, index, titleBits >= 100, "Titles", std::to_string(titleBits) + " local title-history bits set");
+        addAuditLine(rows, index, wsBits >= 60, "Learned Weapon Skills", std::to_string(wsBits) + " active learned-weapon-skill bits set");
+    }
+
+    if (const auto rset = db::preparedStmt("SELECT claimed_deeds FROM char_unlocks WHERE charid = ? LIMIT 1", charId);
+        rset && rset->rowsCount() && rset->next())
+    {
+        const auto deedBits = countBlobBits(rset, "claimed_deeds", 20);
+        addAuditLine(rows, index, deedBits > 0, "Claimed Deeds", std::to_string(deedBits) + " A.M.A.N. Validator reward bits claimed");
+    }
+
+    if (const auto rset = db::preparedStmt("SELECT unlocked_weapons FROM chars WHERE charid = ? LIMIT 1", charId);
+        rset && rset->rowsCount() && rset->next())
+    {
+        const auto legacyWeaponBits = countBlobBits(rset, "unlocked_weapons", 20);
+        addAuditLine(rows, index, true, "Legacy Unlocked Weapons", std::to_string(legacyWeaponBits) + " legacy bits set; current server uses active learned weapon-skill bits");
     }
 
     return rows;
@@ -1070,9 +1177,10 @@ public:
             return true;
         };
 
-        native["auditDbState"]  = auditDbState;
-        native["grantGear"]     = grantGear;
-        native["repairChocobo"] = repairChocobo;
+        native["auditDbState"]               = auditDbState;
+        native["grantGear"]                  = grantGear;
+        native["repairChocobo"]              = repairChocobo;
+        native["repairLongTimeRuntimeState"] = repairLongTimeVisitedZones;
     }
 };
 

@@ -9,6 +9,8 @@ lua load shortcuts
 lua load battlemod
 lua load DressUp
 lua load findAll
+lua load craft
+craft delay 24
 lua load GearSwap
 lua load XivParty
 xp setup off

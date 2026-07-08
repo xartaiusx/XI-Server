@@ -48,7 +48,7 @@ database dumps.
 
 - `modules/custom/lua/twills_admin_bootstrap.lua`
   - Boot version: `8`.
-  - Runs automatically for `Twills` when `TwillsBootVersion < 8`.
+  - Runs automatically for `Twills` when `TwillsBootVersion < 9`.
   - Can be forced while Twills is online with `!twillsrepair`.
 - `modules/custom/cpp/twills_admin.cpp`
   - Repairs scalar DB state that should be durable on disk: all jobs, job
@@ -208,7 +208,7 @@ Not yet auto-applied:
 
 ## Storage And Retail Utility Gates
 
-The v8 repair keeps the visible GM icon hidden while preserving `gmlevel = 5`.
+The v9 repair keeps the visible GM icon hidden while preserving `gmlevel = 5`.
 Storage and access gates are repaired through local APIs and the narrow C++
 bridge:
 
@@ -224,7 +224,7 @@ bridge:
 
 ## Professions
 
-The v8 repair follows retail-shaped craft limits:
+The v9 repair follows retail-shaped craft limits:
 
 - Alchemy: 110 Expert.
 - Fishing: 110 Expert.
@@ -239,7 +239,7 @@ lures, Alchemy apron/torque/stall, and support-craft aprons/torques/stalls.
 
 ## Custom Chocobo
 
-The v8 repair registers a custom field chocobo and raised-chocobo record:
+The v9 repair registers a custom field chocobo and raised-chocobo record:
 
 - Name: `Mochi Galloper`.
 - Color: black.
@@ -252,8 +252,10 @@ The v8 repair registers a custom field chocobo and raised-chocobo record:
 
 ## Mission And Quest Completion
 
-The v8 repair completes only content represented in the local Mochirii mission and
-quest enum tables.
+The v9 repair completes only content represented in local Mochirii mission,
+quest, Assault, RoE, key-item, title, zone-visitation, and learned-weapon-skill
+APIs. Unsupported systems such as Campaign mission progression and deeper Sortie
+clear state are reported explicitly instead of raw blob fabrication.
 
 Mission handling:
 - For mission logs with normal completed bits, the repair adds and completes
@@ -312,10 +314,21 @@ After rebuild and relog:
 - Run `//gs reload`, `//gs c healer`, and `//gs c damage`; use GearSwap's
   validation output to catch missing local item names before combat QA.
 
+## 2026-07-08 v9 Long-Time Content Verification
+
+- `TwillsBootVersion = 9`; `TwillsRdmSchGearVersion = 3`; `gmlevel = 5` remains the intentional hidden-admin QA exception.
+- Fresh compact in-client `!twillsaudit` proof shows `Native DB audit: 22 OK, 0 FIX` and `Long-time content audit: 13 OK, 0 FIX`.
+- Direct DB/runtime evidence is stored outside Git at `FFXI-Runtime/audits/twills-v9-longtime-audit-latest.json` and `.md`; native Windower screenshot proof is stored under `FFXI-Runtime/screenshots/`.
+- Abyssea: locally defined Atma `145/145`, Abyssite `110/110`, and Lunar Abyssite `3/3` are present through supported `addKeyItem` paths.
+- Escha/Odyssey/Ambuscade/Dynamis gates: `TRIBULENS`, `RADIALENS`, Eschan KIs, Reisenjima Sanctorium orb, `MOGLOPHONE`, all three `MOGLOPHONE_II` KIs, both Ambuscade primers, and all local CoP Dynamis slivers are present.
+- Progression bitsets after the v9 pass: Assault `52` bits, stable Records of Eminence `429/429` through API audit, claimed Deeds `99`, titles `1094`, zones `296`, and active learned weapon skills `63`.
+- Campaign progression remains explicitly unsupported locally because the Campaign mission table is intentionally empty; the repair does not fabricate raw campaign blob state.
+- Sortie progression remains currency-backed and explicitly unsupported for deeper clear state because the current local key-item/progression enum does not expose a durable Sortie completion model.
+
 ## 2026-06-23 Local Verification
 
-- `TwillsBootVersion = 8` and `TwillsRdmSchGearVersion = 3` after the final
-  v8 repair pass.
+- `TwillsBootVersion = 9` and `TwillsRdmSchGearVersion = 3` after the final
+  v9 repair pass.
 - `chars.gmlevel = 5` while the visible GM icon/nameflag is off in-client.
 - Main Red Mage and Scholar job rows are level 99; every job is locally stored
   as Master Level 50 in `char_master_levels`, so active RDM/SCH is expected to
@@ -352,7 +365,7 @@ After rebuild and relog:
 
 ## 2026-06-24 v8 Implementation Notes
 
-- `TwillsBootVersion` target is now `8`.
+- Historical: `TwillsBootVersion` target was `8` for this pass; current target is `9` as of 2026-07-08.
 - `TwillsRdmSchGearVersion` target is now `3`.
 - The C++ bridge repairs strict retail craft caps, matching craft ranks, guild
   wallets, fewell, chocobucks, locker/satchel/sack storage, and `char_pet`.
@@ -408,7 +421,7 @@ Read-only DB checks matching the C++ audit helper passed:
   set to the local cap value.
 - Chocobo: black adult chocobo with max strength/endurance, Gallop + Canter,
   and no negative conditions.
-- Repair markers: boot v8, gear v3, and `TrustEngageType = 1`.
+- Historical repair markers: boot v8, gear v3, and `TrustEngageType = 1`; current repair marker is boot v9.
 
 ## 2026-06-24 Alter Ego Skill Display Fix
 

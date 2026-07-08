@@ -59,6 +59,34 @@ local function printLine(player, line)
     player:printToPlayer(line, xi.msg.channel.SYSTEM_3, '')
 end
 
+local function summarizeRows(player, label, rows)
+    local ok = 0
+    local fix = 0
+    local other = 0
+    local fixRows = {}
+
+    for _, row in ipairs(rows) do
+        if string.sub(row, 1, 4) == '[OK]' then
+            ok = ok + 1
+        elseif string.sub(row, 1, 5) == '[FIX]' then
+            fix = fix + 1
+            table.insert(fixRows, row)
+        else
+            other = other + 1
+        end
+    end
+
+    printLine(player, string.format('%s: %i OK, %i FIX%s', label, ok, fix, other > 0 and string.format(', %i info', other) or ''))
+
+    for i = 1, math.min(#fixRows, 6) do
+        printLine(player, fixRows[i])
+    end
+
+    if #fixRows > 6 then
+        printLine(player, string.format('[FIX] %s: %i additional FIX rows omitted from in-game output; use runtime audit evidence for full detail.', label, #fixRows - 6))
+    end
+end
+
 local function countImportantKeyItems(player)
     local found = 0
     local total = 0
@@ -198,6 +226,15 @@ local function printLiveAudit(invoker, target)
         expectedMissions,
         terminalLogs
     ))
+
+    if
+        xi.twills_admin ~= nil and
+        type(xi.twills_admin.auditLongTimeContent) == 'function'
+    then
+        summarizeRows(invoker, 'Long-time content audit', xi.twills_admin.auditLongTimeContent(target))
+    else
+        printLine(invoker, '[FIX] Twills long-time content audit helper is not loaded.')
+    end
 end
 
 commandObj.onTrigger = function(player)
@@ -215,9 +252,7 @@ commandObj.onTrigger = function(player)
         type(xi.twills_admin.native.auditDbState) == 'function'
     then
         local rows = xi.twills_admin.native.auditDbState(target:getID())
-        for _, row in ipairs(rows) do
-            printLine(player, row)
-        end
+        summarizeRows(player, 'Native DB audit', rows)
     else
         printLine(player, '[FIX] Native audit helper is not loaded; rebuild/restart xi_map.')
     end

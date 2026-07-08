@@ -30,7 +30,26 @@
       "Mochirii-MissionRankUps",
       "AshenbubsHD-Prime",
       "ALL-Dat-Mods"
-    ]
+    ],
+    "autoload_addons": [
+      "XIPivot",
+      "shortcuts",
+      "battlemod",
+      "DressUp",
+      "findAll",
+      "craft",
+      "GearSwap",
+      "XivParty",
+      "xivhotbar",
+      "MochiriiScreenshotQA"
+    ],
+    "craft": {
+      "addon_path": "D:\\Steam\\steamapps\\common\\FFXINA\\Windower\\addons\\craft",
+      "runtime_golden_path": "C:\\Users\\xtyty\\Documents\\FFXI-Runtime\\windower-golden-state\\addons\\craft",
+      "source": "https://github.com/Windower/Lua/tree/live/addons/craft",
+      "recipe_overlay": "recipes_mochirii_cooking.lua",
+      "recipe_generation": "tools/mochirii/crafting/windower_craft_recipes.py --write-live"
+    }
   },
   "cleanup_policy": {
     "manifest_before_delete": true,
