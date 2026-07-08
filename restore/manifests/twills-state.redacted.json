@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-06-30T00:46:07-07:00",
-  "sourceAudit": "C:/Users/xtyty/Documents/FFXI-Runtime/audits/twills-full-state-latest.md",
-  "auditTimestamp": "2026-06-29T22:41:54.137964-07:00",
+  "generatedAt": "2026-07-08T02:37:00-07:00",
+  "sourceAudit": "C:/Users/xtyty/Documents/FFXI-Runtime/audits/twills-v9-longtime-audit-latest.md",
+  "auditTimestamp": "2026-07-08T02:36:45-07:00",
   "character": {
     "name": "Twills",
     "charid": 2,
@@ -22,7 +22,7 @@
     },
     "repairMarkers": {
       "TrustEngageType": 1,
-      "TwillsBootVersion": 8,
+      "TwillsBootVersion": 9,
       "TwillsRdmSchGearVersion": 3
     }
   },
@@ -47,13 +47,15 @@
   "completionBitsets": {
     "missionsSetBits": 420,
     "questsSetBits": 1084,
-    "keyItemsSetBits": 220,
+    "keyItemsSetBits": 488,
     "weaponSkillsSetBits": 63,
-    "titlesSetBits": 30,
-    "zonesSetBits": 8,
-    "assaultSetBits": 0,
+    "titlesSetBits": 1094,
+    "zonesSetBits": 296,
+    "assaultSetBits": 52,
     "campaignSetBits": 0,
-    "eminenceSetBits": 0
+    "eminenceSetBits": 438,
+    "claimedDeedsSetBits": 99,
+    "legacyUnlockedWeaponsSetBits": 0
   },
   "storage": {
     "inventory": {
@@ -137,5 +139,16 @@
     "xiviewDirectFilesMatched": "4/4",
     "xitideManifestCount": 1
   },
-  "redaction": "Full account rows, password hashes, secrets, private database rows, logs, and screenshots are intentionally excluded from Git."
+  "redaction": "Full account rows, password hashes, secrets, private database rows, logs, and screenshots are intentionally excluded from Git.",
+  "longTimeContent": {
+    "bootVersion": 9,
+    "atma": "145/145 local ATMA_OF_* key items",
+    "abyssite": "110/110 local abyssite key items",
+    "eschaGates": "TRIBULENS, RADIALENS, ESCHAN_URN, ESCHAN_CELLAR, ESCHAN_NEF, REISENJIMA_SANCTORIUM_ORB",
+    "odysseyGates": "MOGLOPHONE plus MOGLOPHONE_II_1/2/3",
+    "ambuscadeGates": "AMBUSCADE_PRIMER_VOLUME_ONE and AMBUSCADE_PRIMER_VOLUME_TWO",
+    "dynamisGates": "DYNAMIS_VALKURM_SLIVER, DYNAMIS_BUBURIMU_SLIVER, DYNAMIS_QUFIM_SLIVER, DYNAMIS_TAVNAZIA_SLIVER",
+    "campaignProgression": "unsupported locally; campaign mission table is empty and raw campaign blob is not fabricated",
+    "sortieProgression": "currency-backed only; no local durable Sortie clear-state enum/table exposed"
+  }
 }

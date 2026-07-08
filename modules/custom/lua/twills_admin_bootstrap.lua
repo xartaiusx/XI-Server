@@ -20,12 +20,18 @@ require('scripts/enum/fame_area')
 require('scripts/enum/title')
 require('scripts/enum/unity_leader')
 require('scripts/enum/ws_unlock')
+require('scripts/enum/assault')
+require('scripts/globals/assault/data')
+require('scripts/globals/roe_records')
+require('scripts/globals/deeds')
 -----------------------------------
 local m = Module:new('twills_admin_bootstrap')
 
 local ADMIN_NAME = 'Twills'
-local CURRENT_BOOT_VERSION = 8
-local VAR_STARTED = 'TwillsBootStartV8'
+local CURRENT_BOOT_VERSION = 9
+local MAX_ENGINE_TITLE_ID = 1143
+local LONG_TIME_REPAIR_ACTIVE_VAR = 'TwillsLongTimeRepairActive'
+local VAR_STARTED = 'TwillsBootStartV9'
 local VAR_DONE = 'TwillsBootDone'
 local VAR_VERSION = 'TwillsBootVersion'
 local VAR_GEAR_VERSION = 'TwillsRdmSchGearVersion'
@@ -149,6 +155,68 @@ local completionTitles =
     xi.title.THE_IMMORTAL_FISHER_LU_SHANG,
     xi.title.EXALTED_FISHERMAN,
     xi.title.FISH_WHISPERER,
+}
+
+local longTimeKeyItemNames =
+{
+    TRIBULENS = true,
+    RADIALENS = true,
+    ESCHAN_URN = true,
+    ESCHAN_CELLAR = true,
+    ESCHAN_NEF = true,
+    REISENJIMA_SANCTORIUM_ORB = true,
+    MOGLOPHONE = true,
+    MOGLOPHONE_II_1 = true,
+    MOGLOPHONE_II_2 = true,
+    MOGLOPHONE_II_3 = true,
+    AMBUSCADE_PRIMER_VOLUME_ONE = true,
+    AMBUSCADE_PRIMER_VOLUME_TWO = true,
+    DYNAMIS_VALKURM_SLIVER = true,
+    DYNAMIS_BUBURIMU_SLIVER = true,
+    DYNAMIS_QUFIM_SLIVER = true,
+    DYNAMIS_TAVNAZIA_SLIVER = true,
+}
+
+local longTimeGateGroups =
+{
+    Escha =
+    {
+        'TRIBULENS',
+        'RADIALENS',
+        'ESCHAN_URN',
+        'ESCHAN_CELLAR',
+        'ESCHAN_NEF',
+        'REISENJIMA_SANCTORIUM_ORB',
+    },
+    Odyssey =
+    {
+        'MOGLOPHONE',
+        'MOGLOPHONE_II_1',
+        'MOGLOPHONE_II_2',
+        'MOGLOPHONE_II_3',
+    },
+    Ambuscade =
+    {
+        'AMBUSCADE_PRIMER_VOLUME_ONE',
+        'AMBUSCADE_PRIMER_VOLUME_TWO',
+    },
+    Dynamis =
+    {
+        'DYNAMIS_VALKURM_SLIVER',
+        'DYNAMIS_BUBURIMU_SLIVER',
+        'DYNAMIS_QUFIM_SLIVER',
+        'DYNAMIS_TAVNAZIA_SLIVER',
+    },
+}
+
+local blockedRoeFlags =
+{
+    hidden = true,
+    ['repeat'] = true,
+    timed = true,
+    daily = true,
+    weekly = true,
+    unity = true,
 }
 
 local rdmSchGear =
@@ -512,6 +580,552 @@ local function addCompletionTitles(player)
     return added
 end
 
+local function collectNamedIds(source, predicate)
+    local entries = {}
+    local seen = {}
+
+    for name, id in pairs(source or {}) do
+        if
+            type(name) == 'string' and
+            type(id) == 'number' and
+            id > 0 and
+            predicate(name, id) and
+            not seen[id]
+        then
+            table.insert(entries, { name = name, id = id })
+            seen[id] = true
+        end
+    end
+
+    table.sort(entries, function(a, b)
+        return a.id < b.id
+    end)
+
+    return entries
+end
+
+local function isLongTimeKeyItem(name, id)
+    if name == 'DYNAMIS_DEBUGGER' then
+        return false
+    end
+
+    return
+        string.match(name, '^ATMA_OF_') ~= nil or
+        string.find(name, 'ABYSSITE', 1, true) ~= nil or
+        longTimeKeyItemNames[name] == true
+end
+
+local function getLongTimeKeyItems()
+    return collectNamedIds(xi.ki, isLongTimeKeyItem)
+end
+
+local function countLongTimeKeyItems(player, predicate)
+    local found = 0
+    local total = 0
+    local missing = {}
+
+    for _, entry in ipairs(collectNamedIds(xi.ki, predicate)) do
+        total = total + 1
+        if player:hasKeyItem(entry.id) then
+            found = found + 1
+        else
+            table.insert(missing, entry.name)
+        end
+    end
+
+    return found, total, missing
+end
+
+local function countGateGroup(player, groupName)
+    local found = 0
+    local total = 0
+    local missing = {}
+
+    for _, name in ipairs(longTimeGateGroups[groupName] or {}) do
+        local id = xi.ki[name]
+        if id ~= nil then
+            total = total + 1
+            if player:hasKeyItem(id) then
+                found = found + 1
+            else
+                table.insert(missing, name)
+            end
+        end
+    end
+
+    return found, total, missing
+end
+
+local function addLongTimeKeyItems(player)
+    local added = 0
+
+    for _, entry in ipairs(getLongTimeKeyItems()) do
+        if not player:hasKeyItem(entry.id) then
+            player:addKeyItem(entry.id)
+            added = added + 1
+        end
+    end
+
+    return added, #getLongTimeKeyItems()
+end
+
+local function getAssaultMissionIds()
+    local ids = {}
+    local seen = {}
+
+    for _, missions in pairs(xi.assault.missionsByArea or {}) do
+        for _, missionId in ipairs(missions) do
+            if type(missionId) == 'number' and missionId > 0 and not seen[missionId] then
+                table.insert(ids, missionId)
+                seen[missionId] = true
+            end
+        end
+    end
+
+    table.sort(ids)
+    return ids
+end
+
+local function countAssaultProgress(player)
+    local complete = 0
+    local ids = getAssaultMissionIds()
+
+    for _, missionId in ipairs(ids) do
+        if player:hasCompletedAssault(missionId) then
+            complete = complete + 1
+        end
+    end
+
+    return complete, #ids
+end
+
+local function repairAssaultProgress(player)
+    local completed = 0
+
+    for _, missionId in ipairs(getAssaultMissionIds()) do
+        if not player:hasCompletedAssault(missionId) then
+            local currentAssault = player:getCurrentAssault()
+            if currentAssault ~= 0 and currentAssault ~= missionId then
+                player:delAssault(currentAssault)
+            end
+
+            if player:getCurrentAssault() ~= missionId then
+                player:addAssault(missionId)
+            end
+
+            player:completeAssault(missionId)
+            completed = completed + 1
+        end
+    end
+
+    return completed
+end
+
+local function isStableRoeRecord(recordId, record)
+    if type(recordId) ~= 'number' or record == nil then
+        return false
+    end
+
+    local flags = record.flags or {}
+    for flag in pairs(blockedRoeFlags) do
+        if flags[flag] then
+            return false
+        end
+    end
+
+    return true
+end
+
+local function getStableRoeRecordIds()
+    local ids = {}
+
+    for recordId, record in pairs(xi.roe.records or {}) do
+        if isStableRoeRecord(recordId, record) then
+            table.insert(ids, recordId)
+        end
+    end
+
+    table.sort(ids)
+    return ids
+end
+
+local function countStableRoeProgress(player)
+    local completed = 0
+    local ids = getStableRoeRecordIds()
+
+    for _, recordId in ipairs(ids) do
+        if player:getEminenceCompleted(recordId) then
+            completed = completed + 1
+        end
+    end
+
+    return completed, #ids
+end
+
+local function repairStableRoeProgress(player)
+    local completed = 0
+
+    for _, recordId in ipairs(getStableRoeRecordIds()) do
+        if not player:getEminenceCompleted(recordId) then
+            player:setEminenceCompleted(recordId)
+            completed = completed + 1
+        end
+    end
+
+    return completed, #getStableRoeRecordIds()
+end
+
+local function bitCount(value)
+    local count = 0
+    local current = value or 0
+
+    while current > 0 do
+        if bit.band(current, 1) ~= 0 then
+            count = count + 1
+        end
+
+        current = bit.rshift(current, 1)
+    end
+
+    return count
+end
+
+local function countClaimedDeeds(player)
+    local claimed = player:getClaimedDeedMask() or {}
+    local count = 0
+
+    for _, mask in ipairs(claimed) do
+        count = count + bitCount(mask)
+    end
+
+    return count
+end
+
+local function claimEarnedDeeds(player)
+    local target = math.min(math.floor(player:getCurrency('deeds') / 10), 144)
+
+    for deedBit = 1, target do
+        player:setClaimedDeed(deedBit)
+    end
+
+    return countClaimedDeeds(player), target
+end
+
+local function getLocalTitleIds()
+    local ids = {}
+    local seen = {}
+
+    for _, titleId in pairs(xi.title or {}) do
+        if
+            type(titleId) == 'number' and
+            titleId > 0 and
+            titleId <= MAX_ENGINE_TITLE_ID and
+            not seen[titleId]
+        then
+            table.insert(ids, titleId)
+            seen[titleId] = true
+        end
+    end
+
+    table.sort(ids)
+    return ids
+end
+
+local function countLocalTitles(player)
+    local found = 0
+    local ids = getLocalTitleIds()
+
+    for _, titleId in ipairs(ids) do
+        if player:hasTitle(titleId) then
+            found = found + 1
+        end
+    end
+
+    return found, #ids
+end
+
+local function getLearnedWeaponSkillIds()
+    local ids = {}
+    local seen = {}
+
+    for _, wsUnlockId in pairs(xi.wsUnlock or {}) do
+        if type(wsUnlockId) == 'number' and wsUnlockId > 0 and not seen[wsUnlockId] then
+            table.insert(ids, wsUnlockId)
+            seen[wsUnlockId] = true
+        end
+    end
+
+    table.sort(ids)
+    return ids
+end
+
+local function countLearnedWeaponSkills(player)
+    local found = 0
+    local ids = getLearnedWeaponSkillIds()
+
+    for _, wsUnlockId in ipairs(ids) do
+        if player:hasLearnedWeaponskill(wsUnlockId) then
+            found = found + 1
+        end
+    end
+
+    return found, #ids
+end
+
+local function queueLongTimeContentRepair(player)
+    if player:getCharVar(LONG_TIME_REPAIR_ACTIVE_VAR) == 1 then
+        return false
+    end
+
+    player:setCharVar(LONG_TIME_REPAIR_ACTIVE_VAR, 1)
+
+    local deedTarget = math.min(math.floor(player:getCurrency('deeds') / 10), 144)
+    local deedBits = {}
+    for deedBit = 1, deedTarget do
+        table.insert(deedBits, deedBit)
+    end
+
+    local keyItems = getLongTimeKeyItems()
+    local assaults = getAssaultMissionIds()
+    local roeRecords = getStableRoeRecordIds()
+    local titles = getLocalTitleIds()
+    local weaponSkills = getLearnedWeaponSkillIds()
+
+    local state =
+    {
+        keyItemsAdded = 0,
+        keyItemsTotal = #keyItems,
+        assaultsAdded = 0,
+        assaultsTotal = #assaults,
+        roeAdded = 0,
+        roeTotal = #roeRecords,
+        deedTarget = deedTarget,
+        titleTotal = #titles,
+        wsTotal = #weaponSkills,
+        zoneAdded = 0,
+        zoneExpected = 0,
+    }
+
+    local stages =
+    {
+        {
+            name = 'key items',
+            ids = keyItems,
+            batch = 12,
+            process = function(p, entry)
+                if not p:hasKeyItem(entry.id) then
+                    p:addKeyItem(entry.id)
+                    state.keyItemsAdded = state.keyItemsAdded + 1
+                end
+            end,
+        },
+        {
+            name = 'Assault',
+            ids = assaults,
+            batch = 3,
+            process = function(p, missionId)
+                if not p:hasCompletedAssault(missionId) then
+                    local currentAssault = p:getCurrentAssault()
+                    if currentAssault ~= 0 and currentAssault ~= missionId then
+                        p:delAssault(currentAssault)
+                    end
+
+                    if p:getCurrentAssault() ~= missionId then
+                        p:addAssault(missionId)
+                    end
+
+                    p:completeAssault(missionId)
+                    state.assaultsAdded = state.assaultsAdded + 1
+                end
+            end,
+        },
+        {
+            name = 'Records of Eminence',
+            ids = roeRecords,
+            batch = 20,
+            process = function(p, recordId)
+                if not p:getEminenceCompleted(recordId) then
+                    p:setEminenceCompleted(recordId)
+                    state.roeAdded = state.roeAdded + 1
+                end
+            end,
+        },
+        {
+            name = 'claimed Deeds',
+            ids = deedBits,
+            batch = 24,
+            process = function(p, deedBit)
+                p:setClaimedDeed(deedBit)
+            end,
+        },
+        {
+            name = 'titles',
+            ids = titles,
+            batch = 20,
+            process = function(p, titleId)
+                if not p:hasTitle(titleId) then
+                    p:addTitle(titleId)
+                end
+            end,
+        },
+        {
+            name = 'learned weapon skills',
+            ids = weaponSkills,
+            batch = 24,
+            process = function(p, wsUnlockId)
+                p:addLearnedWeaponskill(wsUnlockId)
+            end,
+        },
+        {
+            name = 'zone visitation',
+            ids = { 1 },
+            batch = 1,
+            process = function(p)
+                if
+                    xi.twills_admin.native and
+                    type(xi.twills_admin.native.repairLongTimeRuntimeState) == 'function'
+                then
+                    state.zoneAdded, state.zoneExpected = xi.twills_admin.native.repairLongTimeRuntimeState(p)
+                end
+            end,
+        },
+    }
+
+    local stageIndex = 1
+    local function runNextBatch(playerArg)
+        if playerArg == nil then
+            return
+        end
+
+        local stage = stages[stageIndex]
+        if stage == nil then
+            local deedCount = countClaimedDeeds(playerArg)
+            local titleFound, titleTotal = countLocalTitles(playerArg)
+            local wsFound, wsTotal = countLearnedWeaponSkills(playerArg)
+            playerArg:setCharVar(LONG_TIME_REPAIR_ACTIVE_VAR, 0)
+            playerArg:printToPlayer(string.format(
+                'Twills long-time v9 repair complete: +%i/%i KIs, +%i/%i Assault, +%i/%i RoE, Deeds %i/%i, zones +%i/%i, titles %i/%i, WS %i/%i.',
+                state.keyItemsAdded,
+                state.keyItemsTotal,
+                state.assaultsAdded,
+                state.assaultsTotal,
+                state.roeAdded,
+                state.roeTotal,
+                deedCount,
+                state.deedTarget,
+                state.zoneAdded,
+                state.zoneExpected,
+                titleFound,
+                titleTotal,
+                wsFound,
+                wsTotal
+            ), xi.msg.channel.SYSTEM_3)
+            return
+        end
+
+        stage.index = stage.index or 1
+        local processed = 0
+        while processed < stage.batch and stage.index <= #stage.ids do
+            stage.process(playerArg, stage.ids[stage.index])
+            stage.index = stage.index + 1
+            processed = processed + 1
+        end
+
+        if stage.index > #stage.ids then
+            stageIndex = stageIndex + 1
+        end
+
+        playerArg:timer(250, runNextBatch)
+    end
+
+    player:timer(250, runNextBatch)
+    return true
+end
+
+local function repairLongTimeContent(player)
+    local queued = queueLongTimeContentRepair(player)
+    local keyItemsFound, keyItemsTotal = countLongTimeKeyItems(player, isLongTimeKeyItem)
+    local assaultsFound, assaultsTotal = countAssaultProgress(player)
+    local roeFound, roeTotal = countStableRoeProgress(player)
+    local deedCount = countClaimedDeeds(player)
+    local deedTarget = math.min(math.floor(player:getCurrency('deeds') / 10), 144)
+    local titleFound, titleTotal = countLocalTitles(player)
+    local wsFound, wsTotal = countLearnedWeaponSkills(player)
+
+    return
+    {
+        queued = queued,
+        keyItemsAdded = 0,
+        keyItemsTotal = keyItemsTotal,
+        keyItemsFound = keyItemsFound,
+        assaultsAdded = 0,
+        assaultsTotal = assaultsTotal,
+        assaultsFound = assaultsFound,
+        roeAdded = 0,
+        roeTotal = roeTotal,
+        roeFound = roeFound,
+        deedCount = deedCount,
+        deedTarget = deedTarget,
+        titleAdded = 0,
+        titleTotal = titleTotal,
+        titleFound = titleFound,
+        wsFound = wsFound,
+        wsTotal = wsTotal,
+        zoneAdded = 0,
+        zoneExpected = 0,
+    }
+end
+
+local function auditLine(ok, label, details)
+    return string.format('%s %s: %s', ok and '[OK]' or '[FIX]', label, details)
+end
+
+local function auditLongTimeContent(player)
+    local rows = {}
+
+    local atmaFound, atmaTotal = countLongTimeKeyItems(player, function(name)
+        return string.match(name, '^ATMA_OF_') ~= nil
+    end)
+    table.insert(rows, auditLine(atmaFound == atmaTotal, 'Abyssea Atma', string.format('%i/%i locally defined Atma key items present', atmaFound, atmaTotal)))
+
+    local abyssiteFound, abyssiteTotal = countLongTimeKeyItems(player, function(name)
+        return string.find(name, 'ABYSSITE', 1, true) ~= nil
+    end)
+    table.insert(rows, auditLine(abyssiteFound == abyssiteTotal, 'Abyssea Abyssite', string.format('%i/%i locally defined abyssite key items present', abyssiteFound, abyssiteTotal)))
+
+    for _, groupName in ipairs({ 'Escha', 'Odyssey', 'Ambuscade', 'Dynamis' }) do
+        local found, total, missing = countGateGroup(player, groupName)
+        table.insert(rows, auditLine(found == total, groupName .. ' Gates', string.format('%i/%i local gate key items present%s', found, total, #missing > 0 and ('; missing ' .. table.concat(missing, ', ')) or '')))
+    end
+
+    local assaultComplete, assaultTotal = countAssaultProgress(player)
+    table.insert(rows, auditLine(assaultComplete == assaultTotal, 'Assault Progression', string.format('%i/%i local Assault missions complete', assaultComplete, assaultTotal)))
+
+    local campaignMissions = xi.mission.id[xi.mission.area[xi.mission.log_id.CAMPAIGN]] or {}
+    local campaignSupported = next(campaignMissions) ~= nil
+    table.insert(rows, auditLine(true, 'Campaign Progression', campaignSupported and 'local Campaign missions are represented for future repair' or 'unsupported locally; Campaign mission table is intentionally empty'))
+
+    local roeComplete, roeTotal = countStableRoeProgress(player)
+    table.insert(rows, auditLine(roeComplete == roeTotal, 'Records of Eminence', string.format('%i/%i stable non-repeat local records complete', roeComplete, roeTotal)))
+
+    local deedCount = countClaimedDeeds(player)
+    local deedTarget = math.min(math.floor(player:getCurrency('deeds') / 10), 144)
+    table.insert(rows, auditLine(deedCount >= deedTarget, 'Claimed Deeds', string.format('%i/%i claim bits set from current Deeds balance', deedCount, deedTarget)))
+
+    local titleFound, titleTotal = countLocalTitles(player)
+    table.insert(rows, auditLine(titleFound == titleTotal, 'Titles', string.format('%i/%i local title-history entries present', titleFound, titleTotal)))
+
+    local wsFound, wsTotal = countLearnedWeaponSkills(player)
+    table.insert(rows, auditLine(wsFound == wsTotal, 'Learned Weapon Skills', string.format('%i/%i local learned weapon-skill unlocks present', wsFound, wsTotal)))
+
+    local sortieFound, sortieTotal = countLongTimeKeyItems(player, function(name)
+        return string.find(name, 'SORTIE', 1, true) ~= nil
+    end)
+    table.insert(rows, auditLine(true, 'Sortie Progression', sortieTotal > 0 and string.format('%i/%i local Sortie key items present', sortieFound, sortieTotal) or 'no local Sortie key-item progression enum; Gallimaufry/canteen currency remains the supported evidence'))
+
+    return rows
+end
+
 local function ensureRetailStorageGates(player)
     local inventoryAdjustment = TARGET_INVENTORY_SIZE - player:getContainerSize(xi.inv.INVENTORY)
     if inventoryAdjustment > 0 then
@@ -850,6 +1464,7 @@ local function repair(player, forced)
     addAllSpells.onTrigger(player)
     commandHelpers.addAllTrusts.onTrigger(player)
     repairUnityAndLimitedTrusts(player)
+    local longTimeRepair = repairLongTimeContent(player)
     local addedKeyItems = addRequiredKeyItems(player)
     local addedTitles = addCompletionTitles(player)
 
@@ -872,7 +1487,7 @@ local function repair(player, forced)
 
     local mode = forced and 'repair' or 'bootstrap'
     player:printToPlayer(string.format(
-        'Twills admin %s v%i complete: all jobs Master Level %i, active RDM/SCH support cap 59, %i travel unlocks refreshed, %i new key items, %i missions newly completed, %i terminal progress logs, %i quests newly completed, %i gear items (%i failed), privileges kept, GM icon hidden%s. Relog to refresh all client-side views.',
+        'Twills admin %s v%i complete: all jobs Master Level %i, active RDM/SCH support cap 59, %i travel unlocks refreshed, %i new key items, long-time content repair queued; run !twillsaudit after the queued pass finishes for Atma/Abyssite/Assault/RoE/Deeds/zones/titles/WS counts. %i missions newly completed, %i terminal progress logs, %i quests newly completed, %i gear items (%i failed), privileges kept, GM icon hidden%s. Relog to refresh all client-side views.',
         mode,
         CURRENT_BOOT_VERSION,
         TARGET_MASTER_LEVEL,
@@ -883,7 +1498,7 @@ local function repair(player, forced)
         questCount,
         gearGranted,
         gearFailed,
-        nativeDbRepaired and string.format(' with DB gates, %i titles, %i profession items (%i failed), chocobo %s', addedTitles, professionGranted, professionFailed, chocoboRepaired and 'ready' or 'not repaired') or ''
+        nativeDbRepaired and string.format(' with DB gates, %i core titles, %i profession items (%i failed), chocobo %s', addedTitles, professionGranted, professionFailed, chocoboRepaired and 'ready' or 'not repaired') or ''
     ), xi.msg.channel.SYSTEM_3)
 
     return true
@@ -893,6 +1508,8 @@ xi.twills_admin = xi.twills_admin or {}
 xi.twills_admin.adminName = ADMIN_NAME
 xi.twills_admin.currentVersion = CURRENT_BOOT_VERSION
 xi.twills_admin.repair = repair
+xi.twills_admin.repairLongTimeContent = repairLongTimeContent
+xi.twills_admin.auditLongTimeContent = auditLongTimeContent
 
 m:addOverride('xi.player.onGameIn', function(player, firstLogin, zoning)
     super(player, firstLogin, zoning)
