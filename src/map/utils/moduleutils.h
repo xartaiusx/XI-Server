@@ -77,7 +77,7 @@ protected:
 };
 
 #define REGISTER_CPP_MODULE(className) \
-    static CPPModule* classNamePtr = className::Register<className>();
+    [[maybe_unused]] static CPPModule* classNamePtr = className::Register<className>();
 
 namespace moduleutils
 {
