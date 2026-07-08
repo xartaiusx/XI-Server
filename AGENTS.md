@@ -36,6 +36,7 @@ when referring to the game.
   - `luajit -bl modules/custom/lua/trust_retail_parity.lua NUL`
   - `luajit -bl modules/custom/lua/trust_action_logger.lua NUL`
   - `luajit -bl modules/custom/commands/trustparty.lua NUL`
+  - `luajit -bl modules/custom/commands/craftqa.lua NUL`
 
 ## Verification Rules
 
@@ -87,7 +88,7 @@ but the command itself should stay native whenever possible.
 3. Send normal Windower, Final Fantasy XI, GearSwap, XivParty, and GM commands
    with `C:\Users\xtyty\Documents\FFXI-Runtime\client-tools\Invoke-WindowerCommand.ps1`.
 4. For addon state checks, use `//lua list`, `//lua reload <addon>`, native
-   addon commands such as `//xp setup off`, and native GearSwap commands such
+   addon commands such as `//xp setup off` and `//craft status`, and native GearSwap commands such
    as `//gs reload`, `//gs validate sets`, `//gs validate inv`, and
    `//gs c status`.
 5. For Trust QA, use `!trustparty summonqa`, wait for the summon-complete
@@ -98,6 +99,10 @@ but the command itself should stay native whenever possible.
    only.
 7. After combat tests, generate the report from WSL with
    `python3 tools/mochirii/trust_parity_audit.py --repo-root . --runtime-root /root/projects/FFXI-Runtime --player Twills`.
+8. For CraftQA, keep Twills Alchemy 110 / Cooking 70 unless a future plan
+   explicitly switches specialization. Use native client Synthesis History and
+   `/lastsynth` as the proof path; CraftQA may stage ingredients and record
+   evidence, but must not fake a permanent synthesis history.
 
 Keep the source tree organized: one canonical helper per job, no duplicate
 Windows/WSL scripts for the same operation, no runtime logs or screenshots in

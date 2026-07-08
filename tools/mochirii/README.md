@@ -36,7 +36,7 @@ For every in-client test, keep the command surface stable and native:
    bridge for Windower commands, Final Fantasy XI input commands, GearSwap
    commands, XivParty commands, and Mochirii GM commands.
 3. Prefer existing client/server commands before creating helpers: `//lua list`,
-   `//lua reload <addon>`, `//xp setup off`, `//gs reload`,
+   `//lua reload <addon>`, `//xp setup off`, `//craft status`, `//gs reload`,
    `//gs validate sets`, `//gs validate inv`, `//gs c status`,
    `!trustparty summonqa`, and `!trustparty audit active`.
 4. For Trust alliance QA, wait for the `!trustparty summonqa` completion message
