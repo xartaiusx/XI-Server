@@ -1,52 +1,28 @@
 -----------------------------------
 -- func: twillsaudit
--- desc: Audits Twills' retail-shaped long-time-player bootstrap state.
+-- desc: Runs explicit Twills core, parity, content, merit, currency, or gear audits.
 -----------------------------------
-require('scripts/globals/missions')
-require('scripts/globals/quests')
-
 ---@type TCommand
 local commandObj = {}
 
-commandObj.cmdprops =
-{
+commandObj.cmdprops = {
     permission = 5,
-    parameters = '',
+    parameters = 'ss',
 }
 
 local adminName = 'Twills'
 
-local importantKeyItems =
-{
-    { 'Limit Breaker', xi.ki.LIMIT_BREAKER },
-    { 'Job Breaker', xi.ki.JOB_BREAKER },
-    { 'Master Breaker', xi.ki.MASTER_BREAKER },
-    { 'Heart of the Bushin', xi.ki.HEART_OF_THE_BUSHIN },
-    { 'Airship Pass', xi.ki.AIRSHIP_PASS },
-    { 'Kazham Airship Pass', xi.ki.AIRSHIP_PASS_FOR_KAZHAM },
-    { 'Chocobo License', xi.ki.CHOCOBO_LICENSE },
-    { 'Gardenia Pass', xi.ki.GARDENIA_PASS },
-    { 'Mog Patio Design Document', xi.ki.MOG_PATIO_DESIGN_DOCUMENT },
-    { "Trainer's Whistle", xi.ki.TRAINERS_WHISTLE },
-    { 'Chocobo Companion', xi.ki.CHOCOBO_COMPANION },
-    { "San d'Oria Trust Permit", xi.ki.SAN_DORIA_TRUST_PERMIT },
-    { 'Bastok Trust Permit', xi.ki.BASTOK_TRUST_PERMIT },
-    { 'Windurst Trust Permit', xi.ki.WINDURST_TRUST_PERMIT },
-    { 'Rhapsody in White', xi.ki.RHAPSODY_IN_WHITE },
-    { 'Rhapsody in Umber', xi.ki.RHAPSODY_IN_UMBER },
-    { 'Rhapsody in Azure', xi.ki.RHAPSODY_IN_AZURE },
-    { 'Rhapsody in Crimson', xi.ki.RHAPSODY_IN_CRIMSON },
-    { 'Rhapsody in Emerald', xi.ki.RHAPSODY_IN_EMERALD },
-    { 'Rhapsody in Mauve', xi.ki.RHAPSODY_IN_MAUVE },
-    { 'Rhapsody in Fuchsia', xi.ki.RHAPSODY_IN_FUCHSIA },
-    { 'Rhapsody in Puce', xi.ki.RHAPSODY_IN_PUCE },
-    { 'Rhapsody in Ochre', xi.ki.RHAPSODY_IN_OCHRE },
-    { 'Scintillating Rhapsody', xi.ki.SCINTILLATING_RHAPSODY },
-    { 'Cipher Bracelet', xi.ki.CIPHER_BRACELET },
-}
+local function ensureAdminModule()
+    if
+        xi.twills_admin == nil or
+        xi.twills_admin.contentRegistry == nil or
+        type(xi.twills_admin.repairCore) ~= 'function'
+    then
+        require('modules/custom/lua/twills_admin_bootstrap')
+    end
+end
 
-local rdmJobPointSpells =
-{
+local rdmJobPointSpells = {
     { 'Addle II', 884 },
     { 'Distract III', 882 },
     { 'Frazzle III', 883 },
@@ -62,203 +38,159 @@ end
 local function summarizeRows(player, label, rows)
     local ok = 0
     local fix = 0
-    local other = 0
-    local fixRows = {}
+    local info = 0
+    local importantRows = {}
 
     for _, row in ipairs(rows) do
         if string.sub(row, 1, 4) == '[OK]' then
             ok = ok + 1
         elseif string.sub(row, 1, 5) == '[FIX]' then
             fix = fix + 1
-            table.insert(fixRows, row)
+            table.insert(importantRows, row)
         else
-            other = other + 1
+            info = info + 1
+            table.insert(importantRows, row)
         end
     end
 
-    printLine(player, string.format('%s: %i OK, %i FIX%s', label, ok, fix, other > 0 and string.format(', %i info', other) or ''))
-
-    for i = 1, math.min(#fixRows, 6) do
-        printLine(player, fixRows[i])
+    printLine(player, string.format('%s: %i OK, %i FIX, %i info', label, ok, fix, info))
+    for index = 1, math.min(#importantRows, 6) do
+        printLine(player, importantRows[index])
     end
 
-    if #fixRows > 6 then
-        printLine(player, string.format('[FIX] %s: %i additional FIX rows omitted from in-game output; use runtime audit evidence for full detail.', label, #fixRows - 6))
+    if #importantRows > 6 then
+        printLine(player, string.format('[INFO] %s: %i additional rows are in the map log.', label, #importantRows - 6))
     end
 end
 
-local function countImportantKeyItems(player)
-    local found = 0
-    local total = 0
-    local missing = {}
-
-    for _, entry in ipairs(importantKeyItems) do
-        local name = entry[1]
-        local id = entry[2]
-
-        if id ~= nil then
-            total = total + 1
-
-            if player:hasKeyItem(id) then
-                found = found + 1
-            else
-                table.insert(missing, name)
-            end
-        end
+local function nativeAudit(player, target, functionName, label)
+    if
+        xi.twills_admin == nil or
+        xi.twills_admin.native == nil or
+        type(xi.twills_admin.native[functionName]) ~= 'function'
+    then
+        printLine(player, string.format('[FIX] %s helper is not loaded; rebuild and restart xi_map.', label))
+        return
     end
 
-    return found, total, missing
+    summarizeRows(player, label, xi.twills_admin.native[functionName](target:getID()))
 end
 
-local function countKnownQuests(player)
-    local complete = 0
-    local expected = 0
+local function auditCore(player, target)
+    nativeAudit(player, target, 'auditDbState', 'Core DB audit')
 
-    for logId, areaName in pairs(xi.quest.area) do
-        local quests = xi.quest.id[areaName]
-        local seen = {}
-
-        if quests ~= nil then
-            for _, questId in pairs(quests) do
-                if type(questId) == 'number' and questId >= 0 and questId < 256 then
-                    seen[questId] = true
-                end
-            end
-
-            for questId in pairs(seen) do
-                expected = expected + 1
-
-                if player:hasCompletedQuest(logId, questId) then
-                    complete = complete + 1
-                end
-            end
-        end
-    end
-
-    return complete, expected
-end
-
-local function countKnownMissions(player)
-    local complete = 0
-    local expected = 0
-    local terminalLogs = 0
-
-    for logId, areaName in pairs(xi.mission.area) do
-        if
-            logId ~= xi.mission.log_id.ASSAULT and
-            logId ~= xi.mission.log_id.CAMPAIGN
-        then
-            local missions = xi.mission.id[areaName]
-            local seen = {}
-            local maxMissionId = 0
-            local usesCurrentProgress = logId == xi.mission.log_id.COP
-
-            if missions ~= nil then
-                for _, missionId in pairs(missions) do
-                    if type(missionId) == 'number' and missionId >= 0 and missionId < 65535 then
-                        seen[missionId] = true
-                        maxMissionId = math.max(maxMissionId, missionId)
-
-                        if missionId >= 64 then
-                            usesCurrentProgress = true
-                        end
-                    end
-                end
-
-                for missionId in pairs(seen) do
-                    if not usesCurrentProgress or missionId < 64 then
-                        expected = expected + 1
-
-                        if player:hasCompletedMission(logId, missionId) then
-                            complete = complete + 1
-                        end
-                    end
-                end
-
-                if usesCurrentProgress and maxMissionId > 0 then
-                    terminalLogs = terminalLogs + 1
-                end
-            end
-        end
-    end
-
-    return complete, expected, terminalLogs
-end
-
-local function printLiveAudit(invoker, target)
     local learned = 0
-    local missingSpells = {}
-
-    for _, entry in ipairs(rdmJobPointSpells) do
-        if target:hasSpell(entry[2]) then
+    local missing = {}
+    for _, spell in ipairs(rdmJobPointSpells) do
+        if target:hasSpell(spell[2]) then
             learned = learned + 1
         else
-            table.insert(missingSpells, entry[1])
+            table.insert(missing, spell[1])
         end
     end
 
-    printLine(invoker, string.format('%s RDM JP spells: %i/%i learned%s',
-        learned == #rdmJobPointSpells and '[OK]' or '[FIX]',
-        learned,
-        #rdmJobPointSpells,
-        #missingSpells > 0 and ('; missing ' .. table.concat(missingSpells, ', ')) or ''
-    ))
+    printLine(
+        player,
+        string.format(
+            '%s RDM JP spells: %i/%i learned%s',
+            learned == #rdmJobPointSpells and '[OK]' or '[FIX]',
+            learned,
+            #rdmJobPointSpells,
+            #missing > 0 and ('; missing ' .. table.concat(missing, ', ')) or ''
+        )
+    )
+end
 
-    local keyItems, expectedKeyItems, missingKeyItems = countImportantKeyItems(target)
-    printLine(invoker, string.format('%s Key items: %i/%i important gates present%s',
-        keyItems == expectedKeyItems and '[OK]' or '[FIX]',
-        keyItems,
-        expectedKeyItems,
-        #missingKeyItems > 0 and ('; missing ' .. table.concat(missingKeyItems, ', ')) or ''
-    ))
+local function auditParity(player, target)
+    nativeAudit(player, target, 'auditMetadataState', 'Veteran metadata audit')
 
-    local completedQuests, expectedQuests = countKnownQuests(target)
-    printLine(invoker, string.format('%s Quests: %i/%i locally represented quests complete',
-        completedQuests == expectedQuests and '[OK]' or '[FIX]',
-        completedQuests,
-        expectedQuests
-    ))
+    local registry = xi.twills_admin and xi.twills_admin.contentRegistry
+    if registry == nil or registry.systems == nil then
+        printLine(player, '[FIX] Content parity registry is not loaded.')
+        return
+    end
 
-    local completedMissions, expectedMissions, terminalLogs = countKnownMissions(target)
-    printLine(invoker, string.format('%s Missions: %i/%i directly completable missions complete; %i terminal progress logs tracked',
-        completedMissions == expectedMissions and '[OK]' or '[FIX]',
-        completedMissions,
-        expectedMissions,
-        terminalLogs
-    ))
+    local counts = {}
+    for _, status in ipairs(registry.allowedStatuses or {}) do
+        counts[status] = 0
+    end
 
-    if
-        xi.twills_admin ~= nil and
-        type(xi.twills_admin.auditLongTimeContent) == 'function'
-    then
-        summarizeRows(invoker, 'Long-time content audit', xi.twills_admin.auditLongTimeContent(target))
-    else
-        printLine(invoker, '[FIX] Twills long-time content audit helper is not loaded.')
+    for _, system in pairs(registry.systems) do
+        counts[system.status] = (counts[system.status] or 0) + 1
+    end
+
+    for _, status in ipairs(registry.allowedStatuses or {}) do
+        printLine(player, string.format('[INFO] Content parity %s: %i systems', status, counts[status] or 0))
     end
 end
 
-commandObj.onTrigger = function(player)
+local function auditContent(player, key)
+    local registry = xi.twills_admin and xi.twills_admin.contentRegistry
+    local system = registry and registry.systems and registry.systems[key]
+    if system == nil then
+        printLine(player, string.format('[FIX] Unknown content key %s. Use the generated runtime parity report for valid keys.', tostring(key)))
+        return
+    end
+
+    printLine(
+        player,
+        string.format('[INFO] %s: status=%s, lifecycle=%s, repair=%s', system.name, system.status, system.lifecycle or 'unspecified', system.repairPolicy)
+    )
+    printLine(player, '[INFO] ' .. system.reason)
+end
+
+local function auditGear(player)
+    printLine(
+        player,
+        '[INFO] Gear parity is intentionally external: run GearSwap static QA, visual-model QA, inventory validation, and the unsupported-state dry run before applying reward removals.'
+    )
+    printLine(player, '[INFO] No content reward is classified as supported solely because Twills owns it.')
+end
+
+local function auditMerits(player, target)
+    nativeAudit(player, target, 'auditMeritState', 'Merit audit')
+
+    local primer = xi.ki.PRIMER_ON_MARTIAL_TECHNIQUES
+    local treatise = xi.ki.TREATISE_ON_MARTIAL_TECHNIQUES
+    local hasPrimer = primer ~= nil and target:hasKeyItem(primer)
+    local hasTreatise = treatise ~= nil and target:hasKeyItem(treatise)
+    printLine(player, string.format(
+        '%s Martial Technique capacity: Primer=%s, Treatise=%s; 25 weapon-skill upgrades require both.',
+        hasPrimer and hasTreatise and '[OK]' or '[FIX]',
+        hasPrimer and 'yes' or 'no',
+        hasTreatise and 'yes' or 'no'
+    ))
+end
+
+local function printUsage(player)
+    printLine(player, 'Usage: !twillsaudit core|parity|content <key>|merits|currency|gear')
+end
+
+commandObj.onTrigger = function(player, section, argument)
+    ensureAdminModule()
+
     local target = GetPlayerByName(adminName)
     if target == nil then
         printLine(player, 'Twills must be logged in before running !twillsaudit.')
         return
     end
 
-    printLine(player, 'Twills retail-shaped audit started.')
-
-    if
-        xi.twills_admin ~= nil and
-        xi.twills_admin.native ~= nil and
-        type(xi.twills_admin.native.auditDbState) == 'function'
-    then
-        local rows = xi.twills_admin.native.auditDbState(target:getID())
-        summarizeRows(player, 'Native DB audit', rows)
+    section = string.lower(section or 'core')
+    if section == 'core' then
+        auditCore(player, target)
+    elseif section == 'parity' then
+        auditParity(player, target)
+    elseif section == 'content' and argument ~= nil then
+        auditContent(player, string.lower(argument))
+    elseif section == 'merits' then
+        auditMerits(player, target)
+    elseif section == 'currency' then
+        nativeAudit(player, target, 'auditCurrencyState', 'Currency audit')
+    elseif section == 'gear' then
+        auditGear(player)
     else
-        printLine(player, '[FIX] Native audit helper is not loaded; rebuild/restart xi_map.')
+        printUsage(player)
     end
-
-    printLiveAudit(player, target)
-    printLine(player, 'Twills retail-shaped audit complete. Run !twillsrepair for repairable FIX rows.')
 end
 
 return commandObj

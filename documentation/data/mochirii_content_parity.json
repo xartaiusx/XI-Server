@@ -1,0 +1,297 @@
+{
+  "schemaVersion": 1,
+  "allowedStatuses": [
+    "verified",
+    "unverified",
+    "partial",
+    "skeleton",
+    "absent",
+    "monthly"
+  ],
+  "systems": [
+    {
+      "key": "core_character",
+      "name": "Core character progression",
+      "status": "verified",
+      "lifecycle": "persistent",
+      "repairPolicy": "explicit_supported_api",
+      "reason": "Jobs, levels, Master Levels, job points, spells, storage, AEP, crafts, and core profile state have local durable models and audits.",
+      "evidencePaths": [
+        "modules/custom/cpp/twills_admin.cpp",
+        "modules/custom/lua/twills_admin_bootstrap.lua"
+      ],
+      "sourceUrls": []
+    },
+    {
+      "key": "travel",
+      "name": "Travel and teleport unlocks",
+      "status": "verified",
+      "lifecycle": "persistent",
+      "repairPolicy": "explicit_supported_api",
+      "reason": "Home Points, Survival Guides, outposts, Runic Portals, maws, Campaign teleports, Abyssea confluxes, waypoints, and Escha portals have local save paths and audits.",
+      "evidencePaths": [
+        "scripts/globals/teleports.lua",
+        "modules/custom/cpp/twills_admin.cpp"
+      ],
+      "sourceUrls": []
+    },
+    {
+      "key": "missions",
+      "name": "Missions",
+      "status": "partial",
+      "lifecycle": "persistent",
+      "repairPolicy": "verified_only",
+      "reason": "Many mission lines are playable, but scripts explicitly marked as lacking zones and interactions must not be reported or repaired as complete.",
+      "evidencePaths": [
+        "scripts/missions"
+      ],
+      "sourceUrls": []
+    },
+    {
+      "key": "quests",
+      "name": "Quests",
+      "status": "partial",
+      "lifecycle": "persistent",
+      "repairPolicy": "verified_only",
+      "reason": "Most quest infrastructure is present, but .todo files and empty interaction sections remain and are excluded from completion claims.",
+      "evidencePaths": [
+        "scripts/quests"
+      ],
+      "sourceUrls": []
+    },
+    {
+      "key": "abyssea",
+      "name": "Abyssea, Atma, and Abyssite",
+      "status": "partial",
+      "lifecycle": "persistent",
+      "repairPolicy": "verified_only",
+      "reason": "Abyssea access, Atma infusion, and many effects exist, but empty Atma definitions and unverified acquisition paths prevent full completion status.",
+      "evidencePaths": [
+        "scripts/globals/abyssea",
+        "scripts/zones/Abyssea-Konschtat/npcs/Atma_Infusionist.lua"
+      ],
+      "sourceUrls": [
+        "https://www.bg-wiki.com/ffxi/Category:Abyssea_Atma"
+      ]
+    },
+    {
+      "key": "assault",
+      "name": "Assault and Nyzul Isle",
+      "status": "partial",
+      "lifecycle": "persistent",
+      "repairPolicy": "verified_only",
+      "reason": "Assault mission APIs and instances exist, but enum coverage alone is not proof that every mission and rank path is playable end to end.",
+      "evidencePaths": [
+        "scripts/globals/assault",
+        "scripts/missions"
+      ],
+      "sourceUrls": []
+    },
+    {
+      "key": "campaign",
+      "name": "Campaign progression",
+      "status": "skeleton",
+      "lifecycle": "persistent",
+      "repairPolicy": "audit_only",
+      "reason": "Campaign travel and some battle data exist, but the local Campaign mission table and complete promotion/progression path are not implemented.",
+      "evidencePaths": [
+        "sql/campaign_map.sql",
+        "sql/campaign_nation.sql"
+      ],
+      "sourceUrls": []
+    },
+    {
+      "key": "records_of_eminence",
+      "name": "Records of Eminence and Deeds",
+      "status": "partial",
+      "lifecycle": "mixed",
+      "repairPolicy": "verified_only",
+      "reason": "Local RoE records and completion APIs exist, but repeat, timed, monthly, Unity, and reward-claim behavior require objective-specific verification.",
+      "evidencePaths": [
+        "scripts/globals/roe_records.lua",
+        "scripts/globals/deeds.lua"
+      ],
+      "sourceUrls": [
+        "https://www.bg-wiki.com/ffxi/Category:Records_of_Eminence"
+      ]
+    },
+    {
+      "key": "escha",
+      "name": "Escha and Geas Fete",
+      "status": "partial",
+      "lifecycle": "persistent",
+      "repairPolicy": "audit_only",
+      "reason": "Maps, portals, currencies, and selected encounters exist, but complete pop-item, vorseal, NM, reward, and lockout progression is not verified.",
+      "evidencePaths": [
+        "scripts/zones/Escha-ZiTah",
+        "scripts/zones/Escha-RuAun",
+        "scripts/zones/Reisenjima"
+      ],
+      "sourceUrls": [
+        "https://www.bg-wiki.com/ffxi/Category:Escha"
+      ],
+      "unsupportedCurrencies": [
+        "escha_beads",
+        "escha_silt",
+        "domain_points",
+        "domain_points_daily"
+      ]
+    },
+    {
+      "key": "ambuscade",
+      "name": "Ambuscade",
+      "status": "monthly",
+      "implementation": "partial",
+      "lifecycle": "monthly",
+      "repairPolicy": "reset_cycle_state",
+      "reason": "Generic entry and encounter support exists, but full Volume 1/2 rotations, reward limits, and monthly cycle state are not complete.",
+      "evidencePaths": [
+        "scripts/globals/ambuscade.lua",
+        "scripts/zones/Mhaura/npcs/Ambuscade_Tome.lua"
+      ],
+      "sourceUrls": [
+        "https://www.bg-wiki.com/ffxi/Category:Ambuscade"
+      ],
+      "unsupportedCurrencies": [
+        "current_hallmarks",
+        "total_hallmarks",
+        "gallantry"
+      ],
+      "keyItemNames": [
+        "AMBUSCADE_PRIMER_VOLUME_ONE",
+        "AMBUSCADE_PRIMER_VOLUME_TWO"
+      ],
+      "activeRdmRewardItemIds": [
+        25572,
+        25578,
+        25794,
+        25795,
+        25832,
+        25833,
+        25883,
+        25884,
+        25950,
+        25951,
+        26250
+      ]
+    },
+    {
+      "key": "legacy_dynamis",
+      "name": "Legacy Dynamis",
+      "status": "partial",
+      "lifecycle": "persistent",
+      "repairPolicy": "verified_only",
+      "reason": "Legacy zones and several reward paths exist, but every clear, relic, and currency path still requires live acceptance evidence.",
+      "evidencePaths": [
+        "scripts/zones/Dynamis-San_dOria",
+        "scripts/zones/Dynamis-Tavnazia"
+      ],
+      "sourceUrls": []
+    },
+    {
+      "key": "dynamis_divergence",
+      "name": "Dynamis - Divergence",
+      "status": "skeleton",
+      "lifecycle": "persistent_lockout",
+      "repairPolicy": "quarantine_rewards",
+      "reason": "The four zone directories exist, but complete waves, bosses, lockouts, currencies, job unlocks, RP, and reward acquisition are not implemented.",
+      "evidencePaths": [
+        "scripts/zones/Dynamis-San_dOria_[D]",
+        "scripts/zones/Dynamis-Bastok_[D]",
+        "scripts/zones/Dynamis-Windurst_[D]",
+        "scripts/zones/Dynamis-Jeuno_[D]"
+      ],
+      "sourceUrls": [
+        "https://www.bg-wiki.com/ffxi/Category:Dynamis_-_Divergence"
+      ],
+      "activeRdmRewardItemIds": [
+        23134,
+        23201,
+        23268,
+        23402,
+        23670,
+        23726,
+        25443
+      ]
+    },
+    {
+      "key": "odyssey",
+      "name": "Odyssey and Sheol Gaol",
+      "status": "absent",
+      "lifecycle": "persistent_lockout",
+      "repairPolicy": "quarantine_rewards",
+      "reason": "No local Odyssey or Sheol gameplay scripts are present; Mog Segments and equipment rows alone are not playable progression.",
+      "evidencePaths": [],
+      "sourceUrls": [
+        "https://www.bg-wiki.com/ffxi/Category:Odyssey"
+      ],
+      "unsupportedCurrencies": [
+        "mog_segments"
+      ],
+      "keyItemNames": [
+        "MOGLOPHONE",
+        "MOGLOPHONE_II_1",
+        "MOGLOPHONE_II_2",
+        "MOGLOPHONE_II_3"
+      ],
+      "activeRdmRewardItemIds": [
+        22041,
+        23759,
+        23760,
+        23761,
+        23766,
+        23767,
+        23768,
+        23773,
+        23774,
+        23775,
+        23780,
+        23781,
+        23782,
+        23787,
+        23788,
+        23789
+      ]
+    },
+    {
+      "key": "sortie",
+      "name": "Sortie",
+      "status": "absent",
+      "lifecycle": "daily",
+      "repairPolicy": "quarantine_rewards",
+      "reason": "No local Sortie gameplay scripts are present; Gallimaufry and item rows alone are not playable progression.",
+      "evidencePaths": [],
+      "sourceUrls": [
+        "https://www.bg-wiki.com/ffxi/Category:Sortie"
+      ],
+      "unsupportedCurrencies": [
+        "gallimaufry"
+      ],
+      "activeRdmRewardItemIds": [
+        23089,
+        23156,
+        23223,
+        23290,
+        23357
+      ]
+    },
+    {
+      "key": "current_limbus",
+      "name": "Current Limbus",
+      "status": "skeleton",
+      "lifecycle": "weekly",
+      "repairPolicy": "quarantine_rewards",
+      "reason": "Legacy Limbus exchange support exists, but current Temenos and Apollyon floors, units, codes, furnaces, NMs, caps, and rewards are not implemented.",
+      "evidencePaths": [
+        "scripts/zones/Mhaura/npcs/Wilhelm.lua"
+      ],
+      "sourceUrls": [
+        "https://www.bg-wiki.com/ffxi/Category:Limbus"
+      ],
+      "unsupportedCurrencies": [
+        "temenos_units",
+        "apollyon_units"
+      ]
+    }
+  ]
+}

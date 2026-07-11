@@ -38,7 +38,6 @@
 
 custom/commands/
 custom/lua/test_npcs_in_gm_home.lua
-custom/lua/twills_admin_bootstrap.lua
 custom/lua/trust_retail_parity.lua
 custom/lua/trust_action_logger.lua
 custom/sql/master_levels.sql
