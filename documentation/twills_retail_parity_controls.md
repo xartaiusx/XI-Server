@@ -24,8 +24,8 @@ python3 tools/mochirii/content_parity_registry.py --repo-root .
 python3 tools/mochirii/content_parity_registry.py --repo-root . --check
 ```
 
-Runtime JSON/Markdown reports belong under `/root/projects/FFXI-Runtime/audits`,
-not in Git.
+Runtime JSON/Markdown reports belong under the configured Mochirii runtime audit
+directory, not in Git.
 
 ## Explicit Commands
 
@@ -58,7 +58,7 @@ Generate exact currency, inventory-slot, augment-blob, and key-item evidence:
 ```bash
 python3 tools/mochirii/twills_unsupported_state.py \
   --repo-root . \
-  --output-dir /root/projects/FFXI-Runtime/audits
+  --output-dir <runtime-root>/audits
 ```
 
 The reporter is dry-run-only. It cannot mutate MariaDB. Titles, missions, and
