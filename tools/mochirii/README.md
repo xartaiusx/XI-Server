@@ -34,7 +34,10 @@ For every in-client test, keep the command surface stable and native:
    `assert_windower_foreground.ps1`.
 2. Submit commands with `Invoke-WindowerCommand.ps1`; it is the single normal
    bridge for Windower commands, Final Fantasy XI input commands, GearSwap
-   commands, XivParty commands, and Mochirii GM commands.
+   commands, XivParty commands, and Mochirii GM commands. It writes one atomic,
+   UUID-tagged request, rejects duplicate or expired work, and waits for the
+   Windower addon acknowledgement. Mutating GM commands require the explicit
+   `-AllowMutation` switch; audit and status commands do not.
 3. Prefer existing client/server commands before creating helpers: `//lua list`,
    `//lua reload <addon>`, `//xp setup off`, `//craft status`, `//gs reload`,
    `//gs validate sets`, `//gs validate inv`, `//gs c status`,
@@ -78,10 +81,16 @@ restore state.
 
 Use `Invoke-WindowerCommand.ps1` for normal Windower, Final Fantasy XI chat,
 and GM command execution. It foregrounds the Twills/Windower client, clears any
-stale chat/menu input through `send_windower_text.ps1`, then writes a request for
-the loaded `MochiriiScreenshotQA` addon to execute through Windower's native
-command channel. It normalizes `//lua reload XivParty` to a Windower command,
-`/ma ...` to `input /ma ...`, and `!trustparty ...` to `input !trustparty ...`.
+stale chat/menu input through `send_windower_text.ps1`, then atomically publishes
+one expiring request for the loaded `MochiriiScreenshotQA` addon to execute
+through Windower's native command channel. The addon caches processed request
+IDs and writes a success or failure acknowledgement; the helper does not treat
+file consumption alone as success. It normalizes `//lua reload XivParty` to a
+Windower command, `/ma ...` to `input /ma ...`, and `!trustparty ...` to
+`input !trustparty ...`. Use `-AllowMutation` for commands such as
+`!trustparty summonqa`, `!twillsrepair`, and CraftQA staging/crafting. Do not use
+the switch for `!twillsaudit`, `!trustparty audit|status`, or
+`!craftqa cooking status|report`.
 
 `send_windower_text.ps1` is only a raw input helper for cases that truly require
 keystrokes. It must foreground the Twills/Windower client, verify the game

@@ -50,7 +50,10 @@ when referring to the game.
   `tools\mochirii\capture_windower_window.ps1`.
 - For Windower commands, Final Fantasy XI chat commands, and GM commands, use
   `tools\mochirii\Invoke-WindowerCommand.ps1` so the Twills game client is
-  foregrounded and verified before the command request is submitted. Use
+  foregrounded and verified before the command request is submitted. The
+  bridge accepts one UUID-tagged request at a time and requires
+  `-AllowMutation` for mutating GM commands; never bypass its acknowledgement
+  or expiry checks. Use
   `tools\mochirii\send_windower_text.ps1` only for raw keystroke cases that
   cannot go through the Windower command bridge.
 - OS screenshots, Snipping Tool captures, cropped screen clips, and
@@ -87,6 +90,9 @@ but the command itself should stay native whenever possible.
    `C:\Users\xtyty\Documents\FFXI-Runtime\client-tools\assert_windower_foreground.ps1`.
 3. Send normal Windower, Final Fantasy XI, GearSwap, XivParty, and GM commands
    with `C:\Users\xtyty\Documents\FFXI-Runtime\client-tools\Invoke-WindowerCommand.ps1`.
+   Add `-AllowMutation` only for an intentionally reviewed mutating GM command
+   such as `!trustparty summonqa` or `!twillsrepair`; audits and status commands
+   stay read-only and must not use the switch.
 4. For addon state checks, use `//lua list`, `//lua reload <addon>`, native
    addon commands such as `//xp setup off` and `//craft status`, and native GearSwap commands such
    as `//gs reload`, `//gs validate sets`, `//gs validate inv`, and

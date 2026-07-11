@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-07T23:30:21.992576+00:00",
+  "generatedAt": "2026-07-11T12:08:38+00:00",
   "trackedGoldenStateRoot": "restore/windower-golden-state",
   "trackedFiles": [
     {
@@ -20,8 +20,8 @@
     },
     {
       "relativePath": "addons/MochiriiScreenshotQA/MochiriiScreenshotQA.lua",
-      "bytes": 4645,
-      "sha256": "4cbef49738c8c4271ba6c0ed2cb10561df00ebe3daa05dd25ebe9277c56518b3"
+      "bytes": 11501,
+      "sha256": "6bc65676690bb28f2c7cd16fa6694ca29c705950996e9baf1a6dd33134d64a84"
     },
     {
       "relativePath": "addons/XIPivot/data/settings.xml",
