@@ -21,8 +21,7 @@
 
 #include "spawn_handler.h"
 
-#include <vector>
-
+#include "ai/ai_container.h"
 #include "common/timer.h"
 #include "common/vana_time.h"
 #include "entities/mob_entity.h"
@@ -191,7 +190,8 @@ void SpawnHandler::Tick(const timer::time_point now)
     std::vector<CMobEntity*> mobsToSpawn;
 
     // Process non-slotted mobs
-    std::erase_if(
+    // Unqualified: ADL finds ankerl's erase_if for FlatHashMap
+    erase_if(
         pendingRespawns_,
         [&](const auto& pair)
         {
@@ -223,7 +223,8 @@ void SpawnHandler::Tick(const timer::time_point now)
     }
 
     // Process slotted spawns
-    std::erase_if(
+    // Unqualified: ADL finds ankerl's erase_if for FlatHashMap
+    erase_if(
         pendingSlotRespawns_,
         [&](const auto& pair)
         {
@@ -240,13 +241,23 @@ void SpawnHandler::Tick(const timer::time_point now)
 // Despawn mobs now outside their spawn window. Not tied to 30s task.
 void SpawnHandler::onGameHour(const uint32 hour) const
 {
+    const bool zoneActive = zone_->IsZoneActive();
+
     zone_->ForEachMob(
-        [hour](CMobEntity* PMob)
+        [zoneActive, hour](CMobEntity* PMob)
         {
             const auto window = spawnWindowOf(PMob);
             if (window.has_value() && PMob->isAlive() && !hourInWindow(hour, window->spawnHour, window->despawnHour))
             {
-                PMob->SetDespawnTime(1ms);
+                if (zoneActive)
+                {
+                    PMob->SetDespawnTime(1ms);
+                }
+                else
+                {
+                    // Sleeping zone -> process the despawn immediately since AI doesnt tick on its own
+                    PMob->PAI->Despawn();
+                }
             }
         });
 }

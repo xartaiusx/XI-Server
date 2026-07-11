@@ -21,16 +21,11 @@
 
 #include "lua_base_entity.h"
 
-#include "lua_battlefield.h"
 #include "lua_instance.h"
-#include "lua_item.h"
-#include "lua_item_puppet.h"
 
 #include "items/exdata/worn_item.h"
 #include "lua_spell.h"
 #include "lua_statuseffect.h"
-#include "lua_trade_container.h"
-#include "lua_zone.h"
 #include "luautils.h"
 
 #include "common/logging.h"
@@ -43,14 +38,12 @@
 #include "aman.h"
 #include "battlefield.h"
 #include "conquest_system.h"
-#include "daily_system.h"
 #include "enmity_container.h"
 #include "fishingcontest.h"
 #include "guild.h"
 #include "instance.h"
 #include "ipc_client.h"
 #include "item_container.h"
-#include "items.h"
 #include "job_points.h"
 #include "latent_effect_container.h"
 #include "linkshell.h"
@@ -68,7 +61,6 @@
 #include "timetriggers.h"
 #include "trade_container.h"
 #include "transport.h"
-#include "treasure_pool.h"
 #include "weapon_skill.h"
 #include "zone.h"
 
@@ -94,7 +86,6 @@
 
 #include "entities/automaton_entity.h"
 #include "entities/char_entity.h"
-#include "entities/fellow_entity.h"
 #include "entities/mob_entity.h"
 #include "entities/npc_entity.h"
 #include "entities/pet_entity.h"
@@ -137,7 +128,6 @@
 #include "packets/s2c/0x052_eventucoff.h"
 #include "packets/s2c/0x053_systemmes.h"
 #include "packets/s2c/0x055_scenarioitem.h"
-#include "packets/s2c/0x056_mission.h"
 #include "packets/s2c/0x05a_motionmes.h"
 #include "packets/s2c/0x05b_wpos.h"
 #include "packets/s2c/0x05c_pendingnum.h"
@@ -149,12 +139,9 @@
 #include "packets/s2c/0x063_miscdata_job_points.h"
 #include "packets/s2c/0x063_miscdata_merits.h"
 #include "packets/s2c/0x063_miscdata_monstrosity.h"
+#include "packets/s2c/0x069_chocobo_racing.h"
 #include "packets/s2c/0x075_battlefield.h"
 #include "packets/s2c/0x077_entity_vis.h"
-#include "packets/s2c/0x082_guild_buy.h"
-#include "packets/s2c/0x083_guild_buylist.h"
-#include "packets/s2c/0x084_guild_sell.h"
-#include "packets/s2c/0x085_guild_selllist.h"
 #include "packets/s2c/0x086_guild_open.h"
 #include "packets/s2c/0x0aa_magic_data.h"
 #include "packets/s2c/0x0ac_command_data.h"
@@ -1078,8 +1065,8 @@ void CLuaBaseEntity::sendLinkshellConcierge(const sol::table& data) const
         return;
     }
 
-    const auto           yourSlotRaw = data.get<sol::optional<uint8>>("yourSlot");
-    std::optional<uint8> yourSlot;
+    const auto   yourSlotRaw = data.get<sol::optional<uint8>>("yourSlot");
+    Maybe<uint8> yourSlot;
     if (yourSlotRaw)
     {
         yourSlot = *yourSlotRaw;
@@ -1125,6 +1112,92 @@ void CLuaBaseEntity::sendLinkshellConcierge(const sol::table& data) const
 
         PChar->pushPacket<GP_SERV_COMMAND_LINK_CONCIERGE::RECORD>(entries);
     }
+}
+
+/************************************************************************
+ *  Function: sendChocoboRace()
+ *  Purpose : Send the entire chocobo race content to the player.
+ *  Note    : Complex API, see chocobo_racing.lua for usage.
+ ************************************************************************/
+void CLuaBaseEntity::sendChocoboRace(const sol::table& race) const
+{
+    auto* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity);
+    if (!PChar)
+    {
+        return;
+    }
+
+    // Read a 1-indexed lua table of per-chocobo values (positions or places) into a fixed array.
+    const auto readNibbles = [](const sol::table& values) -> std::array<uint8, GP_SERV_COMMAND_CHOCOBO_RACING::kNumRacers>
+    {
+        std::array<uint8, GP_SERV_COMMAND_CHOCOBO_RACING::kNumRacers> out{};
+        for (uint8 racer = 0; racer < GP_SERV_COMMAND_CHOCOBO_RACING::kNumRacers; ++racer)
+        {
+            out[racer] = values.get_or<uint8>(racer + 1, 0);
+        }
+
+        return out;
+    };
+
+    // Mode 1: Race parameters
+    PChar->pushPacket<GP_SERV_COMMAND_CHOCOBO_RACING::RACINGPARAMS>(race.get_or<uint32>("weather", 1), race.get_or<uint32>("counter", 0)); // 1 = xi.weather.SUNSHINE (clear)
+
+    // Mode 2: Racing Chocobos
+    if (const auto chocobos = race.get<sol::optional<sol::table>>("chocobos"))
+    {
+        const auto                                                count = std::min<size_t>(chocobos->size(), GP_SERV_COMMAND_CHOCOBO_RACING::kNumRacers);
+        std::vector<GP_SERV_COMMAND_CHOCOBO_RACING::ChocoboParam> entries(count);
+
+        for (size_t idx = 1; idx <= count; ++idx)
+        {
+            entries[idx - 1] = GP_SERV_COMMAND_CHOCOBO_RACING::ChocoboParam::fromLua(chocobos->get<sol::table>(idx));
+        }
+
+        PChar->pushPacket<GP_SERV_COMMAND_CHOCOBO_RACING::CHOCOBOPARAMS>(entries);
+    }
+
+    // Mode 3: Racing sections, 16 sections per packet.
+    if (const auto raceSections = race.get<sol::optional<sol::table>>("sections"))
+    {
+        const size_t                                              sectionCount = std::min<size_t>(raceSections->size(), GP_SERV_COMMAND_CHOCOBO_RACING::kMaxSections);
+        std::vector<GP_SERV_COMMAND_CHOCOBO_RACING::SectionParam> sections(sectionCount);
+
+        for (size_t idx = 1; idx <= sectionCount; ++idx)
+        {
+            const auto sec     = raceSections->get<sol::table>(idx);
+            auto&      section = sections[idx - 1];
+
+            GP_SERV_COMMAND_CHOCOBO_RACING::packNibbles(section.From, readNibbles(sec.get<sol::table>("from")));
+            GP_SERV_COMMAND_CHOCOBO_RACING::packNibbles(section.To, readNibbles(sec.get<sol::table>("to")));
+
+            if (const auto event = sec.get<sol::optional<sol::table>>("trigger"))
+            {
+                section.Trigger.User    = event->get_or<uint8>("user", 0);
+                section.Trigger.Targets = event->get_or<uint8>("targets", 0);
+                section.Trigger.Param   = event->get_or<uint8>("param", 0);
+                section.Trigger.Type    = static_cast<GP_SERV_COMMAND_CHOCOBO_RACING::SectionEventType>(event->get_or<uint8>("type", 0));
+            }
+        }
+
+        // Each packet carries up to kSectionsPerPacket sections;
+        // ParamIndex is the starting section index.
+        for (size_t offset = 0; offset < sections.size(); offset += GP_SERV_COMMAND_CHOCOBO_RACING::kSectionsPerPacket)
+        {
+            const auto end = std::min(offset + GP_SERV_COMMAND_CHOCOBO_RACING::kSectionsPerPacket, sections.size());
+
+            std::vector<GP_SERV_COMMAND_CHOCOBO_RACING::SectionParam> chunk(sections.begin() + offset, sections.begin() + end);
+            PChar->pushPacket<GP_SERV_COMMAND_CHOCOBO_RACING::SECTIONPARAMS>(static_cast<uint8>(offset), chunk);
+        }
+    }
+
+    // Mode 4: Final race results.
+    if (const auto places = race.get<sol::optional<sol::table>>("places"))
+    {
+        PChar->pushPacket<GP_SERV_COMMAND_CHOCOBO_RACING::RESULTPARAMS>(readNibbles(*places));
+    }
+
+    // Mode 5: Notify client exchange is done.
+    PChar->pushPacket<GP_SERV_COMMAND_CHOCOBO_RACING::END>();
 }
 
 /************************************************************************
@@ -6196,9 +6269,9 @@ void CLuaBaseEntity::setAnimationSub(uint8 animationsub, const sol::object& send
     }
 }
 
-void CLuaBaseEntity::setSpawnAnimation(uint8 spawnAnimation)
+void CLuaBaseEntity::setSpawnAnimation(xi::SpawnAnimation spawnAnimation)
 {
-    m_PBaseEntity->spawnAnimation = static_cast<SPAWN_ANIMATION>(spawnAnimation);
+    m_PBaseEntity->spawnAnimation = spawnAnimation;
 }
 
 /************************************************************************
@@ -10403,7 +10476,7 @@ void CLuaBaseEntity::takeDamage(int32 damage, const sol::object& attacker, const
         removePetrify = true;
     }
 
-    ATTACK_TYPE    attackType = (atkType != sol::lua_nil) ? static_cast<ATTACK_TYPE>(atkType.as<uint8>()) : ATTACK_TYPE::NONE;
+    xi::AttackType attackType = (atkType != sol::lua_nil) ? static_cast<xi::AttackType>(atkType.as<uint8>()) : xi::AttackType::None;
     xi::DamageType damageType = (dmgType != sol::lua_nil) ? static_cast<xi::DamageType>(dmgType.as<uint8>()) : xi::DamageType::None;
 
     PDefender->takeDamage(damage, PAttacker, attackType, damageType);
@@ -12869,6 +12942,31 @@ void CLuaBaseEntity::disengage()
     }
 }
 
+namespace
+{
+
+// Adapts a Lua function into an action-queue callable, adding the
+// invoke-and-log-errors boilerplate.
+auto wrapLuaAction(sol::function func) -> queueAction_t::EntityFunc_t
+{
+    return [func = std::move(func)](CBaseEntity* PEntity)
+    {
+        if (!func.valid())
+        {
+            return;
+        }
+
+        auto result = func(PEntity);
+        if (!result.valid())
+        {
+            sol::error err = result;
+            ShowError("CAIActionQueue Lua action for %s (%i): %s", PEntity->name, PEntity->id, err.what());
+        }
+    };
+}
+
+} // namespace
+
 /************************************************************************
  *  Function: timer()
  *  Purpose : Inserts a pre-defined Lua fuction into the queue and executes
@@ -12879,7 +12977,7 @@ void CLuaBaseEntity::disengage()
 
 void CLuaBaseEntity::timer(int ms, sol::function func)
 {
-    m_PBaseEntity->PAI->QueueAction(queueAction_t(ms, false, std::move(func)));
+    m_PBaseEntity->PAI->QueueAction(queueAction_t(std::chrono::milliseconds(ms), false, wrapLuaAction(std::move(func))));
 }
 
 /************************************************************************
@@ -12894,7 +12992,7 @@ void CLuaBaseEntity::timer(int ms, sol::function func)
 
 void CLuaBaseEntity::queue(int ms, sol::function func)
 {
-    m_PBaseEntity->PAI->QueueAction(queueAction_t(ms, true, std::move(func)));
+    m_PBaseEntity->PAI->QueueAction(queueAction_t(std::chrono::milliseconds(ms), true, wrapLuaAction(std::move(func))));
 }
 
 /************************************************************************
@@ -15775,7 +15873,7 @@ auto CLuaBaseEntity::takeWeaponskillDamage(CLuaBaseEntity* attacker, int32 damag
         return 0;
     }
 
-    ATTACK_TYPE attackType = static_cast<ATTACK_TYPE>(atkType);
+    xi::AttackType attackType = static_cast<xi::AttackType>(atkType);
 
     return battleutils::TakeWeaponskillDamage(PBattleAttacker, PBattleDefender, damage, attackType, dmgType, slot, primary, tpMultiplier, bonusTP, targetTPMultiplier);
 }
@@ -15804,7 +15902,7 @@ void CLuaBaseEntity::takeSpellDamage(CLuaBaseEntity* caster, CLuaSpell* spell, i
     }
 
     auto*          PSpell     = spell->GetSpell();
-    ATTACK_TYPE    attackType = static_cast<ATTACK_TYPE>(atkType);
+    xi::AttackType attackType = static_cast<xi::AttackType>(atkType);
     xi::DamageType damageType = static_cast<xi::DamageType>(dmgType);
 
     battleutils::TakeSpellDamage(PBattleDefender, PBattleAttacker, PSpell, damage, attackType, damageType);
@@ -15833,7 +15931,7 @@ auto CLuaBaseEntity::takeSwipeLungeDamage(CLuaBaseEntity* caster, int32 damage, 
         return 0;
     }
 
-    ATTACK_TYPE attackType = static_cast<ATTACK_TYPE>(atkType);
+    xi::AttackType attackType = static_cast<xi::AttackType>(atkType);
 
     return battleutils::TakeSwipeLungeDamage(PBattleDefender, PBattleAttacker, damage, attackType, dmgType);
 }
@@ -17500,12 +17598,12 @@ uint16 CLuaBaseEntity::getSpecies()
 /************************************************************************
  *  Function: isMobType()
  *  Purpose : Returns true if a Mob is of a specified type (if !Mob->false)
- *  Example : if mob:isMobType(MOBTYPE_NOTORIOUS) then
+ *  Example : if mob:isMobType(xi.mobType.NOTORIOUS) then
  *  Notes   : Oddly, this is only being used to check if Mob is NM...?
  *  Notes   : To Do: This isn't the intended function for NM checks...
  ************************************************************************/
 
-auto CLuaBaseEntity::isMobType(const uint8 mobType) const -> bool
+auto CLuaBaseEntity::isMobType(const xi::MobType mobType) const -> bool
 {
     if (m_PBaseEntity->objtype != TYPE_MOB)
     {
@@ -17514,13 +17612,13 @@ auto CLuaBaseEntity::isMobType(const uint8 mobType) const -> bool
 
     const auto* PMob = static_cast<CMobEntity*>(m_PBaseEntity);
 
-    // Special case for isMobType(MOBTYPE_NORMAL), else 0 & 0 returns false.
-    if (mobType == MOBTYPE_NORMAL)
+    // Special case for isMobType(xi.mobType.NORMAL), else 0 & 0 returns false.
+    if (mobType == xi::MobType::Normal)
     {
-        return PMob->m_Type == MOBTYPE_NORMAL;
+        return PMob->m_Type == xi::MobType::Normal;
     }
 
-    return PMob->m_Type & mobType;
+    return (PMob->m_Type & mobType) != xi::MobType::Normal;
 }
 
 /************************************************************************
@@ -17548,7 +17646,7 @@ auto CLuaBaseEntity::isUndead() -> bool
 
 bool CLuaBaseEntity::isNM()
 {
-    if (m_PBaseEntity->objtype == TYPE_MOB && static_cast<CMobEntity*>(m_PBaseEntity)->m_Type & MOBTYPE_NOTORIOUS)
+    if (m_PBaseEntity->objtype == TYPE_MOB && (static_cast<CMobEntity*>(m_PBaseEntity)->m_Type & xi::MobType::Notorious) != xi::MobType::Normal)
     {
         return true;
     }
@@ -18461,6 +18559,52 @@ void CLuaBaseEntity::delMobMod(uint16 mobModID, int16 value)
     }
 
     static_cast<CMobEntity*>(m_PBaseEntity)->addMobMod(mobModID, -value);
+}
+
+/************************************************************************
+ *  Function: getfTPModifierOverride()
+ *  Purpose : Returns the fTP modifier override table set for a mob skill, or nil if none is set
+ *  Example : mob:getfTPModifierOverride(xi.mobSkill.FLYING_HIP_PRESS)
+ *  Notes   :
+ ************************************************************************/
+
+auto CLuaBaseEntity::getfTPModifierOverride(uint16 skillId) -> sol::object
+{
+    if (m_PBaseEntity->objtype & TYPE_NPC || m_PBaseEntity->objtype & TYPE_PC)
+    {
+        ShowError("function call on invalid entity! (name: %s type: %d)", m_PBaseEntity->name, m_PBaseEntity->objtype);
+        return sol::lua_nil;
+    }
+
+    if (const auto fTPModifierOverride = static_cast<CMobEntity*>(m_PBaseEntity)->getfTPModifierOverride(skillId))
+    {
+        auto table = lua.create_table();
+        table.add((*fTPModifierOverride)[0]);
+        table.add((*fTPModifierOverride)[1]);
+        table.add((*fTPModifierOverride)[2]);
+
+        return table;
+    }
+
+    return sol::lua_nil;
+}
+
+/************************************************************************
+ *  Function: setfTPModifierOverride()
+ *  Purpose : Sets an fTP modifier override table for a mob skill, replacing the skill's default fTP scaling
+ *  Example : mob:setfTPModifierOverride(xi.mobSkill.FLYING_HIP_PRESS, 7.0, 9.0, 11.0)
+ *  Notes   : Needs to be added to the mob skill to be consumed. params.fTP = mob:getfTPModifierOverride(skill:getID()) or params.fTP
+ ************************************************************************/
+
+void CLuaBaseEntity::setfTPModifierOverride(uint16 skillId, float ftp1, float ftp2, float ftp3)
+{
+    if (m_PBaseEntity->objtype & TYPE_NPC || m_PBaseEntity->objtype & TYPE_PC)
+    {
+        ShowError("function call on invalid entity! (name: %s type: %d)", m_PBaseEntity->name, m_PBaseEntity->objtype);
+        return;
+    }
+
+    static_cast<CMobEntity*>(m_PBaseEntity)->setfTPModifierOverride(skillId, ftp1, ftp2, ftp3);
 }
 
 /************************************************************************
@@ -20153,6 +20297,7 @@ void CLuaBaseEntity::Register()
     SOL_REGISTER("entityAnimationPacket", CLuaBaseEntity::entityAnimationPacket);
     SOL_REGISTER("sendDebugPacket", CLuaBaseEntity::sendDebugPacket);
     SOL_REGISTER("sendLinkshellConcierge", CLuaBaseEntity::sendLinkshellConcierge);
+    SOL_REGISTER("sendChocoboRace", CLuaBaseEntity::sendChocoboRace);
 
     SOL_REGISTER("startEvent", CLuaBaseEntity::startEvent);
     SOL_REGISTER("startCutscene", CLuaBaseEntity::startCutscene);
@@ -20935,6 +21080,9 @@ void CLuaBaseEntity::Register()
     SOL_REGISTER("setMobMod", CLuaBaseEntity::setMobMod);
     SOL_REGISTER("addMobMod", CLuaBaseEntity::addMobMod);
     SOL_REGISTER("delMobMod", CLuaBaseEntity::delMobMod);
+
+    SOL_REGISTER("getfTPModifierOverride", CLuaBaseEntity::getfTPModifierOverride);
+    SOL_REGISTER("setfTPModifierOverride", CLuaBaseEntity::setfTPModifierOverride);
 
     SOL_REGISTER("getBattleTime", CLuaBaseEntity::getBattleTime);
     SOL_REGISTER("getCrystalElement", CLuaBaseEntity::getCrystalElement);

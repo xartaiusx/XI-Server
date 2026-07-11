@@ -20,11 +20,15 @@
 */
 
 #include "common/logging.h"
+
 #include "common/macros.h"
 #include "common/settings.h"
 #include "common/timer.h"
 #include "common/utils.h"
 #include "common/vana_time.h"
+#include <fmt/ranges.h>
+
+#include <common/types/hash_map.h>
 
 #include <array>
 #include <chrono>
@@ -1062,7 +1066,7 @@ void LoadSpells(CCharEntity* PChar)
 
     if (hasTrustPermit)
     {
-        static const std::unordered_map<uint8, uint16> trustSpells = {
+        static const HashMap<uint8, uint16> trustSpells = {
             { 1, 1002 }, // Cornelia
             { 2, 1003 }, // Matsui-P
         }; // This can be expanded if more trust spells are added as settings options.
@@ -1808,7 +1812,7 @@ auto AddItem(CCharEntity* PChar, uint8 LocationID, std::unique_ptr<CItem> PItem,
  *                                                                       *
  ************************************************************************/
 
-bool HasItem(CCharEntity* PChar, uint16 ItemID)
+bool HasItem(CCharEntity* PChar, uint16 ItemID, IncludeRecycleBin includeRecycleBin)
 {
     if (ItemID == 0)
     {
@@ -1816,6 +1820,11 @@ bool HasItem(CCharEntity* PChar, uint16 ItemID)
     }
     for (uint8 LocID = 0; LocID < CONTAINER_ID::MAX_CONTAINER_ID; ++LocID)
     {
+        if (!includeRecycleBin && LocID == LOC_RECYCLEBIN)
+        {
+            continue;
+        }
+
         if (PChar->getStorage(LocID)->SearchItem(ItemID) != ERROR_SLOTID)
         {
             return true;
@@ -2019,37 +2028,6 @@ uint32 UpdateItem(CCharEntity* PChar, uint8 LocationID, uint8 slotID, int32 quan
         auto PRemoved = PChar->getStorage(LocationID)->RemoveItem(slotID);
         PChar->pushPacket<GP_SERV_COMMAND_ITEM_ATTR>(nullptr, static_cast<CONTAINER_ID>(LocationID), slotID);
 
-        if (PChar->getStyleLocked() && !HasItem(PChar, ItemID))
-        {
-            if (PItem->isType(ITEM_WEAPON))
-            {
-                if (PChar->styleItems[SLOT_MAIN] == ItemID)
-                {
-                    charutils::UpdateWeaponStyle(PChar, SLOT_MAIN, (CItemWeapon*)PChar->getEquip(SLOT_MAIN));
-                }
-                else if (PChar->styleItems[SLOT_SUB] == ItemID)
-                {
-                    charutils::UpdateWeaponStyle(PChar, SLOT_SUB, (CItemWeapon*)PChar->getEquip(SLOT_SUB));
-                }
-            }
-            else if (PItem->isType(ITEM_EQUIPMENT))
-            {
-                auto equipSlotID = ((CItemEquipment*)PItem)->getSlotType();
-                if (PChar->styleItems[equipSlotID] == ItemID)
-                {
-                    switch (equipSlotID)
-                    {
-                        case SLOT_HEAD:
-                        case SLOT_BODY:
-                        case SLOT_HANDS:
-                        case SLOT_LEGS:
-                        case SLOT_FEET:
-                            charutils::UpdateArmorStyle(PChar, equipSlotID);
-                            break;
-                    }
-                }
-            }
-        }
         luautils::OnItemDrop(PChar, PItem);
 
         // Remove soon to be stale PItem pointer from sync state
@@ -7249,7 +7227,9 @@ void AddPoints(CCharEntity* PChar, const char* type, int32 amount, int32 max)
     TracyZoneScoped;
 
     const auto currentPointsValue = GetPoints(PChar, type);
-    const auto newPointsValue     = std::clamp(currentPointsValue + amount, 0, max);
+    // 64-bit sum so amount can't overflow, and max is sanitized: callers (including Lua's
+    // addCurrency) can pass a non-positive cap, which would otherwise invert the clamp bounds.
+    const auto newPointsValue = static_cast<int32>(std::clamp<int64>(static_cast<int64>(currentPointsValue) + amount, 0, std::max(max, 0)));
     SetPoints(PChar, type, newPointsValue);
 
     if (strcmp(type, "unity_accolades") == 0 && amount > 0)

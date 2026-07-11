@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2024 LandSandBoat Dev Teams
@@ -24,6 +24,8 @@
 #include "common/earth_time.h"
 #include "common/utils.h"
 
+#include <common/types/hash_map.h>
+
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -35,7 +37,6 @@
 #include <vector>
 
 #include "battleutils.h"
-#include "charutils.h"
 #include "mobutils.h"
 #include "roe.h"
 #include "zoneutils.h"
@@ -57,7 +58,6 @@
 #include "mobskill.h"
 #include "status_effect_container.h"
 #include "weapon_skill.h"
-#include "zone_instance.h"
 
 //
 // Forward declarations
@@ -949,7 +949,7 @@ struct TrustData
     int8 blind_res_rank{};
 };
 
-std::unordered_map<uint16, std::unique_ptr<TrustData>> g_PTrustData;
+HashMap<uint16, std::unique_ptr<TrustData>> g_PTrustData;
 
 auto ClampAlterEgoPointRank(int32 value) -> uint8
 {

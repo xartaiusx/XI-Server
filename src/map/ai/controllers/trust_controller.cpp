@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2018 Darkstar Dev Teams
@@ -21,9 +21,7 @@
 
 #include "trust_controller.h"
 
-#include "ability.h"
 #include "ai/helpers/gambits_container.h"
-#include "ai/states/despawn_state.h"
 #include "ai/states/magic_state.h"
 #include "ai/states/range_state.h"
 #include "common/settings.h"
@@ -38,7 +36,6 @@
 #include "packets/basic.h"
 #include "player_controller.h"
 #include "recast_container.h"
-#include "status_effect_container.h"
 #include "utils/charutils.h"
 #include "utils/trustutils.h"
 #include "zone.h"

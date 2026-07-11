@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2021 LandSandBoat Dev Teams
@@ -21,19 +21,19 @@
 
 #include "moduleutils.h"
 
-#include "command_handler.h"
 #include "common/cbasetypes.h"
 #include "common/utils.h"
 #include "lua/luautils.h"
-#include "map_networking.h"
+
+#include <common/types/hash_map.h>
 
 #include <filesystem>
 #include <fstream>
 #include <ranges>
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
-#include <vector>
+
+#include <fmt/ranges.h>
 
 namespace
 {
@@ -61,7 +61,14 @@ struct Override
     bool                     applied{ false };
 };
 
-std::unordered_multimap<std::string, Override> overrides;
+auto overrides() -> std::unordered_multimap<std::string, Override>&
+{
+    // Overrides own Lua references. Keep the registry storage alive for the
+    // process lifetime so std::exit() in CI cannot destroy those references
+    // after the global Lua state has already closed.
+    static auto* entries = new std::unordered_multimap<std::string, Override>();
+    return *entries;
+}
 
 auto applyOverride(sol::state& lua, sol::table table, Override& override, bool silent = false) -> bool
 {
@@ -229,7 +236,7 @@ void LoadLuaModules(IPP mapIPP)
     }
 
     // Cache zone -> port mapping for multi-process override filtering
-    std::unordered_map<std::string, uint16> zoneSettingsPorts;
+    HashMap<std::string, uint16> zoneSettingsPorts;
 
     const auto rset = db::preparedStmt("SELECT name, zoneport FROM zone_settings");
     while (rset && rset->next())
@@ -281,7 +288,7 @@ void LoadLuaModules(IPP mapIPP)
 
             bool anyPortFiltered = false;
 
-            const auto prevOverrideCount = overrides.size();
+            const auto prevOverrideCount = overrides().size();
             for (auto& override : table.get_or("overrides", std::vector<sol::table>{}))
             {
                 const auto name  = override["name"].get<std::string>();
@@ -303,18 +310,18 @@ void LoadLuaModules(IPP mapIPP)
                     }
                 }
 
-                overrides.emplace(name.substr(0, name.rfind('.')),
-                                  Override{
-                                      .filename     = filename,
-                                      .overrideName = name,
-                                      .nameParts    = parts,
-                                      .func         = func,
-                                  });
+                overrides().emplace(name.substr(0, name.rfind('.')),
+                                    Override{
+                                        .filename     = filename,
+                                        .overrideName = name,
+                                        .nameParts    = parts,
+                                        .func         = func,
+                                    });
             }
 
             // Only warn if no overrides were added AND none were intentionally skipped
             // due to targeting zones on a different map process port.
-            if (!anyPortFiltered && overrides.size() == prevOverrideCount)
+            if (!anyPortFiltered && overrides().size() == prevOverrideCount)
             {
                 ShowError("No overrides found in module: %s", filename);
             }
@@ -331,7 +338,7 @@ void LoadLuaModules(IPP mapIPP)
 
 void CleanupLuaModules()
 {
-    overrides.clear();
+    overrides().clear();
 }
 
 auto GetDataModules(const std::string_view name, const std::string_view extension) -> std::vector<std::string>
@@ -389,7 +396,7 @@ void TryApplyLuaModules(const std::vector<std::string>& parts, bool isReload)
 
     const auto applyRange = [&](const std::string& key)
     {
-        const auto [rangeBegin, rangeEnd] = overrides.equal_range(key);
+        const auto [rangeBegin, rangeEnd] = overrides().equal_range(key);
         for (auto& [_, override] : std::ranges::subrange(rangeBegin, rangeEnd))
         {
             if (isReload)
@@ -415,7 +422,7 @@ void TryApplyLuaModules(const std::vector<std::string>& parts, bool isReload)
 void TryApplyRemainingLuaModules()
 {
     auto table = lua["_G"];
-    for (auto& [_, override] : overrides)
+    for (auto& [_, override] : overrides())
     {
         if (!override.applied)
         {
@@ -426,7 +433,7 @@ void TryApplyRemainingLuaModules()
 
 void ReportLuaModuleUsage()
 {
-    for (const auto& [_, override] : overrides)
+    for (const auto& [_, override] : overrides())
     {
         if (!override.applied)
         {

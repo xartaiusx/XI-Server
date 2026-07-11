@@ -1,9 +1,12 @@
 -----------------------------------
 -- Corsair Job Utilities
 -----------------------------------
+require('scripts/globals/spells/damage_spell')
+-----------------------------------
 xi = xi or {}
 xi.job_utils = xi.job_utils or {}
 xi.job_utils.corsair = xi.job_utils.corsair or {}
+-----------------------------------
 
 -----------------------------------
 -- Data tables
@@ -624,8 +627,8 @@ xi.job_utils.corsair.handleQuickDrawDamage = function(player, target, action, el
     -- Unconfirmed order.
     local sdtMultiplier          = xi.combat.damage.magicalElementSDT(target, element)
     local additionalResistTier   = xi.spells.damage.calculateAdditionalResistTier(player, target, element)
-    local elementalAbsorption    = xi.spells.damage.calculateAbsorption(target, element, false)
-    local elementalNullification = xi.spells.damage.calculateNullification(target, element, false, false)
+    local elementalAbsorption    = xi.spells.damage.calculateAbsorption(target, element, false, false, true, false)
+    local elementalNullification = xi.spells.damage.calculateNullification(target, element, false, false, true, false)
 
     -- Apply multipliers and bonuses.
     damage = math.floor(damage * deathPenaltyMultiplier)
