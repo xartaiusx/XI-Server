@@ -58,13 +58,10 @@
 #include "ai/states/attack_state.h"
 #include "ai/states/item_state.h"
 #include "ai/states/magic_state.h"
-#include "ai/states/range_state.h"
 #include "ai/states/weaponskill_state.h"
 
 #include "ability.h"
 #include "aman.h"
-#include "attack.h"
-#include "automaton_entity.h"
 #include "battlefield.h"
 #include "char_recast_container.h"
 
@@ -72,7 +69,6 @@
 #include "action/interrupts.h"
 #include "blue_spell.h"
 #include "conquest_system.h"
-#include "enums/key_items.h"
 #include "enums/recast.h"
 #include "ipc_client.h"
 #include "item_container.h"
@@ -101,7 +97,6 @@
 #include "trust_entity.h"
 #include "unitychat.h"
 #include "universal_container.h"
-#include "utils/attackutils.h"
 #include "utils/battleutils.h"
 #include "utils/charutils.h"
 #include "utils/gardenutils.h"
@@ -966,7 +961,7 @@ auto CCharEntity::getEquip(const SLOTTYPE slot) const -> CItemEquipment*
     return static_cast<CItemEquipment*>(equipped_[slot]);
 }
 
-auto CCharEntity::equipLocation(const uint8 equipSlot) const -> std::optional<ItemLocation>
+auto CCharEntity::equipLocation(const uint8 equipSlot) const -> Maybe<ItemLocation>
 {
     if (equipSlot >= EquipSlotCount)
     {
@@ -1820,6 +1815,8 @@ void CCharEntity::OnAbility(CAbilityState& state, action_t& action)
         auto* charge         = ability::GetCharge(this, static_cast<uint16>(PAbility->getRecastId()));
         auto  baseChargeTime = 0ns; // this can be reduced with merits/job point gifts. NOT the same as Recast- gear (so far...)
 
+        timer::duration bloodPactRecast = 0s;
+
         if (charge && PAbility->getID() != ABILITY_SIC)
         {
             auto chargesUsed = timer::count_seconds(PAbility->getRecastTime()); // charge cost is stored in the recast...
@@ -1866,9 +1863,12 @@ void CCharEntity::OnAbility(CAbilityState& state, action_t& action)
 
             int16 bloodPactDelayReduction = favorReduction + std::min<int16>(bloodPact_I_Reduction + bloodPact_II_Reduction + bloodPact_III_Reduction, 30);
 
+            // Snapshot BP recast here so we can carry it into Paralyze check
+            bloodPactRecast = std::max<timer::duration>(0s, action.recast - std::chrono::seconds(bloodPactDelayReduction));
+
             // Localvar will set the BP ability timer when the move consumes MP
             // The delay is snapshot when the player uses the ability: https://www.bg-wiki.com/ffxi/Blood_Pact_Ability_Delay
-            this->SetLocalVar("bpRecastTime", static_cast<uint16>(timer::count_seconds(std::max<timer::duration>(0s, action.recast - std::chrono::seconds(bloodPactDelayReduction)))));
+            this->SetLocalVar("bpRecastTime", static_cast<uint16>(timer::count_seconds(bloodPactRecast)));
 
             // Recast is actually triggered when the bp goes off (no recast packet at all on using a bp and the target moving out of range of the pet)
             action.recast = 0s;
@@ -1881,7 +1881,8 @@ void CCharEntity::OnAbility(CAbilityState& state, action_t& action)
             const auto recastId = PAbility->getRecastId();
             if (recastId != Recast::Special && recastId != Recast::Special2)
             {
-                charutils::ApplyAbilityRecast(this, PAbility, charge, baseChargeTime, action.recast);
+                const bool isBloodPact = recastId == Recast::BloodPactRage || recastId == Recast::BloodPactWard;
+                charutils::ApplyAbilityRecast(this, PAbility, charge, baseChargeTime, isBloodPact ? bloodPactRecast : action.recast);
             }
 
             ActionInterrupts::AbilityParalyzed(this, PTarget);
@@ -2091,7 +2092,7 @@ bool CCharEntity::IsMobOwner(CBattleEntity* PBattleTarget)
 
     if (auto* PMob = dynamic_cast<CMobEntity*>(PBattleTarget))
     {
-        if (PMob->getMobMod(MOBMOD_CLAIM_TYPE) == static_cast<int16>(ClaimType::NonExclusive))
+        if (PMob->getMobMod(MOBMOD_CLAIM_TYPE) == static_cast<int16>(xi::ClaimType::NonExclusive))
         {
             return true;
         }

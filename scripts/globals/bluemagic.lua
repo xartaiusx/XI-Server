@@ -2,8 +2,6 @@
 -- Blue Magic utilities
 -- Used for Blue Magic spells.
 -----------------------------------
-require('scripts/globals/combat/physical_utilities')
-require('scripts/globals/combat/magic_hit_rate')
 require('scripts/globals/magic')
 require('scripts/globals/mobskills')
 require('scripts/globals/spells/damage_spell')
@@ -252,7 +250,7 @@ xi.spells.blue.usePhysicalSpell = function(caster, target, spell, params)
     wsc       = wsc + wsc * bonusWSC -- Bonus WSC from AF3/CA
 
     -- Monster correlation
-    local correlationMultiplier = xi.combat.damage.ecosystemMultiplier(caster, target, params.ecosystem)
+    local correlationMultiplier = xi.combat.damage.ecosystemMultiplier(caster, target, params.ecosystem or 0)
 
     -- Azure Lore
     if caster:getStatusEffect(xi.effect.AZURE_LORE) then
@@ -398,14 +396,14 @@ xi.spells.blue.useMagicalSpell = function(caster, target, spell, params)
     end
 
     -- Monster correlation
-    local correlationMultiplier = xi.combat.damage.ecosystemMultiplier(caster, target, params.ecosystem)
+    local correlationMultiplier = xi.combat.damage.ecosystemMultiplier(caster, target, params.ecosystem or 0)
 
     -- Data
-    local spellId            = spell:getID()
-    local spellElement       = spell:getElement()
-    local spellGroup         = spell:getSpellGroup()
-    local skillType          = xi.skill.BLUE_MAGIC
-    local _, skillchainCount = xi.magicburst.formMagicBurst(target, spellElement) -- External function. Not present in magic.lua.
+    local spellId         = spell:getID()
+    local spellElement    = spell:getElement()
+    local spellGroup      = spell:getSpellGroup()
+    local skillType       = xi.skill.BLUE_MAGIC
+    local skillchainCount = xi.combat.magicBurst.getMagicBurstTier(target, spellElement)
 
     -- Final D value
     local finalDamage    = (initialD + wsc) * (params.multiplier + azureBonus + correlationMultiplier) + statBonus
@@ -422,7 +420,7 @@ xi.spells.blue.useMagicalSpell = function(caster, target, spell, params)
         caster:hasStatusEffect(xi.effect.AZURE_LORE)
     then
         if skillchainCount > 0 then
-            finalDamage = math.floor(finalDamage * xi.spells.damage.calculateIfMagicBurst(target, spellElement, skillchainCount))
+            finalDamage = math.floor(finalDamage * xi.spells.damage.calculateIfMagicBurst(caster, target, spellElement, skillchainCount))
             finalDamage = math.floor(finalDamage * xi.spells.damage.calculateIfMagicBurstBonus(caster, target, spellId, skillType, spellElement))
 
             spell:setMsg(spell:getMagicBurstMessage()) -- "Magic Burst!"
@@ -445,8 +443,8 @@ xi.spells.blue.useDrainSpell = function(caster, target, spell, params, damageCap
 
     -- Early returns
     if
-        xi.spells.damage.calculateAbsorption(target, spell:getElement(), true) ~= 1 or
-        xi.spells.damage.calculateNullification(target, spell:getElement(), true, false) ~= 1 or
+        xi.spells.damage.calculateAbsorption(target, spell:getElement(), false, true, false, false) ~= 1 or
+        xi.spells.damage.calculateNullification(target, spell:getElement(), false, true, false, false) ~= 1 or
         target:isUndead()
     then
         spell:setMsg(xi.msg.basic.MAGIC_NO_EFFECT)
@@ -462,11 +460,11 @@ xi.spells.blue.useDrainSpell = function(caster, target, spell, params, damageCap
     end
 
     -- Data
-    local spellId            = spell:getID()
-    local spellElement       = spell:getElement()
-    local spellGroup         = spell:getSpellGroup()
-    local skillType          = xi.skill.BLUE_MAGIC
-    local _, skillchainCount = xi.magicburst.formMagicBurst(target, spellElement) -- External function. Not present in magic.lua.
+    local spellId         = spell:getID()
+    local spellElement    = spell:getElement()
+    local spellGroup      = spell:getSpellGroup()
+    local skillType       = xi.skill.BLUE_MAGIC
+    local skillchainCount = xi.combat.magicBurst.getMagicBurstTier(target, spellElement)
 
     finalDamage = math.floor(finalDamage * xi.combat.magicHitRate.calculateResistRate(caster, target, spellGroup, skillType, 0, spellElement, params.attribute, 0, 0))
     finalDamage = math.floor(finalDamage * xi.spells.damage.calculateElementalStaffBonus(caster, spellElement))
@@ -479,7 +477,7 @@ xi.spells.blue.useDrainSpell = function(caster, target, spell, params, damageCap
         caster:hasStatusEffect(xi.effect.AZURE_LORE)
     then
         if skillchainCount > 0 then
-            finalDamage = math.floor(finalDamage * xi.spells.damage.calculateIfMagicBurst(target, spellElement, skillchainCount))
+            finalDamage = math.floor(finalDamage * xi.spells.damage.calculateIfMagicBurst(caster, target, spellElement, skillchainCount))
             finalDamage = math.floor(finalDamage * xi.spells.damage.calculateIfMagicBurstBonus(caster, target, spellId, skillType, spellElement))
 
             spell:setMsg(spell:getMagicBurstMessage()) -- "Magic Burst!"
@@ -549,10 +547,10 @@ xi.spells.blue.useBreathSpell = function(caster, target, spell, params)
     local damageType   = params.damageType or xi.damageType.NONE
 
     -- Multipliers
-    local correlationMultiplier       = xi.combat.damage.ecosystemMultiplier(caster, target, params.ecosystem)
+    local correlationMultiplier       = xi.combat.damage.ecosystemMultiplier(caster, target, params.ecosystem or 0)
     local breathSDT                   = 1 + caster:getMod(xi.mod.BREATH_DMG_DEALT) / 100
-    local absorb                      = xi.spells.damage.calculateAbsorption(target, spellElement, false)
-    local nullify                     = xi.spells.damage.calculateNullification(target, spellElement, false, true)
+    local absorb                      = xi.spells.damage.calculateAbsorption(target, spellElement, false, true, false, true)
+    local nullify                     = xi.spells.damage.calculateNullification(target, spellElement, false, true, false, true)
     local targetMagicDamageAdjustment = xi.combat.damage.calculateDamageAdjustment(target, false, false, false, true)
     local elementalStaffBonus         = xi.spells.damage.calculateElementalStaffBonus(caster, spellElement)
     local elementalAffinityBonus      = xi.spells.damage.calculateElementalAffinityBonus(caster, spellElement)
@@ -631,8 +629,8 @@ xi.spells.blue.applySpellDamage = function(caster, target, spell, dmg, params, t
 
     -- handle MDT, One For All, Liement
     if attackType == xi.attackType.MAGICAL then
-        local absorb   = xi.spells.damage.calculateAbsorption(target, spell:getElement(), true)
-        local nullify  = xi.spells.damage.calculateNullification(target, spell:getElement(), true, false)
+        local absorb   = xi.spells.damage.calculateAbsorption(target, spell:getElement(), false, true, false, false)
+        local nullify  = xi.spells.damage.calculateNullification(target, spell:getElement(), false, true, false, false)
         dmg            = math.floor(dmg * absorb * nullify)
 
         if dmg < 0 then
@@ -734,7 +732,7 @@ xi.spells.blue.useEnfeeblingSpell = function(caster, target, spell, params)
 
     if target:addStatusEffect(effect, { power = params.power, duration = math.floor(params.duration * resist), origin = caster, tick = params.tick }) then
         -- Add "Magic Burst!" message
-        local _, skillchainCount = xi.magicburst.formMagicBurst(target, spellElement) -- External function. Not present in magic.lua.
+        local skillchainCount = xi.combat.magicBurst.getMagicBurstTier(target, spellElement)
 
         if skillchainCount > 0 then
             spell:setMsg(xi.msg.basic.MAGIC_BURST_ENFEEB_IS)

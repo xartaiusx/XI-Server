@@ -21,6 +21,14 @@
 
 #include "interrupts.h"
 
+#include "action/action.h"
+#include "enums/action/resolution.h"
+#include "spell.h"
+
+#include "enums/action/category.h"
+#include "enums/four_cc.h"
+#include "zone.h"
+
 #include "packets/s2c/0x028_battle2.h"
 #include "petskill.h"
 #include "utils/trustutils.h"
@@ -442,25 +450,7 @@ void AttackIntimidated(CBattleEntity* PEntity, const CBattleEntity* PTarget)
 
 void AbilityParalyzed(CBattleEntity* PEntity, const CBattleEntity* PTarget)
 {
-    // 1. Generic MagicFinish with Paralyzed message
-    auto magicFinishSelfAction = action_t{
-        .actorId    = PEntity->id,
-        .actiontype = ActionCategory::MagicFinish,
-        .targets    = {
-            {
-                .actorId = PEntity->id,
-                .results = {
-                    {
-                        .animation = ActionAnimation::SkillInterrupt,
-                        .messageID = MsgBasic::IsParalyzed2,
-                    },
-                },
-            },
-        },
-    };
-
-    // 2. Generic MagicFinish with Paralyzed message
-    auto magicFinishTargetAction = action_t{
+    auto magicFinishAction = action_t{
         .actorId    = PEntity->id,
         .actiontype = ActionCategory::MagicFinish,
         .targets    = {
@@ -476,10 +466,8 @@ void AbilityParalyzed(CBattleEntity* PEntity, const CBattleEntity* PTarget)
         },
     };
 
-    LogInterruptPacket(PEntity, magicFinishSelfAction, PTarget, "interrupt_ability_paralyzed");
-    PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicFinishSelfAction));
-    LogInterruptPacket(PEntity, magicFinishTargetAction, PTarget, "interrupt_ability_paralyzed");
-    PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicFinishTargetAction));
+    LogInterruptPacket(PEntity, magicFinishAction, PTarget, "interrupt_ability_paralyzed");
+    PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(magicFinishAction));
 }
 
 void ItemInterrupt(CBattleEntity* PEntity)

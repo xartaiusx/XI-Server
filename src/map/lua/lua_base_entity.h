@@ -97,6 +97,7 @@ public:
     void entityAnimationPacket(const char* command, const sol::object& target);
     void sendDebugPacket(const sol::table& packetData);
     void sendLinkshellConcierge(const sol::table& data) const;
+    void sendChocoboRace(const sol::table& race) const;
 
     void       StartEventHelper(int32 EventID, sol::variadic_args va, EVENT_TYPE eventType);
     EventInfo* ParseEvent(int32 EventID, sol::variadic_args va, EventPrep* eventPreparation, EVENT_TYPE eventType);
@@ -326,7 +327,7 @@ public:
     void   setAnimation(uint8 animation);
     uint8  getAnimationSub();
     void   setAnimationSub(uint8 animationsub, const sol::object& sendUpdate);
-    void   setSpawnAnimation(uint8 spawnAnimation);
+    void   setSpawnAnimation(xi::SpawnAnimation spawnAnimation);
     bool   getCallForHelpFlag() const;
     void   setCallForHelpFlag(bool cfh);
     bool   getCallForHelpBlocked() const;
@@ -852,7 +853,7 @@ public:
     uint8  getEcosystem();
     uint16 getFamily();
     uint16 getSpecies();
-    auto   isMobType(uint8 mobType) const -> bool; // True if mob is of type passed to function
+    auto   isMobType(xi::MobType mobType) const -> bool; // True if mob is of type passed to function
     auto   isUndead() -> bool;
     bool   isNM();
 
@@ -905,6 +906,9 @@ public:
     void  setMobMod(uint16 mobModID, int16 value);
     void  addMobMod(uint16 mobModID, int16 value);
     void  delMobMod(uint16 mobModID, int16 value);
+
+    auto getfTPModifierOverride(uint16 skillId) -> sol::object;
+    void setfTPModifierOverride(uint16 skillId, float ftp1, float ftp2, float ftp3);
 
     uint32 getBattleTime();
     auto   getCrystalElement() const -> ELEMENT;
