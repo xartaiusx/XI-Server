@@ -3870,10 +3870,10 @@ void BuildingCharSkillsTable(CCharEntity* PChar)
             PChar->WorkingSkills.skill[i] = 0x8000;
             continue;
         }
-        uint16 maxMainSkill = battleutils::GetMaxSkill((xi::SkillType)i, PChar->GetMJob(), PChar->GetMLevel());
-        uint16 maxSubSkill  = battleutils::GetMaxSkill((xi::SkillType)i, PChar->GetSJob(), PChar->GetSLevel());
-        int16  skillBonus   = 0;
-        const uint8 masterLevel = (PChar->GetMJob() > JOB_NON && PChar->GetMJob() < MAX_JOBTYPE) ? PChar->masterLevels[PChar->GetMJob()] : 0;
+        uint16      maxMainSkill = battleutils::GetMaxSkill((xi::SkillType)i, PChar->GetMJob(), PChar->GetMLevel());
+        uint16      maxSubSkill  = battleutils::GetMaxSkill((xi::SkillType)i, PChar->GetSJob(), PChar->GetSLevel());
+        int16       skillBonus   = 0;
+        const uint8 masterLevel  = (PChar->GetMJob() > JOB_NON && PChar->GetMJob() < MAX_JOBTYPE) ? PChar->masterLevels[PChar->GetMJob()] : 0;
 
         // apply arts bonuses
         if (isArtsBonusActive(PChar, static_cast<xi::SkillType>(i)))
