@@ -96,7 +96,7 @@ xi.pyxis.removeChest = function(player, npc, addcruor, delay)
     local amount = npc:getLocalVar('TIER') * 10
 
     if addcruor ~= 0 then
-        player:addCurrency('cruor', amount)
+        amount = xi.abyssea.addCruor(player, amount)
         player:messageSpecial(ID.text.CRUOR_OBTAINED, amount, 0, 0, 0)
     end
 

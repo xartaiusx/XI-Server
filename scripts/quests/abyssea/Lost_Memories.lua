@@ -83,8 +83,8 @@ quest.sections =
                 [164] = function(player, csid, option, npc)
                     player:confirmTrade()
                     --TODO add repeat quest functionality?
-                    player:addCurrency('cruor', 480)
-                    player:messageSpecial(ID.text.CRUOR_TOTAL, 480, player:getCurrency('cruor'))
+                    local cruorAward = xi.abyssea.addCruor(player, 480)
+                    player:messageSpecial(ID.text.CRUOR_TOTAL, cruorAward, player:getCurrency('cruor'))
                     quest:complete(player)
                 end,
             },

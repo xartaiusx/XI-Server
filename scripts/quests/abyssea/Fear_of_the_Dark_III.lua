@@ -65,8 +65,8 @@ quest.sections =
             {
                 [160] = function(player, csid, option, npc)
                     player:confirmTrade()
-                    player:addCurrency('cruor', 200)
-                    player:messageSpecial(ID.text.CRUOR_TOTAL, 200, player:getCurrency('cruor'))
+                    local cruorAward = xi.abyssea.addCruor(player, 200)
+                    player:messageSpecial(ID.text.CRUOR_TOTAL, cruorAward, player:getCurrency('cruor'))
                     quest:complete(player)
                 end,
             },

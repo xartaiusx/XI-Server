@@ -8,6 +8,29 @@ require('scripts/globals/extravaganza')
 xi = xi or {}
 xi.abyssea = xi.abyssea or {}
 
+xi.abyssea.getCruorAward = function(player, amount)
+    local multiplier = 1
+
+    for atmaSlot = 1, 3 do
+        local atmaEffect = player:getStatusEffect(xi.effect.ATMA, atmaSlot)
+        if
+            atmaEffect ~= nil and
+            atmaEffect:getPower() == xi.ki.ATMA_OF_THE_ROYAL_LINEAGE
+        then
+            multiplier = 1.2
+            break
+        end
+    end
+
+    return math.floor(amount * multiplier)
+end
+
+xi.abyssea.addCruor = function(player, amount)
+    local award = xi.abyssea.getCruorAward(player, amount)
+    player:addCurrency('cruor', award)
+    return award
+end
+
 xi.abyssea.exitPositions =
 {
     [xi.zone.ABYSSEA_KONSCHTAT ] = {   88.4, -68.09, -579.97, 128, 108 },
