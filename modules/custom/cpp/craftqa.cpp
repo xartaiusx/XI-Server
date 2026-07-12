@@ -30,7 +30,6 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
-#include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -66,11 +65,6 @@ constexpr uint8       kTwillsRetailCookingCap    = 70;
 
 auto runtimeEvidenceRoot() -> std::filesystem::path
 {
-    if (const auto* runtimeRoot = std::getenv("MOCHIRII_RUNTIME_ROOT"); runtimeRoot && *runtimeRoot)
-    {
-        return std::filesystem::path(runtimeRoot) / "crafting" / "cooking";
-    }
-
     return std::filesystem::path("log") / "craftqa" / "cooking";
 }
 
