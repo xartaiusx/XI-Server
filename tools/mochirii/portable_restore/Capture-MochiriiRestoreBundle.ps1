@@ -1,6 +1,6 @@
 param(
     [string]$RepoRoot = "C:\Users\xtyty\Documents\FFXI\XI-Server",
-    [string]$RuntimeRoot = "C:\Users\xtyty\Documents\FFXI-Runtime",
+    [string]$RuntimeRoot = "C:\Github Repo's\FFXI\Runtime",
     [string]$WindowerRoot = "D:\Steam\steamapps\common\FFXINA\Windower",
     [string]$MariaDbBin = "C:\Program Files\MariaDB 12.3\bin",
     [string]$MariaDbDefaults = "C:\Program Files\MariaDB 12.3\data\my.ini",

@@ -2,7 +2,7 @@
 """Generate a cross-platform Mochirii Trust parity audit.
 
 The existing PowerShell audit remains useful on Windows.  This companion is for
-canonical WSL runs where fresh server logs live under /root/projects/FFXI.
+canonical WSL runs where fresh server logs live under /home/xartyzx/projects/FFXI.
 """
 
 from __future__ import annotations
@@ -540,7 +540,7 @@ def generate_report(repo_root: Path, runtime_root: Path, player: str) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate a Mochirii Trust parity audit report.")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
-    parser.add_argument("--runtime-root", type=Path, default=Path("/root/projects/FFXI-Runtime"))
+    parser.add_argument("--runtime-root", type=Path, default=Path("/home/xartyzx/projects/FFXI-Runtime"))
     parser.add_argument("--player", default="Twills")
     args = parser.parse_args()
     print(generate_report(args.repo_root.resolve(), args.runtime_root.resolve(), args.player))

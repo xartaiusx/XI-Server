@@ -26,6 +26,20 @@ The source copy for the Windower-side bridge is kept at
 `tools\mochirii\windower_addons\MochiriiScreenshotQA\MochiriiScreenshotQA.lua`
 and installed into `Windower\addons\MochiriiScreenshotQA`.
 
+## Source And Deployment
+
+- Tracked Windows helpers in this directory are the source of truth. Matching
+  files under `C:\Github Repo's\FFXI\Runtime` are symbolic links, not copied
+  scripts.
+- Tracked WSL service controls live in `wsl-server-control`. The WSL runtime
+  links to these files from `/home/xartyzx/projects/FFXI-Runtime/server-control`.
+- Tracked systemd templates live in `systemd`; `/etc/systemd/system` contains
+  deployed copies.
+- Persistent credentials live only under
+  `C:\Github Repo's\FFXI\FFXI Creds`. The MariaDB helper creates a mode-600
+  temporary client config in `/run/mochirii` because MariaDB correctly rejects
+  option files presented as world-writable by the Windows mount.
+
 ## Repeatable Native Command Sequence
 
 For every in-client test, keep the command surface stable and native:
@@ -64,7 +78,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\mochirii\Apply-XivPart
 ```
 
 The helper backs up `Windower\addons\XivParty\xivparty.lua` under
-`C:\Users\xtyty\Documents\FFXI-Runtime\backups\xivparty` and patches only the
+`C:\Github Repo's\FFXI\Runtime\backups\xivparty` and patches only the
 `setSetupEnabled()` path so `//xp setup on` and `//xp setup off` cannot call
 `view:setModel()` or `view:setUiLocked()` before XivParty has initialized after
 login. Verify with `//lua reload XivParty`, `//xp setup on`, `//xp setup off`,
@@ -73,7 +87,7 @@ and a native Windower screenshot.
 For layout persistence, keep XivParty positions synchronized between the live
 client file `D:\Steam\steamapps\common\FFXINA\Windower\addons\XivParty\data\settings.xml`
 and the runtime golden-state file
-`C:\Users\xtyty\Documents\FFXI-Runtime\windower-golden-state\addons\XivParty\data\settings.xml`.
+`C:\Github Repo's\FFXI\Runtime\windower-golden-state\addons\XivParty\data\settings.xml`.
 The current Twills layout is party `0.765,0.815`, alliance1 `0.765,0.675`,
 alliance2 `0.765,0.535`, scale `0.72`. Verify changes through native XivParty
 commands, addon reload, and native Windower screenshots before updating tracked
@@ -107,10 +121,10 @@ Trust parity report from the WSL checkout so the audit reads the active live log
 without copying runtime files:
 
 ```bash
-python3 tools/mochirii/trust_parity_audit.py --repo-root . --runtime-root /root/projects/FFXI-Runtime --player Twills
+python3 tools/mochirii/trust_parity_audit.py --repo-root . --runtime-root /home/xartyzx/projects/FFXI-Runtime --player Twills
 ```
 
-The report is written under `/root/projects/FFXI-Runtime/reports`. Use it
+The report is written under `/home/xartyzx/projects/FFXI-Runtime/reports`. Use it
 after `!trustparty summonqa`, the summon-complete message, `!trustparty audit
 active`, and a controlled combat test. Fix Trust AI only from report evidence:
 unresolved names, runtime action issues, role mistakes, early buff/debuff
@@ -135,9 +149,9 @@ Then verify the live Windower profile with:
 //gs c gearscore
 ```
 
-The static resolver writes reports to `/root/projects/FFXI-Runtime/logs/gearswap_qa/`.
+The static resolver writes reports to `/home/xartyzx/projects/FFXI-Runtime/logs/gearswap_qa/`.
 The live GearSwap command writes TSV evidence to
-`C:\Users\xtyty\Documents\FFXI-Runtime\logs\gearswap_qa`. Keep those
+`C:\Github Repo's\FFXI\Runtime\logs\gearswap_qa`. Keep those
 runtime reports out of git. `//gs c qa all` writes live set, equipment,
 visual-model, and action-family/baseline TSV evidence; `//gs c qa families`
 refreshes only the action-family matrix.

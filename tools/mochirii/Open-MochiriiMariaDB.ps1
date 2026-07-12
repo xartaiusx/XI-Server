@@ -4,7 +4,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$dbScript = '/root/projects/FFXI-Runtime/server-control/open-mariadb-wsl.sh'
+$dbScript = '/home/xartyzx/projects/FFXI-Runtime/server-control/open-mariadb-wsl.sh'
 
 Write-Host 'Opening Mochirii MariaDB xidb shell in WSL...'
 Write-Host 'MariaDB will be started if needed and left disabled for autostart.'

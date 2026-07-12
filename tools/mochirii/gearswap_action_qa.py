@@ -1001,13 +1001,13 @@ def main() -> int:
         "--audit-json",
         type=Path,
         default=Path(
-            "/root/projects/FFXI-Runtime/audits/twills-full-state-latest.json"
+            "/home/xartyzx/projects/FFXI-Runtime/audits/twills-full-state-latest.json"
         ),
     )
     parser.add_argument(
         "--output-root",
         type=Path,
-        default=Path("/root/projects/FFXI-Runtime/logs/gearswap_qa"),
+        default=Path("/home/xartyzx/projects/FFXI-Runtime/logs/gearswap_qa"),
     )
     parser.add_argument("--bis-matrix", type=Path, default=None)
     parser.add_argument("--write-visual-manifest", type=Path, default=None)

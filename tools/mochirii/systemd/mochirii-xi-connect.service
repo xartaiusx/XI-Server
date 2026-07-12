@@ -1,0 +1,25 @@
+[Unit]
+Description=Mochirii XI Connect Server
+Requires=mariadb.service
+After=mariadb.service network-online.target
+
+[Service]
+Type=simple
+User=xartyzx
+Group=xartyzx
+WorkingDirectory=/home/xartyzx/projects/FFXI/XI-Server
+ExecStart=/home/xartyzx/projects/FFXI/XI-Server/xi_connect --log log/connect-server.log
+Restart=on-failure
+RestartSec=3
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
