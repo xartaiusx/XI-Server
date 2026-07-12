@@ -31,6 +31,9 @@
     "wsl_server_control": "/home/xartyzx/projects/FFXI-Runtime/server-control",
     "windows_client_tools": "C:\\Github Repo's\\FFXI\\Runtime\\client-tools"
   },
+  "runtime_links": {
+    "craftqa_evidence": "/home/xartyzx/projects/FFXI/XI-Server/log/craftqa -> /home/xartyzx/projects/FFXI-Runtime/crafting"
+  },
   "credentials": {
     "active_server": "C:\\Github Repo's\\FFXI\\FFXI Creds\\Server",
     "active_runtime": "C:\\Github Repo's\\FFXI\\FFXI Creds\\Runtime",
