@@ -15,10 +15,10 @@
     "WSL-Runtime": "\\\\wsl$\\Ubuntu-24.04\\home\\xartyzx\\projects\\FFXI-Runtime",
     "Client": "D:\\Steam\\steamapps\\common\\FFXINA"
   },
-  "compatibility_links": {
-    "windows_runtime_legacy": "C:\\Users\\xtyty\\Documents\\FFXI-Runtime -> C:\\Github Repo's\\FFXI\\Runtime",
-    "wsl_repo_legacy": "/root/projects/FFXI/XI-Server -> /home/xartyzx/projects/FFXI/XI-Server",
-    "wsl_runtime_legacy": "/root/projects/FFXI-Runtime -> /home/xartyzx/projects/FFXI-Runtime"
+  "legacy_path_policy": {
+    "compatibility_links_present": false,
+    "old_locations_removed": true,
+    "recreate_legacy_paths": false
   },
   "desktop_shortcuts": {
     "windower": "C:\\Users\\xtyty\\Desktop\\Windower.lnk",

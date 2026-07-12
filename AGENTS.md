@@ -72,9 +72,9 @@ when referring to the game.
   `C:\Github Repo's\FFXI\FFXI Creds`. Do not print, log, commit, or duplicate their
   values. The repo and runtime may contain links to required credential files,
   but not copied credentials.
-- The old `C:\Users\xtyty\Documents\FFXI` and
-  `C:\Users\xtyty\Documents\FFXI-Runtime` paths are compatibility pointers
-  only. New scripts, documentation, and evidence must use the project hub.
+- Do not recreate retired compatibility paths outside the project hub. New
+  scripts, documentation, evidence, and Codex tasks must use the canonical
+  locations above.
 - Keep server/runtime evidence outside the repo under
   `/home/xartyzx/projects/FFXI-Runtime` in WSL. Keep only the small Windows-side
   Windower bridge under `C:\Github Repo's\FFXI\Runtime` because
