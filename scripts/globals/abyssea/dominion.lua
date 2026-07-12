@@ -146,8 +146,8 @@ local function completeDominionOp(player, opID)
 
     player:completeQuest(xi.questLog.ABYSSEA, dominionOpQuests[opID][1])
     player:addExp(dominionOpQuests[opID][3] * xpMultiplier)
-    player:addCurrency('cruor', dominionOpQuests[opID][3] / 5)
-    player:messageSpecial(ID.text.CRUOR_TOTAL, dominionOpQuests[opID][3] / 5, player:getCurrency('cruor'))
+    local cruorAward = xi.abyssea.addCruor(player, dominionOpQuests[opID][3] / 5)
+    player:messageSpecial(ID.text.CRUOR_TOTAL, cruorAward, player:getCurrency('cruor'))
     player:addCurrency('dominion_note', dominionOpQuests[opID][3] / 10)
     player:messageSpecial(ID.text.OBTAINS_DOMINION_NOTES, dominionOpQuests[opID][3] / 10, player:getCurrency('dominion_note'))
 

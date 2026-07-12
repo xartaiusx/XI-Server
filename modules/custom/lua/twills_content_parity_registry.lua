@@ -15,16 +15,18 @@ return {
     systems = {
         abyssea = {
             evidencePaths = {
+                'documentation/abyssea_atma_parity.md',
                 'scripts/globals/abyssea',
+                'scripts/tests/systems/abyssea/atma.lua',
                 'scripts/zones/Abyssea-Konschtat/npcs/Atma_Infusionist.lua',
             },
             key = 'abyssea',
             lifecycle = 'persistent',
             name = 'Abyssea, Atma, and Abyssite',
-            reason = 'Abyssea access, Atma infusion, and many effects exist, but empty Atma definitions and unverified acquisition paths prevent full completion status.',
+            reason = 'Abyssea access, Atma infusion, all local Atma definitions, and conditional Atma modifiers exist; three unsupported sub-effects and unverified acquisition paths still prevent full completion status.',
             repairPolicy = 'verified_only',
             sourceUrls = {
-                'https://www.bg-wiki.com/ffxi/Category:Abyssea_Atma',
+                'https://www.bg-wiki.com/ffxi/Atma',
             },
             status = 'partial',
         },

@@ -34,8 +34,8 @@ quest.sections =
             {
                 [38] = function(player, csid, option, npc)
                     quest:begin(player)
-                    player:addCurrency('cruor', 50)
-                    player:messageSpecial(ID.text.CRUOR_TOTAL, 50, player:getCurrency('cruor'))
+                    local cruorAward = xi.abyssea.addCruor(player, 50)
+                    player:messageSpecial(ID.text.CRUOR_TOTAL, cruorAward, player:getCurrency('cruor'))
                 end,
             },
         },
