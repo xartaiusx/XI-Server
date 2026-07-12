@@ -21,7 +21,7 @@
     {
       "relativePath": "addons/MochiriiScreenshotQA/MochiriiScreenshotQA.lua",
       "bytes": 11487,
-      "sha256": "d57834ba674a086d886247aeddecc0a36897a9057854ee86a17b367388d1b28"
+      "sha256": "d57834ba674a086d886247aeddeecc0a36897a9057854ee86a17b367388d1b28"
     },
     {
       "relativePath": "addons/XIPivot/data/settings.xml",
@@ -90,13 +90,13 @@
     },
     {
       "relativePath": "scripts/init.txt",
-      "bytes": 354,
-      "sha256": "84eec0abd492f3925a67716b5f1f06040425707eb79dc8f5858ce42a5f63d9ee"
+      "bytes": 375,
+      "sha256": "86d2459692aaddabff5b0755ec17aec6751329ad3b4ccdd8d636f545ac18209c"
     },
     {
       "relativePath": "settings.xml",
-      "bytes": 724,
-      "sha256": "144e654d8881c258a836813354ee5e0de5eae328e56dc278799794b3ca468414"
+      "bytes": 719,
+      "sha256": "f6c0db0e6d399479ef67683947c34449c81dd8b61df59f12d243e533b2db05ad"
     }
   ],
   "encryptedFullBundle": {
