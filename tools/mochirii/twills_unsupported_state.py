@@ -7,8 +7,10 @@ This tool is intentionally dry-run only. It never writes to MariaDB.
 from __future__ import annotations
 
 import argparse
+import configparser
 import datetime as dt
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -18,13 +20,39 @@ REGISTRY_PATH = Path("documentation/data/mochirii_content_parity.json")
 KEY_ITEM_PATH = Path("scripts/enum/key_item.lua")
 ATMA_PATH = Path("scripts/globals/abyssea/atma.lua")
 SAFE_COLUMN = re.compile(r"^[a-z][a-z0-9_]*$")
+MARIADB_CNF_ENV = "MOCHIRII_MARIADB_CNF"
+
+
+def mariadb_invocation() -> tuple[list[str], dict[str, str]]:
+    command = ["mariadb"]
+    environment = os.environ.copy()
+    defaults_file = os.environ.get(MARIADB_CNF_ENV)
+    if defaults_file:
+        path = Path(defaults_file).expanduser()
+        if not path.is_file():
+            raise FileNotFoundError(f"MariaDB option file not found: {path}")
+        config = configparser.ConfigParser(interpolation=None)
+        if not config.read(path) or "client" not in config:
+            raise RuntimeError(f"MariaDB client configuration unavailable: {path}")
+        client = config["client"]
+        command.extend(
+            [
+                f"--user={client['user']}",
+                f"--host={client.get('host', '127.0.0.1')}",
+                f"--port={client.getint('port', 3306)}",
+            ]
+        )
+        environment["MYSQL_PWD"] = client["password"]
+    return command, environment
 
 
 def run_sql(database: str, sql: str) -> list[list[str]]:
+    command, environment = mariadb_invocation()
     result = subprocess.run(
-        ["mariadb", "--batch", "--raw", "--skip-column-names", database, "-e", sql],
+        [*command, "--batch", "--raw", "--skip-column-names", database, "-e", sql],
         check=True,
         capture_output=True,
+        env=environment,
         text=True,
     )
     return [line.split("\t") for line in result.stdout.splitlines() if line]
