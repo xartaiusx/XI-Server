@@ -84,7 +84,7 @@
     }
   ],
   "rollbackBackups": {
-    "XIView": "C:/Users/xtyty/Documents/FFXI-Runtime/mod-backups/XIView-direct-20260629-202829",
-    "XITide": "C:/Users/xtyty/Documents/FFXI-Runtime/mod-backups/XITide-20260629-022234"
+    "XIView": "C:/Github Repo's/FFXI/Runtime/backups/client-mods/XIView-direct-20260629-202829",
+    "XITide": "C:/Github Repo's/FFXI/Runtime/backups/client-mods/XITide-20260629-022234"
   }
 }

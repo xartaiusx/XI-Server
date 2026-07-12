@@ -172,8 +172,8 @@ Twills RDM/SCH coverage is now verified by two complementary checks:
   - Writes JSON and Markdown evidence under `/home/xartyzx/projects/FFXI-Runtime/logs/gearswap_qa/`, which must not be committed.
 
 - Live GearSwap QA: `//gs c qa all`
-  - Writes `C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-sets.tsv`.
-  - Writes `C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-equipment.tsv`.
+  - Writes `C:/Github Repo's/FFXI/Runtime/logs/gearswap_qa/Twills-live-sets.tsv`.
+  - Writes `C:/Github Repo's/FFXI/Runtime/logs/gearswap_qa/Twills-live-equipment.tsv`.
   - Use `//gs c qa status` to print the static and live QA evidence paths in chat.
   - Use `//gs c qa snapshot` when only the current equipment snapshot is needed.
 
@@ -358,10 +358,10 @@ After rebuild and relog:
 - Current wardrobe augment repairs:
   - `nyame_helm`, `nyame_mail`, `nyame_gauntlets`, `nyame_flanchard`, and
     `nyame_sollerets`: Path B, rank 30.
-- Backup after the current repair/gear pass:
-  `C:\Users\xtyty\Documents\FFXI\sql\backups\xidb-20260623-020712-32b34.sql`.
-- Backup before the bundled augment pass:
-  `C:\Users\xtyty\Documents\FFXI\sql\backups\xidb-20260623-031100-32b34.sql`.
+- The original June backup paths were retired during workspace consolidation.
+  Current logical and encrypted database backups live only under
+  `/home/xartyzx/projects/FFXI-Runtime/backups` and
+  `/home/xartyzx/projects/FFXI-Runtime/portable-restore/artifacts`.
 
 ## 2026-06-24 v8 Implementation Notes
 

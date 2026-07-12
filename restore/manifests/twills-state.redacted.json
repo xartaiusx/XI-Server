@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "generatedAt": "2026-07-08T02:37:00-07:00",
-  "sourceAudit": "C:/Users/xtyty/Documents/FFXI-Runtime/audits/twills-v9-longtime-audit-latest.md",
+  "sourceAudit": "/home/xartyzx/projects/FFXI-Runtime/audits/twills-v9-longtime-audit-latest.md",
   "auditTimestamp": "2026-07-08T02:36:45-07:00",
   "character": {
     "name": "Twills",

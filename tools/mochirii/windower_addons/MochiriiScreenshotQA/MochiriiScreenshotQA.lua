@@ -6,8 +6,8 @@ _addon.commands = { 'mochiriiscreenshotqa', 'mscreenshotqa' }
 local json = require('json')
 local resources = require('resources')
 
-local trigger_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/screenshots/native_screenshot_request.txt'
-local client_tools_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/client-tools'
+local trigger_path = 'C:/Github Repo\'s/FFXI/Runtime/screenshots/native_screenshot_request.txt'
+local client_tools_path = 'C:/Github Repo\'s/FFXI/Runtime/client-tools'
 local legacy_command_path = client_tools_path .. '/windower_command_request.txt'
 local command_bridge_path = client_tools_path .. '/windower-command-bridge'
 local command_request_path = command_bridge_path .. '/request.json'
