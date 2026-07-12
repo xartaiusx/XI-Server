@@ -47,9 +47,9 @@ namespace
 {
 
 constexpr const char* kRequiredCookName          = "Twills";
-constexpr uint8       kAlchemySkillId            = SKILL_ALCHEMY;
-constexpr uint8       kFishingSkillId            = SKILL_FISHING;
-constexpr uint8       kSynergySkillId            = SKILL_SYNERGY;
+constexpr uint8       kAlchemySkillId            = static_cast<uint8>(xi::SkillType::Alchemy);
+constexpr uint8       kFishingSkillId            = static_cast<uint8>(xi::SkillType::Fishing);
+constexpr uint8       kSynergySkillId            = static_cast<uint8>(xi::SkillType::Synergy);
 constexpr uint16      kExpertSkill               = 1100;
 constexpr uint8       kExpertRank                = 10;
 constexpr uint16      kCommonSkill               = 700;
@@ -59,10 +59,14 @@ constexpr uint8       kSynergyRank               = 7;
 constexpr uint32      kGuildPointFloor           = 200000;
 constexpr uint8       kDefaultAttempts           = 50;
 constexpr uint8       kQueueCraftIntervalSeconds = 30;
-constexpr const char* kRuntimeEvidenceRoot       = "/root/projects/FFXI-Runtime/crafting/cooking";
 constexpr uint16      kCookingEffectiveSupport   = 6;
 constexpr uint16      kCookingImageryLoss        = 10;
 constexpr uint8       kTwillsRetailCookingCap    = 70;
+
+auto runtimeEvidenceRoot() -> std::filesystem::path
+{
+    return std::filesystem::path("log") / "craftqa" / "cooking";
+}
 
 constexpr std::array<uint8, 5> kArchiveContainers = {
     LOC_MOGCASE,
@@ -336,7 +340,7 @@ auto evidenceFilePath() -> std::filesystem::path
         std::ostringstream stamp;
         stamp << std::put_time(&tm, "%Y%m%d-%H%M%S");
 
-        auto            dir = std::filesystem::path(kRuntimeEvidenceRoot) / stamp.str();
+        auto            dir = runtimeEvidenceRoot() / stamp.str();
         std::error_code ec;
         std::filesystem::create_directories(dir, ec);
         return dir / "craftqa.tsv";
@@ -788,7 +792,7 @@ auto repairDedicatedCook(CCharEntity* PChar) -> std::string
         "WHERE charid = ? LIMIT 1",
         PChar->id);
 
-    for (uint8 skillId = SKILL_WOODWORKING; skillId <= SKILL_COOKING; ++skillId)
+    for (uint8 skillId = static_cast<uint8>(xi::SkillType::Woodworking); skillId <= static_cast<uint8>(xi::SkillType::Cooking); ++skillId)
     {
         const bool isAlchemy = skillId == kAlchemySkillId;
         const auto value     = isAlchemy ? kExpertSkill : kCommonSkill;

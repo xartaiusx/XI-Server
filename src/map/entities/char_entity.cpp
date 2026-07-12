@@ -1585,24 +1585,24 @@ void CCharEntity::OnCastFinished(CMagicState& state, action_t& action)
     charutils::RemoveStratagems(this, PSpell);
     if (PSpell->tookEffect())
     {
-        charutils::TrySkillUP(this, (SKILLTYPE)PSpell->getSkillType(), PTarget->GetMLevel());
+        charutils::TrySkillUP(this, PSpell->getSkillType(), PTarget->GetMLevel());
 
         CItemWeapon* PItem = static_cast<CItemWeapon*>(getEquip(SLOT_RANGED));
 
         if (PItem && PItem->isType(ITEM_EQUIPMENT))
         {
-            SKILLTYPE Skilltype = (SKILLTYPE)PItem->getSkillType();
+            xi::SkillType Skilltype = PItem->getSkillType();
 
             switch (PSpell->getSkillType())
             {
-                case SKILL_GEOMANCY:
-                    if (Skilltype == SKILL_HANDBELL)
+                case xi::SkillType::Geomancy:
+                    if (Skilltype == xi::SkillType::Handbell)
                     {
                         charutils::TrySkillUP(this, Skilltype, PTarget->GetMLevel());
                     }
                     break;
-                case SKILL_SINGING:
-                    if (Skilltype == SKILL_STRING_INSTRUMENT || Skilltype == SKILL_WIND_INSTRUMENT || Skilltype == SKILL_SINGING)
+                case xi::SkillType::Singing:
+                    if (Skilltype == xi::SkillType::StringInstrument || Skilltype == xi::SkillType::WindInstrument || Skilltype == xi::SkillType::Singing)
                     {
                         charutils::TrySkillUP(this, Skilltype, PTarget->GetMLevel());
                     }
@@ -2367,7 +2367,7 @@ CBattleEntity* CCharEntity::IsValidTarget(uint16 targid, uint16 validTargetFlags
         // Check if target is a BEHAVIOR_NO_ASSIST mob with player allegiance
         auto* PEntity = GetEntity(targid, TYPE_MOB | TYPE_PC | TYPE_PET | TYPE_TRUST);
         if (PEntity && PEntity->objtype == TYPE_MOB && static_cast<CMobEntity*>(PEntity)->allegiance == xi::Allegiance::Player &&
-            (static_cast<CMobEntity*>(PEntity)->m_Behavior & BEHAVIOR_NO_ASSIST))
+            ((static_cast<CMobEntity*>(PEntity)->m_Behavior & xi::Behavior::NoAssist) != xi::Behavior::None))
         {
             errMsg = std::make_unique<GP_SERV_COMMAND_BATTLE_MESSAGE>(this, this, 0, 0, MsgBasic::CannotOnThatTarget);
         }
@@ -3190,7 +3190,7 @@ void CCharEntity::clearCharVarsWithPrefix(const std::string& prefix)
     db::preparedStmt("DELETE FROM char_vars WHERE charid = ? AND varname LIKE ?", this->id, fmt::format("{}%", prefix));
 }
 
-bool CCharEntity::startSynth(SKILLTYPE synthSkill)
+bool CCharEntity::startSynth(xi::SkillType synthSkill)
 {
     if (PAI)
     {
