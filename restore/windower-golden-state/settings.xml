@@ -16,7 +16,7 @@
     <uiscale>2</uiscale>
     <supersampling>2</supersampling>
     <bumpmapping>true</bumpmapping>
-    <args>--json C:\Github Repo's\FFXI\Runtime\secrets\twills-xiloader-v211.json</args>
+    <args>--json C:\Github Repo's\FFXI\FFXI Creds\Runtime\twills-xiloader-v211.json</args>
     <executable>D:\Steam\steamapps\common\FFXINA\SquareEnix\PlayOnlineViewer\xiloader.exe</executable>
   </profile>
 </settings>

@@ -8,6 +8,7 @@ Type=simple
 User=xartyzx
 Group=xartyzx
 WorkingDirectory=/home/xartyzx/projects/FFXI/XI-Server
+Environment=MOCHIRII_RUNTIME_ROOT=/home/xartyzx/projects/FFXI-Runtime
 ExecStart=/home/xartyzx/projects/FFXI/XI-Server/xi_map --log log/map-server-55030.log --ip 127.0.0.1 --port 55030
 Restart=on-failure
 RestartSec=3
