@@ -22,7 +22,6 @@
 
 #include "common/cbasetypes.h"
 
-class CBattleEntity;
 class CCharEntity;
 class CTrustEntity;
 struct action_t;
