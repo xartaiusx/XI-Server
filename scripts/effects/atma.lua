@@ -10,9 +10,7 @@ effectObject.onEffectGain = function(target, effect)
 end
 
 effectObject.onEffectTick = function(target, effect)
-    if not xi.abyssea.isInAbysseaZone(target) then
-        target:delStatusEffect(effect:getEffectType())
-    end
+    xi.atma.onEffectTick(target, effect)
 end
 
 effectObject.onEffectLose = function(target, effect)

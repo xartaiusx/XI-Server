@@ -89,8 +89,8 @@ quest.sections =
             {
                 [192] = function(player, csid, option, npc)
                     player:delKeyItem(xi.ki.LUGARHOOS_EYEBALL)
-                    player:addCurrency('cruor', 800)
-                    player:messageSpecial(ID.text.CRUOR_TOTAL, 800, player:getCurrency('cruor'))
+                    local cruorAward = xi.abyssea.addCruor(player, 800)
+                    player:messageSpecial(ID.text.CRUOR_TOTAL, cruorAward, player:getCurrency('cruor'))
                     quest:complete(player)
                 end,
             },

@@ -113,10 +113,31 @@ def render_lua(data: dict[str, Any]) -> str:
 def scan_source(repo_root: Path) -> dict[str, Any]:
     atma_path = repo_root / "scripts/globals/abyssea/atma.lua"
     atma_text = atma_path.read_text(encoding="utf-8")
+    atma_mods_text = atma_text.split("xi.atma.atmaMods =", 1)[1].split(
+        "xi.atma.deferredEffects =", 1
+    )[0]
     atma_rows = re.findall(
-        r"\[xi\.ki\.(ATMA_OF_[A-Z0-9_]+)\]\s*=\s*\{([^}]*)\}", atma_text
+        r"\[xi\.ki\.(ATMA_OF_[A-Z0-9_]+)\]\s*=\s*\{([^}]*)\}",
+        atma_mods_text,
     )
-    empty_atma = sorted(name for name, body in atma_rows if not body.strip())
+    conditional_text = atma_text.split("xi.atma.atmaConditionalMods =", 1)[1].split(
+        "local function modifyTarget", 1
+    )[0]
+    conditional_atma = sorted(
+        set(re.findall(r"\[xi\.ki\.(ATMA_OF_[A-Z0-9_]+)\]\s*=", conditional_text))
+    )
+    deferred_text = atma_text.split("xi.atma.deferredEffects =", 1)[1].split(
+        "local twoHandedSkills", 1
+    )[0]
+    deferred_atma = sorted(
+        set(re.findall(r"\[xi\.ki\.(ATMA_OF_[A-Z0-9_]+)\]\s*=", deferred_text))
+    )
+    conditional_set = set(conditional_atma)
+    empty_atma = sorted(
+        name
+        for name, body in atma_rows
+        if not body.strip() and name not in conditional_set
+    )
 
     mission_root = repo_root / "scripts/missions"
     mission_skeletons = sorted(
@@ -153,6 +174,8 @@ def scan_source(repo_root: Path) -> dict[str, Any]:
         "commit": commit,
         "atmaDefinitions": len(atma_rows),
         "emptyAtmaDefinitions": empty_atma,
+        "conditionalAtmaDefinitions": conditional_atma,
+        "deferredAtmaEffects": deferred_atma,
         "missionInteractionSkeletons": mission_skeletons,
         "questTodoFiles": quest_todos,
         "emptyQuestSections": empty_quest_sections,
@@ -180,6 +203,8 @@ def write_report(
         f"- Commit: `{scan['commit']}`",
         f"- Atma definitions: `{scan['atmaDefinitions']}`",
         f"- Empty Atma definitions: `{len(scan['emptyAtmaDefinitions'])}`",
+        f"- Conditional Atma definitions: `{len(scan['conditionalAtmaDefinitions'])}`",
+        f"- Atma with deferred sub-effects: `{len(scan['deferredAtmaEffects'])}`",
         f"- Mission interaction skeletons: `{len(scan['missionInteractionSkeletons'])}`",
         f"- Quest `.todo` files: `{len(scan['questTodoFiles'])}`",
         f"- Empty quest sections: `{len(scan['emptyQuestSections'])}`",
@@ -196,6 +221,8 @@ def write_report(
     lines.extend(["", "## Dynamic Blockers", ""])
     for name in scan["emptyAtmaDefinitions"]:
         lines.append(f"- Empty Atma effect: `{name}`")
+    for name in scan["deferredAtmaEffects"]:
+        lines.append(f"- Deferred Atma sub-effect: `{name}`")
     for path in scan["missionInteractionSkeletons"]:
         lines.append(f"- Mission interaction skeleton: `{path}`")
     for path in scan["questTodoFiles"]:
@@ -238,6 +265,10 @@ def main() -> int:
                     "systems": len(registry["systems"]),
                     "atmaDefinitions": scan["atmaDefinitions"],
                     "emptyAtmaDefinitions": len(scan["emptyAtmaDefinitions"]),
+                    "conditionalAtmaDefinitions": len(
+                        scan["conditionalAtmaDefinitions"]
+                    ),
+                    "deferredAtmaEffects": len(scan["deferredAtmaEffects"]),
                     "missionInteractionSkeletons": len(
                         scan["missionInteractionSkeletons"]
                     ),

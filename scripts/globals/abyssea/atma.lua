@@ -2,6 +2,7 @@
 -- Abyssea Atma Global
 -----------------------------------
 require('scripts/globals/abyssea')
+require('scripts/data/element_tables')
 xi = xi or {}
 xi.atma = xi.atma or {}
 
@@ -98,7 +99,7 @@ xi.atma.atmaMods =
     [xi.ki.ATMA_OF_THE_SOLITARY_ONE]           = { xi.mod.TRIPLE_ATTACK, 7, xi.mod.DMGBREATH, -2500, xi.mod.ZANSHIN, 10 },
     [xi.ki.ATMA_OF_THE_WINGED_GLOOM]           = { xi.mod.DMG, -2500, xi.mod.REGEN, 2 },
     [xi.ki.ATMA_OF_THE_SEA_DAUGHTER]           = { xi.mod.REGAIN, 50, xi.mod.HASTE_GEAR, -1500, xi.mod.REGEN, 30 },
-    [xi.ki.ATMA_OF_THE_HATEFUL_STREAM]         = { }, -- Not yet implemented. No easy way to do this ATMA. No way I am doing bit work in onTick for it..
+    [xi.ki.ATMA_OF_THE_HATEFUL_STREAM]         = {}, -- Day-dependent effects are applied by atmaConditionalMods below.
     [xi.ki.ATMA_OF_THE_FOE_FLAYER]             = { xi.mod.MPP, 20, xi.mod.REFRESH, 20, xi.mod.FASTCAST, 20, xi.mod.MACC, 50 },
     [xi.ki.ATMA_OF_THE_ENDLESS_NIGHTMARE]      = { xi.mod.MND, 20, xi.mod.DARK_MEVA, 100, xi.mod.FORCE_DARK_DWBONUS, 1 },
     [xi.ki.ATMA_OF_THE_SUNDERING_SLASH]        = { xi.mod.ATT, 20, xi.mod.REGAIN, 30 },
@@ -114,48 +115,258 @@ xi.atma.atmaMods =
     [xi.ki.ATMA_OF_THE_HERO]                   = { xi.mod.STR, 10, xi.mod.CRIT_DMG_INCREASE, 15, xi.mod.REGEN, 5 },
     [xi.ki.ATMA_OF_THE_FULL_MOON]              = { xi.mod.INT, 10, xi.mod.MATT, 10, xi.mod.REFRESH, 5 },
     [xi.ki.ATMA_OF_ILLUSIONS]                  = { xi.mod.MND, 10, xi.mod.MAGIC_BURST_BONUS_CAPPED, 10, xi.mod.DAY_NUKE_BONUS, 10 },
-    [xi.ki.ATMA_OF_THE_BANISHER]               = { },
-    [xi.ki.ATMA_OF_THE_SELLSWORD]              = { },
-    [xi.ki.ATMA_OF_A_FUTURE_FABULOUS]          = { },
-    [xi.ki.ATMA_OF_CAMARADERIE]                = { },
-    [xi.ki.ATMA_OF_THE_TRUTHSEEKER]            = { },
-    [xi.ki.ATMA_OF_THE_AZURE_SKY]              = { },
-    [xi.ki.ATMA_OF_ECHOES]                     = { },
-    [xi.ki.ATMA_OF_DREAD]                      = { },
-    [xi.ki.ATMA_OF_AMBITION]                   = { }, -- Note: Speed modifier is the same as positive gear. Meaning, it doesnt stack.
-    [xi.ki.ATMA_OF_THE_BEAST_KING]             = { },
-    [xi.ki.ATMA_OF_THE_KIRIN]                  = { },
-    [xi.ki.ATMA_OF_HELLS_GUARDIAN]             = { },
-    [xi.ki.ATMA_OF_LUMINOUS_WINGS]             = { },
-    [xi.ki.ATMA_OF_THE_DRAGON_RIDER]           = { },
-    [xi.ki.ATMA_OF_THE_IMPENETRABLE]           = { },
-    [xi.ki.ATMA_OF_ALPHA_AND_OMEGA]            = { },
-    [xi.ki.ATMA_OF_THE_ULTIMATE]               = { },
-    [xi.ki.ATMA_OF_THE_HYBRID_BEAST]           = { },
-    [xi.ki.ATMA_OF_THE_DARK_DEPTHS]            = { },
-    [xi.ki.ATMA_OF_THE_ZENITH]                 = { },
-    [xi.ki.ATMA_OF_PERFECT_ATTENDANCE]         = { },
-    [xi.ki.ATMA_OF_THE_RESCUER]                = { },
-    [xi.ki.ATMA_OF_NIGHTMARES]                 = { },
-    [xi.ki.ATMA_OF_THE_EINHERJAR]              = { },
-    [xi.ki.ATMA_OF_THE_ILLUMINATOR]            = { },
-    [xi.ki.ATMA_OF_THE_BUSHIN]                 = { },
-    [xi.ki.ATMA_OF_THE_ACE_ANGLER]             = { },
-    [xi.ki.ATMA_OF_THE_MASTER_CRAFTER]         = { }, -- Note: Speed modifier is the same as positive gear. Meaning, it doesnt stack
-    [xi.ki.ATMA_OF_INGENUITY]                  = { },
-    [xi.ki.ATMA_OF_THE_GRIFFONS_CLAW]          = { },
-    [xi.ki.ATMA_OF_THE_FETCHING_FOOTPAD]       = { },
-    [xi.ki.ATMA_OF_UNDYING_LOYALTY]            = { },
-    [xi.ki.ATMA_OF_THE_ROYAL_LINEAGE]          = { },
-    [xi.ki.ATMA_OF_THE_SHATTERING_STAR]        = { },
-    [xi.ki.ATMA_OF_THE_COBRA_COMMANDER]        = { },
-    [xi.ki.ATMA_OF_ROARING_LAUGHTER]           = { },
-    [xi.ki.ATMA_OF_THE_DARK_BLADE]             = { },
-    [xi.ki.ATMA_OF_THE_DUCAL_GUARD]            = { },
-    [xi.ki.ATMA_OF_HARMONY]                    = { },
-    [xi.ki.ATMA_OF_REVELATIONS]                = { },
-    [xi.ki.ATMA_OF_THE_SAVIOR]                 = { },
+    [xi.ki.ATMA_OF_THE_BANISHER]               = { xi.mod.MPP, 5, xi.mod.DARK_MAB, 10, xi.mod.DARK_MACC, 20 },
+    [xi.ki.ATMA_OF_THE_SELLSWORD]              = { xi.mod.STR, 20, xi.mod.DMGMAGIC, -1400, xi.mod.LIGHT_MAB, 10 },
+    [xi.ki.ATMA_OF_A_FUTURE_FABULOUS]          = { xi.mod.HASTE_GEAR, 100, xi.mod.FASTCAST, 2, xi.mod.MDEF, 50 },
+    [xi.ki.ATMA_OF_CAMARADERIE]                = { xi.mod.STORETP, 10, xi.mod.CURE_CAST_TIME, 15, xi.mod.SONG_RECAST_DELAY, 10 },
+    [xi.ki.ATMA_OF_THE_TRUTHSEEKER]            = { xi.mod.DEX, 20, xi.mod.DARK_MEVA, 50, xi.mod.WSACC, 20 },
+    [xi.ki.ATMA_OF_THE_AZURE_SKY]              = { xi.mod.MPP, 5, xi.mod.MAGIC_CRITHITRATE, 30, xi.mod.BP_DELAY, 10 },
+    [xi.ki.ATMA_OF_ECHOES]                     = { xi.mod.VIT, 20 },
+    [xi.ki.ATMA_OF_DREAD]                      = { xi.mod.MEVA, 20, xi.mod.TREASURE_HUNTER, 1, xi.mod.SAMBA_DURATION, 10 },
+    [xi.ki.ATMA_OF_AMBITION]                   = { xi.mod.REFRESH, 5, xi.mod.FASTCAST, 5, xi.mod.MOVE_SPEED_GEAR_BONUS, 12 },
+    [xi.ki.ATMA_OF_THE_BEAST_KING]             = { xi.mod.ATT, 20, xi.mod.VIT, 20, xi.mod.BEAST_KILLER, 10 },
+    [xi.ki.ATMA_OF_THE_KIRIN]                  = { xi.mod.AGI, 40, xi.mod.INT, 40, xi.mod.MACC, 40 },
+    [xi.ki.ATMA_OF_HELLS_GUARDIAN]             = { xi.mod.MATT, 50, xi.mod.ZANSHIN, 100, xi.mod.DEMON_KILLER, 50 },
+    [xi.ki.ATMA_OF_LUMINOUS_WINGS]             = { xi.mod.SUBTLE_BLOW, 50, xi.mod.ENMITY, -50, xi.mod.PHYS_ABSORB, 10 },
+    [xi.ki.ATMA_OF_THE_DRAGON_RIDER]           = { xi.mod.MATT, 20, xi.mod.DRAGON_KILLER, 10 },
+    [xi.ki.ATMA_OF_THE_IMPENETRABLE]           = { xi.mod.DMGBREATH, -2500, xi.mod.LIZARD_KILLER, 10, xi.mod.REGEN, 15 },
+    [xi.ki.ATMA_OF_ALPHA_AND_OMEGA]            = { xi.mod.HPP, -25, xi.mod.ATT, 50, xi.mod.TRIPLE_ATTACK, 10 },
+    [xi.ki.ATMA_OF_THE_ULTIMATE]               = { xi.mod.MPP, -25, xi.mod.MATT, 50, xi.mod.MACC, 50 },
+    [xi.ki.ATMA_OF_THE_HYBRID_BEAST]           = { xi.mod.DOUBLE_ATTACK, 5, xi.mod.TRIPLE_ATTACK, 4, xi.mod.ARCANA_KILLER, 10 },
+    [xi.ki.ATMA_OF_THE_DARK_DEPTHS]            = { xi.mod.AGI, 20, xi.mod.EVA, 20, xi.mod.CRITHITRATE, 20 },
+    [xi.ki.ATMA_OF_THE_ZENITH]                 = { xi.mod.HPP, 10, xi.mod.MPP, 10, xi.mod.DMG, -1000 },
+    [xi.ki.ATMA_OF_PERFECT_ATTENDANCE]         = { xi.mod.REGEN, 10, xi.mod.REFRESH, 5, xi.mod.REGAIN, 10 },
+    [xi.ki.ATMA_OF_THE_RESCUER]                = { xi.mod.MDEF, 20, xi.mod.FASTCAST, 5, xi.mod.CURE_POTENCY, 10 },
+    [xi.ki.ATMA_OF_NIGHTMARES]                 = { xi.mod.HASTE_GEAR, 500, xi.mod.ABSORB_EFFECT_DURATION, 30, xi.mod.MEVA, 20 },
+    [xi.ki.ATMA_OF_THE_EINHERJAR]              = { xi.mod.STR, 20, xi.mod.MND, 20, xi.mod.DEATHRES, 50 },
+    [xi.ki.ATMA_OF_THE_ILLUMINATOR]            = { xi.mod.VIT, 20, xi.mod.DUAL_WIELD, 1 },
+    [xi.ki.ATMA_OF_THE_BUSHIN]                 = { xi.mod.HP, 200, xi.mod.MP, 200, xi.mod.SAVETP, 100 },
+    [xi.ki.ATMA_OF_THE_ACE_ANGLER]             = { xi.mod.STATUSRES, 20 },
+    [xi.ki.ATMA_OF_THE_MASTER_CRAFTER]         = { xi.mod.STUNRES, 40, xi.mod.MOVE_SPEED_GEAR_BONUS, 12 },
+    [xi.ki.ATMA_OF_INGENUITY]                  = { xi.mod.HP, -150, xi.mod.MP, 150, xi.mod.MATT, 20 },
+    [xi.ki.ATMA_OF_THE_GRIFFONS_CLAW]          = { xi.mod.GSWORD, 10, xi.mod.SCYTHE, 10 },
+    [xi.ki.ATMA_OF_THE_FETCHING_FOOTPAD]       = { xi.mod.MATT, 20, xi.mod.MAGIC_CRIT_DMG_INCREASE, 10, xi.mod.CONSERVE_MP, 36 },
+    [xi.ki.ATMA_OF_UNDYING_LOYALTY]            = { xi.mod.CHR, 20, xi.mod.ACC, 30, xi.mod.MACC, 40 },
+    [xi.ki.ATMA_OF_THE_ROYAL_LINEAGE]          = { xi.mod.HPP, 10, xi.mod.ACC, 15 },
+    [xi.ki.ATMA_OF_THE_SHATTERING_STAR]        = {}, -- HP-dependent effects are applied by atmaConditionalMods below.
+    [xi.ki.ATMA_OF_THE_COBRA_COMMANDER]        = { xi.mod.DOUBLE_ATTACK, 10 },
+    [xi.ki.ATMA_OF_ROARING_LAUGHTER]           = { xi.mod.STR, 50, xi.mod.EVA, -40, xi.mod.COUNTER, 10 },
+    [xi.ki.ATMA_OF_THE_DARK_BLADE]             = { xi.mod.HPP, 40, xi.mod.STR, 30, xi.mod.DMG, 2000 },
+    [xi.ki.ATMA_OF_THE_DUCAL_GUARD]            = {}, -- HP-dependent effects are applied by atmaConditionalMods below.
+    [xi.ki.ATMA_OF_HARMONY]                    = { xi.mod.CURE_POTENCY, 10, xi.mod.ENHANCE, 10, xi.mod.WALTZ_POTENCY, 10 },
+    [xi.ki.ATMA_OF_REVELATIONS]                = { xi.mod.MPP, 10 },
+    [xi.ki.ATMA_OF_THE_SAVIOR]                 = { xi.mod.STATUSRES, 50, xi.mod.ABSORB_DMG_CHANCE, 10 },
 }
+
+-- Synthetic Atma effects are documented at https://www.bg-wiki.com/ffxi/Atma.
+-- Keep unsupported sub-effects explicit so audits do not mistake a partially
+-- modeled Atma for complete retail parity.
+xi.atma.deferredEffects =
+{
+    [xi.ki.ATMA_OF_THE_DUCAL_GUARD] =
+    {
+        'Guard-specific damage reduction has no dedicated local modifier.',
+    },
+    [xi.ki.ATMA_OF_THE_MASTER_CRAFTER] =
+    {
+        'Enhances all status effects +10 has no generic local effect-potency modifier.',
+    },
+    [xi.ki.ATMA_OF_THE_SAVIOR] =
+    {
+        'Enhances all status effects +30 has no generic local effect-potency modifier.',
+    },
+}
+
+local twoHandedSkills =
+{
+    [xi.skill.GREAT_SWORD]  = true,
+    [xi.skill.GREAT_AXE]    = true,
+    [xi.skill.SCYTHE]       = true,
+    [xi.skill.POLEARM]      = true,
+    [xi.skill.GREAT_KATANA] = true,
+    [xi.skill.STAFF]        = true,
+}
+
+local function isTwoHandedWeaponEquipped(target)
+    return twoHandedSkills[target:getWeaponSkillType(xi.slot.MAIN)] == true
+end
+
+local function createDayStates(magicAccuracy, magicAttack, weaponSkillFtp)
+    local states = {}
+
+    for element = xi.element.FIRE, xi.element.DARK do
+        local mods = {}
+
+        if magicAccuracy > 0 then
+            table.insert(mods, xi.data.element.getElementalMACCModifier(element))
+            table.insert(mods, magicAccuracy)
+        end
+
+        if magicAttack > 0 then
+            table.insert(mods, xi.data.element.getElementalMABModifier(element))
+            table.insert(mods, magicAttack)
+        end
+
+        if weaponSkillFtp > 0 then
+            table.insert(mods, xi.data.element.getElementalFTPModifier(element))
+            table.insert(mods, weaponSkillFtp)
+        end
+
+        -- Dynamic state zero means no conditional modifiers are active.
+        states[element + 1] = mods
+    end
+
+    return states
+end
+
+xi.atma.atmaConditionalMods =
+{
+    [xi.ki.ATMA_OF_THE_HATEFUL_STREAM] =
+    {
+        getState = function(_)
+            return VanadielDayElement() + 1
+        end,
+
+        states = createDayStates(40, 10, 64), -- Magic accuracy, magic damage, and elemental WS fTP +0.25.
+    },
+    [xi.ki.ATMA_OF_ECHOES] =
+    {
+        getState = function(_)
+            return VanadielDayElement() + 1
+        end,
+
+        states = createDayStates(20, 0, 128), -- Magic accuracy and elemental WS fTP +0.5.
+    },
+    [xi.ki.ATMA_OF_THE_ILLUMINATOR] =
+    {
+        getState = function(target)
+            return isTwoHandedWeaponEquipped(target) and 1 or 0
+        end,
+
+        states =
+        {
+            [1] = { xi.mod.ATT, 40 },
+        },
+    },
+    [xi.ki.ATMA_OF_THE_ACE_ANGLER] =
+    {
+        getState = function(target)
+            return target:getHPP() < 25 and 1 or 0
+        end,
+
+        states =
+        {
+            [1] = { xi.mod.REGEN, 20, xi.mod.REFRESH, 20 },
+        },
+    },
+    [xi.ki.ATMA_OF_THE_GRIFFONS_CLAW] =
+    {
+        getState = function(target)
+            return isTwoHandedWeaponEquipped(target) and 1 or 0
+        end,
+
+        states =
+        {
+            [1] = { xi.mod.ALL_WSDMG_FIRST_HIT, 20 },
+        },
+    },
+    [xi.ki.ATMA_OF_THE_SHATTERING_STAR] =
+    {
+        getState = function(target)
+            return target:getHPP() < 25 and 1 or 0
+        end,
+
+        states =
+        {
+            [1] = { xi.mod.VIT, 100, xi.mod.AGI, 50, xi.mod.REGAIN, 40 },
+        },
+    },
+    [xi.ki.ATMA_OF_THE_COBRA_COMMANDER] =
+    {
+        getState = function(target)
+            if target:getHPP() > 50 then
+                return 1
+            elseif target:getHPP() < 50 then
+                return 2
+            end
+
+            return 0
+        end,
+
+        states =
+        {
+            [1] = { xi.mod.HASTE_GEAR, -2000 },
+            [2] = { xi.mod.HASTE_GEAR, 2000 },
+        },
+    },
+    [xi.ki.ATMA_OF_THE_DUCAL_GUARD] =
+    {
+        getState = function(target)
+            return target:getHPP() < 50 and 1 or 0
+        end,
+
+        states =
+        {
+            [1] = { xi.mod.DMG, -5000, xi.mod.MOVE_SPEED_STACKABLE, -20 },
+        },
+    },
+    [xi.ki.ATMA_OF_REVELATIONS] =
+    {
+        getState = function(target)
+            return target:getHPP() < 50 and 1 or 0
+        end,
+
+        states =
+        {
+            [1] = { xi.mod.REFRESH, 10, xi.mod.FASTCAST, 15 },
+        },
+    },
+}
+
+local function modifyTarget(target, mods, multiplier)
+    if mods == nil then
+        return
+    end
+
+    for i = 1, #mods, 2 do
+        target:addMod(mods[i], mods[i + 1] * multiplier)
+    end
+end
+
+local function refreshConditionalMods(target, effect)
+    local profile = xi.atma.atmaConditionalMods[effect:getPower()]
+    if profile == nil then
+        return
+    end
+
+    local previousState = effect:getSubPower()
+    local currentState = profile.getState(target)
+    if previousState == currentState then
+        return
+    end
+
+    modifyTarget(target, profile.states[previousState], -1)
+    modifyTarget(target, profile.states[currentState], 1)
+    effect:setSubPower(currentState)
+end
+
+local dragonRiderPetMarker = 'ABYSSEA_ATMA_DRAGON_RIDER'
+
+local function refreshDragonRiderPet(target, isActive)
+    local pet = target:getPet()
+    if pet == nil or pet:getPetID() ~= xi.petId.WYVERN then
+        return
+    end
+
+    local isApplied = pet:getLocalVar(dragonRiderPetMarker) == 1
+    if isActive and not isApplied then
+        pet:addMod(xi.mod.HPP, 50)
+        pet:setLocalVar(dragonRiderPetMarker, 1)
+    elseif not isActive and isApplied then
+        pet:delMod(xi.mod.HPP, 50)
+        pet:setLocalVar(dragonRiderPetMarker, 0)
+    end
+end
 
 local atmaPrice = 100
 
@@ -385,27 +596,43 @@ end
 xi.atma.onEffectGain = function(target, effect)
     local atma = effect:getPower()
     local mods = xi.atma.atmaMods[atma]
-    if mods ~= nil then
-        for i = 1, #mods, 2 do
-            target:addMod(mods[i], mods[i + 1])
-        end
+
+    modifyTarget(target, mods, 1)
+    effect:setSubPower(0)
+    refreshConditionalMods(target, effect)
+
+    if atma == xi.ki.ATMA_OF_THE_DRAGON_RIDER then
+        refreshDragonRiderPet(target, true)
     end
 end
 
 xi.atma.onEffectTick = function(target, effect)
     if not xi.abyssea.isInAbysseaZone(target) then
-        target:delStatusEffect(effect)
+        target:delStatusEffect(effect:getEffectType(), effect:getSubType())
+        return
+    end
+
+    refreshConditionalMods(target, effect)
+
+    if effect:getPower() == xi.ki.ATMA_OF_THE_DRAGON_RIDER then
+        refreshDragonRiderPet(target, true)
     end
 end
 
 xi.atma.onEffectLose = function(target, effect)
     local atma = effect:getPower()
     local mods = xi.atma.atmaMods[atma]
+    local conditionalProfile = xi.atma.atmaConditionalMods[atma]
 
-    if mods ~= nil then
-        for i = 1, #mods, 2 do
-            target:delMod(mods[i], mods[i + 1])
-        end
+    if conditionalProfile ~= nil then
+        modifyTarget(target, conditionalProfile.states[effect:getSubPower()], -1)
+        effect:setSubPower(0)
+    end
+
+    modifyTarget(target, mods, -1)
+
+    if atma == xi.ki.ATMA_OF_THE_DRAGON_RIDER then
+        refreshDragonRiderPet(target, false)
     end
 end
 

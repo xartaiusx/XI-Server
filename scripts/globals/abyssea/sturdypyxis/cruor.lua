@@ -16,8 +16,8 @@ xi.pyxis.cruor.giveCruor = function(npc, player)
             member:getZoneID() == player:getZoneID() and
             member:isPC()
         then
-            member:addCurrency('cruor', cruorAmount)
-            member:messageSpecial(ID.text.CRUOR_OBTAINED, cruorAmount)
+            local memberCruorAmount = xi.abyssea.addCruor(member, cruorAmount)
+            member:messageSpecial(ID.text.CRUOR_OBTAINED, memberCruorAmount)
         end
     end
 end

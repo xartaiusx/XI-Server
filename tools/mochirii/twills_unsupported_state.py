@@ -78,8 +78,22 @@ def parse_key_items(repo_root: Path) -> dict[str, int]:
 
 def empty_atma_names(repo_root: Path) -> list[str]:
     text = (repo_root / ATMA_PATH).read_text(encoding="utf-8")
-    rows = re.findall(r"\[xi\.ki\.(ATMA_OF_[A-Z0-9_]+)\]\s*=\s*\{([^}]*)\}", text)
-    return sorted(name for name, body in rows if not body.strip())
+    atma_mods_text = text.split("xi.atma.atmaMods =", 1)[1].split(
+        "xi.atma.deferredEffects =", 1
+    )[0]
+    rows = re.findall(
+        r"\[xi\.ki\.(ATMA_OF_[A-Z0-9_]+)\]\s*=\s*\{([^}]*)\}",
+        atma_mods_text,
+    )
+    conditional_text = text.split("xi.atma.atmaConditionalMods =", 1)[1].split(
+        "local function modifyTarget", 1
+    )[0]
+    conditional = set(
+        re.findall(r"\[xi\.ki\.(ATMA_OF_[A-Z0-9_]+)\]\s*=", conditional_text)
+    )
+    return sorted(
+        name for name, body in rows if not body.strip() and name not in conditional
+    )
 
 
 def blob_has_bit(blob: bytes, bit_id: int) -> bool:
