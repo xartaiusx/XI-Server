@@ -9,6 +9,9 @@
 xi = xi or {}
 xi.settings = xi.settings or {}
 
+local runtimeRoot = os.getenv('MOCHIRII_RUNTIME_ROOT')
+local trustActionLogDir = runtimeRoot and (runtimeRoot .. '/logs/trust_actions') or 'log/trust_actions'
+
 xi.settings.main =
 {
     -- Server name (not longer than 15 characters)
@@ -361,7 +364,7 @@ xi.settings.main =
     -- TRUST QA LOGGING
     ENABLE_TRUST_ACTION_LOG     = true,                                      -- true/false. Writes Trust action traces for QA.
     TRUST_ACTION_LOG_PLAYER     = 'Twills',                                  -- Player whose Trust party is traced. Empty string traces all players.
-    TRUST_ACTION_LOG_DIR        = '/home/xartyzx/projects/FFXI-Runtime/logs/trust_actions',      -- Folder containing live/ and archive/ Trust action logs.
+    TRUST_ACTION_LOG_DIR        = trustActionLogDir,                          -- Set MOCHIRII_RUNTIME_ROOT to keep QA evidence outside the repository.
     TRUST_ACTION_LOG_MAP_ECHO   = false,                                     -- true/false. Also echo Trust action trace lines to the map log.
     TRUST_ACTION_LOG_PACKET_RESULTS = true,                                  -- true/false. C++ packet/result logging for melee/ranged/WS/spell/JA outcomes.
     TRUST_ACTION_LOG_RESULT_DETAIL  = 'full',                                -- full/minimal. Full records one action_result row per packet target result.
