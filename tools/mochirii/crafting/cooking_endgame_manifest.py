@@ -277,7 +277,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--database", default="xidb")
     parser.add_argument("--mysql", default="mariadb")
-    parser.add_argument("--out-dir", default="/root/projects/FFXI-Runtime/crafting/cooking/latest")
+    parser.add_argument("--out-dir", default="/home/xartyzx/projects/FFXI-Runtime/crafting/cooking/latest")
     parser.add_argument("--stdout", action="store_true", help="Print JSON to stdout instead of writing files")
     args = parser.parse_args()
 

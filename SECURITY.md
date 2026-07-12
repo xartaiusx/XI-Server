@@ -25,7 +25,11 @@ Useful reports include:
 
 Do not commit passwords, database backups, client files, mod archives, runtime
 logs, Windower screenshots, private keys, or local machine secrets. Runtime
-evidence belongs under `C:\Users\xtyty\Documents\FFXI-Runtime`, outside this
+evidence belongs under `C:\Github Repo's\FFXI\Runtime`, outside this
 repository.
+
+Active Mochirii credentials belong only under
+`C:\Github Repo's\FFXI\FFXI Creds`. Repo and runtime consumers may link to that
+store, but must not copy credential values into tracked files or evidence.
 
 This project does not operate a public bug bounty program.

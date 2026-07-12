@@ -13,7 +13,7 @@ $assertScript = Join-Path $PSScriptRoot 'assert_windower_foreground.ps1'
 $sendScript = Join-Path $PSScriptRoot 'send_windower_text.ps1'
 $windowerRoot = 'D:\Steam\steamapps\common\FFXINA\Windower'
 $screenshotRoot = Join-Path $windowerRoot 'screenshots'
-$triggerPath = 'C:\Users\xtyty\Documents\FFXI-Runtime\screenshots\native_screenshot_request.txt'
+$triggerPath = "C:\Github Repo's\FFXI\Runtime\screenshots\native_screenshot_request.txt"
 
 if (-not (Test-Path -LiteralPath $assertScript))
 {

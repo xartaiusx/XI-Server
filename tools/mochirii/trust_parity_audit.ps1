@@ -1,6 +1,6 @@
 param(
     [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path,
-    [string]$RuntimeRoot = 'C:\Users\xtyty\Documents\FFXI-Runtime',
+    [string]$RuntimeRoot = "C:\Github Repo's\FFXI\Runtime",
     [string]$Player = 'Twills'
 )
 

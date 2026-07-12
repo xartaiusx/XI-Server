@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-runtime_root="${MOCHIRII_RUNTIME_ROOT:-/mnt/c/Users/xtyty/Documents/FFXI-Runtime}"
+runtime_root="${MOCHIRII_RUNTIME_ROOT:-/mnt/c/Github Repo's/FFXI/Runtime}"
 mariadb_bin="${MOCHIRII_MARIADB_BIN:-/mnt/c/Program Files/MariaDB 12.3/bin}"
 mariadb_defaults="${MOCHIRII_MARIADB_DEFAULTS:-C:\\Program Files\\MariaDB 12.3\\data\\my.ini}"
 database_name="${MOCHIRII_DB_NAME:-xidb}"

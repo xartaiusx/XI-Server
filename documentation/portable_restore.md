@@ -28,7 +28,7 @@ versions, hashes, and replacement manifests instead of uploading client assets.
   redacted audits, manifests, and checksums.
 - Encrypted portable artifacts: full `xidb` logical dump and optional Windower
   golden-state bundle. Decryption passphrases stay under
-  `C:\Users\xtyty\Documents\FFXI-Runtime\secrets`.
+  `C:\Github Repo's\FFXI\FFXI Creds\Runtime`.
 - Reacquired external assets: Steam Final Fantasy XI client files, Windower,
   xiloader, XIPivot, XIView, XITide, Ashenbubs, DAT packs, fonts, and third-party
   addon release archives.
@@ -48,9 +48,10 @@ bash tools/mochirii/portable_restore/capture_windows_from_wsl.sh
 ```
 
 The capture script writes encrypted artifacts under
-`C:\Users\xtyty\Documents\FFXI-Runtime\portable-restore\artifacts`, writes
-passphrases under `FFXI-Runtime\secrets`, and refreshes runtime manifests. It
-does not write plaintext database dumps into the repository.
+`C:\Github Repo's\FFXI\Runtime\portable-restore\artifacts`, writes
+passphrases through the runtime credential link into
+`C:\Github Repo's\FFXI\FFXI Creds\Runtime`, and refreshes runtime manifests. It does
+not write plaintext database dumps into the repository.
 
 The current capture produced these restorable artifacts outside Git:
 
@@ -59,14 +60,6 @@ The current capture produced these restorable artifacts outside Git:
 
 Tracked manifests under `restore/manifests` record names, sizes, hashes, capture
 methods, and restore expectations.
-
-The latest private Proton Drive payload is
-`C:\Users\xtyty\Documents\FFXI\Server Restore-20260630-011753`, updated
-`2026-06-30T02:35:09-07:00`. It contains the encrypted restore artifacts, matching
-passphrases, a stopped MariaDB datadir copy, the Windower runtime, current direct
-DAT replacement subset, the patched PlayOnline `pol.exe`, the 4GB patch archive,
-and the downloaded mod/tool archive set. It intentionally does not include the
-full Steam Final Fantasy XI client.
 
 ## Garuda Restore
 

@@ -1,12 +1,24 @@
 {
-  "schema": "mochirii-source-of-truth-v1",
-  "updated": "2026-07-07",
+  "schema": "mochirii-source-of-truth-v2",
+  "updated": "2026-07-12",
   "canonical": {
-    "server_repo_wsl": "/root/projects/FFXI/XI-Server",
-    "runtime_wsl": "/root/projects/FFXI-Runtime",
-    "runtime_windows_bridge": "C:\\Users\\xtyty\\Documents\\FFXI-Runtime",
+    "project_hub_windows": "C:\\Github Repo's\\FFXI",
+    "credentials_windows": "C:\\Github Repo's\\FFXI\\FFXI Creds",
+    "server_repo_wsl": "/home/xartyzx/projects/FFXI/XI-Server",
+    "runtime_wsl": "/home/xartyzx/projects/FFXI-Runtime",
+    "runtime_windows_bridge": "C:\\Github Repo's\\FFXI\\Runtime",
     "client_root_windows": "D:\\Steam\\steamapps\\common\\FFXINA",
     "windower_root_windows": "D:\\Steam\\steamapps\\common\\FFXINA\\Windower"
+  },
+  "project_hub_links": {
+    "XI-Server": "\\\\wsl$\\Ubuntu-24.04\\home\\xartyzx\\projects\\FFXI\\XI-Server",
+    "WSL-Runtime": "\\\\wsl$\\Ubuntu-24.04\\home\\xartyzx\\projects\\FFXI-Runtime",
+    "Client": "D:\\Steam\\steamapps\\common\\FFXINA"
+  },
+  "compatibility_links": {
+    "windows_runtime_legacy": "C:\\Users\\xtyty\\Documents\\FFXI-Runtime -> C:\\Github Repo's\\FFXI\\Runtime",
+    "wsl_repo_legacy": "/root/projects/FFXI/XI-Server -> /home/xartyzx/projects/FFXI/XI-Server",
+    "wsl_runtime_legacy": "/root/projects/FFXI-Runtime -> /home/xartyzx/projects/FFXI-Runtime"
   },
   "desktop_shortcuts": {
     "windower": "C:\\Users\\xtyty\\Desktop\\Windower.lnk",
@@ -15,14 +27,21 @@
     "open_mariadb": "C:\\Users\\xtyty\\Desktop\\Open Mochirii MariaDB (WSL).lnk"
   },
   "runtime_scripts": {
-    "windows_server_control": "C:\\Users\\xtyty\\Documents\\FFXI-Runtime\\server-control",
-    "wsl_server_control": "/root/projects/FFXI-Runtime/server-control",
-    "windows_client_tools": "C:\\Users\\xtyty\\Documents\\FFXI-Runtime\\client-tools"
+    "windows_server_control": "C:\\Github Repo's\\FFXI\\Runtime\\server-control",
+    "wsl_server_control": "/home/xartyzx/projects/FFXI-Runtime/server-control",
+    "windows_client_tools": "C:\\Github Repo's\\FFXI\\Runtime\\client-tools"
+  },
+  "credentials": {
+    "active_server": "C:\\Github Repo's\\FFXI\\FFXI Creds\\Server",
+    "active_runtime": "C:\\Github Repo's\\FFXI\\FFXI Creds\\Runtime",
+    "retired": "C:\\Github Repo's\\FFXI\\FFXI Creds\\Archive",
+    "contents_committed": false,
+    "values_logged": false
   },
   "windower": {
     "profile": "Mochirii",
     "init_file": "D:\\Steam\\steamapps\\common\\FFXINA\\Windower\\scripts\\init.txt",
-    "golden_state": "C:\\Users\\xtyty\\Documents\\FFXI-Runtime\\windower-golden-state",
+    "golden_state": "C:\\Github Repo's\\FFXI\\Runtime\\windower-golden-state",
     "xipivot_overlay_order": [
       "Mochirii-GeoBubblesClear",
       "Mochirii-BardNotesHD",
@@ -45,7 +64,7 @@
     ],
     "craft": {
       "addon_path": "D:\\Steam\\steamapps\\common\\FFXINA\\Windower\\addons\\craft",
-      "runtime_golden_path": "C:\\Users\\xtyty\\Documents\\FFXI-Runtime\\windower-golden-state\\addons\\craft",
+      "runtime_golden_path": "C:\\Github Repo's\\FFXI\\Runtime\\windower-golden-state\\addons\\craft",
       "source": "https://github.com/Windower/Lua/tree/live/addons/craft",
       "recipe_overlay": "recipes_mochirii_cooking.lua",
       "recipe_generation": "tools/mochirii/crafting/windower_craft_recipes.py --write-live"
@@ -53,11 +72,7 @@
   },
   "cleanup_policy": {
     "manifest_before_delete": true,
-    "leave_bridge_reparse_points": [
-      "C:\\Users\\xtyty\\Documents\\FFXI\\.git",
-      "C:\\Users\\xtyty\\Documents\\FFXI\\.agents",
-      "C:\\Users\\xtyty\\Documents\\FFXI\\.codex"
-    ],
+    "links_are_pointers_not_duplicate_sources": true,
     "do_not_commit": [
       "runtime logs",
       "screenshots",
