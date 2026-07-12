@@ -23,6 +23,7 @@
 #include "common/cbasetypes.h"
 
 class CCharEntity;
+class CBattleEntity;
 class CTrustEntity;
 struct action_t;
 

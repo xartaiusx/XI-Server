@@ -1106,8 +1106,16 @@ void ApplyTrustAlterEgoPointSkills(CTrustEntity* PTrust)
     const auto combatBonus = GetAlterEgoPointRank(PMaster, "AlterEgoPoints_CombatSkills");
     const auto magicBonus  = GetAlterEgoPointRank(PMaster, "AlterEgoPoints_MagicSkills");
 
-    AddSkillRangeBonus(PTrust, SKILL_HAND_TO_HAND, SKILL_STAFF, combatBonus);
-    AddSkillRangeBonus(PTrust, SKILL_DIVINE_MAGIC, SKILL_BLUE_MAGIC, magicBonus);
+    AddSkillRangeBonus(
+        PTrust,
+        static_cast<int>(xi::SkillType::HandToHand),
+        static_cast<int>(xi::SkillType::Staff),
+        combatBonus);
+    AddSkillRangeBonus(
+        PTrust,
+        static_cast<int>(xi::SkillType::DivineMagic),
+        static_cast<int>(xi::SkillType::BlueMagic),
+        magicBonus);
 
     PTrust->SetLocalVar("MochiTrustAepCombatRank", combatBonus);
     PTrust->SetLocalVar("MochiTrustAepMagicRank", magicBonus);
