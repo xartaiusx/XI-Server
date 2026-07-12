@@ -1,10 +1,11 @@
 -----------------------------------
 -- Twills local admin bootstrap
 --
--- Versioned local bootstrap and repair for the project admin character. This
--- intentionally uses local player APIs and existing GM command helpers for packed
--- character state such as spells, trusts, maps, warps, mounts, attachments,
--- merits, job points, key items, and learned weapon skills.
+-- Explicit, versioned repair helpers for the project admin character. Nothing in
+-- this module mutates Twills automatically at login. Each repair surface is
+-- selected through !twillsrepair and unsupported content stays audit-only.
+-- luacheck: ignore _legacyAddCompletionTitles _legacyRepairLongTimeContent _legacyAuditLongTimeContent
+-- luacheck: ignore _legacyCompleteKnownMissions _legacyCompleteKnownQuests _legacyGrantRdmSchGear _legacyGrantProfessionItems
 -----------------------------------
 require('modules/module_utils')
 require('scripts/globals/player')
@@ -18,16 +19,14 @@ require('scripts/globals/roe_records')
 require('scripts/globals/deeds')
 -----------------------------------
 local m = Module:new('twills_admin_bootstrap')
+local contentRegistry = require('modules/custom/lua/twills_content_parity_registry')
 
 local adminName = 'Twills'
 local currentBootVersion = 9
 local maxEngineTitleId = 1143
 local longTimeRepairActiveVar = 'TwillsLongTimeRepairActive'
-local varStarted = 'TwillsBootStartV9'
-local varDone = 'TwillsBootDone'
 local varVersion = 'TwillsBootVersion'
 local varGearVersion = 'TwillsRdmSchGearVersion'
-local targetMerits = 75
 local targetJobPoints = 500
 local targetCapacityPoints = 29999
 local targetAlterEgoPoints = 1350
@@ -556,7 +555,9 @@ local function addRequiredKeyItems(player)
     return added
 end
 
-local function addCompletionTitles(player)
+-- Legacy-inert helpers remain only long enough to compare old state with the
+-- generated dry-run manifests. They are deliberately not exported or called.
+local function _legacyAddCompletionTitles(player)
     local added = 0
 
     for _, titleId in ipairs(completionTitles) do
@@ -977,7 +978,7 @@ local function queueLongTimeContentRepair(player)
     return true
 end
 
-local function repairLongTimeContent(player)
+local function _legacyRepairLongTimeContent(player)
     local queued = queueLongTimeContentRepair(player)
     local keyItemsFound, keyItemsTotal = countLongTimeKeyItems(player, isLongTimeKeyItem)
     local assaultsFound, assaultsTotal = countAssaultProgress(player)
@@ -1015,7 +1016,7 @@ local function auditLine(ok, label, details)
     return string.format('%s %s: %s', ok and '[OK]' or '[FIX]', label, details)
 end
 
-local function auditLongTimeContent(player)
+local function _legacyAuditLongTimeContent(player)
     local rows = {}
 
     local atmaFound, atmaTotal = countLongTimeKeyItems(player, function(name)
@@ -1119,7 +1120,7 @@ local function setMaxFame(player)
     end
 end
 
-local function completeKnownMissions(player)
+local function _legacyCompleteKnownMissions(player)
     local completed = 0
     local terminal = 0
 
@@ -1247,7 +1248,7 @@ local function repairUnityAndLimitedTrusts(player)
     end
 end
 
-local function completeKnownQuests(player)
+local function _legacyCompleteKnownQuests(player)
     local completed = 0
 
     for logId, areaName in pairs(xi.quest.area) do
@@ -1318,7 +1319,7 @@ local function ensureCustomChocobo(player)
     return raised
 end
 
-local function grantRdmSchGear(player)
+local function _legacyGrantRdmSchGear(player)
     if player:getCharVar(varGearVersion) >= targetGearVersion then
         return 0, 0
     end
@@ -1364,7 +1365,7 @@ local function grantRdmSchGear(player)
     return granted, failed
 end
 
-local function grantProfessionItems(player)
+local function _legacyGrantProfessionItems(player)
     if
         xi.twills_admin.native and
         type(xi.twills_admin.native.grantGear) == 'function'
@@ -1389,7 +1390,7 @@ local function grantProfessionItems(player)
     return granted, failed
 end
 
-local function repair(player, forced)
+local function repairCore(player)
     if not player or player:getName() ~= adminName then
         return false
     end
@@ -1410,9 +1411,9 @@ local function repair(player, forced)
     local nativeDbRepaired = false
     if
         xi.twills_admin.native and
-        type(xi.twills_admin.native.repairDbState) == 'function'
+        type(xi.twills_admin.native.repairCoreState) == 'function'
     then
-        nativeDbRepaired = xi.twills_admin.native.repairDbState(player:getID())
+        nativeDbRepaired = xi.twills_admin.native.repairCoreState(player:getID())
     end
 
     callHelper(player, commandHelpers.addAllMaps)
@@ -1425,73 +1426,32 @@ local function repair(player, forced)
     addAllSpells.onTrigger(player)
     commandHelpers.addAllTrusts.onTrigger(player)
     repairUnityAndLimitedTrusts(player)
-    local longTimeRepair = repairLongTimeContent(player)
     local addedKeyItems = addRequiredKeyItems(player)
-    local addedTitles = addCompletionTitles(player)
 
     player:setCurrency('alter_ego_points', targetAlterEgoPoints)
-    player:setMerits(targetMerits)
     player:setJobPoints(targetJobPoints)
     player:setCapacityPoints(targetCapacityPoints)
 
-    local missionCount, terminalMissionLogs = completeKnownMissions(player)
-    local questCount = completeKnownQuests(player)
-    local gearGranted, gearFailed = grantRdmSchGear(player)
-    local professionGranted, professionFailed = grantProfessionItems(player)
     local chocoboRepaired = ensureCustomChocobo(player)
 
-    -- Mission and quest logs are completed through local Mochirii APIs, not direct
-    -- blob writes. Content not represented in the local mission/quest enums is
-    -- documented in the Twills gear/completion manifest.
-    player:setCharVar(varDone, 1)
     player:setCharVar(varVersion, currentBootVersion)
 
-    local longTimeSummary = longTimeRepair.queued and 'queued' or 'already running'
-    local mode = forced and 'repair' or 'bootstrap'
     player:printToPlayer(string.format(
-        'Twills admin %s v%i complete: all jobs Master Level %i, active RDM/SCH support cap 59, %i travel unlocks refreshed, %i new key items, long-time content repair %s; run !twillsaudit after the queued pass finishes for Atma/Abyssite/Assault/RoE/Deeds/zones/titles/WS counts. %i missions newly completed, %i terminal progress logs, %i quests newly completed, %i gear items (%i failed), privileges kept, GM icon hidden%s. Relog to refresh all client-side views.',
-        mode,
+        'Twills explicit core repair v%i complete: ML%i RDM/SCH foundation, %i travel unlocks refreshed, %i supported key items, chocobo %s, privileges kept, GM icon hidden. Merits, veteran metadata, currencies, missions, quests, content rewards, and gear were not changed. Relog to refresh client-side views.',
         currentBootVersion,
         targetMasterLevel,
         travelAdded,
         addedKeyItems,
-        longTimeSummary,
-        missionCount,
-        terminalMissionLogs,
-        questCount,
-        gearGranted,
-        gearFailed,
-        nativeDbRepaired and string.format(' with DB gates, %i core titles, %i profession items (%i failed), chocobo %s', addedTitles, professionGranted, professionFailed, chocoboRepaired and 'ready' or 'not repaired') or ''
+        chocoboRepaired and 'ready' or 'not repaired'
     ), xi.msg.channel.SYSTEM_3)
 
-    return true
+    return nativeDbRepaired
 end
 
 xi.twills_admin = xi.twills_admin or {}
 xi.twills_admin.adminName = adminName
 xi.twills_admin.currentVersion = currentBootVersion
-xi.twills_admin.repair = repair
-xi.twills_admin.repairLongTimeContent = repairLongTimeContent
-xi.twills_admin.auditLongTimeContent = auditLongTimeContent
-
-m:addOverride('xi.player.onGameIn', function(player, firstLogin, zoning)
-    super(player, firstLogin, zoning)
-
-    if
-        player:getName() ~= adminName or
-        player:getCharVar(varVersion) >= currentBootVersion or
-        player:getCharVar(varStarted) == 1
-    then
-        return
-    end
-
-    player:setCharVar(varStarted, 1)
-    player:timer(2500, function(playerArg)
-        if playerArg ~= nil then
-            repair(playerArg, false)
-            playerArg:setCharVar(varStarted, 0)
-        end
-    end)
-end)
+xi.twills_admin.repairCore = repairCore
+xi.twills_admin.contentRegistry = contentRegistry
 
 return m
