@@ -9,9 +9,9 @@ local nuke_mode = 'free'
 local weapon_mode = 'daybreak'
 
 local mode_order = { 'idle', 'healer', 'buffer', 'debuffer', 'caster', 'melee' }
-local qa_sets_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-sets.tsv'
-local qa_equipment_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-equipment.tsv'
-local qa_visual_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-visual-models.tsv'
+local qa_sets_path = 'C:/Github Repo\'s/FFXI/Runtime/logs/gearswap_qa/Twills-live-sets.tsv'
+local qa_equipment_path = 'C:/Github Repo\'s/FFXI/Runtime/logs/gearswap_qa/Twills-live-equipment.tsv'
+local qa_visual_path = 'C:/Github Repo\'s/FFXI/Runtime/logs/gearswap_qa/Twills-live-visual-models.tsv'
 local gear_slots = {
     'main', 'sub', 'range', 'ammo', 'head', 'body', 'hands', 'legs',
     'feet', 'neck', 'waist', 'left_ear', 'right_ear', 'left_ring',

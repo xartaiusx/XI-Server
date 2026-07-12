@@ -33,25 +33,20 @@ versions, hashes, and replacement manifests instead of uploading client assets.
   xiloader, XIPivot, XIView, XITide, Ashenbubs, DAT packs, fonts, and third-party
   addon release archives.
 
-## Windows Capture
+## Canonical Capture
 
-Run from the repository root on the Windows machine:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\mochirii\portable_restore\Capture-MochiriiRestoreBundle.ps1
-```
-
-When running from Codex in WSL on the Windows host, use the native WSL helper:
+Run the single native WSL helper from the repository root:
 
 ```bash
-bash tools/mochirii/portable_restore/capture_windows_from_wsl.sh
+bash tools/mochirii/portable_restore/capture_mochirii_from_wsl.sh
 ```
 
 The capture script writes encrypted artifacts under
-`C:\Github Repo's\FFXI\Runtime\portable-restore\artifacts`, writes
-passphrases through the runtime credential link into
-`C:\Github Repo's\FFXI\FFXI Creds\Runtime`, and refreshes runtime manifests. It does
-not write plaintext database dumps into the repository.
+`/home/xartyzx/projects/FFXI-Runtime/portable-restore/artifacts`, writes
+passphrases into `C:\Github Repo's\FFXI\FFXI Creds\Runtime`, reads MariaDB
+credentials from the canonical client configuration, and refreshes runtime
+manifests. It does not write plaintext database dumps or credentials into the
+repository.
 
 The current capture produced these restorable artifacts outside Git:
 

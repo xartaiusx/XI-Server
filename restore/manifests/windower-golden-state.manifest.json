@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-11T12:08:38+00:00",
+  "generatedAt": "2026-07-12T20:35:00+00:00",
   "trackedGoldenStateRoot": "restore/windower-golden-state",
   "trackedFiles": [
     {
@@ -10,8 +10,8 @@
     },
     {
       "relativePath": "addons/GearSwap/data/Twills.lua",
-      "bytes": 32194,
-      "sha256": "a37d6ce5c59d4744da370610d1e9bc6fef2fa1c276d7e40ed164fe3b5231482e"
+      "bytes": 32173,
+      "sha256": "4db7aa64fc4594e0e2349eacca35f067377ace556e8966d5cdb3ad4af12b2a3c"
     },
     {
       "relativePath": "addons/GearSwap/flow.lua",
@@ -20,8 +20,8 @@
     },
     {
       "relativePath": "addons/MochiriiScreenshotQA/MochiriiScreenshotQA.lua",
-      "bytes": 11501,
-      "sha256": "6bc65676690bb28f2c7cd16fa6694ca29c705950996e9baf1a6dd33134d64a84"
+      "bytes": 11487,
+      "sha256": "d57834ba674a086d886247aeddecc0a36897a9057854ee86a17b367388d1b28"
     },
     {
       "relativePath": "addons/XIPivot/data/settings.xml",
@@ -101,11 +101,11 @@
   ],
   "encryptedFullBundle": {
     "fileName": "windower-golden-state-20260630-004048.tar.gz.enc",
-    "runtimeLocation": "C:/Users/xtyty/Documents/FFXI-Runtime/portable-restore/artifacts/windower-golden-state-20260630-004048.tar.gz.enc",
+    "runtimeLocation": "/home/xartyzx/projects/FFXI-Runtime/portable-restore/artifacts/windower-golden-state-20260630-004048.tar.gz.enc",
     "bytes": 23104,
     "sha256": "5b87d439351474d4a4aeb559a4e920d0976d2eac6627f129daa4d6b2b2921bfa",
     "format": "tar -cz windower-golden-state | openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000",
-    "passphraseLocation": "outside-git: C:/Users/xtyty/Documents/FFXI-Runtime/secrets/mochirii-restore-windower-20260630-004048.passphrase.txt",
+    "passphraseLocation": "outside-git: C:/Github Repo's/FFXI/FFXI Creds/Runtime/mochirii-restore-windower-20260630-004048.passphrase.txt",
     "plaintextCommitted": false
   },
   "encryptedOnlyFiles": [
@@ -119,6 +119,6 @@
   "notes": [
     "Tracked files are Git-safe Twills configs and Mochirii QA addon state.",
     "Full patched third-party addon source is preserved in the encrypted Windower bundle.",
-    "MochiriiScreenshotQA contains Windows runtime paths; rewrite those paths when restoring on non-Windows Wine prefixes."
+    "MochiriiScreenshotQA targets the canonical Windows runtime bridge; rewrite that path when restoring on another Windows or Wine prefix."
   ]
 }
