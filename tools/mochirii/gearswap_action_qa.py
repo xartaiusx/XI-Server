@@ -681,14 +681,17 @@ def build_lua_runner(
     gearswap_path: Path, actions: list[Action], bis_specs: list[dict[str, str]]
 ) -> str:
     slots_lua = ", ".join(lua_quote(slot) for slot in SLOTS)
+    addon_path = str(gearswap_path.parent.parent).replace("\\", "/") + "/"
     return f"""
 local gearswap_path = {lua_quote(str(gearswap_path))}
+local gearswap_addon_path = {lua_quote(addon_path)}
 local slot_order = {{ {slots_lua} }}
 empty = {lua_quote(EMPTY_SENTINEL)}
 world = {{ day_element = 'Light', weather_element = 'None' }}
 player = {{ name = 'Twills', status = 'Idle', main_job = 'RDM', sub_job = 'SCH', main_job_level = 99, sub_job_level = 59 }}
 buffactive = {{}}
 windower = {{
+    addon_path = gearswap_addon_path,
     ffxi = {{
         get_mob_by_target = function(_target)
             return {{ distance = 81 }}

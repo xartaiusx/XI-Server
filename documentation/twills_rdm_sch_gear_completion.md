@@ -485,8 +485,10 @@ V8 final refinements now implemented in code:
 1. Travel and teleport repair now fills Home Points, Survival Guides, outposts,
    Runic Portals, Cavernous Maws, Campaign teleports, Abyssea confluxes,
    Adoulin waypoints, and Escha portals through local tables/APIs.
-2. Veteran currency repair applies high retail-shaped floors with
-   `GREATEST(current, floor)` semantics so higher existing values are preserved.
+2. Currency repair enforces current retail-shaped policy: Ballista Points are
+   capped at 2,000; monthly Ambuscade balances and absent Odyssey, Sortie, and
+   current-Limbus balances are reset; unverified Escha balances are preserved
+   only for later acquisition-path acceptance testing.
 3. Unity repair sets Twills to Sylvie and seeds `unity_system` so Sylvie
    evaluates as rank 1/max for Unity-parity Trust stat logic.
 4. Cornelia is learned when the limited-time Trust policy is enabled and the
@@ -499,12 +501,14 @@ V8 final refinements now implemented in code:
    accuracy/potency modes, nuking/magic-burst mode, and weaponskill swaps.
 
 Pending in-client verification after Twills logs back in:
-- Run `!twillsrepair`, relog, then run `!twillsaudit`.
+- Run the explicit `!twillsrepair metadata`, `!twillsrepair merits`, and
+  `!twillsrepair currency` operations, relog, then run the scoped
+  `!twillsaudit core|parity|merits|currency` checks.
 - Confirm the audit reports no undefined spells, Cornelia learned, all 22
   Master Level rows at ML50, Sylvie Unity rank 1, complete travel categories,
-  and veteran currency floors.
+  a retail-legal merit profile, and the current currency policy.
 - Run `//gs reload`, `//gs validate sets`, `//gs validate inv`, and `//gs c status` against the v11 GearSwap profile.
 
 ## GearSwap Visual-Model Audit
 
-Twills GearSwap QA validates visible equipment model ids. Final action sets fail when `main`, `sub`, `head`, `body`, `hands`, `legs`, or `feet` resolve to a local equipment row with `MId=0`, because Mochirii sends `item_equipment.MId` as the rendered model id. Ammo, ranged, and accessory rows with `MId=0` are informational unless they affect a visible character model. Use `//gs c qa visual` for a live Windower snapshot under `FFXI-Runtime/logs/gearswap_qa`.
+Twills GearSwap QA validates visible equipment model ids. Final action sets fail when `main`, `sub`, `head`, `body`, `hands`, `legs`, or `feet` resolve to a local equipment row with `MId=0`, because Mochirii sends `item_equipment.MId` as the rendered model id. The live profile loads the generated `Twills-visual-models.lua`; an unknown visible item or a missing manifest is also a hard live-QA failure. Ammo, ranged, and accessory rows with `MId=0` are informational unless they affect a visible character model. Use `//gs c qa visual` for a live Windower snapshot under the canonical runtime `logs/gearswap_qa` directory.

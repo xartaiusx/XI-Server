@@ -113,7 +113,7 @@ commandObj.onTrigger = function(player, operation, mode)
         if callNative(target, 'repairCurrencyPolicy') then
             printLine(
                 player,
-                'Twills currency policy applied: Ballista capped at 2,000 and current Ambuscade cycle values reset. Unsupported content currencies were not changed.'
+                'Twills currency policy applied: Ballista capped at 2,000; current Ambuscade, Odyssey, Sortie, and current-Limbus balances reset. Unverified Escha balances were preserved for acquisition-path testing.'
             )
         else
             printLine(player, '[FIX] Currency repair helper is unavailable or failed.')
