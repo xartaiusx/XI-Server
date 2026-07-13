@@ -76,7 +76,9 @@ ensure_mariadb() {
   started_mariadb=1
 
   for _ in {1..45}; do
-    if mariadb --defaults-extra-file="$mariadb_cnf" -h127.0.0.1 -P3306 -e "SELECT 1;" >/dev/null 2>&1; then
+    # MariaDB ignores option files mounted from Windows because their mode appears
+    # world-writable in WSL. Copy the contents through an anonymous, private fd.
+    if mariadb --defaults-extra-file=<(cat "$mariadb_cnf") -h127.0.0.1 -P3306 -e "SELECT 1;" >/dev/null 2>&1; then
       return
     fi
     sleep 1
@@ -138,7 +140,7 @@ if (( ! skip_database )); then
   artifact="$artifact_dir/xidb-twills-$stamp.sql.gz.enc"
 
   mariadb-dump \
-    --defaults-extra-file="$mariadb_cnf" \
+    --defaults-extra-file=<(cat "$mariadb_cnf") \
     -h127.0.0.1 \
     -P3306 \
     --databases "$database_name" \
