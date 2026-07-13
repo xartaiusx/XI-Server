@@ -7,4 +7,7 @@ archives.
 - `source-of-truth.manifest.json`: canonical local paths for the single active
   server repo, runtime bridges, client/Windower install, desktop shortcuts, and
   cleanup boundaries.
+- `upstream-base.manifest.json`: exact verified LandSandBoat `base` snapshot
+  range used for the latest sync. This avoids relying on misleading merge-base
+  ancestry after protected-branch squash merges.
 - `twills-rdm-sch-bis-matrix.json`: Git-safe RDM/SCH set-family contract used by `tools/mochirii/gearswap_action_qa.py`; runtime evidence remains under `FFXI-Runtime/logs/gearswap_qa`.

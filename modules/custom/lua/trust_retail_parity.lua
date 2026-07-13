@@ -734,7 +734,14 @@ local function auditProfileRow(name, profile)
     if supportScope == nil then
         if role:find('healer') ~= nil then
             supportScope = 'alliance cures/status/recovery for eligible 18 members'
-        elseif role:find('support') ~= nil or role:find('bard') ~= nil or role:find('cor') ~= nil or role:find('geo') ~= nil or role:find('aura') ~= nil or role:find('rdm') ~= nil then
+        elseif
+            role:find('support') ~= nil or
+            role:find('bard') ~= nil or
+            role:find('cor') ~= nil or
+            role:find('geo') ~= nil or
+            role:find('aura') ~= nil or
+            role:find('rdm') ~= nil
+        then
             supportScope = 'Mochirii alliance support extension with logged target/result counts'
         elseif role == 'tank' then
             supportScope = 'shared alliance focus plus tank self/party protection'
@@ -877,6 +884,7 @@ trustRetailParity.autoSummonQaParty = function(player)
                 reportPlayer:timer(3000, function(nextReportPlayer)
                     finalizeWhenReady(nextReportPlayer, attempt + 1)
                 end)
+
                 return
             end
 

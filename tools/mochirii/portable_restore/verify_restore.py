@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -83,6 +84,7 @@ def check_manifest_set(repo: Path) -> list[str]:
         "mods.manifest.json",
         "client-direct-dat.manifest.json",
         "restore-verification.manifest.json",
+        "upstream-base.manifest.json",
     ]
     for filename in required:
         path = manifest_dir / filename
@@ -93,6 +95,41 @@ def check_manifest_set(repo: Path) -> list[str]:
             load_json(path)
         except Exception as exc:  # noqa: BLE001 - verifier should report all JSON failures.
             issues.append(f"invalid JSON in {filename}: {exc}")
+    return issues
+
+
+def check_upstream_snapshot(repo: Path) -> list[str]:
+    issues: list[str] = []
+    path = repo / "restore" / "manifests" / "upstream-base.manifest.json"
+    if not path.exists():
+        return issues
+
+    try:
+        snapshot = load_json(path)
+    except Exception:
+        return issues
+
+    if not isinstance(snapshot, dict):
+        return ["upstream-base.manifest.json must contain a JSON object"]
+
+    if snapshot.get("remote") != "https://github.com/LandSandBoat/server.git":
+        issues.append("upstream snapshot remote must be the official LandSandBoat repository")
+    if snapshot.get("branch") != "base":
+        issues.append("upstream snapshot branch must be base")
+
+    sha_pattern = re.compile(r"^[0-9a-f]{40}$")
+    for field in ("previousSnapshot", "currentSnapshot"):
+        value = snapshot.get(field)
+        if not isinstance(value, str) or not sha_pattern.fullmatch(value):
+            issues.append(f"upstream snapshot {field} must be a full lowercase Git SHA")
+
+    if snapshot.get("previousSnapshot") == snapshot.get("currentSnapshot"):
+        issues.append("upstream snapshot range must advance")
+    if not isinstance(snapshot.get("commitCount"), int) or snapshot["commitCount"] < 1:
+        issues.append("upstream snapshot commitCount must be positive")
+    if not isinstance(snapshot.get("changedFileCount"), int) or snapshot["changedFileCount"] < 1:
+        issues.append("upstream snapshot changedFileCount must be positive")
+
     return issues
 
 
@@ -117,6 +154,7 @@ def main() -> int:
     issues = []
     issues.extend(check_tracked_files(repo))
     issues.extend(check_manifest_set(repo))
+    issues.extend(check_upstream_snapshot(repo))
     issues.extend(check_staged_sensitive(repo))
 
     if issues:
