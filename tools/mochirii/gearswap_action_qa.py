@@ -681,14 +681,17 @@ def build_lua_runner(
     gearswap_path: Path, actions: list[Action], bis_specs: list[dict[str, str]]
 ) -> str:
     slots_lua = ", ".join(lua_quote(slot) for slot in SLOTS)
+    addon_path = str(gearswap_path.parent.parent).replace("\\", "/") + "/"
     return f"""
 local gearswap_path = {lua_quote(str(gearswap_path))}
+local gearswap_addon_path = {lua_quote(addon_path)}
 local slot_order = {{ {slots_lua} }}
 empty = {lua_quote(EMPTY_SENTINEL)}
 world = {{ day_element = 'Light', weather_element = 'None' }}
 player = {{ name = 'Twills', status = 'Idle', main_job = 'RDM', sub_job = 'SCH', main_job_level = 99, sub_job_level = 59 }}
 buffactive = {{}}
 windower = {{
+    addon_path = gearswap_addon_path,
     ffxi = {{
         get_mob_by_target = function(_target)
             return {{ distance = 81 }}
@@ -1001,13 +1004,13 @@ def main() -> int:
         "--audit-json",
         type=Path,
         default=Path(
-            "/root/projects/FFXI-Runtime/audits/twills-full-state-latest.json"
+            "/home/xartyzx/projects/FFXI-Runtime/audits/twills-full-state-latest.json"
         ),
     )
     parser.add_argument(
         "--output-root",
         type=Path,
-        default=Path("/root/projects/FFXI-Runtime/logs/gearswap_qa"),
+        default=Path("/home/xartyzx/projects/FFXI-Runtime/logs/gearswap_qa"),
     )
     parser.add_argument("--bis-matrix", type=Path, default=None)
     parser.add_argument("--write-visual-manifest", type=Path, default=None)

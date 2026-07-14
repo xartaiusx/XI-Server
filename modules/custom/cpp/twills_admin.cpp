@@ -1152,7 +1152,9 @@ auto repairCurrencyPolicy(uint32 charId) -> bool
         charId);
     const auto updateResult = db::preparedStmt(
         "UPDATE char_points SET ballista_point = LEAST(ballista_point, ?), "
-        "current_hallmarks = 0, total_hallmarks = 0, gallantry = 0 "
+        "current_hallmarks = 0, total_hallmarks = 0, gallantry = 0, "
+        "mog_segments = 0, gallimaufry = 0, "
+        "temenos_units = 0, apollyon_units = 0 "
         "WHERE charid = ? LIMIT 1",
         kBallistaPointCap,
         charId);
@@ -1186,13 +1188,20 @@ auto auditCurrencyState(sol::this_state state, uint32 charId) -> sol::table
         const auto hallmarks      = rset->get<uint32>("current_hallmarks");
         const auto totalHallmarks = rset->get<uint32>("total_hallmarks");
         const auto gallantry      = rset->get<uint32>("gallantry");
+        const auto segments       = rset->get<uint32>("mog_segments");
+        const auto gallimaufry    = rset->get<uint32>("gallimaufry");
+        const auto temenos        = rset->get<uint32>("temenos_units");
+        const auto apollyon       = rset->get<uint32>("apollyon_units");
         const bool currentCycleOk =
             hallmarks == 0 && totalHallmarks == 0 && gallantry == 0;
+        const bool unsupportedContentOk =
+            segments == 0 && gallimaufry == 0 && temenos == 0 && apollyon == 0;
 
         addAuditLine(rows, index, ballista <= kBallistaPointCap && currentCycleOk, "Retail Currency Policy", "Ballista=" + std::to_string(ballista) + "/" + std::to_string(kBallistaPointCap) + ", current Hallmarks=" + std::to_string(hallmarks) + ", total Hallmarks=" + std::to_string(totalHallmarks) + ", Gallantry=" + std::to_string(gallantry));
+        addAuditLine(rows, index, unsupportedContentOk, "Unsupported Content Currency Policy", "segments=" + std::to_string(segments) + ", gallimaufry=" + std::to_string(gallimaufry) + ", Temenos=" + std::to_string(temenos) + ", Apollyon=" + std::to_string(apollyon));
 
         addAuditInfo(
-            rows, index, "Unsupported Content Currencies", "audit-only until reviewed dry-run: segments=" + std::to_string(rset->get<uint32>("mog_segments")) + ", gallimaufry=" + std::to_string(rset->get<uint32>("gallimaufry")) + ", Temenos=" + std::to_string(rset->get<uint32>("temenos_units")) + ", Apollyon=" + std::to_string(rset->get<uint32>("apollyon_units")) + ", Escha beads=" + std::to_string(rset->get<uint32>("escha_beads")) + ", Escha silt=" + std::to_string(rset->get<uint32>("escha_silt")) + ", Domain=" + std::to_string(rset->get<uint32>("domain_points")) + ", Domain daily=" + std::to_string(rset->get<uint32>("domain_points_daily")));
+            rows, index, "Unverified Escha Currencies", "preserved pending acquisition-path acceptance: beads=" + std::to_string(rset->get<uint32>("escha_beads")) + ", silt=" + std::to_string(rset->get<uint32>("escha_silt")) + ", Domain=" + std::to_string(rset->get<uint32>("domain_points")) + ", Domain daily=" + std::to_string(rset->get<uint32>("domain_points_daily")));
     }
 
     return rows;

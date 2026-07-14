@@ -1,5 +1,5 @@
 param(
-    [string]$RuntimeRoot = 'C:\Users\xtyty\Documents\FFXI-Runtime',
+    [string]$RuntimeRoot = "C:\Github Repo's\FFXI\Runtime",
     [string]$WindowerRoot = 'D:\Steam\steamapps\common\FFXINA\Windower'
 )
 

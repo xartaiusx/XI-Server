@@ -1,6 +1,6 @@
 # Mochirii Client, Mod Stack, Admin, And Trust QA Plan
 
-This plan tracks the local Final Fantasy XI client and Mochirii GM bootstrap gates used by this branch. Runtime manifests, screenshots, downloaded archives, secrets, and database dumps live outside the repo. Current server/runtime evidence lives under `/root/projects/FFXI-Runtime` in WSL; the Windows path `C:\Users\xtyty\Documents\FFXI-Runtime` is only the small Windower launcher/screenshot trigger bridge required by the D: client.
+This plan tracks the local Final Fantasy XI client and Mochirii GM bootstrap gates used by this branch. Runtime manifests, screenshots, downloaded archives, secrets, and database dumps live outside the repo. Current server/runtime evidence lives under `/home/xartyzx/projects/FFXI-Runtime` in WSL; the Windows path `C:\Github Repo's\FFXI\Runtime` is only the small Windower launcher/screenshot trigger bridge required by the D: client.
 
 Portable restore status is tracked separately in `documentation/portable_restore.md`
 and `restore/manifests`. Use those manifests before moving Windower, XIPivot,
@@ -28,21 +28,21 @@ outside the repository.
 - Twills was elevated server-side to GM5 with the visible GM marker disabled, San d'Oria rank 10, active RDM99/SCH99 with the retail Master Level support cap applied as `/SCH59`, genkai 99, all jobs unlocked, broad spells/trusts/maps/warps/mounts/attachments/weaponskills/skills bootstrap applied, and all jobs stored as Master Level 50 in `char_master_levels`.
 - Twills repair is explicit and non-automatic. `!twillsrepair` with no arguments only prints usage; login never runs a repair. The supported operations are `core`, `metadata`, `merits`, and `currency`. Unsupported content and gear expose dry-run-only gates until exact state manifests and replacement GearSwap QA pass.
 - `!twillsrepair merits` installs a legal curated profile: retail category caps for general stats/skills, Critical Hit Rate 5, Spell Interruption Rate 5, ten points per job Group 1/2, RDM Ice/Wind Magic Accuracy 5, RDM Magic Accuracy/Immunobreak Chance 5, and 25 weapon-skill points across Exenterator, Requiescat, Resolution, Shattersoul, and Last Stand. It no longer maxes every local merit row.
-- `!twillsrepair currency` only clamps Ballista Points to 2,000 and clears the current Ambuscade cycle values. It does not grant permanent Odyssey, Sortie, Limbus, Escha, Domain, or Ambuscade floors. `!twillsrepair metadata` applies the documented simulated 2011-07-11 / 10,000-hour QA history without changing last-login timestamps.
+- `!twillsrepair currency` clamps Ballista Points to 2,000, clears the current Ambuscade cycle, and resets absent Odyssey, Sortie, and current-Limbus balances. It does not grant permanent content floors. Unverified Escha/Domain balances remain unchanged for later acquisition-path acceptance testing. `!twillsrepair metadata` applies the documented simulated 2011-07-11 / 10,000-hour QA history without changing last-login timestamps.
 - `!twillsaudit` is split into `core`, `parity`, `content <key>`, `merits`, `currency`, and `gear`. The generated implementation registry classifies content as verified, partial, skeleton, absent, monthly, or unverified; enum/blob coverage alone is never reported as playable completion.
 - Red Mage is intentionally kept at 2100 spent JP, not reduced to exactly 1200. Retail-shaped ML50 requires Job Master status, while the 550/1200 JP thresholds are gift unlock tiers. The local `modules/custom/sql/rdm_master_spells.sql` module defines missing server rows for `Addle II`, `Distract III`, `Frazzle III`, and `Refresh III` so Twills' learned RDM job-point spells can be offered and cast by the server.
 - Alter Ego Points packet repair is part of the local build. The current client uses category `17` for the Magic Skills upgrade command path, while the visible `0x08e` menu payload displays Magic Skills in row slot `1`. Keep both pieces: `src/map/enums/alter_ego_points.h` preserves the command category, and `src/map/packets/s2c/0x08e_alter_ego_points.cpp` serializes Combat Skills to display slot `0` and Magic Skills to display slot `1`.
 - Master Levels are locally implemented for persistent per-job level, job-info packet display, support-job cap, HP/MP/stat bonuses, and combat/magic skill bonuses. Exemplar point earning is still not implemented; capped jobs use `exemplar_points = 0` at ML50 until a full exemplar progression system is added.
 - Unsupported missions and quests were not fabricated; a manifest records implemented/skipped/missing content.
-- Full world/account/character backup exists at `C:\Users\xtyty\Documents\FFXI-Runtime\world-snapshots\20260622-172102`.
+- Full world/account/character backup exists at `C:\Github Repo's\FFXI\Runtime\world-snapshots\20260622-172102`.
 - Baseline visual stack is installed and verified:
   - XIPivot Windower `v0.4.7`
   - XICamera Windower 4 addon `v0.7.10`, installed from the release ZIP with GitHub-published SHA-256 verification. Local defaults are `cameraDistance = 6`, `battleDistance = 8.2`, `horizontalPanSpeed = 3`, `autoCalcVertSpeed = true`, `battleRange = 4`, and `battleRangeLocked = true`.
   - XiView `v2.5.3` widescreen was staged through XIPivot, then real-DAT replaced for working UI/master-star behavior.
   - XiView HD March 2026, TideFont, level/merit/job-point UI, mission/rank-up UI, ROM 3/25 UI, clear geo bubbles, bard notes, and selected UI DATs use the documented real-DAT fallback where XIPivot could not apply early-loaded UI assets reliably.
-  - Ashenbubs textures are XIPivot-managed as a single active Prime overlay only. `AshenbubsHD-Basic` is no longer active, and `AshenbubsHD-June2026-Updates` was merged into `AshenbubsHD-Prime` on 2026-06-24. The merge backed up the 12 overwritten Prime files and hash-verified all 1,836 update files at `C:\Users\xtyty\Documents\FFXI-Runtime\mod-backups\XIPivot\ashenbubs-prime-merge-20260624-175432`.
-  - Inactive Ashenbubs Basic and standalone June 2026 update folders were moved out of `Windower\addons\XIPivot\data\DATs` to `C:\Users\xtyty\Documents\FFXI-Runtime\mod-backups\XIPivot\inactive-overlays-20260624-175517` so XIPivot stays clean and cannot accidentally load both Basic and Prime.
-  - The real-DAT mirror has a rollback backup at `C:\Users\xtyty\Documents\FFXI-Runtime\backups\real-client-active-dat-stack-before-apply-20260622-234443` and manifest at `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\real-client-active-dat-stack-applied-20260622-234443.json`.
+  - Ashenbubs textures are XIPivot-managed as a single active Prime overlay only. `AshenbubsHD-Basic` is no longer active, and `AshenbubsHD-June2026-Updates` was merged into `AshenbubsHD-Prime` on 2026-06-24. The merge backed up the 12 overwritten Prime files and hash-verified all 1,836 update files at `C:\Github Repo's\FFXI\Runtime\mod-backups\XIPivot\ashenbubs-prime-merge-20260624-175432`.
+  - Inactive Ashenbubs Basic and standalone June 2026 update folders were moved out of `Windower\addons\XIPivot\data\DATs` to `C:\Github Repo's\FFXI\Runtime\mod-backups\XIPivot\inactive-overlays-20260624-175517` so XIPivot stays clean and cannot accidentally load both Basic and Prime.
+  - The real-DAT mirror has a rollback backup at `C:\Github Repo's\FFXI\Runtime\backups\real-client-active-dat-stack-before-apply-20260622-234443` and manifest at `C:\Github Repo's\FFXI\Runtime\manifests\real-client-active-dat-stack-applied-20260622-234443.json`.
   - Windower Lua QA addons loaded by default through `Windower\scripts\init.txt`: `XIPivot`, `shortcuts`, `battlemod`, `DressUp`, `findAll`, `craft`, `GearSwap`, `XivParty`, `xivhotbar`, and `MochiriiScreenshotQA`. The global `Windower\settings.xml` `<autoload>` block remains intentionally empty so the profile script is the only startup source of truth.
   - Windower Lua addons installed but not autoloaded until intentionally configured include `xivbar`, `organizer`, `XICamera`, and the broader historical QA overlay set. Keep them manual unless a test specifically needs them. The official Windower `craft` addon is autoloaded for Cooking QA and merges generated Mochirii Cooking recipe overrides from the live database.
   - `GearSwap` autoloads the local `Twills.lua` RDM/SCH v10 profile with practical idle/engaged baselines and action-specific healer/buffer/damage/debuffer swaps. `XivParty` remains the active party/alliance overlay; `xivbar` is intentionally disabled by default.
@@ -61,19 +61,19 @@ outside the repository.
 - Current 2026-07-02 WSL/runtime verification:
   - WSL repo branch: `codex/twills-endgame-completion`, created after PR #14 was merged to `main`.
   - MariaDB is active; `mochirii-xi-connect`, `mochirii-xi-search`, `mochirii-xi-world`, and `mochirii-xi-map` are disabled/inactive until manually started.
-  - Fresh Twills audit: `/root/projects/FFXI-Runtime/audits/twills-full-state-20260702-041334.md` shows 19 supported completion checks OK, 0 FIX, and 5 WARN rows for unsupported raw blobs that should not be fabricated directly; GearSwap inventory audit remains 0 missing and 0 unknown resources.
-  - XIPivot collision report: `/root/projects/FFXI-Runtime/manifests/xipivot-overlay-collisions-20260702-031101.tsv`.
-  - Direct DAT verification: `/root/projects/FFXI-Runtime/manifests/direct-dat-verification-20260702-031340.tsv`; XIView is fully active, XITide backups/source are preserved, and `ROM\119\51` is intentionally held by XIView to preserve the working UI/master-star baseline.
-  - The Windows Windower bridge was restored at `C:\Users\xtyty\Documents\FFXI-Runtime\client-tools` with local secrets kept outside git so `C:\Users\xtyty\Desktop\Windower.lnk` can launch the Mochirii profile.
+  - Fresh Twills audit: `/home/xartyzx/projects/FFXI-Runtime/audits/twills-full-state-20260702-041334.md` shows 19 supported completion checks OK, 0 FIX, and 5 WARN rows for unsupported raw blobs that should not be fabricated directly; GearSwap inventory audit remains 0 missing and 0 unknown resources.
+  - XIPivot collision report: `/home/xartyzx/projects/FFXI-Runtime/manifests/xipivot-overlay-collisions-20260702-031101.tsv`.
+  - Direct DAT verification: `/home/xartyzx/projects/FFXI-Runtime/manifests/direct-dat-verification-20260702-031340.tsv`; XIView is fully active, XITide backups/source are preserved, and `ROM\119\51` is intentionally held by XIView to preserve the working UI/master-star baseline.
+  - The Windows Windower bridge lives at `C:\Github Repo's\FFXI\Runtime\client-tools`; persistent credentials live only under `C:\Github Repo's\FFXI\FFXI Creds` so `C:\Users\xtyty\Desktop\Windower.lnk` can launch the Mochirii profile without storing secrets in Git or runtime evidence.
 - Local downloads now include:
   - AshenbubsHD Basic and Prime November 2021 archives, plus the June 2026 Ashenbubs update pack and XITide March 2026.
   - `ALL-Dat-Mods.rar`, whose included manifest lists Amelila, RadialArcana, and Kireek zone, gear, monster, NPC, spell, and misc DAT content.
   - XiView 3.4 HD March 2026 A/B, XI menu music, geo bubble, bard note, mission/rank-up, level/merit/job point, and ROM 3/25 UI DAT packs.
   - Official utility downloads: NTCore 4GB Patch, dgVoodoo2 `2.87.2`, ReShade `6.7.3`, XIPivot Windower `v0.4.7`, and xiloader `v2.1.1`.
 - `pointwatch` is installed and loaded. A local compatibility guard in `Windower\addons\pointwatch\pointwatch.lua` coerces Mochirii Exemplar/Master/point fields to numbers before its display format strings. This resolved the prior format spam while preserving the recommended progression overlay.
-- Windower official plugin live verification is recorded at `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\windower-official-plugins-live-verification.json`.
-- Windower addon/plugin hardening verification is recorded at `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\client-mod-windower-current-state-20260624-0420.json`.
-- A forced live reload of the recommended default addon stack on 2026-06-24 produced no fresh `error`, `failed`, `runtime`, or traceback lines. Evidence log: `C:\Users\xtyty\Documents\FFXI-Runtime\logs\windower-addon-reload-20260624-0417.log`.
+- Windower official plugin live verification is recorded at `C:\Github Repo's\FFXI\Runtime\manifests\windower-official-plugins-live-verification.json`.
+- Windower addon/plugin hardening verification is recorded at `C:\Github Repo's\FFXI\Runtime\manifests\client-mod-windower-current-state-20260624-0420.json`.
+- A forced live reload of the recommended default addon stack on 2026-06-24 produced no fresh `error`, `failed`, `runtime`, or traceback lines. Evidence log: `C:\Github Repo's\FFXI\Runtime\logs\windower-addon-reload-20260624-0417.log`.
 - Current 2026-06-23 local verification after the AEP rebuild:
   - `dbtool.py update` ran twice and reported the database up to date both times.
   - MariaDB plus `xi_connect`, `xi_search`, `xi_world`, and `xi_map` started cleanly through the Mochirii control scripts.
@@ -84,7 +84,7 @@ outside the repository.
   - `tools\mochirii\assert_windower_foreground.ps1` returned
     `IsWindowerClient = true` for process `xiloader`, title `Twills`.
   - A read-only foreground screenshot was captured only after that gate passed:
-    `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\active-windower-twills-20260623-033704.png`.
+    `C:\Github Repo's\FFXI\Runtime\manifests\active-windower-twills-20260623-033704.png`.
   - The screenshot shows Twills in Escha Ru'Aun with no visible GM icon; command
     injection remains blocked until the supported Windows automation bridge is
     available or commands are entered manually in the foreground client.
@@ -114,7 +114,7 @@ outside the repository.
   validates that the captured image dimensions cover the live client after DPI
   scaling,
   and optionally copies that native screenshot under
-  `C:\Users\xtyty\Documents\FFXI-Runtime`.
+  `C:\Github Repo's\FFXI\Runtime`.
   Inspect the captured image before accepting UI, addon, menu, gear, Trust,
   point, or command-entry results.
 - Do not use OS-level screenshots for in-game verification. Snipping Tool,
@@ -156,7 +156,7 @@ outside the repository.
 
 2. Trust parity and logging:
    - For the QA alliance, run `!trustparty summonqa` and wait for its completion message before running `!trustparty audit active`; `summonqa` owns the repair pass once all 17 Trusts are active. Verify `!trustparty status`, post-summon `!trustparty repair`, `!trustparty audit active`, `!trustparty audit all`, and `!trustparty audit <trust>` only after the roster is fully settled.
-   - Use the Trust action logs under `C:\Users\xtyty\Documents\FFXI-Runtime\logs\trust_actions` plus Windower-native screenshots to verify every active Trust action, target, rest state, and role decision.
+   - Use the Trust action logs under `C:\Github Repo's\FFXI\Runtime\logs\trust_actions` plus Windower-native screenshots to verify every active Trust action, target, rest state, and role decision.
    - Keep Trust rest logical only. Do not reintroduce native kneel/healing animation attempts; XivParty displays the resting marker from the live Trust rest TSV.
 
 3. Visual stack expansion:
@@ -182,27 +182,27 @@ outside the repository.
 ## Evidence
 
 Current WSL evidence:
-- `/root/projects/FFXI-Runtime/audits/twills-full-state-20260702-041334.md`
-- `/root/projects/FFXI-Runtime/manifests/xipivot-overlay-collisions-20260702-031101.tsv`
-- `/root/projects/FFXI-Runtime/manifests/direct-dat-verification-20260702-031340.tsv`
+- `/home/xartyzx/projects/FFXI-Runtime/audits/twills-full-state-20260702-041334.md`
+- `/home/xartyzx/projects/FFXI-Runtime/manifests/xipivot-overlay-collisions-20260702-031101.tsv`
+- `/home/xartyzx/projects/FFXI-Runtime/manifests/direct-dat-verification-20260702-031340.tsv`
 
 Historical Windows-runtime evidence from before the WSL runtime move:
-- `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\visual-baseline-20260622-1740.json`
-- `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\desktop-windower-xipivot-xiview-clean-20260622-1740.png`
-- `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\windower-official-plugins-live-verification.json`
-- `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\expanded-xipivot-mod-stack-verified-20260622-231427.json`
-- `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\real-client-active-dat-stack-applied-20260622-234443.json`
-- `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\real-client-active-dat-stack-active-window-20260622-235044.png`
-- `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\active-windower-twills-20260623-033704.png`
-- `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\client-mod-windower-current-state-20260624-0420.json`
-- `C:\Users\xtyty\Documents\FFXI-Runtime\logs\windower-addon-reload-20260624-0417.log`
-- `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\windower-addon-profile-clean-active-window-20260624-0410.png`
-- `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\windower-clean-after-error-hardening-20260624-0422.png`
-- `C:\Users\xtyty\Documents\FFXI-Runtime\screenshots\overlay-verification\twills-overlay-20260624-060951.png`
-- `C:\Users\xtyty\Documents\FFXI-Runtime\manifests\xicamera-install-v0.7.10-windower4.csv`
-- `C:\Users\xtyty\Documents\FFXI-Runtime\screenshots\xicamera-status-20260624-180528.png`
-- `C:\Users\xtyty\Documents\FFXI-Runtime\screenshots\xicamera-xipivot-status-20260624-180655.png`
-- `C:\Users\xtyty\Documents\FFXI-Runtime\screenshots\native-windower-proof-20260624-182825.jpg`
+- `C:\Github Repo's\FFXI\Runtime\manifests\visual-baseline-20260622-1740.json`
+- `C:\Github Repo's\FFXI\Runtime\manifests\desktop-windower-xipivot-xiview-clean-20260622-1740.png`
+- `C:\Github Repo's\FFXI\Runtime\manifests\windower-official-plugins-live-verification.json`
+- `C:\Github Repo's\FFXI\Runtime\manifests\expanded-xipivot-mod-stack-verified-20260622-231427.json`
+- `C:\Github Repo's\FFXI\Runtime\manifests\real-client-active-dat-stack-applied-20260622-234443.json`
+- `C:\Github Repo's\FFXI\Runtime\manifests\real-client-active-dat-stack-active-window-20260622-235044.png`
+- `C:\Github Repo's\FFXI\Runtime\manifests\active-windower-twills-20260623-033704.png`
+- `C:\Github Repo's\FFXI\Runtime\manifests\client-mod-windower-current-state-20260624-0420.json`
+- `C:\Github Repo's\FFXI\Runtime\logs\windower-addon-reload-20260624-0417.log`
+- `C:\Github Repo's\FFXI\Runtime\manifests\windower-addon-profile-clean-active-window-20260624-0410.png`
+- `C:\Github Repo's\FFXI\Runtime\manifests\windower-clean-after-error-hardening-20260624-0422.png`
+- `C:\Github Repo's\FFXI\Runtime\screenshots\overlay-verification\twills-overlay-20260624-060951.png`
+- `C:\Github Repo's\FFXI\Runtime\manifests\xicamera-install-v0.7.10-windower4.csv`
+- `C:\Github Repo's\FFXI\Runtime\screenshots\xicamera-status-20260624-180528.png`
+- `C:\Github Repo's\FFXI\Runtime\screenshots\xicamera-xipivot-status-20260624-180655.png`
+- `C:\Github Repo's\FFXI\Runtime\screenshots\native-windower-proof-20260624-182825.jpg`
 
 ## 2026-06-24 XIVHotbar Pass
 
@@ -210,7 +210,7 @@ Historical Windows-runtime evidence from before the WSL runtime move:
   `https://github.com/Akirane/XIVHotbar.git` at commit
   `aaebbc27ec33b29f223508e5ceaa9ff920c31032`.
 - Runtime source clone is kept at
-  `C:\Users\xtyty\Documents\FFXI-Runtime\downloads\XIVHotbar`; the live
+  `C:\Github Repo's\FFXI\Runtime\downloads\XIVHotbar`; the live
   Windower addon is installed at
   `C:\Program Files (x86)\Steam\steamapps\common\FFXINA\Windower\addons\xivhotbar`.
 - Twills hotbar files:
@@ -225,4 +225,4 @@ Historical Windows-runtime evidence from before the WSL runtime move:
 - Current layout keeps XIVHotbar lower-center, away from chat/tracker panels on
   the left and the XivParty party/alliance area on the right. Final foreground
   screenshot evidence:
-  `C:\Users\xtyty\Documents\FFXI-Runtime\screenshots\overlay-verification\twills-overlay-20260624-060951.png`.
+  `C:\Github Repo's\FFXI\Runtime\screenshots\overlay-verification\twills-overlay-20260624-060951.png`.

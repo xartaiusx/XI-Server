@@ -4,14 +4,14 @@
         <alliance1>
             <alignBottom>false</alignBottom>
             <itemSpacing>0</itemSpacing>
-            <pos>0.765,0.675</pos>
+            <pos>0.62,0.675</pos>
             <scale>0,0</scale>
             <showEmptyRows>false</showEmptyRows>
         </alliance1>
         <alliance2>
             <alignBottom>false</alignBottom>
             <itemSpacing>0</itemSpacing>
-            <pos>0.765,0.535</pos>
+            <pos>0.62,0.535</pos>
             <scale>0,0</scale>
             <showEmptyRows>false</showEmptyRows>
         </alliance2>
@@ -29,7 +29,7 @@
         <party>
             <alignBottom>false</alignBottom>
             <itemSpacing>0</itemSpacing>
-            <pos>0.765,0.815</pos>
+            <pos>0.62,0.68</pos>
             <scale>0,0</scale>
             <showEmptyRows>false</showEmptyRows>
         </party>

@@ -1,6 +1,6 @@
 **_I affirm:_**
 - [ ] This PR targets `main`, the primary public Mochirii branch.
-- [ ] This PR does not add local/private server tooling, local docs, secrets, client files, runtime config, database dumps, or machine-specific paths.
+- [ ] This PR does not add secrets, private tokens, client assets, runtime logs, screenshots, database dumps, backups, or mod archives; any tracked restore tooling or configuration is redacted and reproducible.
 - [ ] For gameplay changes, I compared against current Mochirii source first and included official Final Fantasy XI or retail-capture evidence where exact behavior is not in source.
 - [ ] I tested the changed behavior or workflow and listed the exact validation below.
 

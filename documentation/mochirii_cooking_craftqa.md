@@ -41,7 +41,7 @@ whether a recipe or food effect exists on Mochirii.
   retail-shaped craft parity, so Cooking is capped at 70 unless a future pass
   explicitly accepts a Cooking-specialist QA exception.
 - Back up MariaDB before running repair, staging, or batch crafting commands.
-- Keep runtime evidence under `/root/projects/FFXI-Runtime/crafting/cooking/`
+- Keep runtime evidence under `/home/xartyzx/projects/FFXI-Runtime/crafting/cooking/`
   and out of git.
 
 ## Manifest
@@ -56,8 +56,8 @@ The manifest targets active normal Cooking recipes with `Cook >= 90` and adds
 recursive local Cooking prerequisite recipes when a target ingredient is itself a
 Cooking result. The default output is:
 
-- `/root/projects/FFXI-Runtime/crafting/cooking/latest/cooking_endgame_manifest.json`
-- `/root/projects/FFXI-Runtime/crafting/cooking/latest/cooking_endgame_manifest.md`
+- `/home/xartyzx/projects/FFXI-Runtime/crafting/cooking/latest/cooking_endgame_manifest.json`
+- `/home/xartyzx/projects/FFXI-Runtime/crafting/cooking/latest/cooking_endgame_manifest.md`
 
 Generate Windower Craft recipe overrides from the same live database and the
 live Windower item resources:

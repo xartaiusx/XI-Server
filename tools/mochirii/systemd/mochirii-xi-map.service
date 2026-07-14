@@ -1,0 +1,26 @@
+[Unit]
+Description=Mochirii XI Map Server
+Requires=mariadb.service
+After=mariadb.service network-online.target
+
+[Service]
+Type=simple
+User=xartyzx
+Group=xartyzx
+WorkingDirectory=/home/xartyzx/projects/FFXI/XI-Server
+Environment=MOCHIRII_RUNTIME_ROOT=/home/xartyzx/projects/FFXI-Runtime
+ExecStart=/home/xartyzx/projects/FFXI/XI-Server/xi_map --log log/map-server-55030.log --ip 127.0.0.1 --port 55030
+Restart=on-failure
+RestartSec=3
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

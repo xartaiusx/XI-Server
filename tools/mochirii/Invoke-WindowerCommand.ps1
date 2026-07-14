@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $Text,
 
-    [string] $RuntimeRoot = 'C:\Users\xtyty\Documents\FFXI-Runtime',
+    [string] $RuntimeRoot = "C:\Github Repo's\FFXI\Runtime",
     [int] $WaitSeconds = 10,
     [switch] $AllowMutation
 )

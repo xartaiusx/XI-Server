@@ -64,14 +64,25 @@ when referring to the game.
 - After Lua-only Trust changes, rely on file watcher reload for quick checks,
   but restart `xi_map` when spell lists, SQL, or startup-loaded module behavior
   changed.
+- Treat `C:\Github Repo's\FFXI` as the Windows project/workspace root. Its
+  `XI-Server`, `WSL-Runtime`, and `Client` entries are links to the single
+  canonical WSL checkout, WSL runtime, and installed client; never create a
+  second server checkout under Windows.
+- Keep all Mochirii/Final Fantasy XI server and client credentials under
+  `C:\Github Repo's\FFXI\FFXI Creds`. Do not print, log, commit, or duplicate their
+  values. The repo and runtime may contain links to required credential files,
+  but not copied credentials.
+- Do not recreate retired compatibility paths outside the project hub. New
+  scripts, documentation, evidence, and Codex tasks must use the canonical
+  locations above.
 - Keep server/runtime evidence outside the repo under
-  `/root/projects/FFXI-Runtime` in WSL. Keep only the small Windows-side
-  Windower bridge under `C:\Users\xtyty\Documents\FFXI-Runtime` because
+  `/home/xartyzx/projects/FFXI-Runtime` in WSL. Keep only the small Windows-side
+  Windower bridge under `C:\Github Repo's\FFXI\Runtime` because
   the game client and native screenshot trigger run on Windows.
 - For Windower addon/plugin settings persistence, keep the live client copy
   under `D:\Steam\steamapps\common\FFXINA\Windower`, the Windows runtime
   golden-state copy under
-  `C:\Users\xtyty\Documents\FFXI-Runtime\windower-golden-state`, and any
+  `C:\Github Repo's\FFXI\Runtime\windower-golden-state`, and any
   tracked restore copy aligned. Verify layout/settings changes with file
   positions or hashes plus a native Windower screenshot after addon reload; for
   session-persistence regressions, relaunch through the desktop Windower shortcut
@@ -87,9 +98,9 @@ but the command itself should stay native whenever possible.
 
 1. Launch only through `C:\Users\xtyty\Desktop\Windower.lnk`.
 2. Before every command or screenshot, run
-   `C:\Users\xtyty\Documents\FFXI-Runtime\client-tools\assert_windower_foreground.ps1`.
+   `C:\Github Repo's\FFXI\Runtime\client-tools\assert_windower_foreground.ps1`.
 3. Send normal Windower, Final Fantasy XI, GearSwap, XivParty, and GM commands
-   with `C:\Users\xtyty\Documents\FFXI-Runtime\client-tools\Invoke-WindowerCommand.ps1`.
+   with `C:\Github Repo's\FFXI\Runtime\client-tools\Invoke-WindowerCommand.ps1`.
    Add `-AllowMutation` only for an intentionally reviewed mutating GM command
    such as `!trustparty summonqa` or `!twillsrepair`; audits and status commands
    stay read-only and must not use the switch.
@@ -101,10 +112,10 @@ but the command itself should stay native whenever possible.
    message, then run `!trustparty audit active`. Do not send `!trustparty
    repair` or combat commands while `summonqa` is still running.
 6. Capture UI proof with
-   `C:\Users\xtyty\Documents\FFXI-Runtime\client-tools\capture_windower_window.ps1`
+   `C:\Github Repo's\FFXI\Runtime\client-tools\capture_windower_window.ps1`
    only.
 7. After combat tests, generate the report from WSL with
-   `python3 tools/mochirii/trust_parity_audit.py --repo-root . --runtime-root /root/projects/FFXI-Runtime --player Twills`.
+   `python3 tools/mochirii/trust_parity_audit.py --repo-root . --runtime-root /home/xartyzx/projects/FFXI-Runtime --player Twills`.
 8. For CraftQA, keep Twills Alchemy 110 / Cooking 70 unless a future plan
    explicitly switches specialization. Use native client Synthesis History and
    `/lastsynth` as the proof path; CraftQA may stage ingredients and record
@@ -112,7 +123,7 @@ but the command itself should stay native whenever possible.
 
 Keep the source tree organized: one canonical helper per job, no duplicate
 Windows/WSL scripts for the same operation, no runtime logs or screenshots in
-git, and no duplicate server checkout outside `/root/projects/FFXI/XI-Server`.
+git, and no duplicate server checkout outside `/home/xartyzx/projects/FFXI/XI-Server`.
 When tracked Windower golden-state files change, update the corresponding
 manifest under `restore/manifests` in the same commit.
 Never run Windower command helpers, raw key helpers, or native screenshot helpers in parallel; they share foreground focus and request files, so parallel execution can invalidate the test.

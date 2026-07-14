@@ -7,16 +7,20 @@ The project name and server identity are Mochirii. Public-facing documentation s
 ## Current State
 
 - Server identity: `Mochirii`.
+- Windows project root: `C:\Github Repo's\FFXI`.
+- Canonical WSL checkout: `/home/xartyzx/projects/FFXI/XI-Server`.
+- Credentials: `C:\Github Repo's\FFXI\FFXI Creds`, outside Git and runtime evidence.
 - Manual server controls are available from the desktop:
-  - `Start Mochirii Server.lnk`
-  - `Stop Mochirii Server.lnk`
+  - `Start Mochirii FFXI Server (WSL).lnk`
+  - `Stop Mochirii FFXI Server (WSL).lnk`
 - The server does not auto-start after reboot.
 - The canonical client launch path is `C:\Users\xtyty\Desktop\Windower.lnk`.
 - Twills is the local admin QA character: Red Mage main, Scholar support, GM5 privileges, visible GM marker hidden.
 - 2026-06-25 server verification: desktop Start/Stop shortcuts manually started and stopped MariaDB plus `xi_connect`, `xi_search`, `xi_world`, and `xi_map`; no Startup-folder, Run-key, service, or Scheduled Task autostart was configured.
 - 2026-06-25 tooling verification: LuaJIT, Lua, Lua Language Server, StyLua, CMake, Ninja, clang-format 22, Python, Node, and GitHub CLI are installed. Local `gh` is authenticated for `xartaiusx/XI-Server`.
-- 2026-06-25 cleanup: ignored root debug artifacts and the old root Windower screenshot were removed from the workspace. Runtime evidence remains under `C:\Users\xtyty\Documents\FFXI-Runtime`.
-- 2026-06-30 portable restore baseline: fresh encrypted `xidb` and Windower golden-state artifacts exist under `C:\Users\xtyty\Documents\FFXI-Runtime\portable-restore\artifacts`; tracked restore manifests live under `restore\manifests`; the latest private Proton payload is `C:\Users\xtyty\Documents\FFXI\Server Restore-20260630-011753`.
+- 2026-06-25 cleanup: ignored root debug artifacts and the old root Windower screenshot were removed from the workspace. Runtime evidence remains under `C:\Github Repo's\FFXI\Runtime`.
+- 2026-06-30 portable restore baseline: fresh encrypted `xidb` and Windower golden-state artifacts exist under `C:\Github Repo's\FFXI\Runtime\portable-restore\artifacts`; tracked restore manifests live under `restore\manifests`.
+- 2026-07-12 source-of-truth consolidation: the project hub links to one WSL checkout, one WSL runtime, and one installed client; Windows helper deployments are links to tracked sources where practical.
 
 ## Development Focus
 

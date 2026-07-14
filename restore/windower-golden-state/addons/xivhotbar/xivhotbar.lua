@@ -75,6 +75,17 @@ local state = {
     inventory_loading = false
 }
 
+local function show_hotbar_if_available()
+    local windower_player = windower.ffxi.get_player()
+    if windower_player == nil or windower_player.status == 4 then
+        return false
+    end
+
+    ui.hotbar.hide_hotbars = false
+    ui:show(player:get_hotbar_info())
+    return true
+end
+
 -------
 -- Main
 -------
@@ -107,6 +118,7 @@ function initialize()
     ui.hotbar.ready = true
     ui.hotbar.initialized = true
     state.ready = true
+    show_hotbar_if_available()
     print('[20/08/2020] XIVHOTBAR: Type "//htb help" for more info')
     print('[23/08/2020] XIVHOTBAR: Keybinds have been moved to data/keybinds.lua.')
     print('[15/09/2020] XIVHOTBAR: Description for icons has been added.')
@@ -123,18 +135,21 @@ function toggle_environment()
     player:toggle_environment()
 
     ui:load_player_hotbar(player:get_hotbar_info())
+    show_hotbar_if_available()
 end
 
 -- set battle environment --
 function set_battle_environment(in_battle)
     player:set_battle_environment(in_battle)
     ui:load_player_hotbar(player:get_hotbar_info())
+    show_hotbar_if_available()
 end
 
 -- reload hotbar --
 function reload_hotbar()
     player:load_hotbar()
     ui:load_player_hotbar(player:get_hotbar_info())
+    show_hotbar_if_available()
 end
 
 -- change active hotbar --
@@ -189,8 +204,42 @@ local function print_help()
     log("reload: Reloads the hotbar, if you have made changes to the hotbar-file, this is faster for loading.")
     log("battle: Shows the battle hotbar environment.")
     log("field: Shows the field hotbar environment.")
+    log("status: Shows the active environment and row visibility.")
     log("Dependencies:")
     log("shortcuts: Used for weapon skills.")
+end
+
+local function print_status()
+    local _, environment = player:get_hotbar_info()
+    local windower_player = windower.ffxi.get_player()
+    local windower_settings = windower.get_windower_settings()
+    print(string.format(
+        "ready=%s layout=%s hidden=%s environment=%s player_status=%s",
+        tostring(state.ready),
+        tostring(state.demo),
+        tostring(ui.hotbar.hide_hotbars),
+        tostring(environment),
+        tostring(windower_player and windower_player.status or 'none')
+    ))
+    print(string.format(
+        "resolution=%dx%d ui_resolution=%dx%d",
+        windower_settings.x_res,
+        windower_settings.y_res,
+        windower_settings.ui_x_res,
+        windower_settings.ui_y_res
+    ))
+
+    for row = 1, theme_options.rows do
+        local x, y = ui.hotbars[row].slot_icons[1]:pos()
+        print(string.format(
+            "row=%d x=%d y=%d icon_visible=%s background_visible=%s",
+            row,
+            x,
+            y,
+            tostring(ui.hotbars[row].slot_icons[1]:visible()),
+            tostring(ui.hotbars[row].slot_backgrounds[1]:visible())
+        ))
+    end
 end
 
 -- ON COMMAND --
@@ -202,8 +251,10 @@ windower.register_event('addon command', function(command, ...)
          reload_hotbar()
      elseif command == 'battle' then
         set_battle_environment(true)
-     elseif command == 'field' then
+    elseif command == 'field' then
         set_battle_environment(false)
+    elseif command == 'status' then
+        print_status()
      elseif command == 'set' then
         set_action_command(args)
     elseif command == 'help' then
@@ -249,6 +300,7 @@ windower.register_event('addon command', function(command, ...)
             log("Click between the rows, then drag to move the hotbars.")
             log("To save the changes, type '//htb move' then hit enter.")
             print('XIVHOTBAR: Layout mode enabled')
+            show_hotbar_if_available()
             box:enable()
         else
             save_hotbar(settings.Hotbar.Offsets.First, 1)

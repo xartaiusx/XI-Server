@@ -1,14 +1,14 @@
 param(
     [string]$Distro = 'Ubuntu-24.04',
-    [string]$RuntimeRoot = 'C:\Users\xtyty\Documents\FFXI-Runtime'
+    [string]$RuntimeRoot = "C:\Github Repo's\FFXI\Runtime"
 )
 
 $ErrorActionPreference = 'Stop'
 
 $stateDir = Join-Path $RuntimeRoot 'server-control'
 $keeperPidFile = Join-Path $stateDir 'mochirii-wsl-keeper.pid'
-$stopScript = '/root/projects/FFXI-Runtime/server-control/stop-mochirii-wsl.sh'
-$statusScript = '/root/projects/FFXI-Runtime/server-control/status-mochirii-wsl.sh'
+$stopScript = '/home/xartyzx/projects/FFXI-Runtime/server-control/stop-mochirii-wsl.sh'
+$statusScript = '/home/xartyzx/projects/FFXI-Runtime/server-control/status-mochirii-wsl.sh'
 
 Write-Host 'Stopping Mochirii WSL services...'
 & wsl.exe -d $Distro -u root -- $stopScript --stop-db

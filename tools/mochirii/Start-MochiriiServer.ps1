@@ -1,14 +1,14 @@
 param(
     [string]$Distro = 'Ubuntu-24.04',
-    [string]$RuntimeRoot = 'C:\Users\xtyty\Documents\FFXI-Runtime'
+    [string]$RuntimeRoot = "C:\Github Repo's\FFXI\Runtime"
 )
 
 $ErrorActionPreference = 'Stop'
 
 $stateDir = Join-Path $RuntimeRoot 'server-control'
 $keeperPidFile = Join-Path $stateDir 'mochirii-wsl-keeper.pid'
-$startScript = '/root/projects/FFXI-Runtime/server-control/start-mochirii-wsl.sh'
-$statusScript = '/root/projects/FFXI-Runtime/server-control/status-mochirii-wsl.sh'
+$startScript = '/home/xartyzx/projects/FFXI-Runtime/server-control/start-mochirii-wsl.sh'
+$statusScript = '/home/xartyzx/projects/FFXI-Runtime/server-control/status-mochirii-wsl.sh'
 $ports = @(54001, 54002, 54003, 55030, 55031)
 
 New-Item -ItemType Directory -Force -Path $stateDir | Out-Null

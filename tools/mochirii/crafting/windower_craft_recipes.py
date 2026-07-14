@@ -202,7 +202,7 @@ def main() -> int:
     parser.add_argument("--mysql", default="mariadb")
     parser.add_argument("--windower-root", default="/mnt/d/Steam/steamapps/common/FFXINA/Windower")
     parser.add_argument("--addon-dir")
-    parser.add_argument("--runtime-out-dir", default="/root/projects/FFXI-Runtime/crafting/cooking/latest")
+    parser.add_argument("--runtime-out-dir", default="/home/xartyzx/projects/FFXI-Runtime/crafting/cooking/latest")
     parser.add_argument("--write-live", action="store_true")
     args = parser.parse_args()
 

@@ -9,68 +9,27 @@ local nuke_mode = 'free'
 local weapon_mode = 'daybreak'
 
 local mode_order = { 'idle', 'healer', 'buffer', 'debuffer', 'caster', 'melee' }
-local qa_sets_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-sets.tsv'
-local qa_equipment_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-equipment.tsv'
-local qa_visual_path = 'C:/Users/xtyty/Documents/FFXI-Runtime/logs/gearswap_qa/Twills-live-visual-models.tsv'
+local qa_sets_path = 'C:/Github Repo\'s/FFXI/Runtime/logs/gearswap_qa/Twills-live-sets.tsv'
+local qa_equipment_path = 'C:/Github Repo\'s/FFXI/Runtime/logs/gearswap_qa/Twills-live-equipment.tsv'
+local qa_visual_path = 'C:/Github Repo\'s/FFXI/Runtime/logs/gearswap_qa/Twills-live-visual-models.tsv'
 local gear_slots = {
     'main', 'sub', 'range', 'ammo', 'head', 'body', 'hands', 'legs',
     'feet', 'neck', 'waist', 'left_ear', 'right_ear', 'left_ring',
     'right_ring', 'back',
 }
 local qa_visual_slots = { 'main', 'sub', 'head', 'body', 'hands', 'legs', 'feet' }
-local qa_visual_items = {
-    ["Agwu's Pigaches"] = { item_id = 23770, model_id = 442 },
-    ["Agwu's Robe"] = { item_id = 23764, model_id = 442 },
-    ["Amalric Coif +1"] = { item_id = 25541, model_id = 442 },
-    ["Amalric Doublet +1"] = { item_id = 25755, model_id = 442 },
-    ["Amalric Gages +1"] = { item_id = 25805, model_id = 442 },
-    ["Amalric Nails +1"] = { item_id = 25927, model_id = 442 },
-    ["Amalric Slops +1"] = { item_id = 25864, model_id = 442 },
-    ["Ammurapi Shield"] = { item_id = 26419, model_id = 42 },
-    ["Atrophy Boots +3"] = { item_id = 23647, model_id = 286 },
-    ["Atrophy Gloves +3"] = { item_id = 23513, model_id = 286 },
-    ["Atrophy Tabard +3"] = { item_id = 23446, model_id = 286 },
-    ["Bunzi's Hat"] = { item_id = 23754, model_id = 451 },
-    ["Bunzi's Pants"] = { item_id = 23766, model_id = 451 },
-    ["Bunzi's Rod"] = { item_id = 22122, model_id = 531 },
-    ["Crocea Mors"] = { item_id = 21611, model_id = 529 },
-    ["Daybreak"] = { item_id = 22040, model_id = 532 },
-    ["Ea Houppelande +1"] = { item_id = 25765, model_id = 442 },
-    ["Genmei Shield"] = { item_id = 26421, model_id = 42 },
-    ["Jhakri Cuffs +2"] = { item_id = 25821, model_id = 287 },
-    ["Jhakri Pigaches +2"] = { item_id = 25941, model_id = 287 },
-    ["Jhakri Robe +2"] = { item_id = 25783, model_id = 287 },
-    ["Kaykaus Boots +1"] = { item_id = 25922, model_id = 442 },
-    ["Kaykaus Cuffs +1"] = { item_id = 25800, model_id = 442 },
-    ["Kaykaus Mitra +1"] = { item_id = 25536, model_id = 442 },
-    ["Kaykaus Tights +1"] = { item_id = 25859, model_id = 442 },
-    ["Leth. Chappel +2"] = { item_id = 23089, model_id = 286 },
-    ["Leth. Fuseau +2"] = { item_id = 23290, model_id = 286 },
-    ["Leth. Ganth. +2"] = { item_id = 23223, model_id = 286 },
-    ["Leth. Houseaux +2"] = { item_id = 23357, model_id = 286 },
-    ["Lethargy Sayon +2"] = { item_id = 23156, model_id = 286 },
-    ["Malignance Boots"] = { item_id = 23736, model_id = 458 },
-    ["Malignance Chapeau"] = { item_id = 23732, model_id = 458 },
-    ["Malignance Gloves"] = { item_id = 23734, model_id = 458 },
-    ["Malignance Tabard"] = { item_id = 23733, model_id = 458 },
-    ["Malignance Tights"] = { item_id = 23735, model_id = 458 },
-    ["Maxentius"] = { item_id = 22043, model_id = 532 },
-    ["Naegling"] = { item_id = 21684, model_id = 529 },
-    ["Nyame Flanchard"] = { item_id = 23782, model_id = 451 },
-    ["Nyame Gauntlets"] = { item_id = 23775, model_id = 451 },
-    ["Nyame Helm"] = { item_id = 23753, model_id = 451 },
-    ["Nyame Mail"] = { item_id = 23760, model_id = 451 },
-    ["Nyame Sollerets"] = { item_id = 23789, model_id = 451 },
-    ["Tauret"] = { item_id = 21694, model_id = 530 },
-    ["Telchine Braconi"] = { item_id = 25843, model_id = 289 },
-    ["Telchine Cap"] = { item_id = 25547, model_id = 289 },
-    ["Telchine Gloves"] = { item_id = 25809, model_id = 289 },
-    ["Telchine Pigaches"] = { item_id = 25933, model_id = 289 },
-    ["Viti. Chapeau +3"] = { item_id = 23402, model_id = 286 },
-    ["Vitiation Boots +3"] = { item_id = 23670, model_id = 286 },
-    ["Vitiation Tights +2"] = { item_id = 23268, model_id = 286 },
-    ["Volte Gaiters"] = { item_id = 23726, model_id = 132 },
-}
+local qa_visual_manifest_path = windower.addon_path .. 'data/Twills-visual-models.lua'
+local qa_visual_items = {}
+local qa_visual_manifest_error = nil
+
+do
+    local loaded, manifest = pcall(dofile, qa_visual_manifest_path)
+    if loaded and type(manifest) == 'table' and type(manifest.items) == 'table' then
+        qa_visual_items = manifest.items
+    else
+        qa_visual_manifest_error = loaded and 'manifest has no items table' or tostring(manifest)
+    end
+end
 
 local mnd_enfeebles = {
     ['Addle'] = true, ['Addle II'] = true,
@@ -355,6 +314,9 @@ local function qa_write_visual_snapshot()
     end
 
     handle:write('timestamp_utc\tslot\titem\titem_id\tmodel_id\tstatus\n')
+    if qa_visual_manifest_error then
+        handle:write('# manifest_error\t' .. qa_clean(qa_visual_manifest_error) .. '\n')
+    end
     local equipment = player and player.equipment or {}
     local fail_count = 0
     for _, slot in ipairs(qa_visual_slots) do
@@ -370,7 +332,7 @@ local function qa_write_visual_snapshot()
             model_id = tostring(visual.model_id)
             status = visual.model_id == 0 and 'FAIL' or 'PASS'
         end
-        if status == 'FAIL' then
+        if status == 'FAIL' or status == 'UNKNOWN' then
             fail_count = fail_count + 1
         end
         handle:write(table.concat({ os.date('!%Y-%m-%dT%H:%M:%SZ'), slot, item, item_id, model_id, status }, '\t') .. '\n')
