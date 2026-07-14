@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-12T20:35:00+00:00",
+  "generatedAt": "2026-07-14T22:18:11+00:00",
   "trackedGoldenStateRoot": "restore/windower-golden-state",
   "trackedFiles": [
     {
@@ -30,8 +30,8 @@
     },
     {
       "relativePath": "addons/XivParty/data/settings.xml",
-      "bytes": 1667,
-      "sha256": "7d72acfdb5fd3592c8ce40b44bf44c8cb81c188ac2e1d8737c01eece7f6f5deb"
+      "bytes": 1663,
+      "sha256": "f575a817eca916e2931961e6455d5cf4e368afaa37e3ee441e90a07457f95f35"
     },
     {
       "relativePath": "addons/XivParty/player.lua",
@@ -65,8 +65,8 @@
     },
     {
       "relativePath": "addons/xivhotbar/data/settings.xml",
-      "bytes": 4501,
-      "sha256": "1c1318ab72df44e23c71f7d21c92d583f9b43e5a73659b6974a2050456a9ce02"
+      "bytes": 4502,
+      "sha256": "8abd642fdc5f4412e3a7ad48e2e445e86f99a930353e43932d42aa4c47c95046"
     },
     {
       "relativePath": "addons/xivhotbar/defaults.lua",
@@ -80,8 +80,8 @@
     },
     {
       "relativePath": "addons/xivhotbar/xivhotbar.lua",
-      "bytes": 16025,
-      "sha256": "31ad2faf2536c0c61660a750da9e4428ac7bd84a8980d05f54557e4effdd3046"
+      "bytes": 17725,
+      "sha256": "130a0311f680b14572d13169dc242c301ae9bd6a84ba794db9e93e5c6750eace"
     },
     {
       "relativePath": "plugins/settings/Config.xml",
@@ -95,8 +95,8 @@
     },
     {
       "relativePath": "settings.xml",
-      "bytes": 719,
-      "sha256": "f6c0db0e6d399479ef67683947c34449c81dd8b61df59f12d243e533b2db05ad"
+      "bytes": 721,
+      "sha256": "cd168bfcbedbba316378436cd39ae3b46fe94d21cbe814938fac5f8cf219d4e9"
     }
   ],
   "encryptedFullBundle": {

@@ -110,28 +110,28 @@
         <Hotbar>
             <Offsets>
                 <Fifth>
-                    <OffsetX>690</OffsetX>
-                    <OffsetY>1008</OffsetY>
+                    <OffsetX>880</OffsetX>
+                    <OffsetY>1080</OffsetY>
                 </Fifth>
                 <First>
-                    <OffsetX>690</OffsetX>
-                    <OffsetY>1168</OffsetY>
+                    <OffsetX>880</OffsetX>
+                    <OffsetY>1400</OffsetY>
                 </First>
                 <Fourth>
-                    <OffsetX>690</OffsetX>
-                    <OffsetY>1048</OffsetY>
+                    <OffsetX>880</OffsetX>
+                    <OffsetY>1160</OffsetY>
                 </Fourth>
                 <Second>
-                    <OffsetX>690</OffsetX>
-                    <OffsetY>1128</OffsetY>
+                    <OffsetX>880</OffsetX>
+                    <OffsetY>1320</OffsetY>
                 </Second>
                 <Sixth>
-                    <OffsetX>690</OffsetX>
-                    <OffsetY>968</OffsetY>
+                    <OffsetX>880</OffsetX>
+                    <OffsetY>1000</OffsetY>
                 </Sixth>
                 <Third>
-                    <OffsetX>690</OffsetX>
-                    <OffsetY>1088</OffsetY>
+                    <OffsetX>880</OffsetX>
+                    <OffsetY>1240</OffsetY>
                 </Third>
             </Offsets>
         </Hotbar>

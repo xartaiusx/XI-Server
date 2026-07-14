@@ -99,6 +99,8 @@ local requiredKeyItems =
     xi.ki.RHAPSODY_IN_PUCE,
     xi.ki.RHAPSODY_IN_OCHRE,
     xi.ki.SCINTILLATING_RHAPSODY,
+    xi.ki.PRIMER_ON_MARTIAL_TECHNIQUES,
+    xi.ki.TREATISE_ON_MARTIAL_TECHNIQUES,
     xi.ki.CIPHER_BRACELET,
 }
 
