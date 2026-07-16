@@ -88,10 +88,11 @@ For layout persistence, keep XivParty positions synchronized between the live
 client file `D:\Steam\steamapps\common\FFXINA\Windower\addons\XivParty\data\settings.xml`
 and the runtime golden-state file
 `C:\Github Repo's\FFXI\Runtime\windower-golden-state\addons\XivParty\data\settings.xml`.
-The current Twills layout is party `0.765,0.815`, alliance1 `0.765,0.675`,
-alliance2 `0.765,0.535`, scale `0.72`. Verify changes through native XivParty
-commands, addon reload, and native Windower screenshots before updating tracked
-restore state.
+The current Twills layout is `mochirii_xiv`: party `0.88,0.985`, alliance1
+`0.88,0.853`, alliance2 `0.88,0.808`, scale `0.72`. Its right-aligned buff grid
+keeps all 32 icons inside the panel while the panel replaces the native party
+region. Verify changes through native XivParty commands, addon reload, and
+native Windower screenshots before updating tracked restore state.
 
 Use `Invoke-WindowerCommand.ps1` for normal Windower, Final Fantasy XI chat,
 and GM command execution. It foregrounds the Twills/Windower client, clears any

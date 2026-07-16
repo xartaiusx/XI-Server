@@ -23,8 +23,8 @@ For these areas, use the current source, database, logs, packet evidence, and th
 - Prefer existing Mochirii patterns over new abstractions.
 - Keep changes small and reviewable.
 - Do not write secrets, account passwords, downloaded client files, runtime logs, or database dumps into the repo.
-- Do not claim client verification without foregrounding the Windower/xiloader window and capturing the client with Windower's native `screenshot` command.
-- For every in-game UI, addon, menu, overlay, Trust, point, gear, or command-result check, run `tools\mochirii\assert_windower_foreground.ps1`, then `tools\mochirii\capture_windower_window.ps1`. The helper must request capture through the loaded `MochiriiScreenshotQA` Windower addon, invoke Windower's native screenshot command, wait for the new file under `Windower\screenshots`, and report image dimensions that meet the live client rectangle after DPI scaling.
+- Do not claim client verification without capturing the full client with Windower's native `screenshot` command.
+- For every in-game UI, addon, menu, overlay, Trust, point, gear, or command-result check, use `tools\mochirii\capture_windower_window.ps1`. Its background mode must request capture through `MochiriiScreenshotQA`, validate full client dimensions, and restore the previously active window. Use `-RequireForeground` only for a documented DirectInput fallback.
 - Do not use OS-level captures for in-game evidence: no `CopyFromScreen`, Snipping Tool, Print Screen, desktop capture, or cropped snippets. If the Windower-native screenshot does not show the state being verified, mark the check incomplete and capture again.
 - Mark unsupported or unverified behavior as a limitation instead of fabricating state.
 

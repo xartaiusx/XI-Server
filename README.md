@@ -21,6 +21,7 @@ The project name and server identity are Mochirii. Public-facing documentation s
 - 2026-06-25 cleanup: ignored root debug artifacts and the old root Windower screenshot were removed from the workspace. Runtime evidence remains under `C:\Github Repo's\FFXI\Runtime`.
 - 2026-06-30 portable restore baseline: fresh encrypted `xidb` and Windower golden-state artifacts exist under `C:\Github Repo's\FFXI\Runtime\portable-restore\artifacts`; tracked restore manifests live under `restore\manifests`.
 - 2026-07-12 source-of-truth consolidation: the project hub links to one WSL checkout, one WSL runtime, and one installed client; Windows helper deployments are links to tracked sources where practical.
+- 2026-07-14/16 post-update graphics baseline: XIView owns four backed-up direct UI DATs; XIPivot owns the collision-audited texture/map/effect stack; XICamera v0.7.10 and the bottom-anchored XivParty/XIVHotbar layouts are persistent; dgVoodoo2 and a disabled-technique ReShade baseline are installed with separate acceptance gates.
 
 ## Development Focus
 
@@ -34,6 +35,7 @@ Mochirii currently tracks three active workstreams:
 
 - `AGENTS.md` is the repo-level operating guide for Codex/agent work.
 - `documentation/client_mod_admin_plan.md` tracks client, Windower, mod, server-control, and Trust QA state.
+- `documentation/client_graphics_stack.md` records current graphics ownership, versions, collision policy, renderer gates, and runtime proof.
 - `documentation/twills_rdm_sch_gear_completion.md` tracks Twills gear, storage, professions, chocobo, progression, and audit state.
 - `documentation/trust_retail_parity.md` tracks Trust combat, defensive behavior, logging, and per-Trust parity work.
 - `documentation/portable_restore.md` explains the Windows capture, GitHub-safe artifact policy, and Garuda restore path.
@@ -66,7 +68,7 @@ artifacts instead of committed.
 
 Key entry points:
 
-- `tools\mochirii\portable_restore\Capture-MochiriiRestoreBundle.ps1`
+- `tools/mochirii/portable_restore/capture_mochirii_from_wsl.sh`
 - `tools/mochirii/portable_restore/restore_garuda.sh`
 - `tools/mochirii/portable_restore/verify_restore.py`
 

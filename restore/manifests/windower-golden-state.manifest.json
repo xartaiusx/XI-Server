@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-14T22:18:11+00:00",
+  "generatedAt": "2026-07-17T00:11:56Z",
   "trackedGoldenStateRoot": "restore/windower-golden-state",
   "trackedFiles": [
     {
@@ -10,8 +10,8 @@
     },
     {
       "relativePath": "addons/GearSwap/data/Twills.lua",
-      "bytes": 32173,
-      "sha256": "4db7aa64fc4594e0e2349eacca35f067377ace556e8966d5cdb3ad4af12b2a3c"
+      "bytes": 39076,
+      "sha256": "3d3b7a7c111699f913af16a5efc59b75d885c75eed919845b9d5ef8083c29dae"
     },
     {
       "relativePath": "addons/GearSwap/flow.lua",
@@ -20,18 +20,33 @@
     },
     {
       "relativePath": "addons/MochiriiScreenshotQA/MochiriiScreenshotQA.lua",
-      "bytes": 11487,
-      "sha256": "d57834ba674a086d886247aeddeecc0a36897a9057854ee86a17b367388d1b28"
+      "bytes": 11949,
+      "sha256": "65546bc713c80e93b93649ed1bbd7f64cec83f82b48931ce008c7749e98d454c"
+    },
+    {
+      "relativePath": "addons/XICamera/data/settings.xml",
+      "bytes": 452,
+      "sha256": "0fbf3b6e6ce51f9bd353e8a6e5f5fd7cb4f62c6e95cfee5c1193494d48af862b"
     },
     {
       "relativePath": "addons/XIPivot/data/settings.xml",
-      "bytes": 401,
-      "sha256": "a7e75e41753ed6d61bc31f8ceb282ef61bfbdbe7e14d463b7ebd103d0b2bedc1"
+      "bytes": 497,
+      "sha256": "c93fcb075934b385c663feca77a1b633857ba6bebceb17479a8246e2f89e1429"
     },
     {
       "relativePath": "addons/XivParty/data/settings.xml",
-      "bytes": 1663,
-      "sha256": "f575a817eca916e2931961e6455d5cf4e368afaa37e3ee441e90a07457f95f35"
+      "bytes": 1670,
+      "sha256": "1daf81b48e6c4af6b0bafb30c6142477e9235c21b39d52561ec6b906746e49f3"
+    },
+    {
+      "relativePath": "addons/XivParty/layouts/mochirii_xiv.xml",
+      "bytes": 16725,
+      "sha256": "d6716a85d808fe7a8764c8d720fb339930c42526f903b670dd9a9ca01595fde0"
+    },
+    {
+      "relativePath": "addons/XivParty/layouts/mochirii_xiv_alliance.xml",
+      "bytes": 10512,
+      "sha256": "f61a1ce7986f1cfa4ae7723f4bd4e8c53d3a0e32016da1103d2c3fc644037529"
     },
     {
       "relativePath": "addons/XivParty/player.lua",
@@ -55,8 +70,8 @@
     },
     {
       "relativePath": "addons/xivhotbar/data/Twills/RDM.lua",
-      "bytes": 3645,
-      "sha256": "6dce279194679eead8e0aa3eb10e9cc9e26799523c924c9922500a3b808a7027"
+      "bytes": 3651,
+      "sha256": "3fcf5eff9c530036096d35b8cd763ffd975d37ebd5ea19ca59b58b47e9fd8c06"
     },
     {
       "relativePath": "addons/xivhotbar/data/keybinds.lua",
@@ -65,8 +80,8 @@
     },
     {
       "relativePath": "addons/xivhotbar/data/settings.xml",
-      "bytes": 4502,
-      "sha256": "8abd642fdc5f4412e3a7ad48e2e445e86f99a930353e43932d42aa4c47c95046"
+      "bytes": 4508,
+      "sha256": "2412e0fc97eb24456ec6d98468ee4b793420c89c15a78055063c5c089874fe06"
     },
     {
       "relativePath": "addons/xivhotbar/defaults.lua",
@@ -86,17 +101,17 @@
     {
       "relativePath": "plugins/settings/Config.xml",
       "bytes": 1115,
-      "sha256": "22ddecbd64d14042b5bcdb77c6fdd0ffa29b208134a970c815e3add10d5992f8"
+      "sha256": "bc268c1811a0b587eba36441c607ba65ca9abf0060eccef405ed342c3bee73c7"
     },
     {
       "relativePath": "scripts/init.txt",
-      "bytes": 375,
-      "sha256": "86d2459692aaddabff5b0755ec17aec6751329ad3b4ccdd8d636f545ac18209c"
+      "bytes": 413,
+      "sha256": "61dcdff0c4678ecc71e51fef9fbd6e340be4db7afc16964cef9b74960281b9c7"
     },
     {
       "relativePath": "settings.xml",
-      "bytes": 721,
-      "sha256": "cd168bfcbedbba316378436cd39ae3b46fe94d21cbe814938fac5f8cf219d4e9"
+      "bytes": 647,
+      "sha256": "784ab1a73996dd507bba927996bed8aa3a7f2c91bb632026c8eba1825fbe790f"
     }
   ],
   "encryptedFullBundle": {
@@ -117,7 +132,7 @@
   ],
   "startupSourceOfTruth": "Windower/scripts/init.txt; global Windower/settings.xml autoload remains empty",
   "notes": [
-    "Tracked files are Git-safe Twills configs and Mochirii QA addon state.",
+    "Tracked files are Git-safe Twills configs and Mochirii QA addon state, including the custom XivParty layout and XICamera settings but not third-party binaries or source archives.",
     "Full patched third-party addon source is preserved in the encrypted Windower bundle.",
     "MochiriiScreenshotQA targets the canonical Windows runtime bridge; rewrite that path when restoring on another Windows or Wine prefix."
   ]

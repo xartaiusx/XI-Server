@@ -86,21 +86,30 @@ disposable VM/container, then point `settings/network.lua` or the
 
 ## Client Mod Restore Notes
 
-XIPivot's active overlay setting is:
+XIPivot's active first-hit overlay setting is:
 
 ```text
-Mochirii-GeoBubblesClear,Mochirii-BardNotesHD,Mochirii-LevelMeritJobPoints,Mochirii-MissionRankUps,AshenbubsHD-Prime,ALL-Dat-Mods
+Mochirii-GeoBubblesClear,Mochirii-BardNotesHD,Mochirii-LevelMeritJobPoints,Mochirii-MissionRankUps,XITide-Nameplates,Remapster-Maps-2048,NextHD-Selected,AshenbubsHD-July2026-Candidate,AshenbubsHD-Prime,Legacy-Community-Unique
 ```
 
-`XiView-Widescreen` is preserved only as a staged/reference folder because XIView
-is a direct replacement exception. `_inactive` remains inactive.
+XIView v2.5.3 widescreen is a four-file direct replacement exception. XITide is
+not a direct replacement: only its nameplate DAT is active through XIPivot. The
+full old `ALL-Dat-Mods` source is retained only as a hash-verified external
+rollback archive; its 184 unique files are the active legacy layer.
 
 Apply direct client DAT exceptions in this order:
 
-1. Apply XIView direct replacements and verify their manifest hashes.
-2. Apply XITide direct replacements last.
-3. Verify `ROM/119/51.DAT` resolves to XITide's final hash
-   `40a9dad50db8df3ee3993dd1e9be5f068f559bc14aff059cb1e73d17f9c06dfc`.
+1. Install or verify the current official client and capture a new stock hash
+   baseline.
+2. Apply XIView direct replacements only when every stock hash matches
+   `restore/manifests/client-direct-dat.manifest.json`.
+3. Verify `ROM/119/51.DAT` resolves to XIView's hash
+   `69efbec072906cffd8a1e17c18910229d4f11e936f5ea16c00a3fd5d1039131c`.
+4. Restore XITide nameplates through `XITide-Nameplates`, then verify master
+   stars, menus, and nameplates with native Windower screenshots.
+
+See `documentation/client_graphics_stack.md` for source versions, collision
+ownership, renderer gates, and the current evidence paths.
 
 ## Verification Standard
 

@@ -136,11 +136,18 @@ commandObj.onTrigger = function(player, operation, mode)
             player,
             '[INFO] Gear repair is audit-only in this gate. Run supported-item, 16-slot, augment, inventory, and model validation before a later explicit apply.'
         )
-    elseif
-        operation == 'gear' and
-        mode == '--apply'
-    then
-        printLine(player, '[FIX] Gear apply is gated until replacement sets pass all GearSwap checks.')
+    elseif operation == 'gear' and mode == '--apply' then
+        if type(xi.twills_admin.repairGear) ~= 'function' then
+            printLine(player, '[FIX] Supported gear repair helper is unavailable.')
+            return
+        end
+
+        local repaired, granted = xi.twills_admin.repairGear(target)
+        if repaired then
+            printLine(player, string.format('Supported GearSwap gear repaired; %i missing item(s) granted.', granted))
+        else
+            printLine(player, '[FIX] Supported GearSwap gear repair failed; inspect inventory capacity and xi_map logs.')
+        end
     else
         printUsage(player)
     end

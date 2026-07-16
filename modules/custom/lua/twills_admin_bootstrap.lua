@@ -352,6 +352,7 @@ local rdmSchGear =
     { id = 26186, name = 'ilabrat_ring' },
     { id = 26214, name = 'epaminondass_ring' },
     { id = 26190, name = 'moonlight_ring' },
+    { id = 26200, name = 'vocane_ring_+1' },
     { id = 13566, name = 'defending_ring' },
     { id = 26085, name = 'regal_earring' },
     { id = 26088, name = 'malignance_earring' },
@@ -1392,6 +1393,32 @@ local function _legacyGrantProfessionItems(player)
     return granted, failed
 end
 
+local function repairSupportedGear(player)
+    if not player or player:getName() ~= adminName then
+        return false, 0
+    end
+
+    -- Moonlight Ring is not RDM-equippable. Vocane Ring +1 is the supported
+    -- all-job DT replacement used by Twills' idle and Convert baselines.
+    local requiredItems =
+    {
+        { id = 26200, name = 'vocane_ring_+1' },
+    }
+
+    local granted = 0
+    for _, item in ipairs(requiredItems) do
+        if not player:hasItem(item.id) then
+            if player:addItem({ id = item.id, quantity = 1, silent = true }) == nil then
+                return false, granted
+            end
+
+            granted = granted + 1
+        end
+    end
+
+    return true, granted
+end
+
 local function repairCore(player)
     if not player or player:getName() ~= adminName then
         return false
@@ -1454,6 +1481,7 @@ xi.twills_admin = xi.twills_admin or {}
 xi.twills_admin.adminName = adminName
 xi.twills_admin.currentVersion = currentBootVersion
 xi.twills_admin.repairCore = repairCore
+xi.twills_admin.repairGear = repairSupportedGear
 xi.twills_admin.contentRegistry = contentRegistry
 
 return m

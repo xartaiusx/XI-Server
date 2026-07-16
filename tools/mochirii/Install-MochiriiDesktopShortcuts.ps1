@@ -32,6 +32,7 @@ function Set-PowerShellShortcut {
         [string]$ScriptPath,
         [string]$WorkingDirectory,
         [switch]$NoExit,
+        [switch]$RunAsAdministrator,
         [string]$IconLocation
     )
 
@@ -43,6 +44,13 @@ function Set-PowerShellShortcut {
     $shortcut.WorkingDirectory = $WorkingDirectory
     $shortcut.IconLocation = $IconLocation
     $shortcut.Save()
+
+    if ($RunAsAdministrator) {
+        $shortcutBytes = [System.IO.File]::ReadAllBytes($shortcutPath)
+        $shortcutBytes[0x15] = $shortcutBytes[0x15] -bor 0x20
+        [System.IO.File]::WriteAllBytes($shortcutPath, $shortcutBytes)
+    }
+
     Write-Host "Updated $shortcutPath"
 }
 
@@ -51,4 +59,4 @@ $powerShellIcon = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.ex
 Set-PowerShellShortcut -Name 'Start Mochirii FFXI Server (WSL).lnk' -ScriptPath $startScript -WorkingDirectory $serverControl -NoExit -IconLocation $powerShellIcon
 Set-PowerShellShortcut -Name 'Stop Mochirii FFXI Server (WSL).lnk' -ScriptPath $stopScript -WorkingDirectory $serverControl -NoExit -IconLocation $powerShellIcon
 Set-PowerShellShortcut -Name 'Open Mochirii MariaDB (WSL).lnk' -ScriptPath $dbScript -WorkingDirectory $serverControl -NoExit -IconLocation $powerShellIcon
-Set-PowerShellShortcut -Name 'Windower.lnk' -ScriptPath $windowerScript -WorkingDirectory $WindowerRoot -IconLocation "$windowerExe,0"
+Set-PowerShellShortcut -Name 'Windower.lnk' -ScriptPath $windowerScript -WorkingDirectory $WindowerRoot -RunAsAdministrator -IconLocation "$windowerExe,0"

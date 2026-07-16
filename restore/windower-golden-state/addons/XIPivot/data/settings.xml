@@ -5,6 +5,6 @@
         <cache_max_age>600</cache_max_age>
         <cache_size>2147483648</cache_size>
         <debug_log>false</debug_log>
-        <overlays>Mochirii-GeoBubblesClear,Mochirii-BardNotesHD,Mochirii-LevelMeritJobPoints,Mochirii-MissionRankUps,AshenbubsHD-Prime,ALL-Dat-Mods</overlays>
+        <overlays>Mochirii-GeoBubblesClear,Mochirii-BardNotesHD,Mochirii-LevelMeritJobPoints,Mochirii-MissionRankUps,XITide-Nameplates,Remapster-Maps-2048,NextHD-Selected,AshenbubsHD-July2026-Candidate,AshenbubsHD-Prime,Legacy-Community-Unique</overlays>
     </global>
 </settings>

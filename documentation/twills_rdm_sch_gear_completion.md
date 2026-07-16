@@ -286,9 +286,10 @@ Progression gates:
 
 After rebuild and relog:
 - Run `!twillsrepair` once if auto-bootstrap did not fire.
-- Before accepting any in-client result, foreground the `Twills`/xiloader
-  window and capture a Windower-native screenshot with
-  `tools\mochirii\capture_windower_window.ps1`. Do not use OS-level screenshots
+- Before accepting any in-client result, capture a Windower-native screenshot
+  with `tools\mochirii\capture_windower_window.ps1`. Background capture is the
+  default and restores the previous app; reserve `-RequireForeground` for a
+  documented DirectInput fallback. Do not use OS-level screenshots
   for Twills verification, and do not treat command-send success alone as
   verification.
 - Confirm inventory, Mog Safe, Mog Locker, Mog Satchel, Mog Sack, Mog Case,

@@ -4,7 +4,8 @@ param(
 
     [string] $RuntimeRoot = "C:\Github Repo's\FFXI\Runtime",
     [int] $WaitSeconds = 10,
-    [switch] $AllowMutation
+    [switch] $AllowMutation,
+    [switch] $RequireForeground
 )
 
 Set-StrictMode -Version Latest
@@ -80,7 +81,7 @@ if ($requestCommand -eq '') {
 
 $toolsRoot = $PSScriptRoot
 $focusHelper = Join-Path $toolsRoot 'send_windower_text.ps1'
-if (-not (Test-Path -LiteralPath $focusHelper)) {
+if ($RequireForeground -and -not (Test-Path -LiteralPath $focusHelper)) {
     throw "Missing foreground helper: $focusHelper"
 }
 
@@ -128,10 +129,13 @@ try {
         }
     }
 
-    # Foreground and clear stale chat/menu state only after validation and serialization.
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $focusHelper
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to foreground and clear the Final Fantasy XI client before command execution. Exit code: $LASTEXITCODE"
+    if ($RequireForeground) {
+        # Clearing with Escape here would discard a deliberately selected <t>
+        # immediately before target-dependent QA commands.
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $focusHelper -NoClearInputBefore -KeepForeground
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to foreground the Final Fantasy XI client before command execution. Exit code: $LASTEXITCODE"
+        }
     }
 
     $requestId = [Guid]::NewGuid().ToString('D')
@@ -153,6 +157,9 @@ try {
     }
 
     $json = $requestObject | ConvertTo-Json -Compress
+    # Windower's bundled JSON tokenizer treats \" as a closing quote. Keep the
+    # envelope valid JSON while transporting embedded command quotes safely.
+    $json = $json.Replace('\"', '\u0022')
     [System.IO.File]::WriteAllText($tempPath, $json, [System.Text.UTF8Encoding]::new($false))
     [System.IO.File]::Move($tempPath, $requestPath)
     $tempPath = $null
@@ -169,7 +176,8 @@ try {
             $succeeded = $ack.status -eq 'success'
             $result = [pscustomobject]@{
                 Submitted = $succeeded
-                ForegroundVerified = $true
+                ForegroundVerified = [bool] $RequireForeground
+                ControlMode = if ($RequireForeground) { 'ForegroundBridge' } else { 'BackgroundBridge' }
                 RequestId = $requestId
                 RequestPath = $requestPath
                 AcknowledgementPath = $ackPath
@@ -193,7 +201,8 @@ try {
 
         $result = [pscustomobject]@{
             Submitted = $false
-            ForegroundVerified = $true
+            ForegroundVerified = [bool] $RequireForeground
+            ControlMode = if ($RequireForeground) { 'ForegroundBridge' } else { 'BackgroundBridge' }
             RequestId = $requestId
             RequestPath = $requestPath
             AcknowledgementPath = $ackPath

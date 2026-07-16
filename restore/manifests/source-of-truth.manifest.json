@@ -1,6 +1,6 @@
 {
   "schema": "mochirii-source-of-truth-v2",
-  "updated": "2026-07-12",
+  "updated": "2026-07-16",
   "canonical": {
     "project_hub_windows": "C:\\Github Repo's\\FFXI",
     "credentials_windows": "C:\\Github Repo's\\FFXI\\FFXI Creds",
@@ -43,6 +43,10 @@
   },
   "windower": {
     "profile": "Mochirii",
+    "launcher": "C:\\Users\\xtyty\\Desktop\\Windower.lnk -> C:\\Github Repo's\\FFXI\\Runtime\\client-tools\\Launch-Mochirii-Windower.ps1 -> tools/mochirii/Launch-Mochirii-Windower.ps1",
+    "launcher_requires_uac": true,
+    "routine_command_mode": "acknowledged background bridge; foreground only for documented DirectInput fallback",
+    "screenshot_mode": "Windower-native full-client capture; restore previous foreground application",
     "init_file": "D:\\Steam\\steamapps\\common\\FFXINA\\Windower\\scripts\\init.txt",
     "golden_state": "C:\\Github Repo's\\FFXI\\Runtime\\windower-golden-state",
     "xipivot_overlay_order": [
@@ -50,11 +54,16 @@
       "Mochirii-BardNotesHD",
       "Mochirii-LevelMeritJobPoints",
       "Mochirii-MissionRankUps",
+      "XITide-Nameplates",
+      "Remapster-Maps-2048",
+      "NextHD-Selected",
+      "AshenbubsHD-July2026-Candidate",
       "AshenbubsHD-Prime",
-      "ALL-Dat-Mods"
+      "Legacy-Community-Unique"
     ],
     "autoload_addons": [
       "XIPivot",
+      "XICamera",
       "shortcuts",
       "battlemod",
       "DressUp",
@@ -65,6 +74,12 @@
       "xivhotbar",
       "MochiriiScreenshotQA"
     ],
+    "direct_dat_owner": "XIView v2.5.3 widescreen",
+    "renderer_gate": {
+      "dgVoodoo2": "v2.87.3 installed; D3D11 feature level 11.0, 2048 MB, 16x AF, 4x MSAA; full Mochirii soak pending",
+      "ReShade": "v6.7.3 installed with zero enabled techniques; Vibrant Vana'diel and effect acceptance pending",
+      "laa": "pol.exe Large Address Aware verified post-update"
+    },
     "craft": {
       "addon_path": "D:\\Steam\\steamapps\\common\\FFXINA\\Windower\\addons\\craft",
       "runtime_golden_path": "C:\\Github Repo's\\FFXI\\Runtime\\windower-golden-state\\addons\\craft",
