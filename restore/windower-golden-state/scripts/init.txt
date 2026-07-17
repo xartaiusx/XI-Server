@@ -1,8 +1,10 @@
 lua unload XIPivot
 lua load XIPivot
+lua load XICamera
 
 load Config
 config ClippingPlane 5
+config FrameRateDivisor 1
 config save
 
 lua load shortcuts

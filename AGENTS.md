@@ -45,17 +45,22 @@ when referring to the game.
 - For portable restore work, read `documentation/portable_restore.md` and the
   JSON manifests under `restore/manifests` before changing scripts, database
   backup handling, Windower restore state, or client mod policy.
-- For client-visible state, use only native Windower screenshots. Run
-  `tools\mochirii\assert_windower_foreground.ps1` first, then
-  `tools\mochirii\capture_windower_window.ps1`.
+- For client-visible state, use only native Windower screenshots through
+  `tools\mochirii\capture_windower_window.ps1`. Background capture is the
+  default; the helper restores the previously active window. Use
+  `-RequireForeground` only when a specific DirectInput fallback truly needs
+  the client to stay active.
 - For Windower commands, Final Fantasy XI chat commands, and GM commands, use
-  `tools\mochirii\Invoke-WindowerCommand.ps1` so the Twills game client is
-  foregrounded and verified before the command request is submitted. The
+  `tools\mochirii\Invoke-WindowerCommand.ps1`. Its UUID bridge is
+  background-safe by default, so routine tests must not steal focus. The
   bridge accepts one UUID-tagged request at a time and requires
   `-AllowMutation` for mutating GM commands; never bypass its acknowledgement
-  or expiry checks. Use
+  or expiry checks. Add `-RequireForeground` only for an explicitly justified
+  foreground-only test. Use
   `tools\mochirii\send_windower_text.ps1` only for raw keystroke cases that
-  cannot go through the Windower command bridge.
+  cannot go through the Windower command bridge. It restores the previously
+  active window by default; use `-KeepForeground` only when the caller must
+  immediately continue with an explicitly foreground-only operation.
 - OS screenshots, Snipping Tool captures, cropped screen clips, and
   `CopyFromScreen` captures are not accepted as in-game verification evidence.
 - A successful key-send helper only proves Windows sent keys; verify command
@@ -93,30 +98,31 @@ when referring to the game.
 Use the same native command path for every client test so results are
 repeatable and logs line up with screenshots. Prefer Final Fantasy XI,
 Windower, GearSwap, XivParty, and Mochirii GM commands before adding any new
-helper script. The helper layer may foreground the client and submit commands,
-but the command itself should stay native whenever possible.
+helper script. Routine commands use the background UUID bridge so the user can
+keep working in another app; the command itself should stay native whenever
+possible.
 
 1. Launch only through `C:\Users\xtyty\Desktop\Windower.lnk`.
-2. Before every command or screenshot, run
-   `C:\Github Repo's\FFXI\Runtime\client-tools\assert_windower_foreground.ps1`.
-3. Send normal Windower, Final Fantasy XI, GearSwap, XivParty, and GM commands
+2. Send normal Windower, Final Fantasy XI, GearSwap, XivParty, and GM commands
    with `C:\Github Repo's\FFXI\Runtime\client-tools\Invoke-WindowerCommand.ps1`.
    Add `-AllowMutation` only for an intentionally reviewed mutating GM command
    such as `!trustparty summonqa` or `!twillsrepair`; audits and status commands
-   stay read-only and must not use the switch.
-4. For addon state checks, use `//lua list`, `//lua reload <addon>`, native
+   stay read-only and must not use the switch. Keep background mode unless the
+   test has a documented DirectInput requirement.
+3. For addon state checks, use `//lua list`, `//lua reload <addon>`, native
    addon commands such as `//xp setup off` and `//craft status`, and native GearSwap commands such
    as `//gs reload`, `//gs validate sets`, `//gs validate inv`, and
    `//gs c status`.
-5. For Trust QA, use `!trustparty summonqa`, wait for the summon-complete
+4. For Trust QA, use `!trustparty summonqa`, wait for the summon-complete
    message, then run `!trustparty audit active`. Do not send `!trustparty
    repair` or combat commands while `summonqa` is still running.
-6. Capture UI proof with
+5. Capture UI proof with
    `C:\Github Repo's\FFXI\Runtime\client-tools\capture_windower_window.ps1`
-   only.
-7. After combat tests, generate the report from WSL with
+   only. Require `ControlMode=BackgroundBridge`, full client dimensions, and
+   `PreviousForegroundRestored=True` for unattended captures.
+6. After combat tests, generate the report from WSL with
    `python3 tools/mochirii/trust_parity_audit.py --repo-root . --runtime-root /home/xartyzx/projects/FFXI-Runtime --player Twills`.
-8. For CraftQA, keep Twills Alchemy 110 / Cooking 70 unless a future plan
+7. For CraftQA, keep Twills Alchemy 110 / Cooking 70 unless a future plan
    explicitly switches specialization. Use native client Synthesis History and
    `/lastsynth` as the proof path; CraftQA may stage ingredients and record
    evidence, but must not fake a permanent synthesis history.
@@ -127,6 +133,22 @@ git, and no duplicate server checkout outside `/home/xartyzx/projects/FFXI/XI-Se
 When tracked Windower golden-state files change, update the corresponding
 manifest under `restore/manifests` in the same commit.
 Never run Windower command helpers, raw key helpers, or native screenshot helpers in parallel; they share foreground focus and request files, so parallel execution can invalidate the test.
+
+At 2560x1600 with `uiscale=1`, the persisted overlay baseline is:
+
+- XIVHotbar: X `1114`, spacing `56`, bottom-up battle-row Y positions `1512`,
+  `1456`, `1400`, `1344`, `1288`, and `1232`. With the addon's 40-pixel
+  slots, this leaves a 48-pixel bottom safety margin and 16 pixels of clear
+  vertical space between rows.
+- XivParty: use the tracked `mochirii_xiv` layout with `alignBottom=true`;
+  party `0.88,0.985`, alliance1 `0.88,0.853`, alliance2 `0.88,0.808`; Twills
+  scale `0.72`. The custom layout right-aligns all 32 buff icons inside the
+  party panel, allowing the panel to occupy the native party region without
+  cropping at the right edge.
+
+Mirror any accepted change to the live client, Windows runtime golden state,
+and tracked restore copy, then prove solo and full-alliance states with native
+2560x1600 screenshots.
 
 ## Trust Development Rules
 

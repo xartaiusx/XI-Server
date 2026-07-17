@@ -5,6 +5,8 @@ param(
     [switch] $PressSpaceBefore,
     [switch] $PressEnterAfter,
     [switch] $NoClearInputBefore,
+    [string[]] $KeySequence = @(),
+    [switch] $KeepForeground,
     [int] $EscapeCount = 0,
     [int] $KeyDelayMs = 35
 )
@@ -41,6 +43,9 @@ public static class MochiriiFocusWindow
 
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    public static extern bool IsWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
@@ -101,6 +106,8 @@ if ($targetWindow -eq $null)
     throw 'Could not find a Windower/xiloader/Final Fantasy XI client window to foreground.'
 }
 
+$previousForegroundHandle = [MochiriiFocusWindow]::GetForegroundWindow()
+
 [void][MochiriiFocusWindow]::ShowWindow($targetWindow.MainWindowHandle, 9)
 Start-Sleep -Milliseconds 250
 for ($i = 0; $i -lt 8; $i++)
@@ -146,6 +153,62 @@ function Assert-MochiriiForeground
         $focusCheck | ConvertTo-Json -Compress | Write-Output
         throw 'Final Fantasy XI client lost foreground focus before command entry.'
     }
+}
+
+function Restore-MochiriiPreviousForeground
+{
+    param([IntPtr] $Handle)
+
+    if (
+        $KeepForeground -or
+        $Handle -eq [IntPtr]::Zero -or
+        -not [MochiriiFocusWindow]::IsWindow($Handle)
+    )
+    {
+        return $false
+    }
+
+    $currentHandle = [MochiriiFocusWindow]::GetForegroundWindow()
+    if ($currentHandle -eq $Handle)
+    {
+        return $true
+    }
+
+    $currentProcessId = 0
+    $previousProcessId = 0
+    $currentThreadId = [MochiriiFocusWindow]::GetCurrentThreadId()
+    $foregroundThreadId = [MochiriiFocusWindow]::GetWindowThreadProcessId($currentHandle, [ref]$currentProcessId)
+    $previousThreadId = [MochiriiFocusWindow]::GetWindowThreadProcessId($Handle, [ref]$previousProcessId)
+
+    if ($foregroundThreadId -ne 0)
+    {
+        [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $foregroundThreadId, $true)
+    }
+    if ($previousThreadId -ne 0)
+    {
+        [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $previousThreadId, $true)
+    }
+
+    try
+    {
+        [void][MochiriiFocusWindow]::BringWindowToTop($Handle)
+        [void][MochiriiFocusWindow]::SetActiveWindow($Handle)
+        [void][MochiriiFocusWindow]::SetForegroundWindow($Handle)
+    }
+    finally
+    {
+        if ($previousThreadId -ne 0)
+        {
+            [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $previousThreadId, $false)
+        }
+        if ($foregroundThreadId -ne 0)
+        {
+            [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $foregroundThreadId, $false)
+        }
+    }
+
+    Start-Sleep -Milliseconds 100
+    return [MochiriiFocusWindow]::GetForegroundWindow() -eq $Handle
 }
 
 $source = @'
@@ -220,9 +283,14 @@ public static class MochiriiSendInput
     public const ushort VK_SHIFT = 0x10;
     public const ushort VK_CONTROL = 0x11;
     public const ushort VK_MENU = 0x12;
+    public const ushort VK_TAB = 0x09;
     public const ushort VK_RETURN = 0x0D;
     public const ushort VK_ESCAPE = 0x1B;
     public const ushort VK_SPACE = 0x20;
+    public const ushort VK_LEFT = 0x25;
+    public const ushort VK_UP = 0x26;
+    public const ushort VK_RIGHT = 0x27;
+    public const ushort VK_DOWN = 0x28;
 
     public static void Key(ushort vk, bool up)
     {
@@ -256,6 +324,27 @@ function Send-Key([uint16] $vk)
     Start-Sleep -Milliseconds $KeyDelayMs
     [MochiriiSendInput]::Key($vk, $true)
     Start-Sleep -Milliseconds $KeyDelayMs
+}
+
+function Send-NamedKey([string] $name)
+{
+    $normalizedName = $name.Trim().ToLowerInvariant()
+    $virtualKey = switch ($normalizedName)
+    {
+        'enter'  { [MochiriiSendInput]::VK_RETURN; break }
+        'return' { [MochiriiSendInput]::VK_RETURN; break }
+        'tab'    { [MochiriiSendInput]::VK_TAB; break }
+        'escape' { [MochiriiSendInput]::VK_ESCAPE; break }
+        'esc'    { [MochiriiSendInput]::VK_ESCAPE; break }
+        'space'  { [MochiriiSendInput]::VK_SPACE; break }
+        'left'   { [MochiriiSendInput]::VK_LEFT; break }
+        'up'     { [MochiriiSendInput]::VK_UP; break }
+        'right'  { [MochiriiSendInput]::VK_RIGHT; break }
+        'down'   { [MochiriiSendInput]::VK_DOWN; break }
+        default  { throw "Unsupported named key '$name'." }
+    }
+
+    Send-Key $virtualKey
 }
 
 function Send-TextChar([char] $ch)
@@ -321,5 +410,21 @@ if ($PressEnterAfter)
     Send-Key ([MochiriiSendInput]::VK_RETURN)
 }
 
+foreach ($keyName in $KeySequence)
+{
+    Assert-MochiriiForeground
+    Send-NamedKey $keyName
+}
+
 Start-Sleep -Milliseconds 250
-Get-MochiriiForegroundSnapshot | ConvertTo-Json -Compress | Write-Output
+$finalClientFocus = Get-MochiriiForegroundSnapshot
+$previousForegroundRestored = Restore-MochiriiPreviousForeground -Handle $previousForegroundHandle
+
+[pscustomobject]@{
+    Submitted                  = $true
+    ControlMode               = 'ForegroundDirectInputFallback'
+    PreviousForegroundRestored = [bool]$previousForegroundRestored
+    KeptForeground            = [bool]$KeepForeground
+    KeySequence               = @($KeySequence)
+    FinalClientFocus          = $finalClientFocus
+} | ConvertTo-Json -Depth 4 -Compress | Write-Output

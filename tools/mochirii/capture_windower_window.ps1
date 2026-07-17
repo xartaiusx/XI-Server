@@ -3,6 +3,7 @@ param(
     [ValidateSet('jpg', 'png', 'bmp')]
     [string] $Format = 'jpg',
     [switch] $HideWindowerObjects,
+    [switch] $RequireForeground,
     [int] $MinimumClientCoveragePercent = 95,
     [int] $TimeoutSeconds = 12
 )
@@ -10,19 +11,19 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $assertScript = Join-Path $PSScriptRoot 'assert_windower_foreground.ps1'
-$sendScript = Join-Path $PSScriptRoot 'send_windower_text.ps1'
+$commandScript = Join-Path $PSScriptRoot 'Invoke-WindowerCommand.ps1'
 $windowerRoot = 'D:\Steam\steamapps\common\FFXINA\Windower'
 $screenshotRoot = Join-Path $windowerRoot 'screenshots'
 $triggerPath = "C:\Github Repo's\FFXI\Runtime\screenshots\native_screenshot_request.txt"
 
-if (-not (Test-Path -LiteralPath $assertScript))
+if ($RequireForeground -and -not (Test-Path -LiteralPath $assertScript))
 {
     throw "Missing foreground helper: $assertScript"
 }
 
-if (-not (Test-Path -LiteralPath $sendScript))
+if (-not (Test-Path -LiteralPath $commandScript))
 {
-    throw "Missing Windower input helper: $sendScript"
+    throw "Missing Windower command helper: $commandScript"
 }
 
 New-Item -ItemType Directory -Force -Path $screenshotRoot | Out-Null
@@ -36,6 +37,15 @@ public static class MochiriiNativeScreenshotFocus
 {
     [DllImport("user32.dll")]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern bool BringWindowToTop(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr SetActiveWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
@@ -66,6 +76,12 @@ public static class MochiriiNativeScreenshotFocus
 
     [DllImport("user32.dll")]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("user32.dll")]
+    public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+    [DllImport("kernel32.dll")]
+    public static extern uint GetCurrentThreadId();
 
     public const byte VK_MENU = 0x12;
     public const uint KEYEVENTF_KEYUP = 0x0002;
@@ -117,30 +133,91 @@ if ($null -eq $targetWindow)
     throw 'Could not find a Windower/xiloader/Final Fantasy XI client window to foreground for native screenshot.'
 }
 
-[void][MochiriiNativeScreenshotFocus]::ShowWindow($targetWindow.MainWindowHandle, 9)
-Start-Sleep -Milliseconds 250
-for ($i = 0; $i -lt 8; $i++)
+if ($RequireForeground)
 {
-    [MochiriiNativeScreenshotFocus]::keybd_event([MochiriiNativeScreenshotFocus]::VK_MENU, 0, 0, [UIntPtr]::Zero)
-    [MochiriiNativeScreenshotFocus]::keybd_event([MochiriiNativeScreenshotFocus]::VK_MENU, 0, [MochiriiNativeScreenshotFocus]::KEYEVENTF_KEYUP, [UIntPtr]::Zero)
-    [void][MochiriiNativeScreenshotFocus]::SetForegroundWindow($targetWindow.MainWindowHandle)
+    [void][MochiriiNativeScreenshotFocus]::ShowWindow($targetWindow.MainWindowHandle, 9)
     Start-Sleep -Milliseconds 250
-
-    $preCheck = Get-MochiriiForegroundSnapshot
-    if ($preCheck.IsWindowerClient)
+    for ($i = 0; $i -lt 8; $i++)
     {
-        break
+        [MochiriiNativeScreenshotFocus]::keybd_event([MochiriiNativeScreenshotFocus]::VK_MENU, 0, 0, [UIntPtr]::Zero)
+        [MochiriiNativeScreenshotFocus]::keybd_event([MochiriiNativeScreenshotFocus]::VK_MENU, 0, [MochiriiNativeScreenshotFocus]::KEYEVENTF_KEYUP, [UIntPtr]::Zero)
+        [void][MochiriiNativeScreenshotFocus]::SetForegroundWindow($targetWindow.MainWindowHandle)
+        Start-Sleep -Milliseconds 250
+
+        $preCheck = Get-MochiriiForegroundSnapshot
+        if ($preCheck.IsWindowerClient)
+        {
+            break
+        }
     }
-}
 
-$focusCheck = Get-MochiriiForegroundSnapshot
-if (-not $focusCheck.IsWindowerClient)
-{
+    $focusCheck = Get-MochiriiForegroundSnapshot
+    if (-not $focusCheck.IsWindowerClient)
+    {
+        $focusCheck | ConvertTo-Json -Compress | Write-Output
+        throw 'Refusing screenshot: Windower/xiloader is not the foreground client.'
+    }
+
     $focusCheck | ConvertTo-Json -Compress | Write-Output
-    throw 'Refusing screenshot: Windower/xiloader is not the foreground client.'
 }
 
-$focusCheck | ConvertTo-Json -Compress | Write-Output
+function Restore-MochiriiForegroundWindow
+{
+    param([IntPtr] $Handle)
+
+    if (
+        $RequireForeground -or
+        $Handle -eq [IntPtr]::Zero -or
+        -not [MochiriiNativeScreenshotFocus]::IsWindow($Handle)
+    )
+    {
+        return $false
+    }
+
+    $currentHandle = [MochiriiNativeScreenshotFocus]::GetForegroundWindow()
+    if ($currentHandle -eq $Handle)
+    {
+        return $true
+    }
+
+    $currentProcessId = 0
+    $previousProcessId = 0
+    $currentThreadId = [MochiriiNativeScreenshotFocus]::GetCurrentThreadId()
+    $foregroundThreadId = [MochiriiNativeScreenshotFocus]::GetWindowThreadProcessId($currentHandle, [ref]$currentProcessId)
+    $previousThreadId = [MochiriiNativeScreenshotFocus]::GetWindowThreadProcessId($Handle, [ref]$previousProcessId)
+
+    if ($foregroundThreadId -ne 0)
+    {
+        [void][MochiriiNativeScreenshotFocus]::AttachThreadInput($currentThreadId, $foregroundThreadId, $true)
+    }
+    if ($previousThreadId -ne 0)
+    {
+        [void][MochiriiNativeScreenshotFocus]::AttachThreadInput($currentThreadId, $previousThreadId, $true)
+    }
+
+    try
+    {
+        [void][MochiriiNativeScreenshotFocus]::BringWindowToTop($Handle)
+        [void][MochiriiNativeScreenshotFocus]::SetActiveWindow($Handle)
+        [void][MochiriiNativeScreenshotFocus]::SetForegroundWindow($Handle)
+    }
+    finally
+    {
+        if ($previousThreadId -ne 0)
+        {
+            [void][MochiriiNativeScreenshotFocus]::AttachThreadInput($currentThreadId, $previousThreadId, $false)
+        }
+        if ($foregroundThreadId -ne 0)
+        {
+            [void][MochiriiNativeScreenshotFocus]::AttachThreadInput($currentThreadId, $foregroundThreadId, $false)
+        }
+    }
+
+    Start-Sleep -Milliseconds 100
+    return [MochiriiNativeScreenshotFocus]::GetForegroundWindow() -eq $Handle
+}
+
+$previousForegroundHandle = [MochiriiNativeScreenshotFocus]::GetForegroundWindow()
 
 $clientRect = New-Object MochiriiNativeScreenshotFocus+RECT
 [void][MochiriiNativeScreenshotFocus]::GetClientRect($targetWindow.MainWindowHandle, [ref]$clientRect)
@@ -227,7 +304,11 @@ if ($null -eq $nativeScreenshot)
     # If this session does not have it yet, load it once as a fallback and retry.
     try
     {
-        & $sendScript -Text "//lua load MochiriiScreenshotQA" -PressSpaceBefore -PressEnterAfter -EscapeCount 1
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $commandScript -Text '//lua load MochiriiScreenshotQA'
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw "Background addon-load request failed with exit code $LASTEXITCODE."
+        }
     }
     catch
     {
@@ -308,8 +389,13 @@ if ($OutputPath)
     $copiedPath = (Resolve-Path -LiteralPath $OutputPath).Path
 }
 
+$previousForegroundRestored = Restore-MochiriiForegroundWindow -Handle $previousForegroundHandle
+
 [pscustomobject]@{
     CaptureMode = 'WindowerNativeScreenshot'
+    ControlMode = if ($RequireForeground) { 'ForegroundBridge' } else { 'BackgroundBridge' }
+    ForegroundRequired = [bool]$RequireForeground
+    PreviousForegroundRestored = [bool]$previousForegroundRestored
     Command = "MochiriiScreenshotQA -> $command"
     NativePath = $nativeScreenshot.FullName
     CopiedPath = $copiedPath

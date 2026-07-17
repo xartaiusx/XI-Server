@@ -196,6 +196,7 @@ end
 
 local function command_is_mutating(command)
     local game_command = trim(command:match('^input%s+(.+)$') or command):lower()
+    game_command = game_command:gsub('^/+', '')
     if game_command:sub(1, 1) ~= '!' then
         return false
     end
@@ -225,6 +226,21 @@ local function command_is_mutating(command)
     end
 
     return true
+end
+
+local function decode_bridge_string(value)
+    local function decode_ascii(hex)
+        local code = tonumber(hex, 16)
+        if code and code >= 0x20 and code <= 0x7E then
+            return string.char(code)
+        end
+
+        return '\\u' .. hex
+    end
+
+    return tostring(value or '')
+        :gsub([[\\u(%x%x%x%x)]], decode_ascii)
+        :gsub([[\u(%x%x%x%x)]], decode_ascii)
 end
 
 local function execute_command(command)
@@ -312,7 +328,7 @@ local function process_command_request()
     local now = os.time()
     local created_unix = tonumber(request.created_unix) or 0
     local expires_unix = tonumber(request.expires_unix) or 0
-    local command = type(request.command) == 'string' and request.command or ''
+    local command = type(request.command) == 'string' and decode_bridge_string(request.command) or ''
     local calculated_mutating = command_is_mutating(command)
     local validation_error = nil
 

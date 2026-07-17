@@ -75,7 +75,7 @@
             <rows>6</rows>
         </Hotbar>
         <Style>
-            <HotbarSpacing>34</HotbarSpacing>
+            <HotbarSpacing>56</HotbarSpacing>
             <OffsetX>0</OffsetX>
             <OffsetY>0</OffsetY>
             <SlotAlpha>100</SlotAlpha>
@@ -110,28 +110,28 @@
         <Hotbar>
             <Offsets>
                 <Fifth>
-                    <OffsetX>880</OffsetX>
-                    <OffsetY>1080</OffsetY>
+                    <OffsetX>1114</OffsetX>
+                    <OffsetY>1288</OffsetY>
                 </Fifth>
                 <First>
-                    <OffsetX>880</OffsetX>
-                    <OffsetY>1400</OffsetY>
+                    <OffsetX>1114</OffsetX>
+                    <OffsetY>1512</OffsetY>
                 </First>
                 <Fourth>
-                    <OffsetX>880</OffsetX>
-                    <OffsetY>1160</OffsetY>
+                    <OffsetX>1114</OffsetX>
+                    <OffsetY>1344</OffsetY>
                 </Fourth>
                 <Second>
-                    <OffsetX>880</OffsetX>
-                    <OffsetY>1320</OffsetY>
+                    <OffsetX>1114</OffsetX>
+                    <OffsetY>1456</OffsetY>
                 </Second>
                 <Sixth>
-                    <OffsetX>880</OffsetX>
-                    <OffsetY>1000</OffsetY>
+                    <OffsetX>1114</OffsetX>
+                    <OffsetY>1232</OffsetY>
                 </Sixth>
                 <Third>
-                    <OffsetX>880</OffsetX>
-                    <OffsetY>1240</OffsetY>
+                    <OffsetX>1114</OffsetX>
+                    <OffsetY>1400</OffsetY>
                 </Third>
             </Offsets>
         </Hotbar>

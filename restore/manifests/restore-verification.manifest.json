@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-06-30T04:50:00-07:00",
+  "generatedAt": "2026-07-14T16:16:40-07:00",
   "sourceAnchors": [
     "https://github.com/LandSandBoat/lsb-wiki/blob/main/Quick-Start-Guide.md",
     "https://github.com/LandSandBoat/lsb-wiki/blob/main/Client-Setup-Windows.md",
@@ -12,6 +12,10 @@
     "https://docs.windower.net/addons/gearswap/",
     "https://docs.windower.net/plugins/config/",
     "https://github.com/HealsCodes/XIPivot",
+    "https://github.com/KenshiDRK/XiView/releases/tag/v2.5.3",
+    "https://github.com/Hokuten85/XICamera/releases/tag/v0.7.10",
+    "https://github.com/dege-diosg/dgVoodoo2/releases/tag/v2.87.3",
+    "https://reshade.me/",
     "https://github.com/Akirane/XIVHotbar",
     "https://github.com/Tylas11/XivParty",
     "https://www.playonline.com/ff11us/rule/index.html"
@@ -56,6 +60,7 @@
     "//lua list",
     "//gs validate sets",
     "//pivot s",
+    "//cam status",
     "//xp setup off",
     "//htb reload",
     "Windower-native screenshots only for UI proof"

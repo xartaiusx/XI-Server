@@ -1,0 +1,13 @@
+<?xml version="1.1" ?>
+<settings>
+    <global>
+        <autoCalcVertSpeed>true</autoCalcVertSpeed>
+        <battleDistance>8.2</battleDistance>
+        <battleRange>4</battleRange>
+        <battleRangeLocked>true</battleRangeLocked>
+        <cameraDistance>6</cameraDistance>
+        <horizontalPanSpeed>3</horizontalPanSpeed>
+        <saveOnIncrement>false</saveOnIncrement>
+        <verticalPanSpeed>10.7</verticalPanSpeed>
+    </global>
+</settings>

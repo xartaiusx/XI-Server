@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 1,
-  "generatedAt": "2026-06-30T04:50:00-07:00",
-  "policy": "Reacquire client mods from source URLs and verify hashes; do not commit archives or DATs.",
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-17T01:55:00-07:00",
+  "policy": "Reacquire external client assets from their recorded sources and verify hashes. Archives, DATs, DLLs, installers, screenshots, and proprietary assets never enter Git.",
   "downloads": [
     {
       "name": "xiloader",
@@ -19,97 +19,135 @@
       "gitSafe": false
     },
     {
-      "name": "XivParty",
-      "version": "v2.2.0",
-      "source": "https://github.com/Tylas11/XivParty/releases/tag/v2.2.0",
-      "sha256": "287225884e04ba400be51dc1910bd5cbbe69bcce0deed34d7c557593ccd1e56b",
+      "name": "XIView",
+      "version": "v2.5.3 widescreen",
+      "source": "https://github.com/KenshiDRK/XiView/releases/tag/v2.5.3",
+      "sha256": "f6029ef15b10ddd072de9c7290a7ff584c8d31c827ca7a60bee9aea32a009795",
+      "installation": "backed-up direct DAT exception",
       "gitSafe": false
-    },
-    {
-      "name": "Grammara font",
-      "source": "https://www.fontspace.com/grammara-font-f40751",
-      "sha256": "3f6615129258ac590ffeb3d74429dfeec2e3f0e7636276935e16a450ba28d20e",
-      "gitSafe": false
-    },
-    {
-      "name": "XIVHotbar",
-      "source": "https://github.com/Akirane/XIVHotbar",
-      "gitSafe": "config-only"
     },
     {
       "name": "XITide",
+      "version": "March 2026",
       "source": "https://www.nexusmods.com/finalfantasy11/mods/3",
+      "sha256": "0d21382541eac9ec0c8b0552bf67ae7663817a245b1d44558ab638c4754007db",
+      "installation": "XIPivot ROM/91/15.DAT only",
       "gitSafe": false
     },
     {
-      "name": "XIView",
-      "source": "author release tracked in runtime downloads/manifests",
+      "name": "AshenbubsHD Prime",
+      "version": "November 2021 Prime plus isolated July 2026 candidate",
+      "source": "https://www.nexusmods.com/finalfantasy11/mods/1",
+      "baseSha256": "516aa836c112520295a9ac0a1df8f3d8889b2c63236bd5af773719def89a2b7d",
+      "updateSha256": "9b4e345d1b3612f15e9ec42d3c22780ce58ba68e4402887249bdf2e491cec37d",
+      "gitSafe": false
+    },
+    {
+      "name": "NextGames HD",
+      "version": "1.0 curated selection",
+      "source": "https://www.nexusmods.com/finalfantasy11/mods/12",
+      "sha256": "e3bb9bf0a7cf4136390bda5476462a14be508877cb1603f6caa2ad629f02af5f",
+      "selectedFiles": 421,
+      "gitSafe": false
+    },
+    {
+      "name": "Remapster",
+      "version": "DAT Pack 1 and 2 2048",
+      "source": "https://remapster.com/downloads/",
+      "sha256": "855cef1153f514a934a8f25849e034afe4d464b7f2f2aa75aa609d4de0ef0b3d",
+      "files": 402,
+      "gitSafe": false
+    },
+    {
+      "name": "Jasmint HD Player Characters Compilation",
+      "version": "0.3.0",
+      "source": "https://www.nexusmods.com/finalfantasy11/mods/13",
+      "sha256": "e630ebbe4dbcc8917b936f2b7dade19b60bd617505b5d8679a3c0aead06e55a6",
+      "installation": "80-file XIPivot character-texture layer above Ashenbubs Prime",
+      "files": 80,
+      "gitSafe": false
+    },
+    {
+      "name": "XICamera",
+      "version": "v0.7.10 stable Windower 4",
+      "source": "https://github.com/Hokuten85/XICamera/releases/tag/v0.7.10",
+      "sha256": "ee81c60ccde262052448a43a8c6814914c33beda6ab597dfacf693c1e162cc12",
+      "installation": "autoloaded once; settings tracked, addon binary external",
+      "gitSafe": "settings-only"
+    },
+    {
+      "name": "dgVoodoo2",
+      "version": "v2.87.3",
+      "source": "https://github.com/dege-diosg/dgVoodoo2/releases/tag/v2.87.3",
+      "sha256": "6fb954bed55bf70e948c5045a663a9df31ea206faf105e327bafe46c318f867f",
+      "state": "accepted outside Git; D3D8 wrapper loaded in the Twills process with D3D11 feature level 11.0, 2048 MB VRAM, 16x AF, and 4x MSAA",
+      "initialBackend": "Direct3D11 feature level 11.0",
+      "gitSafe": false
+    },
+    {
+      "name": "ReShade",
+      "version": "v6.7.3 standard",
+      "source": "https://reshade.me/",
+      "sha256": "56791fd065358e899c581ebefe2ad871399b7c7ae83fb85e1154c08a75a44147",
+      "signerThumbprint": "589690208A5E52FB96980C4A6698F50ACD47C49F",
+      "state": "accepted outside Git; DXGI injection loaded in the Twills process and all ten installed shaders compile without errors",
+      "gitSafe": false
+    },
+    {
+      "name": "Vibrant Vana'diel",
+      "version": "All in One",
+      "source": "https://www.nexusmods.com/finalfantasy11/mods/2",
+      "sha256": "ce3fb3e7fd62c56d1efe94daa2a03407c846b5a42398f3ce671de6e2daa33158",
+      "installation": "ReShade preset with Vignette, MagicBloom, MultiLUT, and AdaptiveSharpen enabled; UIMask disabled",
       "gitSafe": false
     }
   ],
   "xipivot": {
-    "preferredFor": "texture and non-early-loaded DAT overlays",
+    "version": "Windower v0.4.7",
+    "resolutionRule": "First matching overlay owns a DAT path.",
     "activeOverlays": [
       "Mochirii-GeoBubblesClear",
       "Mochirii-BardNotesHD",
       "Mochirii-LevelMeritJobPoints",
       "Mochirii-MissionRankUps",
+      "XITide-Nameplates",
+      "Remapster-Maps-2048",
+      "Jasmint-HD",
+      "NextHD-Selected",
+      "AshenbubsHD-July2026-Candidate",
       "AshenbubsHD-Prime",
-      "ALL-Dat-Mods"
+      "Legacy-Community-Unique"
     ],
-    "availableOverlayFolders": [
-      "ALL-Dat-Mods",
-      "AshenbubsHD-Prime",
-      "Mochirii-BardNotesHD",
-      "Mochirii-GeoBubblesClear",
-      "Mochirii-LevelMeritJobPoints",
-      "Mochirii-MissionRankUps",
-      "XiView-Widescreen",
-      "_inactive"
-    ],
-    "stagedInactiveFolders": [
-      "_inactive",
-      "XiView-Widescreen"
-    ],
-    "overlaySizes": {
-      "ALL-Dat-Mods": "7.1G",
-      "AshenbubsHD-Prime": "27G",
-      "Mochirii-BardNotesHD": "540K",
-      "Mochirii-GeoBubblesClear": "5.1M",
-      "Mochirii-LevelMeritJobPoints": "464K",
-      "Mochirii-MissionRankUps": "12M",
-      "XiView-Widescreen": "12M",
-      "_inactive": "19M"
+    "fileCounts": {
+      "Mochirii-GeoBubblesClear": 32,
+      "Mochirii-BardNotesHD": 1,
+      "Mochirii-LevelMeritJobPoints": 6,
+      "Mochirii-MissionRankUps": 45,
+      "XITide-Nameplates": 1,
+      "Remapster-Maps-2048": 402,
+      "Jasmint-HD": 80,
+      "NextHD-Selected": 421,
+      "AshenbubsHD-July2026-Candidate": 15,
+      "AshenbubsHD-Prime": 35495,
+      "Legacy-Community-Unique": 184
     },
+    "totalUniquePaths": 36516,
+    "intentionalCollisions": 166,
+    "unexplainedCollisions": 0,
+    "runtimeCollisionReport": "C:/Github Repo's/FFXI/Runtime/manifests/xipivot-overlay-collisions-current.json",
+    "legacySourceBackupSha256": "5c060861ec9f84ccbb087df08c869de8b672756537d18c76e610d5c45e2bfd06",
     "trackedSettings": "restore/windower-golden-state/addons/XIPivot/data/settings.xml"
   },
   "directClientReplacementExceptions": [
-    "XIView",
-    "XITide"
+    "XIView v2.5.3 widescreen"
   ],
-  "protonPayload": {
-    "folderName": "Server Restore-20260630-011753",
-    "updatedAt": "2026-06-30T02:35:09-07:00",
-    "sections": {
-      "Steam-FFXI-client-patches": {
-        "files": 2,
-        "bytes": 1713112
-      },
-      "Downloaded-FFXI-Mods-And-Tools": {
-        "files": 16,
-        "bytes": 10241218005
-      }
-    },
-    "criticalArtifacts": {
-      "patchedPlayOnlinePol": "Steam-FFXI-client-patches/PlayOnlineViewer/pol.exe",
-      "fourGbPatchArchive": "Steam-FFXI-client-patches/4gb_patch.zip",
-      "downloadedModsAndTools": "Downloaded-FFXI-Mods-And-Tools"
-    }
-  },
+  "pendingAuthenticatedSources": [],
   "notes": [
-    "XIPivot is preferred, but early-loaded menu/font/UI DATs may require direct replacement with backup and hash manifest.",
-    "XIView-Widescreen is present for staging/reference but is not active in XIPivot because XIView is a direct replacement exception.",
-    "Ashenbubs remains one Prime overlay; do not load Basic and Prime simultaneously.",
-    "Original client files and replaced DATs are never committed."
+    "XIView owns all four early-loaded direct UI DATs, including ROM/119/51.DAT.",
+    "XITide contributes only ROM/91/15.DAT through XIPivot so XIView master stars and menus remain intact.",
+    "The old ALL-Dat-Mods directory was archived and replaced by Legacy-Community-Unique after collision analysis.",
+    "The July Ashenbubs payload remains an isolated candidate overlay while its one changed and fourteen new files receive continuing visual review.",
+    "Jasmint intentionally owns 80 character-texture collisions above Ashenbubs Prime.",
+    "Vibrant Vana'diel uses the accepted Mochirii Standard preset; MAGICBLOOM_NODIRT=1 removes its unused lens-dirt texture dependency."
   ]
 }

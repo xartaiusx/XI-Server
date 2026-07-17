@@ -1,90 +1,61 @@
 {
-  "schemaVersion": 1,
-  "generatedAt": "2026-06-30T04:50:00-07:00",
-  "policy": "Direct DAT replacement is allowed only for documented exceptions with backup/hash evidence. Do not commit DAT files.",
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-14T15:53:54-07:00",
+  "expectedClientVersion": "30260703_1",
+  "policy": "Only early-loaded UI DATs may be replaced directly. Every file requires a post-update stock hash, replacement hash, owner, install time, backup, and rollback instruction. DAT files remain outside Git.",
   "clientRoot": "D:/Steam/steamapps/common/FFXINA/SquareEnix/FINAL FANTASY XI",
-  "restoreOrder": [
-    "Reinstall or verify the Steam/Square Enix Final Fantasy XI client first.",
-    "Apply XIView direct replacement files with backup/hash capture.",
-    "Apply XITide direct replacement files last with backup/hash capture.",
-    "Verify final active hashes against this manifest before launching through Windower."
-  ],
-  "overlapResolution": {
-    "ROM/119/51.DAT": {
-      "alsoTouchedBy": [
-        "XIView",
-        "XITide"
-      ],
-      "finalOwner": "XITide",
-      "finalSha256": "40a9dad50db8df3ee3993dd1e9be5f068f559bc14aff059cb1e73d17f9c06dfc",
-      "finalSize": 4286240,
-      "reason": "XITide must be applied after XIView so the tide DAT remains the active client file."
-    }
+  "stockBaseline": {
+    "capturedAt": "2026-07-14T15:12:47-07:00",
+    "manifest": "C:/Github Repo's/FFXI/Runtime/backups/client-post-update-stock/20260714-151247/manifest.json",
+    "rule": "This post-update capture is the only accepted stock rollback source. Never restore pre-update stock DAT backups."
   },
-  "exceptions": [
+  "installOrder": [
+    "Install or verify the current official Final Fantasy XI client.",
+    "Verify each stock hash against this manifest while the client is closed.",
+    "Apply XIView v2.5.3 widescreen from the recorded release archive.",
+    "Keep XITide ROM/91/15.DAT in the XIPivot XITide-Nameplates overlay; do not overwrite XIView ROM/119/51.DAT.",
+    "Launch only through the desktop Windower shortcut and verify Icon Type 2, master stars, menus, and nameplates with native screenshots."
+  ],
+  "directOwner": "XIView v2.5.3 widescreen",
+  "sourceRelease": "https://github.com/KenshiDRK/XiView/releases/tag/v2.5.3",
+  "sourceArchiveSha256": "f6029ef15b10ddd072de9c7290a7ff584c8d31c827ca7a60bee9aea32a009795",
+  "installedAt": "2026-07-14T15:53:54-07:00",
+  "rollbackRoot": "C:/Github Repo's/FFXI/Runtime/backups/client-mods/XIView-direct-post-update-20260714-155354",
+  "runtimeManifest": "C:/Github Repo's/FFXI/Runtime/manifests/xiview-direct-post-update-20260714-155354.json",
+  "files": [
     {
-      "name": "XIView",
-      "appliedAt": "2026-06-29T20:28:29-07:00",
-      "files": [
-        {
-          "relative": "ROM\\0\\12.DAT",
-          "before_sha256": "2F53FCC21A85F1EB89B1EDF49EAD3DCF3EC4711D0B6B4A2714F95E7C58492582",
-          "source_sha256": "114D3A72EACDA9190C0461E493E5CBE3D85FBAAD31AF674542F633DCF16114AE",
-          "after_sha256": "114D3A72EACDA9190C0461E493E5CBE3D85FBAAD31AF674542F633DCF16114AE"
-        },
-        {
-          "relative": "ROM\\119\\51.DAT",
-          "before_sha256": "04101EC2BFB642EE6D99A9946796C2C3E424FC1A5C45C69A6B8A73EA992D925D",
-          "source_sha256": "69EFBEC072906CFFD8A1E17C18910229D4F11E936F5EA16C00A3FD5D1039131C",
-          "after_sha256": "69EFBEC072906CFFD8A1E17C18910229D4F11E936F5EA16C00A3FD5D1039131C"
-        },
-        {
-          "relative": "ROM\\119\\57.DAT",
-          "before_sha256": "269E1B36888C9F2C9F3B7B1750E51586D7D0A163CFEF533DA5BDE7E98E11203D",
-          "source_sha256": "E8AAF6B39DFCAABE7EF1CA055F13A220A5280451882E114399C4C21E21FA038F",
-          "after_sha256": "E8AAF6B39DFCAABE7EF1CA055F13A220A5280451882E114399C4C21E21FA038F"
-        },
-        {
-          "relative": "ROM\\280\\15.DAT",
-          "before_sha256": "BA5F943A71B9C63D5EF62A35B1A486A12A9DCD4670A4E570B98035A78E7FFA19",
-          "source_sha256": "58F4DB6E25ED3BD218D76F3DF00327A0DD38E42A152592610AF9EE49EB6AE38D",
-          "after_sha256": "58F4DB6E25ED3BD218D76F3DF00327A0DD38E42A152592610AF9EE49EB6AE38D"
-        }
-      ]
+      "relativePath": "ROM/0/12.DAT",
+      "stockSha256": "2f53fcc21a85f1eb89b1edf49ead3dcf3ec4711d0b6b4a2714f95e7c58492582",
+      "replacementSha256": "114d3a72eacda9190c0461e493e5cbe3d85fbaad31af674542f633dcf16114ae",
+      "bytes": 3932160
     },
     {
-      "name": "XITide",
-      "appliedAt": "2026-06-29T02:22:34-07:00",
-      "files": [
-        {
-          "path": "ROM/91/15.dat",
-          "phase": "before",
-          "sha256": "1efc2106c938d0708cc283f3dcada6ccc2f65f76e2bcc767b3cf984fa47be53b",
-          "size": "3885488"
-        },
-        {
-          "path": "ROM/91/15.dat",
-          "phase": "after",
-          "sha256": "1a9be7dbe50a8469aaa1027fd4e06559d31c5d5e7127687ca482ee583c4066c0",
-          "size": "3941456"
-        },
-        {
-          "path": "ROM/119/51.dat",
-          "phase": "before",
-          "sha256": "8495718c11b9e8803e2613a556602535fd3fc9ac2c958161bcb1e8cc4e6a6ef1",
-          "size": "4204032"
-        },
-        {
-          "path": "ROM/119/51.dat",
-          "phase": "after",
-          "sha256": "40a9dad50db8df3ee3993dd1e9be5f068f559bc14aff059cb1e73d17f9c06dfc",
-          "size": "4286240"
-        }
-      ]
+      "relativePath": "ROM/119/51.DAT",
+      "stockSha256": "04101ec2bfb642ee6d99a9946796c2c3e424fc1a5c45c69a6b8a73ea992d925d",
+      "replacementSha256": "69efbec072906cffd8a1e17c18910229d4f11e936f5ea16c00a3fd5d1039131c",
+      "bytes": 4286240,
+      "conflictPolicy": "XIView owns this UI DAT. The XITide variant remains inactive because it can remove XIView UI and master-star behavior."
+    },
+    {
+      "relativePath": "ROM/119/57.DAT",
+      "stockSha256": "269e1b36888c9f2c9f3b7b1750e51586d7d0a163cfef533da5bde7e98e11203d",
+      "replacementSha256": "e8aaf6b39dfcaabe7ef1ca055f13a220a5280451882e114399c4c21e21fa038f",
+      "bytes": 3932160
+    },
+    {
+      "relativePath": "ROM/280/15.DAT",
+      "stockSha256": "ba5f943a71b9c63d5ef62a35b1a486a12a9dcd4670a4e570b98035a78e7ffa19",
+      "replacementSha256": "58f4db6e25ed3bd218d76f3df00327a0dd38e42a152592610af9ee49eb6ae38d",
+      "bytes": 403840
     }
   ],
-  "rollbackBackups": {
-    "XIView": "C:/Github Repo's/FFXI/Runtime/backups/client-mods/XIView-direct-20260629-202829",
-    "XITide": "C:/Github Repo's/FFXI/Runtime/backups/client-mods/XITide-20260629-022234"
-  }
+  "xipivotExceptions": [
+    {
+      "name": "XITide nameplates",
+      "overlay": "XITide-Nameplates",
+      "relativePath": "ROM/91/15.DAT",
+      "sha256": "1a9be7dbe50a8469aaa1027fd4e06559d31c5d5e7127687ca482ee583c4066c0",
+      "bytes": 3941456
+    }
+  ]
 }

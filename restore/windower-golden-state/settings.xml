@@ -7,14 +7,12 @@
     <consolekey>Insert</consolekey>
     <mipmaplevel>6</mipmaplevel>
     <uiscale>1</uiscale>
-    <supersampling>2</supersampling>
     <bumpmapping>true</bumpmapping>
   </profile>
   <profile name="Mochirii">
     <consolekey>Insert</consolekey>
     <mipmaplevel>6</mipmaplevel>
     <uiscale>1</uiscale>
-    <supersampling>2</supersampling>
     <bumpmapping>true</bumpmapping>
     <args>--json "C:\Github Repo's\FFXI\FFXI Creds\Runtime\twills-xiloader-v211.json"</args>
     <executable>D:\Steam\steamapps\common\FFXINA\SquareEnix\PlayOnlineViewer\xiloader.exe</executable>
