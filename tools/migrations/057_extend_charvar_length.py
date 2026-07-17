@@ -20,7 +20,6 @@ def needs_to_run(cur):
 
 
 def migrate(cur, db):
-    pass
     try:
         cur.execute(
             "ALTER TABLE char_vars MODIFY varname varchar(64);"
