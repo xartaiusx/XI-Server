@@ -858,7 +858,6 @@ end
 local function skip_set(path)
     return path:match('^sets%%.weapons') ~= nil or
         path:match('^sets%%.utility') ~= nil or
-        path:match('^sets%%.gearscore') ~= nil or
         path:match('^sets%%.role') ~= nil
 end
 
@@ -984,7 +983,7 @@ def write_outputs(output_root: Path, report: dict[str, object]) -> tuple[Path, P
             "## Evidence Rules",
             "",
             "- `range=__empty__` is accepted as an intentional GearSwap empty ranged slot.",
-            "- `sets.weapons.*`, `sets.utility.*`, `sets.role.*`, and `sets.gearscore.*` are overlays/metadata and are not final action sets.",
+            "- `sets.weapons.*`, `sets.utility.*`, and `sets.role.*` are overlays and are not final action sets; GearScore notes live outside the GearSwap `sets` tree.",
             "- Every action row is produced by executing Twills.lua with GearSwap-compatible `set_combine` and `equip` stubs.",
             "- Visible slots (`main`, `sub`, `head`, `body`, `hands`, `legs`, `feet`) fail when their local item model id is `0`.",
             "",

@@ -7,6 +7,7 @@ local idle_mode = 'dt'
 local enfeeble_mode = 'accuracy'
 local nuke_mode = 'free'
 local weapon_mode = 'daybreak'
+local gearscore_notes = {}
 
 local ws_weapon_modes = {
     ['Savage Blade'] = 'naegling',
@@ -249,7 +250,6 @@ end
 local function qa_skip_set(path)
     return path:match('^sets%.weapons') ~= nil or
         path:match('^sets%.utility') ~= nil or
-        path:match('^sets%.gearscore') ~= nil or
         path:match('^sets%.role') ~= nil
 end
 
@@ -807,7 +807,7 @@ function get_sets()
         melee = sets.engaged,
     }
 
-    sets.gearscore = {
+    gearscore_notes = {
         ['Idle DT'] = 'local-supported DT/MEVA baseline with refresh variant',
         ['Fast Cast'] = 'RDM FC/JSE and locally implemented accessories',
         ['Enhancing'] = 'Crocea, skill gear, Telchine duration, RDM JSE duration',
@@ -995,7 +995,7 @@ function self_command(command)
     elseif action == 'status' then
         chat('Role=' .. role_mode .. ', Idle=' .. idle_mode .. ', Weapon=' .. weapon_mode .. ', Enf=' .. enfeeble_mode .. ', Nuke=' .. nuke_mode)
     elseif action == 'gearscore' or action == 'score' then
-        for label, detail in pairs(sets.gearscore) do
+        for label, detail in pairs(gearscore_notes) do
             chat(label .. ': ' .. detail)
         end
     else
