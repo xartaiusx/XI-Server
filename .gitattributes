@@ -19,3 +19,6 @@
 # Retaining CRLF line ends in the documentation dir (for now..)
 *.txt text eol=crlf
 *.log text eol=crlf
+
+# Preserve the verified Windower startup fixture byte-for-byte.
+restore/windower-golden-state/scripts/init.txt binary

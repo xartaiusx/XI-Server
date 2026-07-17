@@ -19,6 +19,14 @@ local bannerState =
 -- Tables
 -----------------------------------
 
+local regionPointsEarned =
+{
+    [0] =  500, -- No standing
+    [1] =  500,
+    [2] =  750,
+    [3] = 1000,
+}
+
 local zoneInfoTable =
 {
     [xi.zone.BEAUCEDINE_GLACIER    ] = { levelCap = 40 },
@@ -905,10 +913,11 @@ xi.expeditionaryForce.onBannerTrigger = function(player, banner)
 end
 
 -- Called from mob lua files. Fires once per alliance member in zone.
-xi.expeditionaryForce.onMobDeath = function(mob, player, optParams)
-    -- Early return: Only fires once for the killer or DoT
-    if not (optParams.isKiller or optParams.noKiller) then
-        return
+xi.expeditionaryForce.onMobDeath = function(mob, player)
+    -- Despawn pets.
+    local pet = mob:getPet()
+    if pet then
+        DespawnMob(pet:getID())
     end
 
     -- Remove NM from the zone list. When all NMs are accounted for, transition banner to CLEARED.
@@ -936,7 +945,6 @@ xi.expeditionaryForce.onMobDeath = function(mob, player, optParams)
     if allDefeated and banner:getLocalVar('State') == bannerState.ACTIVE then
         banner:setLocalVar('State', bannerState.CLEARED)
 
-        -- The banner will disappear after 60 seconds.
         banner:timer(60 * 1000, function(bannerArg)
             hideBanner(bannerArg)
         end)
@@ -966,8 +974,7 @@ xi.expeditionaryForce.onMobDeath = function(mob, player, optParams)
     end
 
     -- Award Influence
-    -- TODO: Implement this
-    -- player:gainConquestInfluence(xi.settings.main.EXP_FORCE_MOBKILL_INFLUENCE)
+    player:gainConquestInfluence(regionPointsEarned[GetNationRank(creditNation)])
 
     -- SEND ZONE MESSAGE
     for _, person in pairs(mob:getZone():getPlayers()) do
@@ -1000,6 +1007,13 @@ end
 
 -- Fires on despawn. This is for if mobs despawn naturally without death. 3 minute despawn timer.
 xi.expeditionaryForce.onMobDespawn = function(mob)
+    -- Despawn pets.
+    local pet = mob:getPet()
+    if pet then
+        DespawnMob(pet:getID())
+    end
+
+    -- Handle expeditionary force completion.
     local zoneId = mob:getZoneID()
 
     local banner = GetNPCByID(zones[zoneId].npc.BEASTMENS_BANNER)
@@ -1015,10 +1029,8 @@ xi.expeditionaryForce.onMobDespawn = function(mob)
     end
 
     if banner:getLocalVar('State') == bannerState.ACTIVE then
-        -- Battle is cleared
         banner:setLocalVar('State', bannerState.CLEARED)
 
-        -- The banner will disappear after 60 seconds.
         banner:timer(60 * 1000, function(bannerArg)
             hideBanner(bannerArg)
         end)
@@ -1027,6 +1039,13 @@ end
 
 -- Pets called mid-fight (call beast, astral flow) miss the gate at spawn. Need to apply manually.
 xi.expeditionaryForce.gatePet = function(mob)
+    -- Non NMs share pet names with NMs. Only gate pets whose owner is gated.
+    -- Exclude astral flow mobs which are masterless pets.
+    local master = mob:getMaster()
+    if master and not master:hasStatusEffect(xi.effect.LEVEL_RESTRICTION) then
+        return
+    end
+
     mob:addStatusEffect(xi.effect.LEVEL_RESTRICTION, { power = zoneInfoTable[mob:getZoneID()].levelCap, origin = mob, flag = xi.effectFlag.CONFRONTATION })
 end
 
@@ -1058,8 +1077,8 @@ xi.expeditionaryForce.onChestOpen = function(player)
     local participation = player:getCharVar('[ExpForce]Participation')
     player:setCharVar('[ExpForce]Participation', bit.bor(participation, bit.lshift(1, currentRegion)))
 
-    -- TODO: Award influence.
-    -- player:gainConquestInfluence(xi.settings.main.EXP_FORCE_TREASURE_INFLUENCE)
+    -- Award influence
+    player:gainConquestInfluence(regionPointsEarned[GetNationRank(playerNation)])
 
     -- TODO: Never tested if opening a chest granted the EF title.
 end

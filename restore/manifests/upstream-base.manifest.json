@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "remote": "https://github.com/LandSandBoat/server.git",
   "branch": "base",
-  "previousSnapshot": "0d18ae3024a85385274ca8847423fe07abb5d915",
-  "currentSnapshot": "420af48f253c2673068aa00e5e9642e70ee07394",
-  "commitCount": 46,
-  "changedFileCount": 110,
+  "previousSnapshot": "420af48f253c2673068aa00e5e9642e70ee07394",
+  "currentSnapshot": "2673fad6bc145a151d558c92254930cc76dfe0d9",
+  "commitCount": 131,
+  "changedFileCount": 518,
   "appliedWith": "git diff --binary <previousSnapshot>..<currentSnapshot> followed by git apply --3way --index",
   "reason": "Mochirii uses squash-linear public history, so the verified snapshot range is authoritative instead of Git merge-base ancestry.",
   "verifiedOverlaps": [
-    "settings/default/main.lua",
+    "scripts/zones/Korroloka_Tunnel/globals.lua",
+    "sql/mob_spell_lists.sql",
     "src/map/ai/states/magic_state.cpp",
-    "src/map/entities/char_entity.cpp",
-    "src/map/entities/char_entity.h",
-    "src/map/utils/battleutils.cpp",
-    "src/map/utils/battleutils.h"
+    "src/map/ai/states/mobskill_state.cpp",
+    "src/map/entities/battle_entity.cpp",
+    "src/map/entities/char_entity.cpp"
   ],
-  "capturedAt": "2026-07-13"
+  "capturedAt": "2026-07-17"
 }
