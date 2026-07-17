@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-17T09:34:10Z",
+  "generatedAt": "2026-07-17T14:54:52Z",
   "trackedGoldenStateRoot": "restore/windower-golden-state",
   "trackedFiles": [
     {
@@ -10,8 +10,8 @@
     },
     {
       "relativePath": "addons/GearSwap/data/Twills.lua",
-      "bytes": 39076,
-      "sha256": "3d3b7a7c111699f913af16a5efc59b75d885c75eed919845b9d5ef8083c29dae"
+      "bytes": 39056,
+      "sha256": "919e3a96e2f878f437b93f1bdff6f0d6c176123ac598ff11d0925a244c011f31"
     },
     {
       "relativePath": "addons/GearSwap/flow.lua",

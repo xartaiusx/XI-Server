@@ -167,7 +167,7 @@ Twills RDM/SCH coverage is now verified by two complementary checks:
   - Models GearSwap `set_combine` and `equip` precedence the same way Windower documents it: later/right-most slot values win.
   - Generates a local RDM/SCH action matrix from `sql/spell_list.sql`, `sql/abilities.sql`, `sql/weapon_skills.sql`, and Twills GearSwap utility commands.
   - Filters non-player Trust summon spells and non-RDM/SCH magic so the matrix remains scoped to Twills as RDM/SCH 99/59.
-  - Treats `range=empty` as a valid intentional slot, while ignoring overlay-only tables such as `sets.weapons.*`, `sets.utility.*`, `sets.role.*`, and `sets.gearscore.*`.
+  - Treats `range=empty` as a valid intentional slot, while ignoring overlay-only tables such as `sets.weapons.*`, `sets.utility.*`, and `sets.role.*`; GearScore notes remain outside GearSwap's equipment `sets` tree so native validation stays warning-free.
   - Fails if any final action phase has missing equip slots, unknown Windower resource names, missing inventory evidence from the latest Twills audit, or unsupported active items.
   - Writes JSON and Markdown evidence under `/home/xartyzx/projects/FFXI-Runtime/logs/gearswap_qa/`, which must not be committed.
 
