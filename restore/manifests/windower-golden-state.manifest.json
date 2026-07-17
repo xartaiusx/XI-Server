@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-17T00:11:56Z",
+  "generatedAt": "2026-07-17T09:19:48Z",
   "trackedGoldenStateRoot": "restore/windower-golden-state",
   "trackedFiles": [
     {
@@ -30,8 +30,8 @@
     },
     {
       "relativePath": "addons/XIPivot/data/settings.xml",
-      "bytes": 497,
-      "sha256": "c93fcb075934b385c663feca77a1b633857ba6bebceb17479a8246e2f89e1429"
+      "bytes": 508,
+      "sha256": "80d6a0369c0a5d7f0bcb4ab581d92df22e3bc7c8351fae2051bd306464838f70"
     },
     {
       "relativePath": "addons/XivParty/data/settings.xml",
@@ -94,6 +94,11 @@
       "sha256": "5732db3c7c16930d3bd3b923966319a377c0866205d752ed2aad6dceed2f41e6"
     },
     {
+      "relativePath": "addons/xivhotbar/lib/ui.lua",
+      "bytes": 36648,
+      "sha256": "3c354e8bf08f20188777e47ea24682677558e3e1ca65c1f800b867d2278deeb0"
+    },
+    {
       "relativePath": "addons/xivhotbar/xivhotbar.lua",
       "bytes": 17725,
       "sha256": "130a0311f680b14572d13169dc242c301ae9bd6a84ba794db9e93e5c6750eace"
@@ -133,6 +138,7 @@
   "startupSourceOfTruth": "Windower/scripts/init.txt; global Windower/settings.xml autoload remains empty",
   "notes": [
     "Tracked files are Git-safe Twills configs and Mochirii QA addon state, including the custom XivParty layout and XICamera settings but not third-party binaries or source archives.",
+    "The tracked XIVHotbar ui.lua is the Mochirii drag/layout compatibility copy; the original upstream Git metadata remains archived outside Git.",
     "Full patched third-party addon source is preserved in the encrypted Windower bundle.",
     "MochiriiScreenshotQA targets the canonical Windows runtime bridge; rewrite that path when restoring on another Windows or Wine prefix."
   ]

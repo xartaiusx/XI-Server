@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -98,6 +99,69 @@ def check_manifest_set(repo: Path) -> list[str]:
     return issues
 
 
+def check_windower_golden_state_manifest(repo: Path) -> list[str]:
+    issues: list[str] = []
+    manifest_path = repo / "restore" / "manifests" / "windower-golden-state.manifest.json"
+    golden_root = repo / "restore" / "windower-golden-state"
+    if not manifest_path.exists() or not golden_root.exists():
+        return issues
+
+    try:
+        manifest = load_json(manifest_path)
+    except Exception:
+        return issues
+
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("trackedFiles"), list):
+        return ["windower golden-state manifest must contain a trackedFiles array"]
+
+    declared: set[str] = set()
+    for entry in manifest["trackedFiles"]:
+        if not isinstance(entry, dict):
+            issues.append("windower golden-state trackedFiles entries must be objects")
+            continue
+
+        relative = entry.get("relativePath")
+        if not isinstance(relative, str) or not relative or relative.startswith(("/", "\\")):
+            issues.append(f"invalid windower golden-state relativePath: {relative!r}")
+            continue
+        if relative in declared:
+            issues.append(f"duplicate windower golden-state manifest entry: {relative}")
+            continue
+        declared.add(relative)
+
+        path = golden_root / Path(relative)
+        if not path.is_file():
+            issues.append(f"missing windower golden-state file: {relative}")
+            continue
+
+        payload = path.read_bytes()
+        expected_bytes = entry.get("bytes")
+        expected_sha256 = entry.get("sha256")
+        actual_sha256 = hashlib.sha256(payload).hexdigest()
+        if expected_bytes != len(payload):
+            issues.append(
+                f"windower golden-state size mismatch: {relative} "
+                f"(manifest {expected_bytes}, actual {len(payload)})"
+            )
+        if expected_sha256 != actual_sha256:
+            issues.append(
+                f"windower golden-state hash mismatch: {relative} "
+                f"(manifest {expected_sha256}, actual {actual_sha256})"
+            )
+
+    actual = {
+        path.relative_to(golden_root).as_posix()
+        for path in golden_root.rglob("*")
+        if path.is_file()
+    }
+    for relative in sorted(actual - declared):
+        issues.append(f"unmanifested windower golden-state file: {relative}")
+    for relative in sorted(declared - actual):
+        issues.append(f"manifest-only windower golden-state file: {relative}")
+
+    return issues
+
+
 def check_upstream_snapshot(repo: Path) -> list[str]:
     issues: list[str] = []
     path = repo / "restore" / "manifests" / "upstream-base.manifest.json"
@@ -154,6 +218,7 @@ def main() -> int:
     issues = []
     issues.extend(check_tracked_files(repo))
     issues.extend(check_manifest_set(repo))
+    issues.extend(check_windower_golden_state_manifest(repo))
     issues.extend(check_upstream_snapshot(repo))
     issues.extend(check_staged_sensitive(repo))
 

@@ -40,9 +40,9 @@ outside the repository.
   - XICamera Windower 4 addon `v0.7.10`, installed from the release ZIP with GitHub-published SHA-256 verification. Local defaults are `cameraDistance = 6`, `battleDistance = 8.2`, `horizontalPanSpeed = 3`, `autoCalcVertSpeed = true`, `battleRange = 4`, and `battleRangeLocked = true`.
   - XIView `v2.5.3` widescreen owns four backed-up direct UI DATs because master-star/menu assets load before Windower can reliably redirect them. The only stock rollback is the post-update 2026-07-14 capture.
   - XITide owns only `ROM/91/15.DAT` through `XITide-Nameplates`; XIView retains direct ownership of the conflicting `ROM/119/51.DAT`.
-  - XIPivot owns normal textures, maps, and effects. Its current first-hit order is documented in `documentation/client_graphics_stack.md` and has 36,516 unique paths, 86 intentional collisions, and zero unexplained collisions.
+  - XIPivot owns normal textures, maps, and effects. Its current first-hit order is documented in `documentation/client_graphics_stack.md` and has 36,516 unique paths, 166 intentional collisions, and zero unexplained collisions.
   - Ashenbubs Prime is the primary world/equipment base. A 15-file July 2026 candidate remains isolated above Prime until soak acceptance; Basic is not active.
-  - Remapster 2048 maps and the 421-file conflict-free NextGames HD selection are active. The retired `ALL-Dat-Mods` folder was archived and replaced by the 184-file `Legacy-Community-Unique` remainder.
+  - Remapster 2048 maps, Jasmint HD 0.3.0, and the 421-file conflict-free NextGames HD selection are active. Jasmint intentionally owns 80 character-texture collisions above Prime. The retired `ALL-Dat-Mods` folder was archived and replaced by the 184-file `Legacy-Community-Unique` remainder.
   - Windower Lua QA addons loaded once through `Windower\scripts\init.txt`: `XIPivot`, `XICamera`, `shortcuts`, `battlemod`, `DressUp`, `findAll`, `craft`, `GearSwap`, `XivParty`, `xivhotbar`, and `MochiriiScreenshotQA`. The global `Windower\settings.xml` `<autoload>` block remains intentionally empty.
   - Windower Lua addons installed but not autoloaded include `xivbar`, `organizer`, and the broader historical QA overlay set. The official Windower `craft` addon remains autoloaded for Cooking QA.
   - `GearSwap` autoloads the local `Twills.lua` RDM/SCH v10 profile with practical idle/engaged baselines and action-specific healer/buffer/damage/debuffer swaps. `XivParty` remains the active party/alliance overlay; `xivbar` is intentionally disabled by default.
@@ -61,13 +61,11 @@ outside the repository.
 - Current 2026-07-14 WSL/runtime verification:
   - Published server baseline: `main` at `f93432ff99`; the rebuilt map server reported that exact branch/SHA and reached ready state without a module error.
   - MariaDB and all four Mochirii services start only through the desktop shortcut and remain disabled for autostart.
-  - XIPivot collision report: `C:\Github Repo's\FFXI\Runtime\manifests\xipivot-overlay-collisions-final-20260714-160358.json`.
+  - XIPivot collision report: `C:\Github Repo's\FFXI\Runtime\manifests\xipivot-overlay-collisions-current.json`.
   - Direct DAT verification: `C:\Github Repo's\FFXI\Runtime\manifests\xiview-direct-post-update-20260714-155354.json`; XIView owns all direct replacements and XITide is an XIPivot-only nameplate layer.
   - Native screenshots prove XIView master stars, XITide nameplates, HD world/equipment textures, Remapster runtime redirection, six visible hotbar rows, and an uncropped XivParty panel at 2560x1600.
   - The Windows Windower bridge lives at `C:\Github Repo's\FFXI\Runtime\client-tools`; persistent credentials live only under `C:\Github Repo's\FFXI\FFXI Creds` so `C:\Users\xtyty\Desktop\Windower.lnk` can launch the Mochirii profile without storing secrets in Git or runtime evidence.
-- Local downloads now include:
-  - XIView v2.5.3, XITide March 2026, Ashenbubs Prime/July 2026 update, NextGames HD 1.0, Remapster 2048, XICamera v0.7.10, dgVoodoo2 v2.87.3, and ReShade v6.7.3.
-  - Jasmint HD and Vibrant Vana'diel remain explicitly pending authenticated Nexus downloads; they are not represented as installed.
+- Local downloads now include XIView v2.5.3, XITide March 2026, Ashenbubs Prime/July 2026 update, NextGames HD 1.0, Remapster 2048, Jasmint HD 0.3.0, XICamera v0.7.10, dgVoodoo2 v2.87.3, ReShade v6.7.3, and Vibrant Vana'diel. Exact hashes remain in the external runtime manifest and `restore/manifests/mods.manifest.json`.
 - `pointwatch` is installed and loaded. A local compatibility guard in `Windower\addons\pointwatch\pointwatch.lua` coerces Mochirii Exemplar/Master/point fields to numbers before its display format strings. This resolved the prior format spam while preserving the recommended progression overlay.
 - Windower official plugin live verification is recorded at `C:\Github Repo's\FFXI\Runtime\manifests\windower-official-plugins-live-verification.json`.
 - Windower addon/plugin hardening verification is recorded at `C:\Github Repo's\FFXI\Runtime\manifests\client-mod-windower-current-state-20260624-0420.json`.
@@ -134,7 +132,7 @@ outside the repository.
 - Keep `xivbar` and `organizer` installed but manual. This preserves the recommended tools without adding extra bar or inventory automation behavior to Trust QA by default.
 - Keep the current Windower overlay layout readable: PointWatch/TargetInfo/Debuffed stacked on the upper-left, Scoreboard hidden unless explicitly testing it, XIVHotbar in the lower-center action area, and XivParty occupying the party/alliance area. Windower-native screenshots are the acceptance proof after any overlay move.
 - Keep the post-update `pol.exe` Large Address Aware result verified. Recheck after every official update.
-- Keep the installed dgVoodoo2 v2.87.3 configuration on D3D11 feature level 11.0, 2048 MB VRAM, 16x AF, and 4x MSAA; Windower supersampling stays disabled. ReShade v6.7.3 remains injected with zero enabled techniques until wrapper login, keyboard, zoning, Mog House, combat, cutscene, relog, and soak acceptance is complete.
+- Keep the accepted dgVoodoo2 v2.87.3 configuration on D3D11 feature level 11.0, 2048 MB VRAM, 16x AF, and 4x MSAA; Windower supersampling stays disabled. ReShade v6.7.3 uses the accepted Vibrant Vana'diel Mochirii Standard preset with Vignette, MagicBloom, MultiLUT, and AdaptiveSharpen. Keep `MAGICBLOOM_NODIRT=1` and UIMask disabled unless a verified native 2560x1600 UI mask is supplied.
 - Do not echo or commit account secrets.
 
 ## Next Gates

@@ -89,13 +89,21 @@ disposable VM/container, then point `settings/network.lua` or the
 XIPivot's active first-hit overlay setting is:
 
 ```text
-Mochirii-GeoBubblesClear,Mochirii-BardNotesHD,Mochirii-LevelMeritJobPoints,Mochirii-MissionRankUps,XITide-Nameplates,Remapster-Maps-2048,NextHD-Selected,AshenbubsHD-July2026-Candidate,AshenbubsHD-Prime,Legacy-Community-Unique
+Mochirii-GeoBubblesClear,Mochirii-BardNotesHD,Mochirii-LevelMeritJobPoints,Mochirii-MissionRankUps,XITide-Nameplates,Remapster-Maps-2048,Jasmint-HD,NextHD-Selected,AshenbubsHD-July2026-Candidate,AshenbubsHD-Prime,Legacy-Community-Unique
 ```
 
 XIView v2.5.3 widescreen is a four-file direct replacement exception. XITide is
 not a direct replacement: only its nameplate DAT is active through XIPivot. The
 full old `ALL-Dat-Mods` source is retained only as a hash-verified external
 rollback archive; its 184 unique files are the active legacy layer.
+
+Jasmint HD 0.3.0 contributes 80 declared character-texture overrides through
+XIPivot. dgVoodoo2 v2.87.3, ReShade v6.7.3, and the Vibrant Vana'diel Mochirii
+Standard preset are external renderer assets and must be reacquired from the
+sources and hashes in `restore/manifests/mods.manifest.json`. The accepted
+ReShade configuration sets `MAGICBLOOM_NODIRT=1`, enables Vignette, MagicBloom,
+MultiLUT, and AdaptiveSharpen, and leaves UIMask disabled until a verified
+2560x1600 UI mask exists.
 
 Apply direct client DAT exceptions in this order:
 

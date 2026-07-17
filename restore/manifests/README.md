@@ -14,7 +14,7 @@ archives.
 - `client-direct-dat.manifest.json`: post-update XIView direct-DAT ownership,
   stock/replacement hashes, and external rollback paths.
 - `mods.manifest.json`: external source versions/hashes, active XIPivot ownership,
-  renderer gates, and pending authenticated downloads. Live renderer and UI
+  and accepted renderer configuration. Live renderer and UI
   evidence remains outside Git under `C:\Github Repo's\FFXI\Runtime\manifests`.
 - `windower-golden-state.manifest.json`: tracked Git-safe settings subset. Full
   third-party addon binaries remain in the encrypted runtime bundle.

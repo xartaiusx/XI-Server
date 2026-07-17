@@ -1,6 +1,6 @@
 {
   "schema": "mochirii-source-of-truth-v2",
-  "updated": "2026-07-16",
+  "updated": "2026-07-17",
   "canonical": {
     "project_hub_windows": "C:\\Github Repo's\\FFXI",
     "credentials_windows": "C:\\Github Repo's\\FFXI\\FFXI Creds",
@@ -56,6 +56,7 @@
       "Mochirii-MissionRankUps",
       "XITide-Nameplates",
       "Remapster-Maps-2048",
+      "Jasmint-HD",
       "NextHD-Selected",
       "AshenbubsHD-July2026-Candidate",
       "AshenbubsHD-Prime",
@@ -76,8 +77,8 @@
     ],
     "direct_dat_owner": "XIView v2.5.3 widescreen",
     "renderer_gate": {
-      "dgVoodoo2": "v2.87.3 installed; D3D11 feature level 11.0, 2048 MB, 16x AF, 4x MSAA; full Mochirii soak pending",
-      "ReShade": "v6.7.3 installed with zero enabled techniques; Vibrant Vana'diel and effect acceptance pending",
+      "dgVoodoo2": "v2.87.3 accepted; D3D8 wrapper loaded in Twills with D3D11 feature level 11.0, 2048 MB, 16x AF, and 4x MSAA",
+      "ReShade": "v6.7.3 accepted with Vibrant Vana'diel Mochirii Standard; ten shaders compile without errors and four effects are active",
       "laa": "pol.exe Large Address Aware verified post-update"
     },
     "craft": {

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-14T16:16:40-07:00",
+  "generatedAt": "2026-07-17T01:55:00-07:00",
   "policy": "Reacquire external client assets from their recorded sources and verify hashes. Archives, DATs, DLLs, installers, screenshots, and proprietary assets never enter Git.",
   "downloads": [
     {
@@ -59,6 +59,15 @@
       "gitSafe": false
     },
     {
+      "name": "Jasmint HD Player Characters Compilation",
+      "version": "0.3.0",
+      "source": "https://www.nexusmods.com/finalfantasy11/mods/13",
+      "sha256": "e630ebbe4dbcc8917b936f2b7dade19b60bd617505b5d8679a3c0aead06e55a6",
+      "installation": "80-file XIPivot character-texture layer above Ashenbubs Prime",
+      "files": 80,
+      "gitSafe": false
+    },
+    {
       "name": "XICamera",
       "version": "v0.7.10 stable Windower 4",
       "source": "https://github.com/Hokuten85/XICamera/releases/tag/v0.7.10",
@@ -71,7 +80,7 @@
       "version": "v2.87.3",
       "source": "https://github.com/dege-diosg/dgVoodoo2/releases/tag/v2.87.3",
       "sha256": "6fb954bed55bf70e948c5045a663a9df31ea206faf105e327bafe46c318f867f",
-      "state": "installed outside Git; configured for D3D11 feature level 11.0, 2048 MB VRAM, 16x AF, and 4x MSAA; full Mochirii soak pending",
+      "state": "accepted outside Git; D3D8 wrapper loaded in the Twills process with D3D11 feature level 11.0, 2048 MB VRAM, 16x AF, and 4x MSAA",
       "initialBackend": "Direct3D11 feature level 11.0",
       "gitSafe": false
     },
@@ -81,7 +90,15 @@
       "source": "https://reshade.me/",
       "sha256": "56791fd065358e899c581ebefe2ad871399b7c7ae83fb85e1154c08a75a44147",
       "signerThumbprint": "589690208A5E52FB96980C4A6698F50ACD47C49F",
-      "state": "installed outside Git with valid shader paths and zero enabled techniques; full Mochirii and preset acceptance pending",
+      "state": "accepted outside Git; DXGI injection loaded in the Twills process and all ten installed shaders compile without errors",
+      "gitSafe": false
+    },
+    {
+      "name": "Vibrant Vana'diel",
+      "version": "All in One",
+      "source": "https://www.nexusmods.com/finalfantasy11/mods/2",
+      "sha256": "ce3fb3e7fd62c56d1efe94daa2a03407c846b5a42398f3ce671de6e2daa33158",
+      "installation": "ReShade preset with Vignette, MagicBloom, MultiLUT, and AdaptiveSharpen enabled; UIMask disabled",
       "gitSafe": false
     }
   ],
@@ -95,6 +112,7 @@
       "Mochirii-MissionRankUps",
       "XITide-Nameplates",
       "Remapster-Maps-2048",
+      "Jasmint-HD",
       "NextHD-Selected",
       "AshenbubsHD-July2026-Candidate",
       "AshenbubsHD-Prime",
@@ -107,30 +125,29 @@
       "Mochirii-MissionRankUps": 45,
       "XITide-Nameplates": 1,
       "Remapster-Maps-2048": 402,
+      "Jasmint-HD": 80,
       "NextHD-Selected": 421,
       "AshenbubsHD-July2026-Candidate": 15,
       "AshenbubsHD-Prime": 35495,
       "Legacy-Community-Unique": 184
     },
     "totalUniquePaths": 36516,
-    "intentionalCollisions": 86,
+    "intentionalCollisions": 166,
     "unexplainedCollisions": 0,
-    "runtimeCollisionReport": "C:/Github Repo's/FFXI/Runtime/manifests/xipivot-overlay-collisions-final-20260714-160358.json",
+    "runtimeCollisionReport": "C:/Github Repo's/FFXI/Runtime/manifests/xipivot-overlay-collisions-current.json",
     "legacySourceBackupSha256": "5c060861ec9f84ccbb087df08c869de8b672756537d18c76e610d5c45e2bfd06",
     "trackedSettings": "restore/windower-golden-state/addons/XIPivot/data/settings.xml"
   },
   "directClientReplacementExceptions": [
     "XIView v2.5.3 widescreen"
   ],
-  "pendingAuthenticatedSources": [
-    "Jasmint HD Player Characters Compilation",
-    "Vibrant Vana'diel"
-  ],
+  "pendingAuthenticatedSources": [],
   "notes": [
     "XIView owns all four early-loaded direct UI DATs, including ROM/119/51.DAT.",
     "XITide contributes only ROM/91/15.DAT through XIPivot so XIView master stars and menus remain intact.",
     "The old ALL-Dat-Mods directory was archived and replaced by Legacy-Community-Unique after collision analysis.",
-    "The July Ashenbubs payload remains an isolated candidate overlay until its one changed and fourteen new files pass the full soak.",
-    "Jasmint is reserved above Remapster when its authenticated archive is available; Vibrant Vana'diel is deferred until ReShade is stable."
+    "The July Ashenbubs payload remains an isolated candidate overlay while its one changed and fourteen new files receive continuing visual review.",
+    "Jasmint intentionally owns 80 character-texture collisions above Ashenbubs Prime.",
+    "Vibrant Vana'diel uses the accepted Mochirii Standard preset; MAGICBLOOM_NODIRT=1 removes its unused lens-dirt texture dependency."
   ]
 }
