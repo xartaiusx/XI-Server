@@ -136,7 +136,10 @@ commandObj.onTrigger = function(player, operation, mode)
             player,
             '[INFO] Gear repair is audit-only in this gate. Run supported-item, 16-slot, augment, inventory, and model validation before a later explicit apply.'
         )
-    elseif operation == 'gear' and mode == '--apply' then
+    elseif
+        operation == 'gear' and
+        mode == '--apply'
+    then
         if type(xi.twills_admin.repairGear) ~= 'function' then
             printLine(player, '[FIX] Supported gear repair helper is unavailable.')
             return

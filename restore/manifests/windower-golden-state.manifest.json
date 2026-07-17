@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-17T09:19:48Z",
+  "generatedAt": "2026-07-17T09:34:10Z",
   "trackedGoldenStateRoot": "restore/windower-golden-state",
   "trackedFiles": [
     {
@@ -95,8 +95,8 @@
     },
     {
       "relativePath": "addons/xivhotbar/lib/ui.lua",
-      "bytes": 36648,
-      "sha256": "3c354e8bf08f20188777e47ea24682677558e3e1ca65c1f800b867d2278deeb0"
+      "bytes": 38896,
+      "sha256": "36b84cbcb6f849402ea6aef71fd9265fda79e383556b0f903b1e9caf3b7d9dab"
     },
     {
       "relativePath": "addons/xivhotbar/xivhotbar.lua",
