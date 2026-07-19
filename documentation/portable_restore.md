@@ -95,7 +95,10 @@ Mochirii-GeoBubblesClear,Mochirii-BardNotesHD,Mochirii-LevelMeritJobPoints,Mochi
 XIView v2.5.3 widescreen is a four-file direct replacement exception. XITide is
 not a direct replacement: only its nameplate DAT is active through XIPivot. The
 full old `ALL-Dat-Mods` source is retained only as a hash-verified external
-rollback archive; its 184 unique files are the active legacy layer.
+rollback archive; 169 addressable DATs are the active legacy layer. Twelve
+alternative/backup paths and the four XIView-owned active-overlay copies are
+preserved in the 2026-07-18 hash-recorded runtime rollback set rather than the
+live XIPivot tree. NextGames HD therefore contributes 420 active DATs.
 
 Jasmint HD 0.3.0 contributes 80 declared character-texture overrides through
 XIPivot. dgVoodoo2 v2.87.3, ReShade v6.7.3, and the Vibrant Vana'diel Mochirii
@@ -123,7 +126,15 @@ ownership, renderer gates, and the current evidence paths.
 
 Before pushing restore work, run:
 
+From Windows PowerShell, run the client-only graphics audit against the
+canonical installation and runtime evidence using the full fail-closed command
+in `documentation/client_graphics_stack.md`. The audit deliberately refuses to
+run under WSL so Windows paths cannot become bogus repo-relative outputs.
+
+Then run the portable/server checks from WSL:
+
 ```bash
+python3 -m unittest discover -s tools/mochirii/tests -p "test_*.py"
 python3 tools/mochirii/portable_restore/verify_restore.py --repo-root . --check-manifests
 bash -n tools/mochirii/portable_restore/restore_garuda.sh
 git diff --check

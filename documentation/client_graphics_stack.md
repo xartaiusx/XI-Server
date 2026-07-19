@@ -44,14 +44,45 @@ first-hit order is:
 10. `AshenbubsHD-Prime`
 11. `Legacy-Community-Unique`
 
-The 2026-07-17 collision audit reports 36,516 unique paths, 166 intentional
-collisions, and zero unexplained collisions. All 80 Jasmint DATs intentionally
+The 2026-07-18 collision and provenance audit reports 36,500 unique addressable
+DAT paths, 166 intentional collisions, and zero unexplained collisions. All 80
+Jasmint DATs intentionally
 override only the corresponding Ashenbubs Prime character textures; no higher
 layer shadows Jasmint. `ALL-Dat-Mods` is retired: its
-complete archive is hash-verified in runtime backup storage, while only its 184
-unique files remain active. NextGames HD is curated to 421 files that do not
-collide with Prime. The July Ashenbubs candidate contains one changed and
-fourteen new files relative to Prime and remains isolated until soak acceptance.
+complete archive is hash-verified in runtime backup storage, while only its 169
+addressable files remain active. Twelve alternative/backup paths and four
+XIView-owned copies were moved to hash-recorded runtime rollback storage,
+including NextGames HD's `ROM/119/57.DAT`. NextGames HD is therefore curated to
+420 files. The dormant `XiView-Widescreen` layer
+is kept under XIPivot's `_inactive` container. The July Ashenbubs candidate
+contains one changed and fourteen new files relative to Prime and remains
+isolated until soak acceptance.
+
+The tracked contract in
+`restore/manifests/client-graphics-gates.manifest.json` pins the exact overlay
+order, addressable DAT counts, per-overlay tree hashes, allowed collision
+chains, source provenance, XIView direct-DAT ownership, and renderer rollback
+gates. Regenerate the runtime-only JSON and real-tab TSV reports with:
+
+```powershell
+python tools\mochirii\client_graphics_audit.py `
+  --repo-root . `
+  --verify-source-artifacts `
+  --proof-metadata "xipivot=C:\Github Repo's\FFXI\Runtime\manifests\graphics-gate-xipivot-all-overlays-20260718-1917.json" `
+  --proof-metadata "jasmint=C:\Github Repo's\FFXI\Runtime\manifests\graphics-gate-jasmint-20260718-1908.json" `
+  --proof-metadata "remapster=C:\Github Repo's\FFXI\Runtime\manifests\graphics-gate-remapster-20260718-1909.json" `
+  --proof-metadata "dgvoodoo2=C:\Github Repo's\FFXI\Runtime\manifests\graphics-gate-dgvoodoo2-20260718-1912.json" `
+  --proof-metadata "reshade=C:\Github Repo's\FFXI\Runtime\manifests\graphics-gate-reshade-20260718-1912.json" `
+  --require-native-proofs `
+  --output-json "C:\Github Repo's\FFXI\Runtime\manifests\client-graphics-audit-current.json" `
+  --output-tsv "C:\Github Repo's\FFXI\Runtime\manifests\client-graphics-audit-current.tsv"
+```
+
+The canonical current report fails closed unless source archives are rehashed
+and distinct, session-correlated Windower-native evidence passes for XIPivot,
+Jasmint, Remapster, dgVoodoo2, and ReShade. It proves configured first-hit
+ownership and the declared visual gates, not that the client requested every
+DAT.
 
 ## Windower Baseline
 
@@ -133,6 +164,25 @@ renderer pass proved:
 
 Runtime evidence includes:
 
+- `manifests/client-graphics-audit-current.json`
+- `manifests/client-graphics-audit-current.tsv`
+- `manifests/xipivot-ownership-move-20260718-184536.json`
+- `manifests/jasmint-rollback-20260718.json`
+- `manifests/remapster-rollback-20260718.json`
+- `manifests/reshade-removal-rollback-20260718.json`
+- `manifests/renderer-session-gate-20260718-1912.json`
+- `manifests/graphics-gate-xipivot-all-overlays-20260718-1917.json`
+- `manifests/graphics-gate-jasmint-20260718-1908.json`
+- `manifests/graphics-gate-remapster-20260718-1909.json`
+- `manifests/graphics-gate-dgvoodoo2-20260718-1912.json`
+- `manifests/graphics-gate-reshade-20260718-1912.json`
+- `manifests/graphics-bridge-v12-smoke-20260718-2013.json`
+- `screenshots/graphics-gate-xipivot-all-overlays-20260718-1917.jpg`
+- `screenshots/graphics-gate-jasmint-20260718-1908.jpg`
+- `screenshots/graphics-gate-remapster-20260718-1909.jpg`
+- `screenshots/graphics-gate-dgvoodoo2-20260718-1912.jpg`
+- `screenshots/graphics-gate-reshade-20260718-1912.jpg`
+- `screenshots/graphics-bridge-v12-smoke-20260718-2013.jpg`
 - `manifests/xiview-direct-post-update-20260714-155354.json`
 - `manifests/xipivot-active-overlays-current.json`
 - `manifests/xipivot-overlay-collisions-current.json`
