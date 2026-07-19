@@ -1,10 +1,15 @@
 param(
     [string] $OutputPath = (Join-Path $PWD 'windower-native-screenshot.jpg'),
+    [string] $MetadataPath,
+    [ValidateSet('xipivot', 'jasmint', 'remapster', 'dgvoodoo2', 'reshade')]
+    [string] $EvidenceGate,
     [ValidateSet('jpg', 'png', 'bmp')]
     [string] $Format = 'jpg',
     [switch] $HideWindowerObjects,
     [switch] $RequireForeground,
+    [ValidateRange(1, 100)]
     [int] $MinimumClientCoveragePercent = 95,
+    [ValidateRange(1, 120)]
     [int] $TimeoutSeconds = 12
 )
 
@@ -15,6 +20,87 @@ $commandScript = Join-Path $PSScriptRoot 'Invoke-WindowerCommand.ps1'
 $windowerRoot = 'D:\Steam\steamapps\common\FFXINA\Windower'
 $screenshotRoot = Join-Path $windowerRoot 'screenshots'
 $triggerPath = "C:\Github Repo's\FFXI\Runtime\screenshots\native_screenshot_request.txt"
+$screenshotAckRoot = "C:\Github Repo's\FFXI\Runtime\screenshots\native-screenshot-acks"
+$runtimeManifestRoot = "C:\Github Repo's\FFXI\Runtime\manifests"
+$runtimeScreenshotRoot = "C:\Github Repo's\FFXI\Runtime\screenshots"
+$ackPath = $null
+$previousForegroundHandle = [IntPtr]::Zero
+$previousForegroundRestored = $false
+
+function Assert-MochiriiContainedWritePath
+{
+    param(
+        [string] $Candidate,
+        [string] $Root
+    )
+
+    $candidateFull = [System.IO.Path]::GetFullPath($Candidate)
+    $rootBase = [System.IO.Path]::GetFullPath($Root).TrimEnd('\')
+    $rootPrefix = $rootBase + '\'
+    if (-not $candidateFull.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase))
+    {
+        throw "Evidence path escaped its canonical root: $Candidate"
+    }
+
+    $relative = $candidateFull.Substring($rootPrefix.Length)
+    if ($relative -match ':')
+    {
+        throw "Evidence paths may not use alternate data streams: $Candidate"
+    }
+
+    $rootItem = Get-Item -LiteralPath $rootBase -Force
+    if (($rootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)
+    {
+        throw "Evidence root may not be a reparse point: $rootBase"
+    }
+
+    $current = $rootBase
+    foreach ($component in ($relative -split '[\\/]' | Where-Object { $_ }))
+    {
+        $current = Join-Path $current $component
+        if (-not (Test-Path -LiteralPath $current))
+        {
+            break
+        }
+        $item = Get-Item -LiteralPath $current -Force
+        if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)
+        {
+            throw "Evidence path may not traverse a reparse point: $current"
+        }
+    }
+
+    return $candidateFull
+}
+
+if ($MetadataPath)
+{
+    if (-not $EvidenceGate)
+    {
+        throw 'EvidenceGate is required whenever MetadataPath is used.'
+    }
+
+    $MetadataPath = Assert-MochiriiContainedWritePath -Candidate $MetadataPath -Root $runtimeManifestRoot
+    $OutputPath = Assert-MochiriiContainedWritePath -Candidate $OutputPath -Root $runtimeScreenshotRoot
+    if ([System.IO.Path]::GetExtension($MetadataPath) -ine '.json')
+    {
+        throw 'MetadataPath must be a JSON file under the canonical Runtime\manifests directory.'
+    }
+    if ($MetadataPath -ieq $OutputPath)
+    {
+        throw 'MetadataPath and OutputPath must be distinct.'
+    }
+}
+
+$captureMutex = New-Object System.Threading.Mutex($false, 'Local\MochiriiNativeScreenshotCapture')
+$mutexAcquired = $false
+
+try
+{
+    $mutexAcquired = $captureMutex.WaitOne(0)
+    if (-not $mutexAcquired)
+    {
+        throw 'Another native Windower screenshot capture is already running.'
+    }
 
 if ($RequireForeground -and -not (Test-Path -LiteralPath $assertScript))
 {
@@ -27,6 +113,7 @@ if (-not (Test-Path -LiteralPath $commandScript))
 }
 
 New-Item -ItemType Directory -Force -Path $screenshotRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $screenshotAckRoot | Out-Null
 
 Add-Type -TypeDefinition @'
 using System;
@@ -133,6 +220,10 @@ if ($null -eq $targetWindow)
     throw 'Could not find a Windower/xiloader/Final Fantasy XI client window to foreground for native screenshot.'
 }
 
+$clientProcessStartedAtUtc = $targetWindow.StartTime.ToUniversalTime()
+$clientProcessStartedAtOffset = [DateTimeOffset]$clientProcessStartedAtUtc
+$sessionId = 'windower-{0}-{1}' -f $targetWindow.Id, $clientProcessStartedAtOffset.ToUnixTimeMilliseconds()
+
 if ($RequireForeground)
 {
     [void][MochiriiNativeScreenshotFocus]::ShowWindow($targetWindow.MainWindowHandle, 9)
@@ -145,14 +236,14 @@ if ($RequireForeground)
         Start-Sleep -Milliseconds 250
 
         $preCheck = Get-MochiriiForegroundSnapshot
-        if ($preCheck.IsWindowerClient)
+        if ($preCheck.IsWindowerClient -and $preCheck.ProcessId -eq $targetWindow.Id)
         {
             break
         }
     }
 
     $focusCheck = Get-MochiriiForegroundSnapshot
-    if (-not $focusCheck.IsWindowerClient)
+    if (-not $focusCheck.IsWindowerClient -or $focusCheck.ProcessId -ne $targetWindow.Id)
     {
         $focusCheck | ConvertTo-Json -Compress | Write-Output
         throw 'Refusing screenshot: Windower/xiloader is not the foreground client.'
@@ -166,7 +257,6 @@ function Restore-MochiriiForegroundWindow
     param([IntPtr] $Handle)
 
     if (
-        $RequireForeground -or
         $Handle -eq [IntPtr]::Zero -or
         -not [MochiriiNativeScreenshotFocus]::IsWindow($Handle)
     )
@@ -250,6 +340,10 @@ if ([System.IO.Path]::GetExtension($OutputPath).ToLowerInvariant() -ne $extensio
 {
     $OutputPath = [System.IO.Path]::ChangeExtension($OutputPath, $Format)
 }
+if ($MetadataPath)
+{
+    $OutputPath = Assert-MochiriiContainedWritePath -Candidate $OutputPath -Root $runtimeScreenshotRoot
+}
 
 $before = @{}
 Get-ChildItem -LiteralPath $screenshotRoot -Recurse -File -ErrorAction SilentlyContinue |
@@ -286,8 +380,10 @@ $requestDirectory = Split-Path -Parent $triggerPath
 New-Item -ItemType Directory -Force -Path $requestDirectory | Out-Null
 $requestTimeUtc = (Get-Date).ToUniversalTime()
 $requestId = [Guid]::NewGuid().ToString('N')
+$ackPath = Join-Path $screenshotAckRoot "$requestId.txt"
 $request = "id=$requestId`nformat=$Format`nhide=$([bool]$HideWindowerObjects)"
 Remove-Item -LiteralPath $triggerPath -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $ackPath -Force -ErrorAction SilentlyContinue
 Set-Content -LiteralPath $triggerPath -Value $request -Encoding ASCII
 
 $deadline = (Get-Date).AddSeconds([Math]::Max(1, $TimeoutSeconds))
@@ -295,16 +391,21 @@ $nativeScreenshot = $null
 do
 {
     Start-Sleep -Milliseconds 350
-    $nativeScreenshot = Get-NativeScreenshotCandidate -SinceUtc $requestTimeUtc -Seen $before -Root $screenshotRoot -Extension $extension
+    $candidate = Get-NativeScreenshotCandidate -SinceUtc $requestTimeUtc -Seen $before -Root $screenshotRoot -Extension $extension
+    if ($null -ne $candidate -and (Test-Path -LiteralPath $ackPath) -and (Get-Content -Raw -LiteralPath $ackPath).Trim() -eq $requestId)
+    {
+        $nativeScreenshot = $candidate
+    }
 } while ($null -eq $nativeScreenshot -and (Get-Date) -lt $deadline)
 
 if ($null -eq $nativeScreenshot)
 {
-    # Most Mochirii sessions autoload the bridge from Windower\scripts\init.txt.
-    # If this session does not have it yet, load it once as a fallback and retry.
+    # Mochirii sessions autoload the bridge from Windower\scripts\init.txt.
+    # Reload once so a session that predates a helper update cannot keep using
+    # an unacknowledged screenshot protocol.
     try
     {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $commandScript -Text '//lua load MochiriiScreenshotQA'
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $commandScript -Text '//lua reload MochiriiScreenshotQA'
         if ($LASTEXITCODE -ne 0)
         {
             throw "Background addon-load request failed with exit code $LASTEXITCODE."
@@ -312,20 +413,26 @@ if ($null -eq $nativeScreenshot)
     }
     catch
     {
-        throw 'Could not load MochiriiScreenshotQA in Windower.'
+        throw 'Could not reload MochiriiScreenshotQA in Windower.'
     }
 
     $requestTimeUtc = (Get-Date).ToUniversalTime()
     $requestId = [Guid]::NewGuid().ToString('N')
+    $ackPath = Join-Path $screenshotAckRoot "$requestId.txt"
     $request = "id=$requestId`nformat=$Format`nhide=$([bool]$HideWindowerObjects)"
     Remove-Item -LiteralPath $triggerPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $ackPath -Force -ErrorAction SilentlyContinue
     Set-Content -LiteralPath $triggerPath -Value $request -Encoding ASCII
     $deadline = (Get-Date).AddSeconds([Math]::Max(1, $TimeoutSeconds))
 
     do
     {
         Start-Sleep -Milliseconds 350
-        $nativeScreenshot = Get-NativeScreenshotCandidate -SinceUtc $requestTimeUtc -Seen $before -Root $screenshotRoot -Extension $extension
+        $candidate = Get-NativeScreenshotCandidate -SinceUtc $requestTimeUtc -Seen $before -Root $screenshotRoot -Extension $extension
+        if ($null -ne $candidate -and (Test-Path -LiteralPath $ackPath) -and (Get-Content -Raw -LiteralPath $ackPath).Trim() -eq $requestId)
+        {
+            $nativeScreenshot = $candidate
+        }
     } while ($null -eq $nativeScreenshot -and (Get-Date) -lt $deadline)
 
     if ($null -eq $nativeScreenshot)
@@ -390,9 +497,14 @@ if ($OutputPath)
 }
 
 $previousForegroundRestored = Restore-MochiriiForegroundWindow -Handle $previousForegroundHandle
+$evidencePath = if ($copiedPath) { $copiedPath } else { $nativeScreenshot.FullName }
+$screenshotSha256 = (Get-FileHash -LiteralPath $evidencePath -Algorithm SHA256).Hash.ToLowerInvariant()
+$capturedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+$nativeLastWriteTimeUtc = [DateTimeOffset]$nativeScreenshot.LastWriteTimeUtc
 
-[pscustomobject]@{
+$result = [pscustomobject]@{
     CaptureMode = 'WindowerNativeScreenshot'
+    CaptureBridgeVersion = '1.2.0'
     ControlMode = if ($RequireForeground) { 'ForegroundBridge' } else { 'BackgroundBridge' }
     ForegroundRequired = [bool]$RequireForeground
     PreviousForegroundRestored = [bool]$previousForegroundRestored
@@ -408,4 +520,63 @@ $previousForegroundRestored = Restore-MochiriiForegroundWindow -Handle $previous
     WindowDpi = $windowDpi
     MinimumClientCoveragePercent = $MinimumClientCoveragePercent
     HideWindowerObjects = [bool]$HideWindowerObjects
-} | Format-List
+    EvidenceGate = $EvidenceGate
+    SessionId = $sessionId
+    ClientProcessId = $targetWindow.Id
+    ClientProcessName = $targetWindow.ProcessName
+    ClientProcessStartedAtUtc = $clientProcessStartedAtOffset.ToString('o')
+    RequestId = $requestId
+    RequestAcknowledged = $true
+    CapturedAtUtc = $capturedAtUtc
+    NativeLastWriteTimeUtc = $nativeLastWriteTimeUtc.ToString('o')
+    ScreenshotSha256 = $screenshotSha256
+    MetadataPath = $MetadataPath
+}
+
+if ($MetadataPath)
+{
+    $metadataDirectory = Split-Path -Parent $MetadataPath
+    if ($metadataDirectory)
+    {
+        New-Item -ItemType Directory -Force -Path $metadataDirectory | Out-Null
+    }
+
+    $temporaryMetadataPath = Join-Path $metadataDirectory ('.{0}.{1}.tmp' -f ([System.IO.Path]::GetFileName($MetadataPath)), [Guid]::NewGuid().ToString('N'))
+    $metadataJson = ($result | ConvertTo-Json -Depth 4) + [Environment]::NewLine
+    try
+    {
+        [System.IO.File]::WriteAllText($temporaryMetadataPath, $metadataJson, (New-Object System.Text.UTF8Encoding($false)))
+        Move-Item -LiteralPath $temporaryMetadataPath -Destination $MetadataPath -Force
+    }
+    finally
+    {
+        Remove-Item -LiteralPath $temporaryMetadataPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
+$result | Format-List
+}
+finally
+{
+    Remove-Item -LiteralPath $triggerPath -Force -ErrorAction SilentlyContinue
+    if ($ackPath)
+    {
+        Remove-Item -LiteralPath $ackPath -Force -ErrorAction SilentlyContinue
+    }
+    if (-not $previousForegroundRestored -and $previousForegroundHandle -ne [IntPtr]::Zero)
+    {
+        try
+        {
+            $previousForegroundRestored = Restore-MochiriiForegroundWindow -Handle $previousForegroundHandle
+        }
+        catch
+        {
+            Write-Warning "Could not restore the previous foreground window: $($_.Exception.Message)"
+        }
+    }
+    if ($mutexAcquired)
+    {
+        [void]$captureMutex.ReleaseMutex()
+    }
+    $captureMutex.Dispose()
+}

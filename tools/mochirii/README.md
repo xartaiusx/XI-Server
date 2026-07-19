@@ -22,6 +22,28 @@ Windower screenshots are the permanent Mochirii client QA standard because they
 capture the actual game client output without Codex, desktop, or window-manager
 overlap.
 
+For a graphics-stack preflight, run `client_graphics_audit.py` with distinct
+`client-graphics-audit-static.*` output names before launching the client. It
+verifies the tracked overlay order, addressable DAT-only counts, per-overlay
+tree hashes, exact first-hit collision chains, source provenance, XIView
+direct-DAT ownership and rollback hashes, and renderer files/rollback artifacts.
+Regenerate the canonical `client-graphics-audit-current.*` files only with the
+full source-hash and native-proof command in
+`documentation/client_graphics_stack.md`. JSON and TSV outputs belong under
+`C:\Github Repo's\FFXI\Runtime\manifests`, never Git. The TSV is emitted with
+real tab delimiters.
+
+When collecting each native graphics gate, pass its `-EvidenceGate`, a distinct
+`-MetadataPath` under `Runtime\manifests`, and an `-OutputPath` under
+`Runtime\screenshots` to `capture_windower_window.ps1`. Version 1.2 serializes
+captures and records an acknowledged request id, exact gate, client process
+session, native/copy timestamps, decoded dimensions, restored-foreground
+result, paths, and SHA-256 values that `client_graphics_audit.py
+--proof-metadata gate=path --require-native-proofs` validates. Static
+configured-first-hit ownership and a native runtime screenshot are complementary
+evidence; neither is represented as proof that all 36,500 DATs were requested
+in one session.
+
 The source copy for the Windower-side bridge is kept at
 `tools\mochirii\windower_addons\MochiriiScreenshotQA\MochiriiScreenshotQA.lua`
 and installed into `Windower\addons\MochiriiScreenshotQA`.
@@ -114,6 +136,11 @@ client is the active foreground window, clear stale chat/menu input unless
 before typing. A successful run means Windows sent keys to the foreground client,
 not that Final Fantasy XI accepted or ran the command. Verify command results
 with a Windower-native screenshot and matching server/Windower logs.
+Named fallback keys include `numpad_add` and `numpad_subtract` for temporarily
+expanding or restoring the native FFXI chat log when a multi-line addon status
+cannot fit in the normal log height. Preserve the prior foreground application
+and restore the normal log height immediately after capturing the required
+native evidence.
 
 ## Trust Parity Audit
 

@@ -1,12 +1,13 @@
 _addon.name = 'MochiriiScreenshotQA'
 _addon.author = 'Mochirii'
-_addon.version = '1.1.0'
+_addon.version = '1.2.0'
 _addon.commands = { 'mochiriiscreenshotqa', 'mscreenshotqa' }
 
 local json = require('json')
 local resources = require('resources')
 
 local trigger_path = 'C:/Github Repo\'s/FFXI/Runtime/screenshots/native_screenshot_request.txt'
+local screenshot_ack_root = 'C:/Github Repo\'s/FFXI/Runtime/screenshots/native-screenshot-acks'
 local client_tools_path = 'C:/Github Repo\'s/FFXI/Runtime/client-tools'
 local legacy_command_path = client_tools_path .. '/windower_command_request.txt'
 local command_bridge_path = client_tools_path .. '/windower-command-bridge'
@@ -69,6 +70,12 @@ local function read_request(path)
 end
 
 local function run_screenshot_request(request)
+    local request_id = request:match('id=([0-9a-f]+)')
+    if request_id == nil or #request_id ~= 32 then
+        windower.add_to_chat(167, 'MochiriiScreenshotQA: screenshot rejected: invalid request id')
+        return
+    end
+
     local format = request:match('format=(%a+)') or 'jpg'
     format = format:lower()
 
@@ -84,6 +91,14 @@ local function run_screenshot_request(request)
 
     windower.add_to_chat(207, 'MochiriiScreenshotQA: ' .. command)
     windower.send_command(command)
+
+    local ack_handle = io.open(screenshot_ack_root .. '/' .. request_id .. '.txt', 'w')
+    if not ack_handle then
+        windower.add_to_chat(167, 'MochiriiScreenshotQA: screenshot acknowledgement write failed')
+        return
+    end
+    ack_handle:write(request_id)
+    ack_handle:close()
 end
 
 local function clean_cell(value)

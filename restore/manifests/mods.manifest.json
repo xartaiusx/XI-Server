@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 2,
-  "generatedAt": "2026-07-17T01:55:00-07:00",
+  "schemaVersion": 3,
+  "generatedAt": "2026-07-18T19:00:00-07:00",
   "policy": "Reacquire external client assets from their recorded sources and verify hashes. Archives, DATs, DLLs, installers, screenshots, and proprietary assets never enter Git.",
   "downloads": [
     {
@@ -47,7 +47,7 @@
       "version": "1.0 curated selection",
       "source": "https://www.nexusmods.com/finalfantasy11/mods/12",
       "sha256": "e3bb9bf0a7cf4136390bda5476462a14be508877cb1603f6caa2ad629f02af5f",
-      "selectedFiles": 421,
+      "selectedFiles": 420,
       "gitSafe": false
     },
     {
@@ -126,15 +126,16 @@
       "XITide-Nameplates": 1,
       "Remapster-Maps-2048": 402,
       "Jasmint-HD": 80,
-      "NextHD-Selected": 421,
+      "NextHD-Selected": 420,
       "AshenbubsHD-July2026-Candidate": 15,
       "AshenbubsHD-Prime": 35495,
-      "Legacy-Community-Unique": 184
+      "Legacy-Community-Unique": 169
     },
-    "totalUniquePaths": 36516,
+    "totalUniquePaths": 36500,
     "intentionalCollisions": 166,
     "unexplainedCollisions": 0,
-    "runtimeCollisionReport": "C:/Github Repo's/FFXI/Runtime/manifests/xipivot-overlay-collisions-current.json",
+    "runtimeCollisionReport": "C:/Github Repo's/FFXI/Runtime/manifests/client-graphics-audit-current.json",
+    "graphicsGateManifest": "restore/manifests/client-graphics-gates.manifest.json",
     "legacySourceBackupSha256": "5c060861ec9f84ccbb087df08c869de8b672756537d18c76e610d5c45e2bfd06",
     "trackedSettings": "restore/windower-golden-state/addons/XIPivot/data/settings.xml"
   },
@@ -143,9 +144,9 @@
   ],
   "pendingAuthenticatedSources": [],
   "notes": [
-    "XIView owns all four early-loaded direct UI DATs, including ROM/119/51.DAT.",
+    "XIView owns all four early-loaded direct UI DATs, including ROM/119/51.DAT; duplicate copies were removed from active overlays into hash-recorded runtime rollback storage.",
     "XITide contributes only ROM/91/15.DAT through XIPivot so XIView master stars and menus remain intact.",
-    "The old ALL-Dat-Mods directory was archived and replaced by Legacy-Community-Unique after collision analysis.",
+    "The old ALL-Dat-Mods directory was archived and replaced by 169 addressable Legacy-Community-Unique DATs after collision and ownership analysis; backup/alternative paths remain only in runtime rollback storage.",
     "The July Ashenbubs payload remains an isolated candidate overlay while its one changed and fourteen new files receive continuing visual review.",
     "Jasmint intentionally owns 80 character-texture collisions above Ashenbubs Prime.",
     "Vibrant Vana'diel uses the accepted Mochirii Standard preset; MAGICBLOOM_NODIRT=1 removes its unused lens-dirt texture dependency."

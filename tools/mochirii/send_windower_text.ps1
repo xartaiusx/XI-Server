@@ -7,7 +7,9 @@ param(
     [switch] $NoClearInputBefore,
     [string[]] $KeySequence = @(),
     [switch] $KeepForeground,
+    [ValidateRange(0, 20)]
     [int] $EscapeCount = 0,
+    [ValidateRange(1, 1000)]
     [int] $KeyDelayMs = 35
 )
 
@@ -21,6 +23,14 @@ if ($normalizedText -match '^/attack$')
 
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $assertScript = Join-Path $PSScriptRoot 'assert_windower_foreground.ps1'
+$validNamedKeys = @('enter', 'return', 'tab', 'escape', 'esc', 'space', 'left', 'up', 'right', 'down', 'add', 'numpad_add', 'subtract', 'numpad_subtract')
+foreach ($keyName in $KeySequence)
+{
+    if ($validNamedKeys -notcontains $keyName.Trim().ToLowerInvariant())
+    {
+        throw "Unsupported named key '$keyName'."
+    }
+}
 
 Add-Type -TypeDefinition @'
 using System;
@@ -106,49 +116,10 @@ if ($targetWindow -eq $null)
     throw 'Could not find a Windower/xiloader/Final Fantasy XI client window to foreground.'
 }
 
-$previousForegroundHandle = [MochiriiFocusWindow]::GetForegroundWindow()
-
-[void][MochiriiFocusWindow]::ShowWindow($targetWindow.MainWindowHandle, 9)
-Start-Sleep -Milliseconds 250
-for ($i = 0; $i -lt 8; $i++)
-{
-    $foregroundHandle = [MochiriiFocusWindow]::GetForegroundWindow()
-    $foregroundProcessId = 0
-    $targetProcessId = 0
-    $foregroundThreadId = [MochiriiFocusWindow]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundProcessId)
-    $targetThreadId = [MochiriiFocusWindow]::GetWindowThreadProcessId($targetWindow.MainWindowHandle, [ref]$targetProcessId)
-    $currentThreadId = [MochiriiFocusWindow]::GetCurrentThreadId()
-
-    if ($foregroundThreadId -ne 0) { [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $foregroundThreadId, $true) }
-    if ($targetThreadId -ne 0) { [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $targetThreadId, $true) }
-
-    [void][MochiriiFocusWindow]::BringWindowToTop($targetWindow.MainWindowHandle)
-    [void][MochiriiFocusWindow]::SetActiveWindow($targetWindow.MainWindowHandle)
-    [void][MochiriiFocusWindow]::SetForegroundWindow($targetWindow.MainWindowHandle)
-
-    if ($targetThreadId -ne 0) { [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $targetThreadId, $false) }
-    if ($foregroundThreadId -ne 0) { [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $foregroundThreadId, $false) }
-
-    Start-Sleep -Milliseconds 250
-
-    $focusCheck = Get-MochiriiForegroundSnapshot
-    if ($focusCheck.IsWindowerClient)
-    {
-        $focusCheck | ConvertTo-Json -Compress | Write-Output
-        break
-    }
-
-    if ($i -eq 7)
-    {
-        $focusCheck | ConvertTo-Json -Compress | Write-Output
-        exit 2
-    }
-}
-
 function Assert-MochiriiForeground
 {
     $focusCheck = Get-MochiriiForegroundSnapshot
-    if (-not $focusCheck.IsWindowerClient)
+    if (-not $focusCheck.IsWindowerClient -or $focusCheck.ProcessId -ne $targetWindow.Id)
     {
         $focusCheck | ConvertTo-Json -Compress | Write-Output
         throw 'Final Fantasy XI client lost foreground focus before command entry.'
@@ -291,6 +262,8 @@ public static class MochiriiSendInput
     public const ushort VK_UP = 0x26;
     public const ushort VK_RIGHT = 0x27;
     public const ushort VK_DOWN = 0x28;
+    public const ushort VK_ADD = 0x6B;
+    public const ushort VK_SUBTRACT = 0x6D;
 
     public static void Key(ushort vk, bool up)
     {
@@ -341,6 +314,10 @@ function Send-NamedKey([string] $name)
         'up'     { [MochiriiSendInput]::VK_UP; break }
         'right'  { [MochiriiSendInput]::VK_RIGHT; break }
         'down'   { [MochiriiSendInput]::VK_DOWN; break }
+        'add'    { [MochiriiSendInput]::VK_ADD; break }
+        'numpad_add' { [MochiriiSendInput]::VK_ADD; break }
+        'subtract' { [MochiriiSendInput]::VK_SUBTRACT; break }
+        'numpad_subtract' { [MochiriiSendInput]::VK_SUBTRACT; break }
         default  { throw "Unsupported named key '$name'." }
     }
 
@@ -358,16 +335,68 @@ function Send-TextChar([char] $ch)
     $vk = [uint16]($scan -band 0xff)
     $mods = ($scan -shr 8) -band 0xff
 
-    if (($mods -band 1) -ne 0) { [MochiriiSendInput]::Key([MochiriiSendInput]::VK_SHIFT, $false) }
-    if (($mods -band 2) -ne 0) { [MochiriiSendInput]::Key([MochiriiSendInput]::VK_CONTROL, $false) }
-    if (($mods -band 4) -ne 0) { [MochiriiSendInput]::Key([MochiriiSendInput]::VK_MENU, $false) }
+    try
+    {
+        if (($mods -band 1) -ne 0) { [MochiriiSendInput]::Key([MochiriiSendInput]::VK_SHIFT, $false) }
+        if (($mods -band 2) -ne 0) { [MochiriiSendInput]::Key([MochiriiSendInput]::VK_CONTROL, $false) }
+        if (($mods -band 4) -ne 0) { [MochiriiSendInput]::Key([MochiriiSendInput]::VK_MENU, $false) }
 
-    Send-Key $vk
-
-    if (($mods -band 4) -ne 0) { [MochiriiSendInput]::Key([MochiriiSendInput]::VK_MENU, $true) }
-    if (($mods -band 2) -ne 0) { [MochiriiSendInput]::Key([MochiriiSendInput]::VK_CONTROL, $true) }
-    if (($mods -band 1) -ne 0) { [MochiriiSendInput]::Key([MochiriiSendInput]::VK_SHIFT, $true) }
+        Send-Key $vk
+    }
+    finally
+    {
+        if (($mods -band 4) -ne 0) { [MochiriiSendInput]::Key([MochiriiSendInput]::VK_MENU, $true) }
+        if (($mods -band 2) -ne 0) { [MochiriiSendInput]::Key([MochiriiSendInput]::VK_CONTROL, $true) }
+        if (($mods -band 1) -ne 0) { [MochiriiSendInput]::Key([MochiriiSendInput]::VK_SHIFT, $true) }
+    }
 }
+
+$previousForegroundHandle = [MochiriiFocusWindow]::GetForegroundWindow()
+$previousForegroundRestored = $false
+$finalClientFocus = $null
+
+try
+{
+    [void][MochiriiFocusWindow]::ShowWindow($targetWindow.MainWindowHandle, 9)
+    Start-Sleep -Milliseconds 250
+    for ($i = 0; $i -lt 8; $i++)
+    {
+        $foregroundHandle = [MochiriiFocusWindow]::GetForegroundWindow()
+        $foregroundProcessId = 0
+        $targetProcessId = 0
+        $foregroundThreadId = [MochiriiFocusWindow]::GetWindowThreadProcessId($foregroundHandle, [ref]$foregroundProcessId)
+        $targetThreadId = [MochiriiFocusWindow]::GetWindowThreadProcessId($targetWindow.MainWindowHandle, [ref]$targetProcessId)
+        $currentThreadId = [MochiriiFocusWindow]::GetCurrentThreadId()
+
+        if ($foregroundThreadId -ne 0) { [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $foregroundThreadId, $true) }
+        if ($targetThreadId -ne 0) { [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $targetThreadId, $true) }
+
+        try
+        {
+            [void][MochiriiFocusWindow]::BringWindowToTop($targetWindow.MainWindowHandle)
+            [void][MochiriiFocusWindow]::SetActiveWindow($targetWindow.MainWindowHandle)
+            [void][MochiriiFocusWindow]::SetForegroundWindow($targetWindow.MainWindowHandle)
+        }
+        finally
+        {
+            if ($targetThreadId -ne 0) { [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $targetThreadId, $false) }
+            if ($foregroundThreadId -ne 0) { [void][MochiriiFocusWindow]::AttachThreadInput($currentThreadId, $foregroundThreadId, $false) }
+        }
+
+        Start-Sleep -Milliseconds 250
+        $focusCheck = Get-MochiriiForegroundSnapshot
+        if ($focusCheck.IsWindowerClient -and $focusCheck.ProcessId -eq $targetWindow.Id)
+        {
+            $focusCheck | ConvertTo-Json -Compress | Write-Output
+            break
+        }
+
+        if ($i -eq 7)
+        {
+            $focusCheck | ConvertTo-Json -Compress | Write-Output
+            throw 'Could not focus the selected Final Fantasy XI client window.'
+        }
+    }
 
 Assert-MochiriiForeground
 
@@ -418,7 +447,11 @@ foreach ($keyName in $KeySequence)
 
 Start-Sleep -Milliseconds 250
 $finalClientFocus = Get-MochiriiForegroundSnapshot
-$previousForegroundRestored = Restore-MochiriiPreviousForeground -Handle $previousForegroundHandle
+}
+finally
+{
+    $previousForegroundRestored = Restore-MochiriiPreviousForeground -Handle $previousForegroundHandle
+}
 
 [pscustomobject]@{
     Submitted                  = $true

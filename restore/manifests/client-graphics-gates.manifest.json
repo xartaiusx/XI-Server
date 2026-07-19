@@ -1,0 +1,268 @@
+{
+  "schemaVersion": 1,
+  "policy": "Client assets remain outside Git. Active XIPivot paths must be addressable DAT paths with a pinned overlay tree hash and declared source. First-hit collisions must match the exact owner/shadowed pair baseline. XIView direct-DAT paths may not also exist in an active XIPivot layer. Static hashes and rollback artifacts do not replace distinct Windower-native proof for each visual gate.",
+  "sourceManifestRelativePath": "manifests/client-mod-sources-current.json",
+  "nativeProofGates": [
+    "xipivot",
+    "jasmint",
+    "remapster",
+    "dgvoodoo2",
+    "reshade"
+  ],
+  "xipivot": {
+    "version": "Windower v0.4.7",
+    "resolutionRule": "The first configured overlay containing an addressable DAT path owns that path.",
+    "addonRootRelativePath": "Windower/addons/XIPivot",
+    "settingsRelativePath": "Windower/addons/XIPivot/data/settings.xml",
+    "trackedSettingsRelativePath": "restore/windower-golden-state/addons/XIPivot/data/settings.xml",
+    "datRootRelativePath": "Windower/addons/XIPivot/data/DATs",
+    "inactiveContainer": "_inactive",
+    "allowedInactiveOverlays": [
+      "XI-menu-music",
+      "XiView-Widescreen"
+    ],
+    "addonFiles": [
+      {
+        "relativePath": "XIPivot.lua",
+        "sha256": "615bc038efec88c56ce7b440debda6e17845392d9faceaee9b7e097127d92178"
+      },
+      {
+        "relativePath": "libs/_XIPivot.dll",
+        "sha256": "122054ced92a87f925cf93684fc6cd3b89a064d9ed63a256d58da9d7bf1755fb"
+      }
+    ],
+    "expectedLayerDatFiles": 36666,
+    "expectedUniqueDatPaths": 36500,
+    "expectedCollisionPaths": 166,
+    "overlays": [
+      {
+        "name": "Mochirii-GeoBubblesClear",
+        "expectedDatCount": 32,
+        "expectedTreeSha256": "6790742d38f4c68eb1d1d2491f08a259c74f0dc6d380ed319ae28bd049aadc1b",
+        "representativeDat": "ROM/289/56.DAT",
+        "source": {
+          "kind": "runtime-backup",
+          "name": "Retired ALL-Dat-Mods pre-split community collection",
+          "runtimeRelativePath": "backups/xipivot/ALL-Dat-Mods-pre-split-20260714-155918.7z",
+          "sha256": "5c060861ec9f84ccbb087df08c869de8b672756537d18c76e610d5c45e2bfd06",
+          "derivation": "Curated clear Geomancy bubble subset. Per-file upstream attribution is limited to the preserved community collection metadata."
+        }
+      },
+      {
+        "name": "Mochirii-BardNotesHD",
+        "expectedDatCount": 1,
+        "expectedTreeSha256": "d292258542b7c09cc685c1ebfbd908fd673f3753a5673115ed38010e7d33e696",
+        "representativeDat": "ROM/0/0.DAT",
+        "source": {
+          "kind": "runtime-backup",
+          "name": "Retired ALL-Dat-Mods pre-split community collection",
+          "runtimeRelativePath": "backups/xipivot/ALL-Dat-Mods-pre-split-20260714-155918.7z",
+          "sha256": "5c060861ec9f84ccbb087df08c869de8b672756537d18c76e610d5c45e2bfd06",
+          "derivation": "Curated Bard note-effect subset. Per-file upstream attribution is limited to the preserved community collection metadata."
+        }
+      },
+      {
+        "name": "Mochirii-LevelMeritJobPoints",
+        "expectedDatCount": 6,
+        "expectedTreeSha256": "0c9aa8e8ed621ac810b17d0ce89dc0c3dcf8ec7838d93538380920366dde6823",
+        "representativeDat": "ROM/13/35.DAT",
+        "source": {
+          "kind": "runtime-backup",
+          "name": "Retired ALL-Dat-Mods pre-split community collection",
+          "runtimeRelativePath": "backups/xipivot/ALL-Dat-Mods-pre-split-20260714-155918.7z",
+          "sha256": "5c060861ec9f84ccbb087df08c869de8b672756537d18c76e610d5c45e2bfd06",
+          "derivation": "Curated level, merit, and job-point effect subset. Per-file upstream attribution is limited to the preserved community collection metadata."
+        }
+      },
+      {
+        "name": "Mochirii-MissionRankUps",
+        "expectedDatCount": 45,
+        "expectedTreeSha256": "7ba7cdd49adaed59f23bc8423c6111620d5edfa56268b4dfcd5cdd44c31ffeae",
+        "representativeDat": "ROM/16/101.DAT",
+        "source": {
+          "kind": "runtime-backup",
+          "name": "Retired ALL-Dat-Mods pre-split community collection",
+          "runtimeRelativePath": "backups/xipivot/ALL-Dat-Mods-pre-split-20260714-155918.7z",
+          "sha256": "5c060861ec9f84ccbb087df08c869de8b672756537d18c76e610d5c45e2bfd06",
+          "derivation": "Curated three-nation mission rank-up effect subset. Per-file upstream attribution is limited to the preserved community collection metadata."
+        }
+      },
+      {
+        "name": "XITide-Nameplates",
+        "expectedDatCount": 1,
+        "expectedTreeSha256": "27d2032d0ca169bc83d5f580d06d9cf1f6f84894d1b73f567e5fce470e30a516",
+        "representativeDat": "ROM/91/15.DAT",
+        "source": {
+          "kind": "runtime-source-manifest",
+          "name": "XITide",
+          "sha256": "0d21382541eac9ec0c8b0552bf67ae7663817a245b1d44558ab638c4754007db",
+          "derivation": "Nameplate DAT only; XIView remains the direct owner for ROM/119/51.DAT."
+        }
+      },
+      {
+        "name": "Remapster-Maps-2048",
+        "expectedDatCount": 402,
+        "expectedTreeSha256": "780481b1b05e8196252f0d24636eca4f0d278b1d7c365261e62baf43956896b6",
+        "representativeDat": "ROM/169/9.DAT",
+        "source": {
+          "kind": "runtime-source-manifest",
+          "name": "Remapster",
+          "sha256": "855cef1153f514a934a8f25849e034afe4d464b7f2f2aa75aa609d4de0ef0b3d",
+          "derivation": "Complete 2048 DAT Pack 1 and 2 overlay."
+        },
+        "rollbackManifestRelativePath": "manifests/remapster-rollback-20260718.json"
+      },
+      {
+        "name": "Jasmint-HD",
+        "expectedDatCount": 80,
+        "expectedTreeSha256": "63c5accc5098b702a253418c0a72c3885d8609bcd76a151b9e22d4663b0416c8",
+        "representativeDat": "ROM/27/100.DAT",
+        "source": {
+          "kind": "runtime-source-manifest",
+          "name": "Jasmint HD",
+          "sha256": "e630ebbe4dbcc8917b936f2b7dade19b60bd617505b5d8679a3c0aead06e55a6",
+          "derivation": "All 80 addressable character-texture DATs from v0.3.0."
+        },
+        "rollbackEvidenceRelativePaths": [
+          "manifests/jasmint-rollback-20260718.json",
+          "backups/xipivot-jasmint-20260717-004542/settings.live.before.xml",
+          "backups/xipivot-jasmint-20260717-004542/settings.golden.before.xml"
+        ]
+      },
+      {
+        "name": "NextHD-Selected",
+        "expectedDatCount": 420,
+        "expectedTreeSha256": "4cccb1831ed8b399292fcd52a11a0ae4e08ad0507b99c80850b333c1ae2582ea",
+        "representativeDat": "ROM/152/50.DAT",
+        "source": {
+          "kind": "runtime-source-manifest",
+          "name": "NextGames HD",
+          "sha256": "e3bb9bf0a7cf4136390bda5476462a14be508877cb1603f6caa2ad629f02af5f",
+          "derivation": "Conflict-free curated selection with the XIView-owned ROM/119/57.DAT removed from the active overlay."
+        }
+      },
+      {
+        "name": "AshenbubsHD-July2026-Candidate",
+        "expectedDatCount": 15,
+        "expectedTreeSha256": "45ad165b9a42564419d14d1d0dc47e32730d8eef61f11c70b3ab526f596828ac",
+        "representativeDat": "ROM/1/82.DAT",
+        "source": {
+          "kind": "runtime-source-manifest",
+          "name": "AshenbubsHD July update",
+          "sha256": "9b4e345d1b3612f15e9ec42d3c22780ce58ba68e4402887249bdf2e491cec37d",
+          "derivation": "One changed and fourteen new files isolated above Prime."
+        }
+      },
+      {
+        "name": "AshenbubsHD-Prime",
+        "expectedDatCount": 35495,
+        "expectedTreeSha256": "12999990b8bde1c0cf19b6763f76388c397e621364edc3efb590d7f624908c12",
+        "representativeDat": "ROM/0/0.DAT",
+        "source": {
+          "kind": "runtime-source-manifest",
+          "name": "AshenbubsHD Prime",
+          "sha256": "516aa836c112520295a9ac0a1df8f3d8889b2c63236bd5af773719def89a2b7d",
+          "derivation": "November 2021 Prime base overlay."
+        }
+      },
+      {
+        "name": "Legacy-Community-Unique",
+        "expectedDatCount": 169,
+        "expectedTreeSha256": "6c58ce4c9ebe10f2cb4fcf349650ea17950aecf44bbfbcbca92fb8f63d5d7d06",
+        "representativeDat": "ROM/3/3.DAT",
+        "source": {
+          "kind": "runtime-backup",
+          "name": "Retired ALL-Dat-Mods pre-split community collection",
+          "runtimeRelativePath": "backups/xipivot/ALL-Dat-Mods-pre-split-20260714-155918.7z",
+          "sha256": "5c060861ec9f84ccbb087df08c869de8b672756537d18c76e610d5c45e2bfd06",
+          "derivation": "Only addressable, first-hit-effective legacy DATs remain active; XIView-owned and alternative/backup paths are preserved in runtime rollback storage. Per-file attribution is limited to Contains.txt."
+        }
+      }
+    ],
+    "allowedCollisionPairs": [
+      {
+        "owner": "Mochirii-GeoBubblesClear",
+        "shadowed": "AshenbubsHD-Prime",
+        "expectedPaths": 32
+      },
+      {
+        "owner": "Mochirii-BardNotesHD",
+        "shadowed": "AshenbubsHD-Prime",
+        "expectedPaths": 1
+      },
+      {
+        "owner": "Mochirii-LevelMeritJobPoints",
+        "shadowed": "AshenbubsHD-Prime",
+        "expectedPaths": 6
+      },
+      {
+        "owner": "Mochirii-MissionRankUps",
+        "shadowed": "AshenbubsHD-Prime",
+        "expectedPaths": 45
+      },
+      {
+        "owner": "XITide-Nameplates",
+        "shadowed": "AshenbubsHD-Prime",
+        "expectedPaths": 1
+      },
+      {
+        "owner": "Jasmint-HD",
+        "shadowed": "AshenbubsHD-Prime",
+        "expectedPaths": 80
+      },
+      {
+        "owner": "AshenbubsHD-July2026-Candidate",
+        "shadowed": "AshenbubsHD-Prime",
+        "expectedPaths": 1
+      }
+    ]
+  },
+  "directDat": {
+    "expectedFiles": 4,
+    "allowActiveOverlayOverlap": false,
+    "runtimeManifestRelativePath": "manifests/xiview-direct-post-update-20260714-155354.json",
+    "rollbackRootRelativePath": "backups/client-mods/XIView-direct-post-update-20260714-155354"
+  },
+  "renderer": {
+    "currentManifestRelativePath": "manifests/renderer-current.json",
+    "gates": {
+      "dgvoodoo2": {
+        "component": "dgVoodoo2",
+        "requireRollbackInstruction": true,
+        "requiredInstalledEntries": [
+          "D3D8.dll",
+          "dgVoodoo.conf"
+        ],
+        "rollbackManifestRelativePaths": [
+          "manifests/dgvoodoo2-install-20260714-163926.json"
+        ]
+      },
+      "reshade": {
+        "component": "ReShade",
+        "requireRollbackInstruction": true,
+        "requiredPresetRelativePath": "Vibrant Vana'diel - Mochirii Standard.ini",
+        "requiredEnabledTechniques": [
+          "Vignette@Vignette.fx",
+          "MagicBloom@MagicBloom.fx",
+          "MultiLUT@MultiLUT.fx",
+          "AdaptiveSharpen@AdaptiveSharpen.fx"
+        ],
+        "requiredRemovalEntries": [
+          "dxgi.dll",
+          "ReShade.ini",
+          "ReShadePreset.ini",
+          "reshade-shaders"
+        ],
+        "requiredPreserveEntries": [
+          "d3d8.dll",
+          "dgVoodoo.conf",
+          "pol.exe"
+        ],
+        "rollbackManifestRelativePaths": [
+          "manifests/reshade-preinstall-20260714-175057.json",
+          "manifests/reshade-removal-rollback-20260718.json"
+        ]
+      }
+    }
+  }
+}

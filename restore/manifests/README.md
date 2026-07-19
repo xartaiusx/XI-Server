@@ -13,6 +13,9 @@ archives.
 - `twills-rdm-sch-bis-matrix.json`: Git-safe RDM/SCH set-family contract used by `tools/mochirii/gearswap_action_qa.py`; runtime evidence remains under `FFXI-Runtime/logs/gearswap_qa`.
 - `client-direct-dat.manifest.json`: post-update XIView direct-DAT ownership,
   stock/replacement hashes, and external rollback paths.
+- `client-graphics-gates.manifest.json`: exact active XIPivot tree hashes,
+  addressable-DAT counts, collision owners, source provenance, direct-DAT
+  exclusion, renderer rollback gates, and required native-proof categories.
 - `mods.manifest.json`: external source versions/hashes, active XIPivot ownership,
   and accepted renderer configuration. Live renderer and UI
   evidence remains outside Git under `C:\Github Repo's\FFXI\Runtime\manifests`.

@@ -1,6 +1,6 @@
 # Mochirii Client, Mod Stack, Admin, And Trust QA Plan
 
-This plan tracks the local Final Fantasy XI client and Mochirii GM bootstrap gates used by this branch. Runtime manifests, screenshots, downloaded archives, secrets, and database dumps live outside the repo. Current server/runtime evidence lives under `/home/xartyzx/projects/FFXI-Runtime` in WSL; the Windows path `C:\Github Repo's\FFXI\Runtime` is only the small Windower launcher/screenshot trigger bridge required by the D: client.
+This plan tracks the local Final Fantasy XI client and Mochirii GM bootstrap gates used by this branch. Runtime manifests, screenshots, downloaded archives, secrets, and database dumps live outside the repo. Server evidence lives under `/home/xartyzx/projects/FFXI-Runtime` in WSL; client evidence, rollback material, Windower controls, and the golden state live under `C:\Github Repo's\FFXI\Runtime` on Windows.
 
 Portable restore status is tracked separately in `documentation/portable_restore.md`
 and `restore/manifests`. Use those manifests before moving Windower, XIPivot,
@@ -16,7 +16,7 @@ outside the repository.
 - XIPivot and XiView are installed only from their GitHub releases.
 - XICamera is installed from Hokuten85's GitHub release asset for Windower 4 only; do not use the Ashita assets in this Windower profile.
 - Ashenbubs, Amelila/RadialArcana/Kireek, and other large DAT packs must be sourced from the current author/Nexus/project pages. XIPivot remains the preferred redirection layer for texture packs. Real client DAT replacement is accepted only for layers that do not apply reliably through XIPivot, after backup, manifest, hash, Windower-native screenshot, logout, and relog verification.
-- NTCore Large Address Aware, dgVoodoo2, and ReShade are optional graphics layers outside Git. The first two are configured locally; ReShade remains on a no-effects baseline until the complete compatibility soak passes.
+- NTCore Large Address Aware, dgVoodoo2, and ReShade are optional graphics layers outside Git. All three are configured locally; ReShade uses the accepted Vibrant Vana'diel Mochirii Standard preset after its compatibility soak and rollback gate passed.
 - XIPivot's own documentation notes that some early-loaded menu/font/UI DATs cannot be redirected after Windower loads the addon. For Mochirii, that means future DAT work should prefer XIPivot first, but direct replacement is accepted for XiView/TideFont-style UI assets only with backups, hash manifests, and Windower-native screenshots.
 
 ## Completed Gates
@@ -40,9 +40,9 @@ outside the repository.
   - XICamera Windower 4 addon `v0.7.10`, installed from the release ZIP with GitHub-published SHA-256 verification. Local defaults are `cameraDistance = 6`, `battleDistance = 8.2`, `horizontalPanSpeed = 3`, `autoCalcVertSpeed = true`, `battleRange = 4`, and `battleRangeLocked = true`.
   - XIView `v2.5.3` widescreen owns four backed-up direct UI DATs because master-star/menu assets load before Windower can reliably redirect them. The only stock rollback is the post-update 2026-07-14 capture.
   - XITide owns only `ROM/91/15.DAT` through `XITide-Nameplates`; XIView retains direct ownership of the conflicting `ROM/119/51.DAT`.
-  - XIPivot owns normal textures, maps, and effects. Its current first-hit order is documented in `documentation/client_graphics_stack.md` and has 36,516 unique paths, 166 intentional collisions, and zero unexplained collisions.
+  - XIPivot owns normal textures, maps, and effects. Its current first-hit order is documented in `documentation/client_graphics_stack.md` and has 36,500 unique addressable DAT paths, 166 intentional collisions, and zero unexplained collisions.
   - Ashenbubs Prime is the primary world/equipment base. A 15-file July 2026 candidate remains isolated above Prime until soak acceptance; Basic is not active.
-  - Remapster 2048 maps, Jasmint HD 0.3.0, and the 421-file conflict-free NextGames HD selection are active. Jasmint intentionally owns 80 character-texture collisions above Prime. The retired `ALL-Dat-Mods` folder was archived and replaced by the 184-file `Legacy-Community-Unique` remainder.
+  - Remapster 2048 maps, Jasmint HD 0.3.0, and the 420-file conflict-free NextGames HD selection are active. Jasmint intentionally owns 80 character-texture collisions above Prime. The retired `ALL-Dat-Mods` folder was archived and replaced by the 169-addressable-DAT `Legacy-Community-Unique` remainder; XIView-owned and alternative/backup paths are preserved only in hash-recorded runtime rollback storage.
   - Windower Lua QA addons loaded once through `Windower\scripts\init.txt`: `XIPivot`, `XICamera`, `shortcuts`, `battlemod`, `DressUp`, `findAll`, `craft`, `GearSwap`, `XivParty`, `xivhotbar`, and `MochiriiScreenshotQA`. The global `Windower\settings.xml` `<autoload>` block remains intentionally empty.
   - Windower Lua addons installed but not autoloaded include `xivbar`, `organizer`, and the broader historical QA overlay set. The official Windower `craft` addon remains autoloaded for Cooking QA.
   - `GearSwap` autoloads the local `Twills.lua` RDM/SCH v10 profile with practical idle/engaged baselines and action-specific healer/buffer/damage/debuffer swaps. `XivParty` remains the active party/alliance overlay; `xivbar` is intentionally disabled by default.
@@ -121,7 +121,7 @@ outside the repository.
 - Keep XIPivot installed and preferred for future texture overlay experiments, but do not assume UI/master-star DATs apply through XIPivot without in-client proof.
 - Keep the active XIPivot order exactly as recorded in `documentation/client_graphics_stack.md`; every collision requires one declared first-hit owner.
 - Keep these Windower addons loaded by `Windower\scripts\init.txt` for the current lean Mochirii QA profile: `XIPivot`, `XICamera`, `shortcuts`, `battlemod`, `DressUp`, `findAll`, `craft`, `GearSwap`, `XivParty`, `xivhotbar`, and `MochiriiScreenshotQA`.
-- `MochiriiScreenshotQA` is v1.1.0 or newer. Native screenshot requests carry a unique id, and command requests use an atomic UUID envelope with expiry, one-command serialization, processed-ID caching, explicit mutation authorization, and success/failure acknowledgements. Leftover or duplicate requests are rejected rather than replayed.
+- `MochiriiScreenshotQA` is v1.2.0 or newer. Native screenshot requests carry a unique id and acknowledgement, while command requests use an atomic UUID envelope with expiry, one-command serialization, processed-ID caching, explicit mutation authorization, and success/failure acknowledgements. Leftover or duplicate requests are rejected rather than replayed.
 - XivParty includes a Mochirii login-race guard in `player.lua` so early party-buff packets cannot crash the addon before per-character `Settings` is initialized.
 - XivParty layout persistence is accepted only when the live settings file and the Windows runtime golden-state settings file match the on-screen layout values, then survive `//lua reload XivParty` and a desktop-Windower relaunch. At 2560x1600, use the tracked `mochirii_xiv` layout with bottom anchoring at party `0.88,0.985`, alliance1 `0.88,0.853`, alliance2 `0.88,0.808`, and Twills scale `0.72`. Its right-aligned 32-icon buff grid stays inside the panel, allowing the main panel to replace the native party region while the alliance panels stack upward with consistent 12-pixel gaps and no cropping.
 - XIVHotbar's 2560x1600 baseline is X `1114`, `HotbarSpacing=56`, and bottom-up Y positions `1512`, `1456`, `1400`, `1344`, `1288`, and `1232`. With the addon's 40-pixel slots, this keeps all six rows evenly spaced with a 48-pixel bottom safety margin and 16-pixel clear gaps.
@@ -162,7 +162,7 @@ outside the repository.
 4. Compatibility wrappers:
    - Preserve the verified `LargeAddressAware` `pol.exe` and recheck it after every official client update.
    - Validate the installed 32-bit dgVoodoo2 D3D8 wrapper through the complete Mochirii login/zoning/soak gate.
-   - Keep ReShade techniques disabled until dgVoodoo acceptance, then add one preset/effect layer at a time with a native screenshot/log rollback point.
+   - Keep the accepted ReShade technique set pinned to Vignette, MagicBloom, MultiLUT, and AdaptiveSharpen. Any future preset/effect change requires its own native screenshot, compile log, soak, and rollback point.
 
 5. RDM/SCH gear, storage, professions, and chocobo verification:
    - Run the reviewed explicit `!twillsrepair core` operation after the v9 rebuild/relog, then verify the storage,
