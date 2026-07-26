@@ -892,8 +892,8 @@ void repairMasterLevels(uint32 charId)
 
     db::preparedStmt("UPDATE char_stats SET mjob = ?, sjob = ?, mlvl = 99, slvl "
                      "= 59 WHERE charid = ? LIMIT 1",
-                     JOB_RDM,
-                     JOB_SCH,
+                     static_cast<uint8>(xi::Job::RDM),
+                     static_cast<uint8>(xi::Job::SCH),
                      charId);
 }
 

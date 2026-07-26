@@ -145,7 +145,7 @@ GP_SERV_COMMAND_LOGIN::GP_SERV_COMMAND_LOGIN(CCharEntity* PChar, const EventInfo
         .Speed         = PChar->UpdateSpeed(),
         .SpeedBase     = PChar->animationSpeed,
         .HpMax         = PChar->GetHPP(),
-        .server_status = PChar->animation,
+        .server_status = static_cast<uint8_t>(PChar->animation),
         .flags2        = flags2,
         .flags4        = 0x0100,
     };
@@ -179,7 +179,7 @@ GP_SERV_COMMAND_LOGIN::GP_SERV_COMMAND_LOGIN(CCharEntity* PChar, const EventInfo
     packet.MusicNum[1] = PChar->PInstance ? PChar->PInstance->GetBackgroundMusicNight() : PChar->loc.zone->GetBackgroundMusicNight();
     packet.MusicNum[2] = PChar->PInstance ? PChar->PInstance->GetSoloBattleMusic() : PChar->loc.zone->GetSoloBattleMusic();
     packet.MusicNum[3] = PChar->PInstance ? PChar->PInstance->GetPartyBattleMusic() : PChar->loc.zone->GetPartyBattleMusic();
-    packet.MusicNum[4] = PChar->animation == ANIMATION_MOUNT ? 0x54 : 0xD4;
+    packet.MusicNum[4] = PChar->animation == xi::Animation::Mount ? 0x54 : 0xD4;
 
     const auto csid = currentEvent->eventId;
     if (csid != -1)
@@ -189,8 +189,8 @@ GP_SERV_COMMAND_LOGIN::GP_SERV_COMMAND_LOGIN(CCharEntity* PChar, const EventInfo
         packet.EventPara = currentEvent->eventId;
         packet.EventMode = currentEvent->eventFlags & 0xFFFF;
 
-        PChar->animation             = ANIMATION_EVENT;
-        packet.PosHead.server_status = ANIMATION_EVENT;
+        PChar->animation             = xi::Animation::Event;
+        packet.PosHead.server_status = static_cast<uint8_t>(xi::Animation::Event);
     }
 
     if (PChar->inMogHouse())
@@ -217,8 +217,8 @@ GP_SERV_COMMAND_LOGIN::GP_SERV_COMMAND_LOGIN(CCharEntity* PChar, const EventInfo
     std::memcpy(packet.name, nameStr.data(), std::min(nameStr.size(), sizeof(packet.name)));
 
     packet.Dancer = {
-        .mjob_no = PChar->GetMJob(),
-        .sjob_no = PChar->GetSJob(),
+        .mjob_no = static_cast<uint8_t>(PChar->GetMJob()),
+        .sjob_no = static_cast<uint8_t>(PChar->GetSJob()),
         .hpmax   = PChar->GetMaxHP(),
         .mpmax   = PChar->GetMaxMP(),
         .sjobflg = static_cast<uint8_t>(PChar->jobs.unlocked & 1),
@@ -227,7 +227,7 @@ GP_SERV_COMMAND_LOGIN::GP_SERV_COMMAND_LOGIN(CCharEntity* PChar, const EventInfo
     std::memcpy(&packet.Dancer.bp_base, &PChar->stats, 14);
     std::memcpy(&packet.ConfData, &PChar->playerConfig, sizeof(SAVE_CONF_PKT));
 
-    if (PChar->GetMJob() == JOB_MON)
+    if (PChar->GetMJob() == xi::Job::MON)
     {
         monstrosity::ReadMonstrosityData(PChar);
     }

@@ -280,7 +280,7 @@ void CCharUpdatePacket::updateWith(CCharEntity* PChar, ENTITYUPDATE type, uint8 
         const auto [ChocoboIndex, CustomProperties] = mountutils::packetDefinition(PChar);
 
         packet->Hpp             = PChar->GetHPP();
-        packet->server_status   = PChar->animation;
+        packet->server_status   = static_cast<uint8_t>(PChar->animation);
         packet->ModelHitboxSize = static_cast<uint8_t>(PChar->modelHitboxSize * 10); // TODO: verify this value and if it changes (Monstrosity?)
 
         packet->Flags1.MonsterFlag = false; // TODO: Is this ever set for Monstrosity PVP?
@@ -437,6 +437,6 @@ void CCharUpdatePacket::updateWith(CCharEntity* PChar, ENTITYUPDATE type, uint8 
         }
 
         packet->Flags4.TrialFlag     = 0; // Trial accounts not implemented.
-        packet->Flags4.JobMasterFlag = PChar->getMod(Mod::SUPERIOR_LEVEL) == 5 && PChar->m_jobMasterDisplay;
+        packet->Flags4.JobMasterFlag = PChar->getMod(xi::Mod::SUPERIOR_LEVEL) == 5 && PChar->m_jobMasterDisplay;
     }
 }

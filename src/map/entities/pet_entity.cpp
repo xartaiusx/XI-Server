@@ -27,7 +27,7 @@
 #include "ai/helpers/targetfind.h"
 #include "ai/states/ability_state.h"
 #include "ai/states/petskill_state.h"
-#include "mob_modifier.h"
+#include "data/enums/mob_mod.h"
 #include "packets/pet_sync.h"
 #include "utils/battleutils.h"
 #include "utils/messageutils.h"
@@ -178,27 +178,27 @@ WYVERN_TYPE CPetEntity::getWyvernType()
 
     switch (PMaster->GetSJob())
     {
-        case JOB_BLM:
-        case JOB_BLU:
-        case JOB_SMN:
-        case JOB_WHM:
-        case JOB_RDM:
-        case JOB_SCH:
-        case JOB_GEO:
+        case xi::Job::BLM:
+        case xi::Job::BLU:
+        case xi::Job::SMN:
+        case xi::Job::WHM:
+        case xi::Job::RDM:
+        case xi::Job::SCH:
+        case xi::Job::GEO:
             return WYVERN_TYPE::DEFENSIVE;
-        case JOB_DRK:
-        case JOB_PLD:
-        case JOB_NIN:
-        case JOB_BRD:
-        case JOB_RUN:
+        case xi::Job::DRK:
+        case xi::Job::PLD:
+        case xi::Job::NIN:
+        case xi::Job::BRD:
+        case xi::Job::RUN:
             return WYVERN_TYPE::MULTIPURPOSE;
-        case JOB_WAR:
-        case JOB_SAM:
-        case JOB_THF:
-        case JOB_BST:
-        case JOB_RNG:
-        case JOB_COR:
-        case JOB_DNC:
+        case xi::Job::WAR:
+        case xi::Job::SAM:
+        case xi::Job::THF:
+        case xi::Job::BST:
+        case xi::Job::RNG:
+        case xi::Job::COR:
+        case xi::Job::DNC:
             return WYVERN_TYPE::OFFENSIVE;
 
         default:
@@ -260,8 +260,8 @@ void CPetEntity::Spawn()
     // we need to skip CMobEntity's spawn because it calculates stats (and our stats are already calculated)
     if (PMaster && PMaster->objtype == TYPE_PC && m_EcoSystem == xi::Ecosystem::Elemental)
     {
-        this->defaultMobMod(MOBMOD_MAGIC_DELAY, 12);
-        this->defaultMobMod(MOBMOD_MAGIC_COOL, 48);
+        this->defaultMobMod(xi::MobMod::MagicDelay, 12);
+        this->defaultMobMod(xi::MobMod::MagicCool, 48);
         mobutils::GetAvailableSpells(this);
     }
 

@@ -219,11 +219,11 @@ auto CLuaTestEntityAssertions::hasEffect(const xi::StatusEffect effectId) -> CLu
  *  Notes   :
  ************************************************************************/
 
-auto CLuaTestEntityAssertions::hasAnimation(const uint8 animation) -> CLuaTestEntityAssertions&
+auto CLuaTestEntityAssertions::hasAnimation(const xi::Animation animation) -> CLuaTestEntityAssertions&
 {
     assertCondition(entity_->getAnimation() == animation,
-                    std::format("Does not have animation {} set", getEnumKey("xi.animation", animation)),
-                    std::format("Does have animation {} set", getEnumKey("xi.animation", animation)));
+                    std::format("Does not have animation {} set", getEnumKey("xi.animation", static_cast<uint32>(animation))),
+                    std::format("Does have animation {} set", getEnumKey("xi.animation", static_cast<uint32>(animation))));
     return *this;
 }
 
@@ -352,7 +352,7 @@ auto CLuaTestEntityAssertions::hasItem(const uint16 itemId) -> CLuaTestEntityAss
  *  Notes   :
  ************************************************************************/
 
-auto CLuaTestEntityAssertions::hasModifier(const Mod modifierId, int32 expectedValue) -> CLuaTestEntityAssertions&
+auto CLuaTestEntityAssertions::hasModifier(const xi::Mod modifierId, int32 expectedValue) -> CLuaTestEntityAssertions&
 {
     auto actualValue = entity_->getMod(static_cast<uint16>(modifierId));
 

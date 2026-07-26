@@ -46,6 +46,7 @@
 #include "map/packets/c2s/0x036_item_transfer.h"
 #include "map/packets/c2s/0x037_item_use.h"
 #include "map/packets/c2s/0x03a_item_stack.h"
+#include "map/packets/c2s/0x051_equipset_set.h"
 #include "map/packets/c2s/0x053_lockstyle.h"
 #include "map/packets/c2s/0x06e_group_solicit_req.h"
 #include "map/packets/c2s/0x074_group_solicit_res.h"
@@ -135,7 +136,7 @@ void CLuaClientEntityPairActions::setBlueSpells(const sol::table& spellIds) cons
         const auto offsettedId               = static_cast<uint8>(spellId - 0x200);
         const auto packet                    = parent_->packets().createPacket<GP_CLI_COMMAND_EXTENDED_JOB>();
         auto*      bluPacket                 = packet->as<GP_CLI_COMMAND_EXTENDED_JOB>();
-        bluPacket->Data.bluData.JobIndex     = JOB_BLU;
+        bluPacket->Data.bluData.JobIndex     = static_cast<uint8_t>(xi::Job::BLU);
         bluPacket->Data.bluData.SpellId      = offsettedId;
         bluPacket->Data.bluData.Spells[slot] = offsettedId;
 
@@ -697,7 +698,7 @@ void CLuaClientEntityPairActions::skillchain(CLuaBaseEntity* target, sol::variad
     {
         PChar->health.tp = 3000;
 
-        PChar->PAI->Internal_WeaponSkill(PMob->targid, wsIds[i]);
+        PChar->PAI->Internal_WeaponSkill(EntityId(PMob), wsIds[i]);
         parent_->simulation()->skipTime(2);
 
         if (i >= 1)
@@ -780,6 +781,40 @@ void CLuaClientEntityPairActions::setLockstyle(const uint8 mode, sol::optional<s
         }
         p->Count = idx;
     }
+
+    parent_->packets().sendBasicPacket(*packet);
+}
+
+/************************************************************************
+ *  Function: equipSet()
+ *  Purpose : Emits the 0x51 equipset packet to equip a list of items.
+ *  Example : player.actions:equipSet({ { index = 1, kind = xi.slot.MAIN, container = xi.inv.INVENTORY } })
+ *  Notes   : Each entry: index (bag slot), kind (equip slot), container (bag id).
+ *            Targets a specific item copy by slot, unlike equipItem by item id.
+ ************************************************************************/
+
+void CLuaClientEntityPairActions::equipSet(const sol::table& entries) const
+{
+    const auto packet = parent_->packets().createPacket<GP_CLI_COMMAND_EQUIPSET_SET>();
+    auto*      p      = packet->as<GP_CLI_COMMAND_EQUIPSET_SET>();
+    p->Count          = 0;
+
+    uint8 idx = 0;
+    for (const auto& [key, val] : entries)
+    {
+        if (!val.is<sol::table>() || idx >= 16)
+        {
+            break;
+        }
+
+        auto entry                  = val.as<sol::table>();
+        p->Equipment[idx].ItemIndex = entry.get_or<uint8_t>("index", 0);
+        p->Equipment[idx].EquipKind = entry.get_or<uint8_t>("kind", 0);
+        p->Equipment[idx].Category  = entry.get_or<uint8_t>("container", 0); // 0 == LOC_INVENTORY
+        ++idx;
+    }
+
+    p->Count = idx;
 
     parent_->packets().sendBasicPacket(*packet);
 }
@@ -1000,6 +1035,7 @@ void CLuaClientEntityPairActions::Register()
     SOL_REGISTER("sortContainer", CLuaClientEntityPairActions::sortContainer);
     SOL_REGISTER("dropItem", CLuaClientEntityPairActions::dropItem);
     SOL_REGISTER("setLockstyle", CLuaClientEntityPairActions::setLockstyle);
+    SOL_REGISTER("equipSet", CLuaClientEntityPairActions::equipSet);
     SOL_REGISTER("craft", CLuaClientEntityPairActions::craft);
     SOL_REGISTER("plantAdd", CLuaClientEntityPairActions::plantAdd);
     SOL_REGISTER("plantCheck", CLuaClientEntityPairActions::plantCheck);

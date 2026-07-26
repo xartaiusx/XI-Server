@@ -69,6 +69,8 @@ quest.sections =
                 end,
             },
 
+            ['Parnika'] = quest:event(232),
+
             onEventFinish =
             {
                 [233] = handleEventFinish,
@@ -82,7 +84,7 @@ quest.sections =
             {
                 onTrade = function(player, npc, trade)
                     if
-                        npcUtil.tradeHasExactly(trade, xi.item.COPPER_RING) and
+                        npcUtil.tradeMatches(trade, { { xi.item.COPPER_RING, 1 } }) and
                         not player:hasKeyItem(xi.ki.LETTER_FROM_ROH_LATTEH)
                     then
                         return quest:progressEvent(95)
@@ -93,7 +95,7 @@ quest.sections =
             onEventFinish =
             {
                 [95] = function(player, csid, option, npc)
-                    player:confirmTrade()
+                    player:tradeComplete()
                     npcUtil.giveKeyItem(player, xi.ki.LETTER_FROM_ROH_LATTEH)
                 end,
             },
@@ -135,13 +137,30 @@ quest.sections =
                 end,
             },
 
+            ['Parnika'] = quest:event(232),
+
+            onEventFinish =
+            {
+                [230] = function(player, csid, option, npc)
+                    if npcUtil.giveItem(player, xi.item.FIRE_CRYSTAL) then
+                        quest:setVar(player, 'Prog', 1)
+                    end
+                end,
+
+                [233] = handleEventFinish,
+                [234] = handleEventFinish,
+            },
+        },
+
+        [xi.zone.BASTOK_MINES] =
+        {
             ['Roh_Latteh'] =
             {
                 onTrade = function(player, npc, trade)
                     if
                         quest:getVar(player, 'Prog') == 1 and
                         not player:hasKeyItem(xi.ki.LETTER_FROM_ROH_LATTEH) and
-                        npcUtil.tradeHasExactly(trade, xi.item.COPPER_RING)
+                        npcUtil.tradeMatches(trade, { { xi.item.COPPER_RING, 1 } })
                     then
                         return quest:progressEvent(95)
                     end
@@ -151,18 +170,9 @@ quest.sections =
             onEventFinish =
             {
                 [95] = function(player, csid, option, npc)
-                    player:confirmTrade()
+                    player:tradeComplete()
                     npcUtil.giveKeyItem(player, xi.ki.LETTER_FROM_ROH_LATTEH)
                 end,
-
-                [230] = function(player, csid, option, npc)
-                    if npcUtil.giveItem(player, xi.item.FIRE_CRYSTAL) then
-                        quest:setVar(player, 'Prog', 1)
-                    end
-                end,
-
-                [233] = handleEventFinish,
-                [234] = handleEventFinish,
             },
         },
     },

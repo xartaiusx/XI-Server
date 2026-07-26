@@ -211,7 +211,7 @@ CCharStatusPacket::CCharStatusPacket(CCharEntity* PChar)
     std::memcpy(&packet->BufStatusBits, &PChar->StatusEffectContainer->statusBits(), sizeof(status_bits_t));
 
     packet->UniqueNo      = PChar->id;
-    packet->server_status = PChar->animation;
+    packet->server_status = static_cast<uint8_t>(PChar->animation);
 
     CItemLinkshell* linkshell = (CItemLinkshell*)PChar->getEquip(SLOT_LINK1);
 
@@ -234,7 +234,7 @@ CCharStatusPacket::CCharStatusPacket(CCharEntity* PChar)
     packet->model_hitbox_size = static_cast<uint8_t>(PChar->modelHitboxSize * 10);
     packet->mount_id          = 0;
 
-    if (PChar->animation == ANIMATION_FISHING_START)
+    if (PChar->animation == xi::Animation::NewFishingStart)
     {
         packet->fishing_timer = PChar->hookDelay;
     }
@@ -242,10 +242,10 @@ CCharStatusPacket::CCharStatusPacket(CCharEntity* PChar)
     // flags 0 starts at 0x28
     charStatusFlags::flags0_t flags0 = {};
 
-    flags0.HideFlag        = false; // This hides your UI. Probably used for the Live Vanadiel streams.
-    flags0.SleepFlag       = false; // Hides the player, probably also used for Live Vanadiel
-    flags0.GroundFlag      = false; // Do not ignore collision
-    flags0.CliPosInitFlag  = false; // Ready to render?
+    flags0.HideFlag        = PChar->m_isPCHidden; // Hides the player from themselves.
+    flags0.SleepFlag       = false;               // Hides the player, probably also used for Live Vanadiel
+    flags0.GroundFlag      = false;               // Do not ignore collision
+    flags0.CliPosInitFlag  = false;               // Ready to render?
     flags0.LfgFlag         = PChar->isSeekingParty();
     flags0.CfhFlag         = false; // Orange name for CFH, players don't currently use this?
     flags0.AwayFlag        = PChar->isAway();
@@ -320,7 +320,7 @@ CCharStatusPacket::CCharStatusPacket(CCharEntity* PChar)
     flags4.GeoIndiElement = 0;
     flags4.GeoIndiSize    = 1;
     flags4.GeoIndiFlag    = 0;
-    flags4.JobMasterFlag  = PChar->getMod(Mod::SUPERIOR_LEVEL) == 5 && PChar->m_jobMasterDisplay;
+    flags4.JobMasterFlag  = PChar->getMod(xi::Mod::SUPERIOR_LEVEL) == 5 && PChar->m_jobMasterDisplay;
 
     // GEO bubble effects, changes bubble effect depending on what effect is activated.
     if (PChar->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::ColureActive))

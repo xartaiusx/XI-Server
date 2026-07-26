@@ -316,32 +316,22 @@ auto MapEngine::watchdogWatcher() -> Task<void>
         {
             if (debug::isRunningUnderDebugger())
             {
-                ShowCritical("!!! INACTIVITY WATCHDOG HAS TRIGGERED !!!");
+                ShowCriticalFmt("!!! INACTIVITY WATCHDOG HAS TRIGGERED !!!");
                 ShowCriticalFmt("Process main tick has taken {}ms or more.", period);
-                ShowCritical("Detaching watchdog thread, it will not fire again until restart.");
+                ShowCriticalFmt("Detaching watchdog thread, it will not fire again until restart.");
                 break;
             }
             else if (!settings::get<bool>("main.DISABLE_INACTIVITY_WATCHDOG"))
             {
-                std::string outputStr = "!!! INACTIVITY WATCHDOG HAS TRIGGERED !!!\n\n";
-
-                outputStr += fmt::format("Process main tick has taken {}ms or more.\n", period);
-                outputStr += fmt::format("Backtrace Messages:\n\n");
-
-                const auto backtrace = logging::GetBacktrace();
-                for (const auto& line : backtrace)
-                {
-                    outputStr += fmt::format("    {}\n", line);
-                }
-
-                outputStr += "\nKilling Process!!!\n";
-
-                ShowCritical(outputStr);
+                ShowCriticalFmt("!!! INACTIVITY WATCHDOG HAS TRIGGERED !!!");
+                ShowCriticalFmt("Process main tick has taken {}ms or more.", period);
+                ShowCriticalFmt("Killing Process!!!");
 
                 // Allow some time for logging to flush
                 std::this_thread::sleep_for(200ms);
 
-                throw std::runtime_error("Watchdog thread time exceeded. Killing process.");
+                // Terminate directly rather than throwing.
+                crash();
             }
         }
 

@@ -20,8 +20,7 @@
 ===========================================================================
 */
 
-#ifndef _CSTATE_H
-#define _CSTATE_H
+#pragma once
 
 #include "common/timer.h"
 #include "entities/base_entity.h"
@@ -33,11 +32,7 @@ class CBattleEntity;
 class CStateInitException : public std::exception
 {
 public:
-    explicit CStateInitException(std::unique_ptr<CBasicPacket> _msg)
-    : std::exception()
-    , packet(std::move(_msg))
-    {
-    }
+    explicit CStateInitException(std::unique_ptr<CBasicPacket> _msg);
 
     std::unique_ptr<CBasicPacket> packet;
 };
@@ -45,56 +40,50 @@ public:
 class CState
 {
 public:
+    CState(CBaseEntity* PEntity, const EntityId& target);
     CState(CBaseEntity* PEntity, uint16 _targid);
 
     virtual ~CState() = default;
 
-    CBaseEntity* GetTarget() const;
-    void         SetTarget(uint16 targid);
+    auto GetTarget() const -> CBaseEntity*;
 
-    bool HasErrorMsg() const;
+    auto HasErrorMsg() const -> bool;
+    auto GetErrorMsg() const -> std::unique_ptr<CBasicPacket>;
 
-    auto GetErrorMsg() -> std::unique_ptr<CBasicPacket>;
-
-    bool DoUpdate(timer::time_point tick);
+    auto DoUpdate(timer::time_point tick) -> bool;
 
     // try interrupt (on hit)
-    virtual void TryInterrupt(CBattleEntity* PAttacker)
-    {
-    }
+    virtual void TryInterrupt(CBattleEntity* PAttacker);
 
     // called when state completes
     virtual void Cleanup(timer::time_point tick) = 0;
     // whether the state can be changed by normal means
-    virtual bool CanChangeState() = 0;
-    virtual bool CanFollowPath()  = 0;
+    virtual auto CanChangeState() -> bool = 0;
+    virtual auto CanFollowPath() -> bool  = 0;
     // whether the state can be interrupted (including by stun/sleep)
-    virtual bool CanInterrupt() = 0;
-    bool         IsCompleted() const;
+    virtual auto CanInterrupt() -> bool = 0;
+    auto         IsCompleted() const -> bool;
     void         ResetEntryTime();
+    void         SetTarget(const EntityId& target);
 
 protected:
     // state logic done per tick - returns whether to exit the state or not
-    virtual bool Update(timer::time_point tick) = 0;
+    virtual auto Update(timer::time_point tick) -> bool = 0;
     virtual void UpdateTarget(uint16 targid);
     virtual void UpdateTarget(CBaseEntity* target);
 
-    uint16            GetTargetID() const;
-    void              Complete();
-    timer::time_point GetEntryTime() const;
-    bool              WasExitDelayed();
-    void              DelayExitTime(std::chrono::milliseconds delayMilliseconds);
+    auto GetTargetID() const -> uint16;
+    void Complete();
+    auto GetEntryTime() const -> timer::time_point;
 
     std::unique_ptr<CBasicPacket> m_errorMsg;
 
     CBaseEntity* const m_PEntity;
-    uint16             m_targid{ 0 };
 
 private:
+    uint16            m_targid{ 0 };
+    EntityId          target_{};
     CBaseEntity*      m_PTarget{ nullptr };
     bool              m_completed{ false };
-    bool              m_wasDelayed{ false };
     timer::time_point m_entryTime{ timer::now() };
 };
-
-#endif

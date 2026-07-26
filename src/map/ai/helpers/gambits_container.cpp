@@ -324,7 +324,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                 static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* PMember)
                 {
                     if (isValidMember(target, PMember) &&
-                        (PMember->GetMJob() == JOB_PLD || PMember->GetMJob() == JOB_RUN))
+                        (PMember->GetMJob() == xi::Job::PLD || PMember->GetMJob() == xi::Job::RUN))
                     {
                         potentialTargets.push_back(PMember);
                     }
@@ -350,7 +350,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                 static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* PMember)
                 {
                     if (isValidMember(target, PMember) &&
-                        (PMember->GetMJob() == JOB_RNG || PMember->GetMJob() == JOB_COR))
+                        (PMember->GetMJob() == xi::Job::RNG || PMember->GetMJob() == xi::Job::COR))
                     {
                         potentialTargets.push_back(PMember);
                     }
@@ -678,7 +678,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
 
             if (action.reaction == G_REACTION::RATTACK)
             {
-                controller->RangedAttack(target->targid);
+                controller->RangedAttack(target->entityId());
                 executedAnyAction = true;
             }
             else if (action.reaction == G_REACTION::MA)
@@ -686,7 +686,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                 // Use the pre resolved spell if present, otherwise fall back
                 if (resolvedSpells[i].has_value())
                 {
-                    controller->Cast(target->targid, resolvedSpells[i].value());
+                    controller->Cast(target->entityId(), resolvedSpells[i].value());
                     executedAnyAction = true;
                 }
                 else
@@ -697,7 +697,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                         auto spell_id = POwner->SpellContainer->GetAvailable(static_cast<SpellID>(action.select_arg));
                         if (spell_id.has_value())
                         {
-                            controller->Cast(target->targid, spell_id.value());
+                            controller->Cast(target->entityId(), spell_id.value());
                             executedAnyAction = true;
                         }
                     }
@@ -706,7 +706,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                         auto spell_id = POwner->SpellContainer->GetBestAvailable(static_cast<SPELLFAMILY>(action.select_arg));
                         if (spell_id.has_value())
                         {
-                            controller->Cast(target->targid, spell_id.value());
+                            controller->Cast(target->entityId(), spell_id.value());
                             executedAnyAction = true;
                         }
                     }
@@ -721,7 +721,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                         auto spell_id = POwner->SpellContainer->GetBestIndiSpell(PMaster);
                         if (spell_id.has_value())
                         {
-                            controller->Cast(target->targid, spell_id.value());
+                            controller->Cast(target->entityId(), spell_id.value());
                             executedAnyAction = true;
                         }
                     }
@@ -732,7 +732,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                         target         = PMaster;
                         if (spell_id.has_value())
                         {
-                            controller->Cast(target->targid, spell_id.value());
+                            controller->Cast(target->entityId(), spell_id.value());
                             executedAnyAction = true;
                         }
                     }
@@ -742,7 +742,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                         auto spell_id      = POwner->SpellContainer->GetBestAgainstTargetWeakness(target, spell_to_cast);
                         if (spell_id.has_value())
                         {
-                            controller->Cast(target->targid, spell_id.value());
+                            controller->Cast(target->entityId(), spell_id.value());
                             executedAnyAction = true;
                         }
                     }
@@ -779,7 +779,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
 
                             if (maybeSpellId.has_value())
                             {
-                                controller->Cast(target->targid, maybeSpellId.value());
+                                controller->Cast(target->entityId(), maybeSpellId.value());
                                 executedAnyAction = true;
                             }
                         }
@@ -789,7 +789,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                         auto spell_id = POwner->SpellContainer->GetStormDay();
                         if (spell_id.has_value())
                         {
-                            controller->Cast(target->targid, spell_id.value());
+                            controller->Cast(target->entityId(), spell_id.value());
                             executedAnyAction = true;
                         }
                     }
@@ -798,7 +798,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                         auto spell_id = POwner->SpellContainer->GetHelixDay();
                         if (spell_id.has_value())
                         {
-                            controller->Cast(target->targid, spell_id.value());
+                            controller->Cast(target->entityId(), spell_id.value());
                             executedAnyAction = true;
                         }
                     }
@@ -808,7 +808,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                         auto           spell_id     = POwner->SpellContainer->EnSpellAgainstTargetWeakness(battleTarget);
                         if (spell_id.has_value())
                         {
-                            controller->Cast(POwner->targid, spell_id.value());
+                            controller->Cast(POwner->entityId(), spell_id.value());
                             executedAnyAction = true;
                         }
                     }
@@ -817,7 +817,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                         auto spell_id = POwner->SpellContainer->StormDayAgainstTargetWeakness(target);
                         if (spell_id.has_value())
                         {
-                            controller->Cast(POwner->targid, spell_id.value());
+                            controller->Cast(POwner->entityId(), spell_id.value());
                             executedAnyAction = true;
                         }
                     }
@@ -826,7 +826,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                         auto spell_id = POwner->SpellContainer->StormDayAgainstTargetWeakness(target);
                         if (spell_id.has_value())
                         {
-                            controller->Cast(target->targid, spell_id.value());
+                            controller->Cast(target->entityId(), spell_id.value());
                             executedAnyAction = true;
                         }
                     }
@@ -835,7 +835,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                         auto spell_id = POwner->SpellContainer->GetSpell();
                         if (spell_id.has_value())
                         {
-                            controller->Cast(target->targid, spell_id.value());
+                            controller->Cast(target->entityId(), spell_id.value());
                             executedAnyAction = true;
                         }
                     }
@@ -878,7 +878,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
 
                         if (spell_id.has_value())
                         {
-                            controller->Cast(target->targid, spell_id.value());
+                            controller->Cast(target->entityId(), spell_id.value());
                             executedAnyAction = true;
                         }
                     }
@@ -947,7 +947,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                             if (tpCost != 0 && currentTP >= tpCost)
                             {
                                 PAbility = PWaltzAbility;
-                                controller->Ability(target->targid, PAbility->getID());
+                                controller->Ability(target->entityId(), PAbility->getID());
                                 executedAnyAction = true;
                             }
                         }
@@ -967,7 +967,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                 {
                     if (target != nullptr)
                     {
-                        controller->Ability(target->targid, PAbility->getID());
+                        controller->Ability(target->entityId(), PAbility->getID());
                         executedAnyAction = true;
                     }
                 }
@@ -1037,7 +1037,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
 
                     if (tpCost != 0 && (currentTP >= tpCost))
                     {
-                        controller->Ability(target->targid, PAbility->getID());
+                        controller->Ability(target->entityId(), PAbility->getID());
                         executedAnyAction = true;
                     }
                 }
@@ -1082,7 +1082,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                             ability = ABILITY_IGNIS;
                             break;
                     }
-                    controller->Ability(target->targid, ability);
+                    controller->Ability(target->entityId(), ability);
                     executedAnyAction = true;
                 }
             }
@@ -1090,7 +1090,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
             {
                 if (action.select == G_SELECT::SPECIFIC)
                 {
-                    controller->MobSkill(target->targid, action.select_arg, std::nullopt);
+                    controller->MobSkill(target->entityId(), action.select_arg, std::nullopt);
                     executedAnyAction = true;
                 }
             }
@@ -1320,7 +1320,7 @@ auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const G
                 auto maxRuneEffect = 1;
                 bool canUseRunes   = true;
 
-                if (POwner->GetMJob() == JOB_RUN)
+                if (POwner->GetMJob() == xi::Job::RUN)
                 {
                     if (POwner->GetMLevel() >= 65)
                     {
@@ -2012,7 +2012,6 @@ bool CGambitsContainer::TryTrustSkill()
             {
                 target = POwner->GetBattleTarget();
             }
-
             auto skipReason = IsValidTrustTpSkillTarget(POwner, target, chosen_skill->skill_id);
             if (skipReason != TrustTpSkillSkipReason::None)
             {
@@ -2027,7 +2026,7 @@ bool CGambitsContainer::TryTrustSkill()
             POwner->SetLocalVar("MochiTrustGambitResolvedId", chosen_skill->skill_id);
             POwner->SetLocalVar("MochiTrustGambitTargetTargId", target ? target->targid : 0);
             SetTrustTpSkillSkip(POwner, TrustTpSkillSkipReason::None);
-            controller->WeaponSkill(target->targid, PWeaponSkill->getID());
+            controller->WeaponSkill(target->entityId(), PWeaponSkill->getID());
         }
         else // Mobskill
         {
@@ -2039,7 +2038,6 @@ bool CGambitsContainer::TryTrustSkill()
             {
                 target = POwner->GetBattleTarget();
             }
-
             auto skipReason = IsValidTrustTpSkillTarget(POwner, target, chosen_skill->skill_id);
             if (skipReason != TrustTpSkillSkipReason::None)
             {
@@ -2054,7 +2052,7 @@ bool CGambitsContainer::TryTrustSkill()
             POwner->SetLocalVar("MochiTrustGambitResolvedId", chosen_skill->skill_id);
             POwner->SetLocalVar("MochiTrustGambitTargetTargId", target ? target->targid : 0);
             SetTrustTpSkillSkip(POwner, TrustTpSkillSkipReason::None);
-            controller->MobSkill(target->targid, chosen_skill->skill_id, std::nullopt);
+            controller->MobSkill(target->entityId(), chosen_skill->skill_id, std::nullopt);
         }
         return true;
     }
@@ -2070,7 +2068,7 @@ bool CGambitsContainer::PartyHasHealer()
         {
             auto jobType = PMember->GetMJob();
 
-            if (jobType == JOB_WHM || jobType == JOB_RDM || jobType == JOB_PLD || jobType == JOB_SCH)
+            if (jobType == xi::Job::WHM || jobType == xi::Job::RDM || jobType == xi::Job::PLD || jobType == xi::Job::SCH)
             {
                 hasHealer = true;
             }
@@ -2088,7 +2086,7 @@ bool CGambitsContainer::PartyHasTank()
         {
             auto jobType = PMember->GetMJob();
 
-            if (jobType == JOB_NIN || jobType == JOB_PLD || jobType == JOB_RUN)
+            if (jobType == xi::Job::NIN || jobType == xi::Job::PLD || jobType == xi::Job::RUN)
             {
                 hasTank = true;
             }

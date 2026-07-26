@@ -160,6 +160,9 @@ xi.settings.main =
     -- VIT:DEF ratio. Applies to everything but mobs and charmed mobs. Those are hardcoded to 0.5.
     PLAYER_ALLIES_VIT_DEF_MULTIPLIER = 1.5, -- 1.5: 1 VIT = 1.5 DEF. This has been 0.5 in previous eras.
 
+    -- Ranged Attack Free Phase Delay (in milliseconds) - The delay before a ranged attack can be executed after the player puts away their weapon. Default is 500 milliseconds. (Use 1200 for pre-2012 setting)
+    RANGED_ATTACK_FREE_PHASE_DELAY = 500,
+
     USE_ADOULIN_WEAPON_SKILL_CHANGES = true,  -- true/false. Change to toggle new Adoulin weapon skill damage calculations
     DISABLE_PARTY_EXP_PENALTY        = false, -- true/false.
     ENABLE_IMMUNOBREAK               = true,  -- true/false. Allow/Disallow immunobreaks to happen.
@@ -216,14 +219,15 @@ xi.settings.main =
         '[Trust] The Alter Ego Expo Campaign is active!\n' ..
         'Trusts gain the benefits of Increased HP, MP, and Status Resistances!',
 
-    HARVESTING_BREAK_CHANCE = 33, -- % chance for the sickle to break during harvesting.  Set between 0 and 100.
-    EXCAVATION_BREAK_CHANCE = 33, -- % chance for the pickaxe to break during excavation.  Set between 0 and 100.
-    LOGGING_BREAK_CHANCE    = 33, -- % chance for the hatchet to break during logging.  Set between 0 and 100.
-    MINING_BREAK_CHANCE     = 33, -- % chance for the pickaxe to break during mining.  Set between 0 and 100.
-    HARVESTING_RATE         = 50, -- % chance to recieve an item from haresting.  Set between 0 and 100.
-    EXCAVATION_RATE         = 50, -- % chance to recieve an item from excavation.  Set between 0 and 100.
-    LOGGING_RATE            = 50, -- % chance to recieve an item from logging.  Set between 0 and 100.
-    MINING_RATE             = 50, -- % chance to recieve an item from mining.  Set between 0 and 100.
+    HARVESTING_BREAK_CHANCE = 33,    -- % chance for the sickle to break during harvesting.  Set between 0 and 100.
+    EXCAVATION_BREAK_CHANCE = 33,    -- % chance for the pickaxe to break during excavation.  Set between 0 and 100.
+    LOGGING_BREAK_CHANCE    = 33,    -- % chance for the hatchet to break during logging.  Set between 0 and 100.
+    MINING_BREAK_CHANCE     = 33,    -- % chance for the pickaxe to break during mining.  Set between 0 and 100.
+    HARVESTING_RATE         = 50,    -- % chance to recieve an item from haresting.  Set between 0 and 100.
+    EXCAVATION_RATE         = 50,    -- % chance to recieve an item from excavation.  Set between 0 and 100.
+    LOGGING_RATE            = 50,    -- % chance to recieve an item from logging.  Set between 0 and 100.
+    MINING_RATE             = 50,    -- % chance to recieve an item from mining.  Set between 0 and 100.
+    ENABLE_HELM_WAIT        = false, -- Enforces a 3 second wait between HELM gathering attempts.
 
     HEALING_TP_CHANGE       = -100, -- Change in TP for each healing tick. Default is -100
 
@@ -280,6 +284,7 @@ xi.settings.main =
     SNEAK_INVIS_DURATION_MULTIPLIER = 1,     -- multiplies duration of sneak, invis, deodorize to reduce player torture. 1 = retail behavior.
     USE_OLD_CURE_FORMULA            = false, -- true/false. if true, uses older cure formula (3*MND + VIT + 3*(healing skill/5)) // cure 6 will use the newer formula
     USE_OLD_MAGIC_DAMAGE            = false, -- true/false. if true, uses older magic damage formulas
+    USE_OLD_COUNTERSTANCE           = false, -- true/false. if true, Counterstance DEF = 1 + VIT/2 (+ Minne); gear/Protect ignored
 
     -- CELEBRATIONS
     EXPLORER_MOOGLE_LV              = 10, -- Enables Explorer Moogle teleports and sets required level. Zero to disable.
@@ -378,4 +383,7 @@ xi.settings.main =
     -- SYSTEM
     DISABLE_INACTIVITY_WATCHDOG = false, -- true/false. If this is enabled, the watchdog which detects if the main loop isn't being ticked will no longer be able to kill the process.
     INACTIVITY_WATCHDOG_PERIOD  = 2000,  -- Time in milliseconds which the inactivity watchdog will wait between ticks of the main loop before potentially killing the target process.
+
+    -- DEBUG
+    GENERATE_CORE_DUMP = false, -- true/false. Generate core dumps/minidumps on crash.
 }
