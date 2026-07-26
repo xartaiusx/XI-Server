@@ -43,12 +43,9 @@ class VerifyRestoreTests(unittest.TestCase):
         self.assertEqual(
             issues,
             [
-                "review sensitive-looking changed path before commit: "
-                "runtime/database-password.cnf",
-                "review sensitive-looking changed path before commit: "
-                "runtime/mochirii-token.txt",
-                "review sensitive-looking changed path before commit: "
-                "restore/private/mochirii-secret.lua",
+                "review sensitive-looking changed path before commit: runtime/database-password.cnf",
+                "review sensitive-looking changed path before commit: runtime/mochirii-token.txt",
+                "review sensitive-looking changed path before commit: restore/private/mochirii-secret.lua",
             ],
         )
 
