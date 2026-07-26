@@ -25,11 +25,11 @@
 #include "ai/states/magic_state.h"
 #include "ai/states/range_state.h"
 #include "common/settings.h"
+#include "data/enums/mob_mod.h"
 #include "enmity_container.h"
 #include "entities/char_entity.h"
 #include "entities/trust_entity.h"
 #include "items/item_weapon.h"
-#include "mob_modifier.h"
 #include "mob_spell_container.h"
 #include "modifier.h"
 #include "notoriety_container.h"
@@ -461,20 +461,20 @@ auto IsBacklineMagicTrust(CTrustEntity* PTrust) -> bool
 
     switch (PTrust->GetMJob())
     {
-        case JOB_WHM:
-        case JOB_BLM:
-        case JOB_RDM:
-        case JOB_BRD:
-        case JOB_SMN:
-        case JOB_BLU:
-        case JOB_SCH:
-        case JOB_GEO:
+        case xi::Job::WHM:
+        case xi::Job::BLM:
+        case xi::Job::RDM:
+        case xi::Job::BRD:
+        case xi::Job::SMN:
+        case xi::Job::BLU:
+        case xi::Job::SCH:
+        case xi::Job::GEO:
             break;
         default:
             return false;
     }
 
-    return PTrust->getMobMod(MOBMOD_TRUST_DISTANCE) != TRUST_MOVEMENT_TYPE::MELEE;
+    return PTrust->getMobMod(xi::MobMod::TrustDistance) != TRUST_MOVEMENT_TYPE::MELEE;
 }
 
 auto IsTrustResting(CTrustEntity* PTrust) -> bool
@@ -489,9 +489,9 @@ auto IsHealerCasterTrust(CTrustEntity* PTrust) -> bool
         return false;
     }
 
-    return PTrust->GetMJob() == JOB_WHM ||
-           PTrust->GetMJob() == JOB_SCH ||
-           PTrust->GetSJob() == JOB_WHM;
+    return PTrust->GetMJob() == xi::Job::WHM ||
+           PTrust->GetMJob() == xi::Job::SCH ||
+           PTrust->GetSJob() == xi::Job::WHM;
 }
 
 auto IsSupportCasterTrust(CTrustEntity* PTrust) -> bool
@@ -503,13 +503,13 @@ auto IsSupportCasterTrust(CTrustEntity* PTrust) -> bool
 
     switch (PTrust->GetMJob())
     {
-        case JOB_RDM:
-        case JOB_BRD:
-        case JOB_SMN:
-        case JOB_GEO:
+        case xi::Job::RDM:
+        case xi::Job::BRD:
+        case xi::Job::SMN:
+        case xi::Job::GEO:
             return true;
         default:
-            return PTrust->GetSJob() == JOB_SCH;
+            return PTrust->GetSJob() == xi::Job::SCH;
     }
 }
 
@@ -610,7 +610,7 @@ auto TrustHasImmediateMpRecovery(CTrustEntity* PTrust) -> bool
         return true;
     }
 
-    return PTrust->getMod(Mod::REFRESH) > PTrust->getMod(Mod::REFRESH_DOWN);
+    return PTrust->getMod(xi::Mod::REFRESH) > PTrust->getMod(xi::Mod::REFRESH_DOWN);
 }
 
 auto TrustPartyNeedsCasterNow(CTrustEntity* PTrust, CCharEntity* PMaster, uint8 hppFloor) -> bool
@@ -776,7 +776,7 @@ CTrustController::~CTrustController()
 void CTrustController::Despawn()
 {
     POwner->PMaster   = nullptr;
-    POwner->animation = ANIMATION_DESPAWN;
+    POwner->animation = xi::Animation::Despawn;
     CMobController::Despawn();
 }
 
@@ -800,7 +800,7 @@ auto CTrustController::Tick(timer::time_point tick) -> Task<void>
         co_return;
     }
 
-    const bool nonCombatFollowTrust = PTrust->getMobMod(MOBMOD_TRUST_DISTANCE) == TRUST_MOVEMENT_TYPE::NON_COMBAT;
+    const bool nonCombatFollowTrust = PTrust->getMobMod(xi::MobMod::TrustDistance) == TRUST_MOVEMENT_TYPE::NON_COMBAT;
 
     if (PTrust->PMaster->PAI->IsEngaged() && nonCombatFollowTrust)
     {
@@ -872,7 +872,7 @@ auto CTrustController::DoCombatTick(timer::time_point tick) -> Task<void>
 
             PTrust->PAI->PathFind->LookAt(PTarget->loc.p);
 
-            int16 movementDistance = ResolveTrustCombatDistance(PTrust, PTrust->getMobMod(MOBMOD_TRUST_DISTANCE));
+            const int16 movementDistance = ResolveTrustCombatDistance(PTrust, PTrust->getMobMod(xi::MobMod::TrustDistance));
 
             switch (movementDistance)
             {
@@ -943,7 +943,7 @@ auto CTrustController::DoCombatTick(timer::time_point tick) -> Task<void>
     co_return;
 }
 
-auto CTrustController::DoNonCombatTick(timer::time_point tick) -> Task<void>
+auto CTrustController::DoNonCombatTick(const timer::time_point tick) -> Task<void>
 {
     TracyZoneScoped;
 
@@ -1043,15 +1043,15 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
 {
     TracyZoneScoped;
 
-    auto* PTrust               = static_cast<CTrustEntity*>(POwner);
-    auto* PMaster              = static_cast<CCharEntity*>(POwner->PMaster);
-    auto  masterLastAttackTime = static_cast<CPlayerController*>(PMaster->PAI->GetController())->getLastAttackTime();
-    bool  masterMeleeSwing     = masterLastAttackTime > timer::now() - 1s;
+    auto*      PTrust               = static_cast<CTrustEntity*>(POwner);
+    auto*      PMaster              = static_cast<CCharEntity*>(POwner->PMaster);
+    const auto masterLastAttackTime = static_cast<CPlayerController*>(PMaster->PAI->GetController())->getLastAttackTime();
+    const bool masterMeleeSwing     = masterLastAttackTime > timer::now() - 1s;
 
     bool  trustEngageCondition  = false;
     auto  focus                 = ResolveTrustFocusTarget(PMaster, PTrust);
     auto* PDefensiveTarget      = focus.reason == TrustFocusReason::Defensive ? focus.PMob : nullptr;
-    auto  trustEngageTargetID   = focus.PMob ? focus.PMob->targid : 0;
+    auto  trustEngageTarget     = focus.PMob ? focus.PMob->entityId() : EntityId{};
     bool  casterResting         = settings::get<bool>("main.ENABLE_TRUST_CASTER_RESTING") && IsBacklineMagicTrust(PTrust);
     bool  trustCurrentlyResting = casterResting && IsTrustResting(PTrust);
 
@@ -1093,25 +1093,25 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
         !TrustHasImmediateMpRecovery(PTrust) &&
         !TrustPartyNeedsCasterNow(PTrust, PMaster, settings::get<uint8>("main.TRUST_CASTER_COMBAT_REST_PARTY_HPP_MIN"));
 
-    const uint16 modelID_Cornelia = 3119; // Cornielia does not have an Attack Schedule so do not engage.
+    constexpr uint16 modelID_Cornelia = 3119; // Cornielia does not have an Attack Schedule so do not engage.
 
     if (!trustCurrentlyResting && !wantsCombatRest &&
-        (PMaster->PAI->IsEngaged() || PDefensiveTarget) && focus.PMob && trustEngageCondition && trustEngageTargetID != 0 && POwner->GetModelId() != modelID_Cornelia)
+        (PMaster->PAI->IsEngaged() || PDefensiveTarget) && focus.PMob && trustEngageCondition && trustEngageTarget.isSet() && POwner->GetModelId() != modelID_Cornelia)
     {
-        POwner->PAI->Internal_Engage(trustEngageTargetID);
+        POwner->PAI->Internal_Engage(trustEngageTarget);
     }
 
-    uint8          currentPartyPos = GetPartyPosition();
-    CBattleEntity* PFollowTarget   = (GetPartyPosition() > 0) ? (CBattleEntity*)PMaster->PTrusts.at(currentPartyPos - 1) : POwner->PMaster;
-    float          currentDistance = distance(POwner->loc.p, PFollowTarget->loc.p);
+    const uint8          currentPartyPos = GetPartyPosition();
+    const CBattleEntity* PFollowTarget   = (GetPartyPosition() > 0) ? static_cast<CBattleEntity*>(PMaster->PTrusts.at(currentPartyPos - 1)) : POwner->PMaster;
+    const float          currentDistance = distance(POwner->loc.p, PFollowTarget->loc.p);
 
     // Formation following thresholds (in yalms)
     // First trust follows master more closely than other trusts follow each other
-    bool isFirstTrust = (currentPartyPos == 0);
+    const bool isFirstTrust = (currentPartyPos == 0);
 
-    float declumpDistance = isFirstTrust ? 1.0f : 1.5f; // Too close, need to move away
-    float followMax       = isFirstTrust ? 2.0f : 3.5f; // Maximum follow distance before moving closer
-    float followTarget    = isFirstTrust ? 1.5f : 3.0f; // Ideal follow distance
+    const float declumpDistance = isFirstTrust ? 1.0f : 1.5f; // Too close, need to move away
+    const float followMax       = isFirstTrust ? 2.0f : 3.5f; // Maximum follow distance before moving closer
+    const float followTarget    = isFirstTrust ? 1.5f : 3.0f; // Ideal follow distance
 
     if (casterResting && IsTrustResting(PTrust))
     {
@@ -1309,8 +1309,8 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
         if (POwner->health.hp != POwner->health.maxhp || POwner->health.mp != POwner->health.maxmp)
         {
             // recover 5% HP & MP
-            uint32 recoverHP = (uint32)(POwner->health.maxhp * 0.05);
-            uint32 recoverMP = (uint32)(POwner->health.maxmp * 0.05);
+            const uint32 recoverHP = static_cast<uint32>(POwner->health.maxhp * 0.05);
+            const uint32 recoverMP = static_cast<uint32>(POwner->health.maxmp * 0.05);
             POwner->addHP(recoverHP);
             POwner->addMP(recoverMP);
             m_LastHealTickTime = m_Tick;
@@ -1322,20 +1322,20 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
     co_return;
 }
 
-void CTrustController::Declump(CCharEntity* PMaster, CBattleEntity* PTarget)
+void CTrustController::Declump(const CCharEntity* PMaster, const CBattleEntity* PTarget) const
 {
     TracyZoneScoped;
 
-    uint8 currentPartyPos = GetPartyPosition();
-    for (auto* POtherTrust : PMaster->PTrusts)
+    const uint8 currentPartyPos = GetPartyPosition();
+    for (const auto* POtherTrust : PMaster->PTrusts)
     {
         if (POtherTrust != POwner && !POtherTrust->PAI->PathFind->IsFollowingPath() && distance(POtherTrust->loc.p, POwner->loc.p) < 1.5f)
         {
-            auto diffAngle  = worldAngle(POwner->loc.p, PTarget->loc.p) + 64;
-            auto moveAmount = xirand::GetRandomNumber(0.0f, 1.5f) * ((currentPartyPos % 2) ? 1.0f : -1.0f);
+            const auto diffAngle  = worldAngle(POwner->loc.p, PTarget->loc.p) + 64;
+            const auto moveAmount = xirand::GetRandomNumber(0.0f, 1.5f) * ((currentPartyPos % 2) ? 1.0f : -1.0f);
 
             // clang-format off
-            position_t newPos =
+            const position_t newPos =
             {
                 POwner->loc.p.x - (cosf(rotationToRadian(diffAngle)) * moveAmount),
                 PTarget->loc.p.y,
@@ -1354,12 +1354,12 @@ void CTrustController::Declump(CCharEntity* PMaster, CBattleEntity* PTarget)
     }
 }
 
-void CTrustController::PathOutToDistance(CBattleEntity* PTarget, float amount)
+void CTrustController::PathOutToDistance(const CBattleEntity* PTarget, const float amount)
 {
     TracyZoneScoped;
 
-    float      currentDistanceToTarget = distance(POwner->loc.p, PTarget->loc.p);
-    position_t target_position         = POwner->loc.p;
+    const float currentDistanceToTarget = distance(POwner->loc.p, PTarget->loc.p);
+    position_t  target_position         = POwner->loc.p;
 
     if (GetTopEnmity() == POwner)
     {
@@ -1377,8 +1377,8 @@ void CTrustController::PathOutToDistance(CBattleEntity* PTarget, float amount)
         std::vector<position_t> positions(5);
         for (auto& position : positions)
         {
-            int        random_angle       = xirand::GetRandomNumber(256);
-            position_t potential_position = {
+            const int        random_angle       = xirand::GetRandomNumber(256);
+            const position_t potential_position = {
                 PTarget->loc.p.x - (cosf(rotationToRadian(random_angle)) * amount),
                 PTarget->loc.p.y,
                 PTarget->loc.p.z + (sinf(rotationToRadian(random_angle)) * amount),
@@ -1412,42 +1412,42 @@ void CTrustController::PathOutToDistance(CBattleEntity* PTarget, float amount)
     }
     else
     {
-        FaceTarget(PTarget->targid);
+        FaceTarget(PTarget->entityId());
         m_InTransit = false;
     }
 }
 
-bool CTrustController::Ability(uint16 targid, uint16 abilityid)
+auto CTrustController::Ability(const EntityId target, uint16 abilityid) -> bool
 {
     TracyZoneScoped;
 
-    if (static_cast<CMobEntity*>(POwner)->PRecastContainer->HasRecast(RECAST_ABILITY, static_cast<Recast>(abilityid), 0s))
+    if (POwner->PRecastContainer->HasRecast(RECAST_ABILITY, static_cast<Recast>(abilityid), 0s))
     {
         return false;
     }
 
     if (POwner->PAI->CanChangeState())
     {
-        return POwner->PAI->Internal_Ability(targid, abilityid);
+        return POwner->PAI->Internal_Ability(target, abilityid);
     }
 
     return false;
 }
 
-bool CTrustController::RangedAttack(uint16 targid)
+auto CTrustController::RangedAttack(const EntityId target) -> bool
 {
     TracyZoneScoped;
 
     timer::duration rangedDelay = 10s;
-    if (CItemWeapon* PRange = dynamic_cast<CItemWeapon*>(POwner->m_Weapons[SLOT_RANGED]))
+    if (const CItemWeapon* PRange = dynamic_cast<CItemWeapon*>(POwner->m_Weapons[SLOT_RANGED]))
     {
         rangedDelay = std::chrono::milliseconds(PRange->getDelay());
     }
 
     if (m_Tick - m_LastRangedAttackTime > rangedDelay && !m_InTransit)
     {
-        FaceTarget(PTarget->targid);
-        if (POwner->PAI->CanChangeState() && POwner->PAI->Internal_RangedAttack(targid))
+        FaceTarget(PTarget->entityId());
+        if (POwner->PAI->CanChangeState() && POwner->PAI->Internal_RangedAttack(target))
         {
             m_LastRangedAttackTime = m_Tick;
         }
@@ -1456,29 +1456,26 @@ bool CTrustController::RangedAttack(uint16 targid)
     return false;
 }
 
-bool CTrustController::Cast(uint16 targid, SpellID spellid)
+auto CTrustController::Cast(const EntityId target, SpellID spellid) -> bool
 {
     TracyZoneScoped;
 
-    FaceTarget(targid);
+    FaceTarget(target);
 
-    if (static_cast<CMobEntity*>(POwner)->PRecastContainer->Has(RECAST_MAGIC, static_cast<Recast>(spellid)))
+    if (POwner->PRecastContainer->Has(RECAST_MAGIC, static_cast<Recast>(spellid)))
     {
         return false;
     }
 
     auto* PSpell = spell::GetSpell(spellid);
-    if (PSpell->getValidTarget() == TARGET_SELF)
-    {
-        targid = POwner->targid;
-    }
 
-    auto* PTarget = static_cast<CBattleEntity*>(POwner->GetEntity(targid, TYPE_MOB | TYPE_PC | TYPE_PET | TYPE_TRUST));
+    const auto castTarget = PSpell->getValidTarget() == TARGET_SELF ? EntityId(POwner) : target;
+    const auto PTarget    = castTarget.resolve<CBattleEntity>();
 
     if (PSpell->canTargetEnemy())
     {
         std::unique_ptr<CBasicPacket> errMsg;
-        auto*                         PValidTarget = POwner->IsValidTarget(targid, PSpell->getValidTarget(), errMsg);
+        auto*                         PValidTarget = POwner->IsValidTarget(castTarget, PSpell->getValidTarget(), errMsg);
         auto*                         PMobTarget   = dynamic_cast<CMobEntity*>(PValidTarget);
         auto*                         PMaster      = dynamic_cast<CCharEntity*>(POwner->PMaster);
         auto*                         PCurrentMob  = dynamic_cast<CMobEntity*>(POwner->GetBattleTarget());
@@ -1496,22 +1493,23 @@ bool CTrustController::Cast(uint16 targid, SpellID spellid)
         }
     }
 
-    auto PSpellFamily = PSpell->getSpellFamily();
-    bool canCast      = true;
+    const auto PSpellFamily = PSpell->getSpellFamily();
+    bool       canCast      = true;
 
     // clang-format off
-    static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* PMember)
+    static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts(
+        [&](const CBattleEntity* PMember)
     {
         if (PMember->objtype == TYPE_TRUST && PMember->PAI->IsCurrentState<CMagicState>())
         {
-            auto MState = static_cast<CMagicState*>(PMember->PAI->GetCurrentState());
+            const auto MState = static_cast<CMagicState*>(PMember->PAI->GetCurrentState());
 
             if (MState)
             {
-                auto MSpell       = MState->GetSpell();
-                auto MTarget      = MState->GetTarget();
-                auto MSpellFamily = MSpell->getSpellFamily();
-                auto MSpellID     = MSpell->getID();
+                const auto MSpell       = MState->GetSpell();
+                const auto MTarget      = MState->GetTarget();
+                const auto MSpellFamily = MSpell->getSpellFamily();
+                const auto MSpellID     = MSpell->getID();
 
                 if (PSpell->isBuff())
                 {
@@ -1522,7 +1520,7 @@ bool CTrustController::Cast(uint16 targid, SpellID spellid)
                 }
                 if (PSpell->isCure())
                 {
-                    if (PTarget == MTarget && PTarget->GetHPP() > 50)
+                    if (PTarget && PTarget == MTarget && PTarget->GetHPP() > 50)
                     {
                         canCast = false;
                     }
@@ -1551,26 +1549,26 @@ bool CTrustController::Cast(uint16 targid, SpellID spellid)
         return false;
     }
 
-    return CMobController::Cast(targid, spellid);
+    return CMobController::Cast(castTarget, spellid);
 }
 
-CBattleEntity* CTrustController::GetTopEnmity()
+auto CTrustController::GetTopEnmity() const -> CBattleEntity*
 {
     TracyZoneScoped;
 
     CBattleEntity* PEntity = nullptr;
-    if (auto* PMob = dynamic_cast<CMobEntity*>(POwner->GetBattleTarget()))
+    if (const auto* PMob = dynamic_cast<CMobEntity*>(POwner->GetBattleTarget()))
     {
         return PMob->PEnmityContainer->GetHighestEnmity();
     }
     return PEntity;
 }
 
-uint8 CTrustController::GetPartyPosition()
+auto CTrustController::GetPartyPosition() const -> uint8
 {
     TracyZoneScoped;
 
-    auto& trustList = static_cast<CCharEntity*>(POwner->PMaster)->PTrusts;
+    const auto& trustList = static_cast<CCharEntity*>(POwner->PMaster)->PTrusts;
     for (std::size_t i = 0; i < trustList.size(); ++i)
     {
         if (trustList.at(i)->id == POwner->id)

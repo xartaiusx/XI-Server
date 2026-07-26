@@ -19,8 +19,7 @@
 ===========================================================================
 */
 
-#ifndef _CPETSKILL_TATE_H
-#define _CPETSKILL_TATE_H
+#pragma once
 
 #include "petskill.h"
 #include "state.h"
@@ -30,34 +29,18 @@ class CPetEntity;
 class CPetSkillState : public CState
 {
 public:
-    CPetSkillState(CPetEntity* PEntity, uint16 targid, uint16 wsid);
+    CPetSkillState(CPetEntity* PEntity, const EntityId& target, uint16 wsid);
 
-    CPetSkill* GetPetSkill();
-
-    int16 GetSpentTP()
-    {
-        return m_spentTP;
-    }
+    auto GetPetSkill() const -> CPetSkill*;
+    auto GetSpentTP() const -> int16;
 
 protected:
-    virtual bool CanChangeState() override
-    {
-        return false;
-    }
-
-    virtual bool CanFollowPath() override
-    {
-        return false;
-    }
-
-    virtual bool CanInterrupt() override
-    {
-        return true;
-    }
-
-    virtual bool Update(timer::time_point tick) override;
-    virtual void Cleanup(timer::time_point tick) override;
-    void         SpendCost();
+    auto CanChangeState() -> bool override;
+    auto CanFollowPath() -> bool override;
+    auto CanInterrupt() -> bool override;
+    auto Update(timer::time_point tick) -> bool override;
+    void Cleanup(timer::time_point tick) override;
+    void SpendCost();
 
 private:
     CPetEntity* const          m_PEntity;
@@ -67,5 +50,3 @@ private:
     int16                      m_spentTP;
     bool                       m_skillSuccess{ false };
 };
-
-#endif

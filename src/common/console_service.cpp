@@ -37,7 +37,6 @@
 #ifdef _WIN32
 #include <conio.h>
 #include <io.h>
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #define isatty  _isatty
 #define getchar _getch
@@ -207,6 +206,13 @@ void ConsoleService::registerDefaultCommands()
         });
 
     registerCommand(
+        "hang", "Inject an infinite loop to force a hang (main thread)", [](std::vector<std::string>& inputs)
+        {
+            fmt::print("> Hanging...\n");
+            hang();
+        });
+
+    registerCommand(
         "exit", "Request application exit", [&](std::vector<std::string>& inputs)
         {
             application_.requestExit();
@@ -277,7 +283,12 @@ auto ConsoleService::consoleLoop() -> Task<void>
 
                         try
                         {
-                            it->second.func(args);
+                            auto& command = it->second;
+
+                            // Try and populate trace buffer in case something goes wrong
+                            ShowTraceFmt("Handling console command: {}", command.name);
+
+                            command.func(args);
                         }
                         catch (const std::exception& e)
                         {

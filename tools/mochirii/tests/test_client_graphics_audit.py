@@ -348,6 +348,9 @@ class ClientGraphicsAuditTests(unittest.TestCase):
             native_root.mkdir(parents=True)
 
             proof_paths: dict[str, Path] = {}
+            client_started = (
+                audit.datetime.now(audit.timezone.utc) - audit.timedelta(minutes=1)
+            ).isoformat()
             for index, gate in enumerate(audit.REQUIRED_NATIVE_PROOF_GATES, 1):
                 # JPEG SOI, a unique COM segment, SOF0 for 2560x1600, and EOI.
                 image_bytes = (
@@ -374,7 +377,7 @@ class ClientGraphicsAuditTests(unittest.TestCase):
                             "SessionId": "windower-1234-fixture",
                             "ClientProcessId": 1234,
                             "ClientProcessName": "xiloader",
-                            "ClientProcessStartedAtUtc": "2026-07-19T02:00:00+00:00",
+                            "ClientProcessStartedAtUtc": client_started,
                             "RequestId": f"{index:032x}",
                             "RequestAcknowledged": True,
                             "CapturedAtUtc": captured,

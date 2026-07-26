@@ -30,17 +30,17 @@
 #include "utils/battleutils.h"
 #include "utils/trustutils.h"
 
-CAttackState::CAttackState(CBattleEntity* PEntity, uint16 targid)
-: CState(PEntity, targid)
+CAttackState::CAttackState(CBattleEntity* PEntity, const EntityId& target)
+: CState(PEntity, target)
 , m_PEntity(PEntity)
 {
-    PEntity->SetBattleTargetID(targid);
+    PEntity->setBattleTarget(target);
     PEntity->SetBattleStartTime(timer::now());
     CAttackState::UpdateTarget();
 
     if (!GetTarget() || m_errorMsg)
     {
-        PEntity->SetBattleTargetID(0);
+        PEntity->setBattleTarget(std::nullopt);
         if (this->HasErrorMsg())
         {
             throw CStateInitException(m_errorMsg->copy());
@@ -57,13 +57,17 @@ CAttackState::CAttackState(CBattleEntity* PEntity, uint16 targid)
     }
 }
 
-bool CAttackState::Update(timer::time_point tick)
+auto CAttackState::Update(timer::time_point tick) -> bool
 {
     auto* PTarget = static_cast<CBattleEntity*>(GetTarget());
     if (!PTarget || PTarget->isDead())
     {
         return true;
     }
+
+    // Subtract on every tick, including the one we swing on, or each swing costs an extra tick.
+    m_attackTime -= (m_PEntity->PAI->getTick() - m_PEntity->PAI->getPrevTick());
+
     if (AttackReady())
     {
         if (CanAttack(PTarget))
@@ -96,10 +100,10 @@ bool CAttackState::Update(timer::time_point tick)
             return true;
         }
     }
-    else
-    {
-        m_attackTime -= (m_PEntity->PAI->getTick() - m_PEntity->PAI->getPrevTick());
-    }
+
+    // Don't bank time while we can't swing. Sits after the swing so leftover time carries.
+    m_attackTime = std::max<timer::duration>(m_attackTime, 0ms);
+
     return false;
 }
 
@@ -127,41 +131,41 @@ void CAttackState::UpdateTarget(CBaseEntity* target)
 void CAttackState::UpdateTarget(uint16 targid)
 {
     m_errorMsg.reset();
-    auto           newTargid{ m_PEntity->GetBattleTargetID() };
+    auto           newTarget{ m_PEntity->battleTarget() };
     CBattleEntity* PNewTarget{ nullptr };
-    if (newTargid != 0)
+    if (newTarget.isSet())
     {
-        PNewTarget = m_PEntity->IsValidTarget(newTargid, TARGET_ENEMY, m_errorMsg);
+        PNewTarget = m_PEntity->IsValidTarget(newTarget, TARGET_ENEMY, m_errorMsg);
         if (!PNewTarget)
         {
-            newTargid          = 0;
+            newTarget          = EntityId{};
             CCharEntity* PChar = dynamic_cast<CCharEntity*>(m_PEntity);
             if (PChar && PChar->hasAutoTargetEnabled())
             {
                 for (auto&& PPotentialTarget : PChar->SpawnMOBList)
                 {
-                    if (PPotentialTarget.second->animation == ANIMATION_ATTACK && facing(PChar->loc.p, PPotentialTarget.second->loc.p, 64) &&
+                    if (PPotentialTarget.second->animation == xi::Animation::Attack && facing(PChar->loc.p, PPotentialTarget.second->loc.p, 64) &&
                         distance(PChar->loc.p, PPotentialTarget.second->loc.p) <= 10)
                     {
                         std::unique_ptr<CBasicPacket> errMsg;
-                        if (PChar->IsValidTarget(PPotentialTarget.second->targid, TARGET_ENEMY, errMsg))
+                        if (PChar->IsValidTarget(EntityId(PPotentialTarget.second), TARGET_ENEMY, errMsg))
                         {
-                            newTargid = PPotentialTarget.second->targid;
+                            newTarget = EntityId(PPotentialTarget.second);
                             PChar->pushPacket<GP_SERV_COMMAND_ASSIST>(PChar, static_cast<CBattleEntity*>(PPotentialTarget.second));
                             break;
                         }
                     }
                 }
             }
-            m_PEntity->PAI->ChangeTarget(newTargid);
+            m_PEntity->PAI->ChangeTarget(newTarget.targid);
         }
     }
-    if (targid != newTargid)
+    if (targid != newTarget.targid)
     {
         if (targid != 0)
         {
             m_PEntity->OnChangeTarget(PNewTarget);
-            SetTarget(newTargid);
+            SetTarget(newTarget);
             if (!PNewTarget)
             {
                 m_errorMsg.reset();
@@ -169,12 +173,12 @@ void CAttackState::UpdateTarget(uint16 targid)
             }
         }
     }
-    CState::UpdateTarget(m_PEntity->GetBattleTargetID());
+    CState::UpdateTarget(m_PEntity->GetBattleTarget());
 }
 
-bool CAttackState::CanAttack(CBattleEntity* PTarget)
+auto CAttackState::CanAttack(CBattleEntity* PTarget) -> bool
 {
-    auto ret = m_PEntity->CanAttack(PTarget, m_errorMsg);
+    const auto ret = m_PEntity->CanAttack(PTarget, m_errorMsg);
 
     if (ret && !m_errorMsg)
     {
@@ -183,7 +187,22 @@ bool CAttackState::CanAttack(CBattleEntity* PTarget)
     return ret;
 }
 
-bool CAttackState::AttackReady()
+auto CAttackState::AttackReady() const -> bool
 {
-    return m_attackTime < 0ms && m_PEntity->isAlive();
+    return m_attackTime <= 0ms && m_PEntity->isAlive();
+}
+
+auto CAttackState::CanChangeState() -> bool
+{
+    return true;
+}
+
+auto CAttackState::CanFollowPath() -> bool
+{
+    return true;
+}
+
+auto CAttackState::CanInterrupt() -> bool
+{
+    return false;
 }

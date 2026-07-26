@@ -46,6 +46,7 @@
 #include <map/lua/lua_spell.h>
 #include <map/lua/lua_statuseffect.h>
 #include <map/lua/lua_trade_container.h>
+#include <map/lua/lua_trait.h>
 #include <map/lua/lua_treasure_pool.h>
 #include <map/lua/lua_trigger_area.h>
 #include <map/lua/lua_weaponskill.h>
@@ -79,13 +80,13 @@
 #include "battlefield.h"
 #include "conquest_system.h"
 #include "daily_system.h"
+#include "data/enums/mob_mod.h"
 #include "fishingcontest.h"
 #include "instance.h"
 #include "ipc_client.h"
 #include "items/item_furnishing.h"
 #include "map/navmesh/navmesh.h"
 #include "map_engine.h"
-#include "mob_modifier.h"
 #include "mobskill.h"
 #include "monstrosity.h"
 #include "packets/s2c/0x039_mapschedulor.h"
@@ -377,6 +378,7 @@ void init(IPP mapIPP, bool isRunningInCI)
     CLuaSpell::Register();
     CLuaStatusEffect::Register();
     CLuaTradeContainer::Register();
+    CLuaTrait::Register();
     CLuaTreasurePool::Register();
     CLuaZone::Register();
     CLuaItem::Register();
@@ -1574,22 +1576,35 @@ uint8 GetNationRank(uint8 nation)
 {
     TracyZoneScoped;
 
-    uint8 balance = conquest::GetBalance();
+    const uint8 balance  = conquest::GetBalance();
+    const uint8 sandoria = balance & 0x3U;
+    const uint8 bastok   = (balance >> 2) & 0x3U;
+    const uint8 windurst = (balance >> 4) & 0x3U;
+
+    uint8 rank = 0;
     switch (nation)
     {
         case NATION_SANDORIA:
-            balance &= 0x3U;
-            return balance;
+            rank = sandoria;
+            break;
         case NATION_BASTOK:
-            balance &= 0xCU;
-            balance >>= 2;
-            return balance;
+            rank = bastok;
+            break;
         case NATION_WINDURST:
-            balance >>= 4;
-            return balance;
+            rank = windurst;
+            break;
         default:
             return 0;
     }
+
+    // If two nations are tied for first, they are both read as second.
+    // If all three nations are tied for first, they all register as third.
+    if (rank == 1)
+    {
+        rank = static_cast<uint8>((sandoria == 1) + (bastok == 1) + (windurst == 1));
+    }
+
+    return rank;
 }
 
 uint8 GetConquestBalance()
@@ -2465,7 +2480,7 @@ int32 OnTrigger(CCharEntity* PChar, CBaseEntity* PNpc)
     LogWith({ "npc", { { "name", PNpc->getName() }, { "id", PNpc->id } } });
 
     // Clicking objects does nothing if the player is mid synthesis
-    if (PChar->animation == ANIMATION_SYNTH)
+    if (PChar->animation == xi::Animation::Synth)
     {
         return 0;
     }
@@ -4633,7 +4648,7 @@ int32 OnPetAbility(CBaseEntity* PTarget, CBaseEntity* PMob, CMobSkill* PMobSkill
         if (PPet->getPetType() == PET_TYPE::AVATAR && PPet->PMaster->objtype == TYPE_PC)
         {
             CCharEntity* PMaster = (CCharEntity*)PPet->PMaster;
-            if (PMaster->GetMJob() == JOB_SMN)
+            if (PMaster->GetMJob() == xi::Job::SMN)
             {
                 charutils::TrySkillUP(PMaster, xi::SkillType::SummoningMagic, PMaster->GetMLevel());
             }
@@ -4666,7 +4681,7 @@ int32 OnPetAbility(CBaseEntity* PTarget, CPetEntity* PPet, CPetSkill* PPetSkill,
     if (PPet->getPetType() == PET_TYPE::AVATAR && PPet->PMaster->objtype == TYPE_PC)
     {
         CCharEntity* PMaster = (CCharEntity*)PPet->PMaster;
-        if (PMaster->GetMJob() == JOB_SMN)
+        if (PMaster->GetMJob() == xi::Job::SMN)
         {
             charutils::TrySkillUP(PMaster, xi::SkillType::SummoningMagic, PMaster->GetMLevel());
         }
@@ -5984,7 +5999,7 @@ CBaseEntity* GenerateDynamicEntity(CZone* PZone, CInstance* PInstance, sol::tabl
         if (skillList > 0)
         {
             PMob->m_MobSkillList = skillList;
-            PMob->setMobMod(MOBMOD_SKILL_LIST, skillList);
+            PMob->setMobMod(xi::MobMod::SkillList, skillList);
         }
 
         const auto spellList = table["spellList"].get_or<uint16>(0);

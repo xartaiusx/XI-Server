@@ -22,11 +22,11 @@ local conquestConstants =
 }
 
 -----------------------------------
--- (LOCAL) Signet
+-- (GLOBAL) Signet
 -----------------------------------
 
 -- Bestow the nation's Signet.
-local function bestowSignet(player, pNation, pRank, mOffset)
+xi.conquest.bestowSignet = function(player, pNation, pRank, mOffset)
     local duration = (pRank + GetNationRank(pNation) + 3) * 3600
 
     player:delStatusEffectsByFlag(xi.effectFlag.INFLUENCE, true)
@@ -704,6 +704,7 @@ local overseerOffsets =
         { offset =  1, nation = xi.nation.BASTOK   }, -- flag
         { offset =  2, nation = xi.nation.WINDURST }, -- flag
         { offset =  3, nation = xi.nation.BEASTMEN }, -- flag
+        { offset =  4, nation = xi.nation.OTHER    }, -- Bartabaq
     },
     [xi.region.TAVNAZIANARCH] =
     {
@@ -751,11 +752,6 @@ local expRings =
     [xi.item.EMPRESS_BAND] = { chargesWhenFull = 7, costPerCharge = 100 },
     [xi.item.EMPEROR_BAND] = { chargesWhenFull = 3, costPerCharge = 200 },
 }
-
-local function conquestRanking()
-    -- computes part of argument 3 for gate guard events. represents the conquest standing of the 3 nations. Verified.
-    return GetNationRank(xi.nation.SANDORIA) + 4 * GetNationRank(xi.nation.BASTOK) + 16 * GetNationRank(xi.nation.WINDURST)
-end
 
 xi.conquest.toggleRegionalNPCs = function(zone)
     -- Show/Hide regional NPCs
@@ -1410,7 +1406,7 @@ xi.conquest.overseerOnTrigger = function(player, npc, guardNation, guardType, gu
     -- JEUNO OVERSEERS
     elseif guardType == xi.conquest.guard.CITY and guardNation == xi.nation.OTHER then
         local a1 = getArg1(player, guardNation, guardType)
-        local a3 = conquestRanking()
+        local a3 = GetConquestBalance()
         local a6 = getArg6(player)
         local a7 = player:getCP()
 
@@ -1420,7 +1416,7 @@ xi.conquest.overseerOnTrigger = function(player, npc, guardNation, guardType, gu
     elseif guardType <= xi.conquest.guard.FOREIGN then
         local a1 = getArg1(player, guardNation, guardType)
         local a2 = getExForceAvailable(player, npc, guardNation)
-        local a3 = conquestRanking()
+        local a3 = GetConquestBalance()
         local a4 = suppliesAvailableBitmask(player, guardNation)
         local a5 = player:getTeleport(guardNation)
         local a6 = getArg6(player)
@@ -1590,7 +1586,7 @@ xi.conquest.overseerOnEventFinish = function(player, csid, option, guardNation, 
 
     -- Signet -> Grant.
     if option == 1 then
-        bestowSignet(player, pNation, pRank, mOffset)
+        xi.conquest.bestowSignet(player, pNation, pRank, mOffset)
 
     -- Supply Run -> Finish.
     elseif option == 2 then
@@ -1644,7 +1640,7 @@ xi.conquest.overseerOnEventFinish = function(player, csid, option, guardNation, 
             player:setCharVar('[ExpForce]NextConquestTally', NextConquestTally())
         end
 
-        bestowSignet(player, pNation, pRank, mOffset)
+        xi.conquest.bestowSignet(player, pNation, pRank, mOffset)
 
         -- Replace badge with key item
         player:delStatusEffect(xi.effect.EF_BADGE)

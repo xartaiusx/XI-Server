@@ -50,7 +50,7 @@ GP_SERV_COMMAND_JOB_INFO::GP_SERV_COMMAND_JOB_INFO(CCharEntity* PChar)
 
     packet.job_mastery_flags = 0;
     std::memcpy(packet.job_mastery_levels, PChar->masterLevels.data(), sizeof(packet.job_mastery_levels));
-    for (uint8 jobId = JOB_WAR; jobId < MAX_JOBTYPE; ++jobId)
+    for (uint8 jobId = static_cast<uint8>(xi::Job::WAR); jobId < MAX_JOBTYPE; ++jobId)
     {
         if (PChar->masterLevels[jobId] > 0)
         {
@@ -60,7 +60,7 @@ GP_SERV_COMMAND_JOB_INFO::GP_SERV_COMMAND_JOB_INFO(CCharEntity* PChar)
 
     if (PChar->m_PMonstrosity != nullptr)
     {
-        packet.dancer.mjob_no = JOB_MON;
-        packet.dancer.sjob_no = JOB_MON;
+        packet.dancer.mjob_no = xi::Job::MON;
+        packet.dancer.sjob_no = xi::Job::MON;
     }
 }

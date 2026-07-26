@@ -31,6 +31,14 @@ SENSITIVE_PATTERNS = (
     "xiloader",
     "token",
 )
+REVIEWABLE_SOURCE_SUFFIXES = {
+    ".json",
+    ".md",
+    ".ps1",
+    ".py",
+    ".sh",
+}
+LUA_SOURCE_ROOTS = ("modules/", "scripts/")
 REQUIRED_NATIVE_PROOF_GATES = [
     "xipivot",
     "jasmint",
@@ -449,10 +457,15 @@ def check_staged_sensitive(repo: Path) -> list[str]:
     status = run_git(repo, "status", "--short")
     for line in status:
         path = line[3:] if len(line) > 3 else line
-        lower = path.lower()
-        if any(
-            pattern in lower for pattern in SENSITIVE_PATTERNS
-        ) and not lower.endswith((".md", ".py", ".ps1", ".sh", ".json")):
+        lower = path.lower().replace("\\", "/")
+        suffix = Path(lower).suffix
+        is_reviewable_source = suffix in REVIEWABLE_SOURCE_SUFFIXES or (
+            suffix == ".lua" and lower.startswith(LUA_SOURCE_ROOTS)
+        )
+        if (
+            any(pattern in lower for pattern in SENSITIVE_PATTERNS)
+            and not is_reviewable_source
+        ):
             issues.append(
                 f"review sensitive-looking changed path before commit: {path}"
             )

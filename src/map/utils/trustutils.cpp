@@ -947,6 +947,8 @@ struct TrustData
     int8 light_sleep_res_rank{};
     int8 dark_sleep_res_rank{};
     int8 blind_res_rank{};
+    int8 stun_res_rank{};
+    int8 gravity_res_rank{};
 };
 
 HashMap<uint16, std::unique_ptr<TrustData>> g_PTrustData;
@@ -1055,8 +1057,8 @@ void ApplyTrustAlterEgoPointVitals(CTrustEntity* PTrust)
 
     if (PTrust->GetLocalVar("MochiTrustAepVitalsApplied") == 0)
     {
-        PTrust->addModifier(Mod::HP, hpBonus);
-        PTrust->addModifier(Mod::MP, mpBonus);
+        PTrust->addModifier(xi::Mod::HP, hpBonus);
+        PTrust->addModifier(xi::Mod::MP, mpBonus);
         PTrust->SetLocalVar("MochiTrustAepVitalsApplied", 1);
     }
 
@@ -1266,7 +1268,8 @@ void BuildTrustData(uint32 TrustID)
                                        "mob_resistances.paralyze_res_rank, mob_resistances.bind_res_rank, "
                                        "mob_resistances.silence_res_rank, mob_resistances.slow_res_rank, "
                                        "mob_resistances.poison_res_rank, mob_resistances.light_sleep_res_rank, "
-                                       "mob_resistances.dark_sleep_res_rank, mob_resistances.blind_res_rank "
+                                       "mob_resistances.dark_sleep_res_rank, mob_resistances.blind_res_rank, "
+                                       "mob_resistances.stun_res_rank, mob_resistances.gravity_res_rank "
                                        "FROM spell_list, mob_pools, mob_species_system, mob_resistances "
                                        "WHERE spell_list.spellid = ? "
                                        "AND (spell_list.spellid + 5000) = mob_pools.poolid "
@@ -1361,6 +1364,8 @@ void BuildTrustData(uint32 TrustID)
             data->light_sleep_res_rank = rset->get<int8>("light_sleep_res_rank");
             data->dark_sleep_res_rank  = rset->get<int8>("dark_sleep_res_rank");
             data->blind_res_rank       = rset->get<int8>("blind_res_rank");
+            data->stun_res_rank        = rset->get<int8>("stun_res_rank");
+            data->gravity_res_rank     = rset->get<int8>("gravity_res_rank");
 
             g_PTrustData[TrustID] = std::move(data);
         }
@@ -1502,16 +1507,16 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust)
 {
     if (settings::get<uint8>("main.ENABLE_TRUST_ALTER_EGO_EXPO") > 0) // Alter Ego Expo HPP/MPP +50%, All Status Resistance +25%
     {
-        PTrust->addModifier(Mod::HPP, 50);
-        PTrust->addModifier(Mod::MPP, 50);
-        PTrust->addModifier(Mod::STATUSRES, 25);
+        PTrust->addModifier(xi::Mod::HPP, 50);
+        PTrust->addModifier(xi::Mod::MPP, 50);
+        PTrust->addModifier(xi::Mod::STATUSRES, 25);
     }
 
     // add mob pool mods ahead of applying stats
     mobutils::AddSqlModifiers(PTrust);
 
-    JOBTYPE mJob = PTrust->GetMJob();
-    JOBTYPE sJob = PTrust->GetSJob();
+    xi::Job mJob = PTrust->GetMJob();
+    xi::Job sJob = PTrust->GetSJob();
     uint8   mLvl = PTrust->GetMLevel();
     uint8   sLvl = PTrust->GetSLevel();
 
@@ -1724,16 +1729,16 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust)
         }
     }
 
-    PTrust->addModifier(Mod::DEF, mobutils::GetBaseSkill(PTrust, PTrust->defRank));
-    PTrust->addModifier(Mod::EVA, mobutils::GetBaseSkill(PTrust, PTrust->evaRank));
-    PTrust->addModifier(Mod::ATT, mobutils::GetBaseSkill(PTrust, PTrust->attRank));
-    PTrust->addModifier(Mod::ACC, mobutils::GetBaseSkill(PTrust, PTrust->accRank));
+    PTrust->addModifier(xi::Mod::DEF, mobutils::GetBaseSkill(PTrust, PTrust->defRank));
+    PTrust->addModifier(xi::Mod::EVA, mobutils::GetBaseSkill(PTrust, PTrust->evaRank));
+    PTrust->addModifier(xi::Mod::ATT, mobutils::GetBaseSkill(PTrust, PTrust->attRank));
+    PTrust->addModifier(xi::Mod::ACC, mobutils::GetBaseSkill(PTrust, PTrust->accRank));
 
-    PTrust->addModifier(Mod::RATT, mobutils::GetBaseSkill(PTrust, PTrust->attRank));
-    PTrust->addModifier(Mod::RACC, mobutils::GetBaseSkill(PTrust, PTrust->accRank));
+    PTrust->addModifier(xi::Mod::RATT, mobutils::GetBaseSkill(PTrust, PTrust->attRank));
+    PTrust->addModifier(xi::Mod::RACC, mobutils::GetBaseSkill(PTrust, PTrust->accRank));
 
     // Natural magic evasion
-    PTrust->addModifier(Mod::MEVA, mobutils::GetMagicEvasion(PTrust));
+    PTrust->addModifier(xi::Mod::MEVA, mobutils::GetMagicEvasion(PTrust));
 
     // Add traits for sub and main
     battleutils::AddTraits(PTrust, traits::GetTraits(mJob), mLvl);

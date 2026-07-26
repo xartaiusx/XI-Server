@@ -706,6 +706,16 @@ xi.mobSkill =
     EES_YAGUDO                    = 1121,
     EES_QUADAV                    = 1122,
 
+    DYNAMIC_IMPLOSION             = 1127,
+    TRANSFUSION                   = 1128,
+    MANA_STORM                    = 1129,
+    DYNAMIC_ASSAULT               = 1130,
+    VIOLENT_RUPTURE               = 1131,
+    OBLIVION_SMASH_1              = 1132,
+    OBLIVION_SMASH_2              = 1133,
+    TERA_SLASH_1                  = 1134,
+    TERA_SLASH_2                  = 1135,
+
     EES_KINDRED                   = 1151,
 
     -- EES_?                         = 1153,
@@ -1017,7 +1027,10 @@ xi.mobSkill =
     FIRESPIT                      = 1733,
 
     LAVA_SPIT                     = 1785,
-
+    SULFUROUS_BREATH              = 1786,
+    SCORCHING_LASH                = 1787,
+    ULULATION                     = 1788,
+    MAGMA_HOPLON                  = 1789,
     GATES_OF_HADES                = 1790,
 
     VAMPIRIC_ROOT                 = 1793,
@@ -1043,6 +1056,7 @@ xi.mobSkill =
     PIT_AMBUSH_2                  = 1844,
     MANDIBULAR_BITE_2             = 1845,
 
+    ROAR_CERBERUS                 = 1892,
     -- SPIRIT_SURGE                  = 1893,
 
     FIRESPIT_BLUE_MAMOOLJA        = 1923, -- Ignores shadows
