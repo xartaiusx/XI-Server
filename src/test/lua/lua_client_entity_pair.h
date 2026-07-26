@@ -47,6 +47,7 @@ public:
     void tick();
     void gotoZone(ZONEID zoneId, sol::optional<sol::table> pos);
     void gotoMogHouse(ZONEID zoneId);
+    void simulateZoneOutLifecycle(bool logout);
     auto isPendingZone() const -> bool;
     auto getItemInvSlot(uint16 itemId, uint8 quantity) const -> Maybe<uint16>;
     void claimAndKillMob(const sol::object& mobQuery, sol::optional<sol::table> params);

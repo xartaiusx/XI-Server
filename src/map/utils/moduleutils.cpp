@@ -169,6 +169,16 @@ void OnCharZoneIn(CCharEntity* PChar)
     }
 }
 
+void OnCharPreZoneOut(CCharEntity* PChar)
+{
+    TracyZoneScoped;
+
+    for (auto* module : cppModules())
+    {
+        module->OnCharPreZoneOut(PChar);
+    }
+}
+
 void OnCharZoneOut(CCharEntity* PChar)
 {
     TracyZoneScoped;

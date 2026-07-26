@@ -55,6 +55,7 @@ public:
     virtual void OnZoneTick(CZone* PZone) {};
     virtual void OnTimeServerTick() {};
     virtual void OnCharZoneIn(CCharEntity* PChar) {};
+    virtual void OnCharPreZoneOut(CCharEntity* PChar) {};
     virtual void OnCharZoneOut(CCharEntity* PChar) {};
     virtual void OnPushPacket(CCharEntity* PChar, const std::unique_ptr<CBasicPacket>& packet) {};
 
@@ -86,6 +87,7 @@ void OnInit();
 void OnZoneTick(CZone* PZone);
 void OnTimeServerTick();
 void OnCharZoneIn(CCharEntity* PChar);
+void OnCharPreZoneOut(CCharEntity* PChar);
 void OnCharZoneOut(CCharEntity* PChar);
 void OnPushPacket(CCharEntity* PChar, const std::unique_ptr<CBasicPacket>& packet);
 auto OnIncomingPacket(MapSession* PSession, CCharEntity* PChar, CBasicPacket& packet) -> bool;

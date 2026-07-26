@@ -1,0 +1,1 @@
+schema_version=2	record_type=session_begin	session_id=Twills-1234-2000000000-1	server_commit=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	sequence=1	sequence=2	timestamp_epoch=2000000000	timestamp_utc=2033-05-18T03:33:20Z	owner=Twills	owner_id=1234	evidence_mode=retail_control	topology=retail_party_1_plus_5	state=spawning	generation=1	zone=100	trust_engage_type=0	event=session_begin

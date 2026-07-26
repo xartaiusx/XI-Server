@@ -57,9 +57,22 @@ commandObj.onTrigger = function(player, action, target)
         return
     end
 
+    if action == 'mode' then
+        if parity.modeRows == nil then
+            printLine(player, 'Mochirii Trust evidence mode helper is not available.')
+            return
+        end
+
+        printRows(player, parity.modeRows(player))
+        return
+    end
+
     if action == 'repair' then
-        if parity.isQaSummonRunning ~= nil and parity.isQaSummonRunning(player) then
-            printLine(player, 'Mochirii Trust QA summon is still running. Wait for the completion message before repair.')
+        if
+            parity.sessionState ~= nil and
+            player:getTwillsFullAllianceState() == parity.sessionState.SPAWNING
+        then
+            printLine(player, 'Mochirii Trust summon is still running. Wait for the completion message before repair.')
             return
         end
 
@@ -71,18 +84,17 @@ commandObj.onTrigger = function(player, action, target)
     if action == 'audit' then
         if
             (target == nil or target == 'active') and
-            parity.isQaSummonRunning ~= nil and
-            parity.isQaSummonRunning(player)
+            parity.sessionState ~= nil and
+            player:getTwillsFullAllianceState() == parity.sessionState.SPAWNING
         then
             local active = 0
             local expected = 0
-            if parity.qaAllianceReady ~= nil then
-                local _
-                _, active, expected = parity.qaAllianceReady(player)
+            if parity.sessionProgress ~= nil then
+                active, expected = parity.sessionProgress(player)
             end
 
             printLine(player, string.format(
-                'Mochirii Trust QA summon is still running (%u/%u active). Wait before audit active.',
+                'Mochirii Trust summon is still running (%u/%u active). Wait before audit active.',
                 active,
                 expected
             ))
@@ -104,6 +116,17 @@ commandObj.onTrigger = function(player, action, target)
     end
 
     if action == 'combattest' then
+        if parity.isCombatTestReady == nil then
+            printLine(player, 'Mochirii Trust combat-test gate is not available.')
+            return
+        end
+
+        local ready, mode = parity.isCombatTestReady(player)
+        if not ready then
+            printLine(player, string.format('Mochirii Trust combat test denied: %s.', mode))
+            return
+        end
+
         local zone = player:getZone()
         if zone == nil then
             printLine(player, 'Mochirii Trust combat test failed: player has no zone.')
@@ -143,7 +166,6 @@ commandObj.onTrigger = function(player, action, target)
         mob:setPos(player:getXPos() + 2, player:getYPos(), player:getZPos() + 2, player:getRotPos(), player:getZoneID())
         mob:updateClaim(player)
         mob:addEnmity(player, 1, 1200)
-        player:setCharVar('TrustEngageType', 1)
         player:engage(mob:getTargID())
 
         print(string.format(
@@ -154,12 +176,38 @@ commandObj.onTrigger = function(player, action, target)
             mob:getTargID(),
             player:getZoneID()
         ))
-        printLine(player, string.format('Mochirii Trust combat test started against %s (%u).', mob:getName(), mobId))
+        printLine(player, string.format('Mochirii Trust combat test started in %s against %s (%u).', mode, mob:getName(), mobId))
+        return
+    end
+
+    if action == 'clear' then
+        if parity.clearSession == nil then
+            printLine(player, 'Mochirii Trust clear helper is not available.')
+            return
+        end
+
+        local cleared, reason = parity.clearSession(player, 'manual_clear')
+        if not cleared then
+            printLine(player, string.format('Mochirii Trust clear failed: %s.', reason))
+        elseif reason == 'already_idle' then
+            printLine(player, 'Mochirii Trust state was already idle; active Trusts were cleared.')
+        end
+
+        return
+    end
+
+    if action == 'summonretail' then
+        if parity.summonRetail == nil then
+            printLine(player, 'Trust retail-control summon helper is not available.')
+            return
+        end
+
+        parity.summonRetail(player)
         return
     end
 
     if action == 'summonqa' then
-        if parity.autoSummonQaParty == nil then
+        if parity.summonQa == nil then
             printLine(player, 'Trust QA summon helper is not available.')
             return
         end
@@ -167,9 +215,8 @@ commandObj.onTrigger = function(player, action, target)
         if parity.isQaSummonRunning ~= nil and parity.isQaSummonRunning(player) then
             local active = 0
             local expected = 0
-            if parity.qaAllianceReady ~= nil then
-                local _
-                _, active, expected = parity.qaAllianceReady(player)
+            if parity.sessionProgress ~= nil then
+                active, expected = parity.sessionProgress(player)
             end
 
             printLine(player, string.format(
@@ -180,17 +227,18 @@ commandObj.onTrigger = function(player, action, target)
             return
         end
 
-        printLine(player, 'Starting Mochirii Trust QA summon sequence.')
-        printLine(player, 'Do not run repair manually; summonqa auto-repairs once all Trusts are active.')
-        parity.autoSummonQaParty(player)
+        parity.summonQa(player)
         return
     end
 
     printLine(player, '!trustparty status')
+    printLine(player, '!trustparty mode')
     printLine(player, '!trustparty repair')
     printLine(player, '!trustparty audit active|all|<trust>')
     printLine(player, '!trustparty composition')
+    printLine(player, '!trustparty summonretail')
     printLine(player, '!trustparty summonqa')
+    printLine(player, '!trustparty clear')
     printLine(player, '!trustparty combattest [same-zone mobId]')
 end
 

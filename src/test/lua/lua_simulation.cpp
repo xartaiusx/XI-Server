@@ -27,9 +27,11 @@
 #include "lua_client_entity_pair.h"
 #include "lua_test_entity.h"
 #include "map/ai/ai_container.h"
+#include "map/ai/helpers/targetfind.h"
 #include "map/conquest_data.h"
 #include "map/conquest_system.h"
 #include "map/entities/base_entity.h"
+#include "map/entities/battle_entity.h"
 #include "map/entities/mob_entity.h"
 #include "map/lua/lua_base_entity.h"
 #include "map/lua/luautils.h"
@@ -504,10 +506,11 @@ auto CLuaSimulation::spawnPlayer(sol::optional<sol::table> params) -> CLuaClient
 {
     TracyZoneScoped;
 
-    uint16               zoneId = ZONE_GM_HOME;
-    sol::optional<uint8> job;
-    sol::optional<uint8> level;
-    bool                 isNewPlayer = false;
+    uint16                     zoneId = ZONE_GM_HOME;
+    sol::optional<uint8>       job;
+    sol::optional<uint8>       level;
+    sol::optional<std::string> name;
+    bool                       isNewPlayer = false;
 
     if (params.has_value())
     {
@@ -516,12 +519,13 @@ auto CLuaSimulation::spawnPlayer(sol::optional<sol::table> params) -> CLuaClient
         zoneId      = paramTable.get_or("zone", ZONE_GM_HOME);
         job         = paramTable.get<sol::optional<uint8>>("job");
         level       = paramTable.get<sol::optional<uint8>>("level");
+        name        = paramTable.get<sol::optional<std::string>>("name");
         isNewPlayer = paramTable.get_or("new", false);
     }
 
     ShowInfoFmt("Spawning player in zone: {}", zoneId);
 
-    auto testChar = TestChar::create(zoneId);
+    auto testChar = TestChar::create(zoneId, name.value_or(""));
 
     if (!testChar)
     {
@@ -590,6 +594,32 @@ void CLuaSimulation::setSetupContext(const bool inSetup)
     inSetupContext_ = inSetup;
 }
 
+auto CLuaSimulation::getPartyTargetTraversal(CLuaBaseEntity& entity) const -> sol::table
+{
+    auto  result  = lua.create_table();
+    auto* PEntity = dynamic_cast<CBattleEntity*>(entity.GetBaseEntity());
+    if (!PEntity)
+    {
+        TestError("Party target traversal requires a battle entity");
+        return result;
+    }
+
+    CTargetFind targetFind(PEntity);
+    targetFind.findWithinArea(
+        PEntity,
+        AOE_RADIUS::TARGET,
+        1000.0f,
+        FINDFLAGS_NONE,
+        TARGET_PLAYER_PARTY);
+
+    for (auto* PTarget : targetFind.m_targets)
+    {
+        result.add(CLuaBaseEntity(PTarget));
+    }
+
+    return result;
+}
+
 /************************************************************************
  *  Function: getSpawnSlot()
  *  Purpose : Returns mobs in a spawn slot as a Lua table.
@@ -644,5 +674,6 @@ void CLuaSimulation::Register()
     SOL_REGISTER("setSeed", CLuaSimulation::setSeed);
     SOL_REGISTER("seed", CLuaSimulation::seed);
     SOL_REGISTER("spawnPlayer", CLuaSimulation::spawnPlayer);
+    SOL_REGISTER("getPartyTargetTraversal", CLuaSimulation::getPartyTargetTraversal);
     SOL_REGISTER("getSpawnSlot", CLuaSimulation::getSpawnSlot);
 };

@@ -171,10 +171,9 @@ xi.settings.main =
     -- TRUSTS
     ENABLE_TRUST_CASTING           = 1,
     ENABLE_TRUST_QUESTS            = 1,
-    ENABLE_TRUST_CUSTOM_ENGAGEMENT = 1,
-    ALLOW_TRUST_CASTING_WITH_ENMITY = 1, -- Mochirii: allow Trust magic while the player already has enmity/in combat.
-    ENABLE_TRUST_AUTO_ALLIANCE      = true, -- Mochirii: allow Trust summons to fill virtual alliance parties at 6/12/18 total members.
-    TRUST_AUTO_ALLIANCE_MAX_PARTIES = 3,    -- Retail alliance shape is three parties of six; lower this to 1 or 2 for testing.
+    ENABLE_TRUST_CUSTOM_ENGAGEMENT = 0,
+    ENABLE_MOCHIRII_TWILLS_FULL_ALLIANCE      = true, -- Mochirii: permit only the entitled hidden-GM5 Twills QA session to use virtual alliance transport.
+    MOCHIRII_TWILLS_FULL_ALLIANCE_MAX_PARTIES = 3,    -- Fail-closed policy requires the exact three-party alliance shape.
     ENABLE_TRUST_DEFENSIVE_MODE     = true, -- Mochirii: Trusts defend the player, active Trusts, and real party/alliance members from attackers.
     ENABLE_TRUST_SHARED_TARGETING   = true, -- Mochirii: Trusts coordinate on one focus target, preferring the master's active target, then defensive threats.
     ENABLE_TRUST_ROLE_ENMITY        = true, -- Mochirii: Tank Trusts periodically reinforce hate; non-tank Trusts shed hate if they become top target.
@@ -202,12 +201,12 @@ xi.settings.main =
     TRUST_CASTER_COMBAT_REST_NUKER_STOP_MPP   = 30, -- Nukers stand once enough MP is restored for a short cast sequence.
     TRUST_CASTER_COMBAT_REST_PARTY_HPP_MIN    = 70, -- Do not combat-rest while the master or any Trust is at/below this HP percentage.
 
-    ENABLE_LIMITED_TIME_TRUST = 2, -- 0 = disabled, 1 = Cornelia, 2 = Matsui-P, will get automatically added to players trust list if the player has a trust permit KI.
+    ENABLE_LIMITED_TIME_TRUST = 0, -- 0 = disabled, 1 = Cornelia, 2 = Matsui-P, will get automatically added to players trust list if the player has a trust permit KI.
 
-    ENABLE_TRUST_ALTER_EGO_EXTRAVAGANZA          = 3, -- 0 = disabled, 1 = summer/ny, 2 = spring/autumn, 3 = both
-    ENABLE_TRUST_ALTER_EGO_EXTRAVAGANZA_ANNOUNCE = 1, -- 0 = disabled, 1 = add announcement to player login
-    ENABLE_TRUST_ALTER_EGO_EXPO                  = 1, -- 0 = disabled, 1 = expo - HPP/MPP/Status Resistance, 2 = expo plus (not implemented)
-    ENABLE_TRUST_ALTER_EGO_EXPO_ANNOUNCE         = 1, -- 0 = disabled, 1 = add announcement to player login
+    ENABLE_TRUST_ALTER_EGO_EXTRAVAGANZA          = 0, -- Keep 0; scripts/globals/extravaganza.lua currently hard-disables this campaign.
+    ENABLE_TRUST_ALTER_EGO_EXTRAVAGANZA_ANNOUNCE = 0, -- 0 = disabled, 1 = add announcement to player login
+    ENABLE_TRUST_ALTER_EGO_EXPO                  = 0, -- 0 = disabled; nonzero Expo stats are scoped to the authorized Twills QA alliance only.
+    ENABLE_TRUST_ALTER_EGO_EXPO_ANNOUNCE         = 0, -- 0 = disabled, 1 = add announcement to player login
 
     TRUST_ALTER_EGO_EXTRAVAGANZA_MESSAGE =
         '\n \n' .. -- The space between these newlines is intentional
@@ -372,12 +371,12 @@ xi.settings.main =
 
     -- TRUST QA LOGGING
     ENABLE_TRUST_ACTION_LOG     = true,                                      -- true/false. Writes Trust action traces for QA.
-    TRUST_ACTION_LOG_PLAYER     = 'Twills',                                  -- Player whose Trust party is traced. Empty string traces all players.
+    TRUST_ACTION_LOG_PLAYER     = 'Twills',                                  -- Exact authorized evidence owner; empty or mismatched values fail closed.
     TRUST_ACTION_LOG_DIR        = trustActionLogDir,                          -- Set MOCHIRII_RUNTIME_ROOT to keep QA evidence outside the repository.
     TRUST_ACTION_LOG_MAP_ECHO   = false,                                     -- true/false. Also echo Trust action trace lines to the map log.
     TRUST_ACTION_LOG_PACKET_RESULTS = true,                                  -- true/false. C++ packet/result logging for melee/ranged/WS/spell/JA outcomes.
     TRUST_ACTION_LOG_RESULT_DETAIL  = 'full',                                -- full/minimal. Full records one action_result row per packet target result.
-    TRUST_ACTION_LOG_MAX_BYTES_PER_SESSION = 0,                              -- 0 = no cap. Reserved for large soak tests.
+    TRUST_ACTION_LOG_MAX_BYTES_PER_SESSION = 67108864,                       -- 64 MiB hard cap per live/archive evidence session.
     TRUST_ACTION_LOG_DIAGNOSTIC_TICK_SECONDS = 3,                            -- Seconds between per-Trust combat position/engagement diagnostics. 0 disables.
 
     -- SYSTEM

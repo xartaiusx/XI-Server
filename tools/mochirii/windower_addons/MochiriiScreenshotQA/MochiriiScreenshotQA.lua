@@ -227,7 +227,13 @@ local function command_is_mutating(command)
 
     if
         tokens[1] == '!trustparty' and
-        (tokens[2] == 'audit' or tokens[2] == 'status')
+        (
+            tokens[2] == nil or
+            tokens[2] == 'audit' or
+            tokens[2] == 'status' or
+            tokens[2] == 'mode' or
+            tokens[2] == 'composition'
+        )
     then
         return false
     end

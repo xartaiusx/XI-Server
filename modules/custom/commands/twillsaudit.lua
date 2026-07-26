@@ -79,6 +79,20 @@ end
 local function auditCore(player, target)
     nativeAudit(player, target, 'auditDbState', 'Core DB audit')
 
+    local entitlementVar = xi.twills_admin.trustAllianceAccessVar or 'MochiriiTrustAllianceAccess'
+    local entitlement = target:getCharVar(entitlementVar)
+    local actualGm = target:getGMLevel()
+    local visibleGm = target:getVisibleGMLevel()
+    local authorized = target:canUseTwillsFullAlliance()
+    printLine(player, string.format(
+        '%s Twills Trust alliance authorization: entitlement=%u, actual_gm=%u, visible_gm=%u, predicate=%s',
+        entitlement == 1 and actualGm == 5 and visibleGm == 0 and authorized and '[OK]' or '[FIX]',
+        entitlement,
+        actualGm,
+        visibleGm,
+        authorized and 'authorized' or 'denied'
+    ))
+
     local learned = 0
     local missing = {}
     for _, spell in ipairs(rdmJobPointSpells) do

@@ -363,6 +363,13 @@ void init(IPP mapIPP, bool isRunningInCI)
                 version::GetGitDate());
         });
 
+    lua.set_function(
+        "GetServerGitCommit",
+        []()
+        {
+            return std::string(version::GetGitSha());
+        });
+
     // Register Sol Bindings
     CLuaAbility::Register();
     CLuaAction::Register();

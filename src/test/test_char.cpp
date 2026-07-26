@@ -102,7 +102,7 @@ void TestChar::clean(uint32 charId /* = 0 */)
     }
 }
 
-auto TestChar::create(const uint16_t zoneId) -> std::unique_ptr<TestChar>
+auto TestChar::create(const uint16_t zoneId, const std::string_view entityNameOverride) -> std::unique_ptr<TestChar>
 {
     uint32_t accId  = 0;
     uint32_t charId = 0;
@@ -163,6 +163,7 @@ auto TestChar::create(const uint16_t zoneId) -> std::unique_ptr<TestChar>
     testChar->accountId_ = accId;
     testChar->charId_    = charId;
     testChar->charName_  = charName;
+    testChar->entityNameOverride_ = entityNameOverride;
 
     return testChar;
 }
@@ -208,6 +209,12 @@ void TestChar::setEntity(std::unique_ptr<CCharEntity> entity) const
         session_->PChar           = std::move(entity);
         session_->PChar->PSession = session();
         session_->PChar->status   = xi::Status::Normal;
+        if (!entityNameOverride_.empty())
+        {
+            // Test-only policy identity: keep the database row's generated
+            // unique name and override only the loaded in-memory entity.
+            session_->PChar->SetName(entityNameOverride_);
+        }
     }
 }
 

@@ -16045,6 +16045,40 @@ auto CLuaBaseEntity::spawnTrust(uint16 trustId) -> CBaseEntity*
     return trustutils::SpawnTrust(static_cast<CCharEntity*>(m_PBaseEntity), trustId);
 }
 
+bool CLuaBaseEntity::canUseTwillsFullAlliance()
+{
+    return m_PBaseEntity->objtype == TYPE_PC &&
+           trustutils::CanUseTwillsFullAlliance(static_cast<CCharEntity*>(m_PBaseEntity));
+}
+
+bool CLuaBaseEntity::isTwillsFullAllianceActive()
+{
+    return m_PBaseEntity->objtype == TYPE_PC &&
+           trustutils::IsTwillsFullAllianceActive(static_cast<CCharEntity*>(m_PBaseEntity));
+}
+
+uint8 CLuaBaseEntity::getTwillsFullAllianceState()
+{
+    if (m_PBaseEntity->objtype != TYPE_PC)
+    {
+        return static_cast<uint8>(trustutils::TwillsFullAllianceState::Failed);
+    }
+
+    return static_cast<uint8>(trustutils::GetTwillsFullAllianceState(static_cast<CCharEntity*>(m_PBaseEntity)));
+}
+
+bool CLuaBaseEntity::setTwillsFullAllianceState(uint32 state)
+{
+    if (m_PBaseEntity->objtype != TYPE_PC || state > static_cast<uint32>(trustutils::TwillsFullAllianceState::Failed))
+    {
+        return false;
+    }
+
+    return trustutils::SetTwillsFullAllianceState(
+        static_cast<CCharEntity*>(m_PBaseEntity),
+        static_cast<trustutils::TwillsFullAllianceState>(state));
+}
+
 /************************************************************************
  *  Function: clearTrusts()
  *  Purpose :
@@ -21049,6 +21083,10 @@ void CLuaBaseEntity::Register()
     // Trust related
     SOL_REGISTER("spawnTrust", CLuaBaseEntity::spawnTrust);
     SOL_REGISTER("clearTrusts", CLuaBaseEntity::clearTrusts);
+    SOL_REGISTER("canUseTwillsFullAlliance", CLuaBaseEntity::canUseTwillsFullAlliance);
+    SOL_REGISTER("isTwillsFullAllianceActive", CLuaBaseEntity::isTwillsFullAllianceActive);
+    SOL_REGISTER("getTwillsFullAllianceState", CLuaBaseEntity::getTwillsFullAllianceState);
+    SOL_REGISTER("setTwillsFullAllianceState", CLuaBaseEntity::setTwillsFullAllianceState);
     SOL_REGISTER("getTrustID", CLuaBaseEntity::getTrustID);
     SOL_REGISTER("trustPartyMessage", CLuaBaseEntity::trustPartyMessage);
     SOL_REGISTER("addGambit", CLuaBaseEntity::addGambit);

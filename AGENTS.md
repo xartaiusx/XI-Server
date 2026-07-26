@@ -106,22 +106,29 @@ possible.
 2. Send normal Windower, Final Fantasy XI, GearSwap, XivParty, and GM commands
    with `C:\Github Repo's\FFXI\Runtime\client-tools\Invoke-WindowerCommand.ps1`.
    Add `-AllowMutation` only for an intentionally reviewed mutating GM command
-   such as `!trustparty summonqa` or `!twillsrepair`; audits and status commands
-   stay read-only and must not use the switch. Keep background mode unless the
-   test has a documented DirectInput requirement.
+   such as `!trustparty summonretail`, `!trustparty summonqa`,
+   `!trustparty clear`, or `!twillsrepair`. Bare `!trustparty`, `mode`, `status`, `audit`,
+   and `composition` are read-only and must not use the switch. Keep background
+   mode unless the test has a documented DirectInput requirement.
 3. For addon state checks, use `//lua list`, `//lua reload <addon>`, native
    addon commands such as `//xp setup off` and `//craft status`, and native GearSwap commands such
    as `//gs reload`, `//gs validate sets`, `//gs validate inv`, and
    `//gs c status`.
-4. For Trust QA, use `!trustparty summonqa`, wait for the summon-complete
-   message, then run `!trustparty audit active`. Do not send `!trustparty
-   repair` or combat commands while `summonqa` is still running.
+4. For Trust readiness QA, select one lane explicitly. `!trustparty summonretail`
+   creates Twills plus the locked five-Trust retail-control
+   party; `!trustparty summonqa` creates the Twills-only 17-Trust Mochirii QA
+   alliance. Wait for the summon-complete message, verify `!trustparty mode`,
+   then run the Python audit with `--readiness-only`. Readiness is not combat
+   or retail-parity acceptance. Do not repair, clear, zone, or use combat
+   commands while a summon is still running.
 5. Capture UI proof with
    `C:\Github Repo's\FFXI\Runtime\client-tools\capture_windower_window.ps1`
    only. Require `ControlMode=BackgroundBridge`, full client dimensions, and
    `PreviousForegroundRestored=True` for unattended captures.
-6. After combat tests, generate the report from WSL with
-   `python3 tools/mochirii/trust_parity_audit.py --repo-root . --runtime-root /home/xartyzx/projects/FFXI-Runtime --player Twills`.
+6. Use `!trustparty clear` between lanes and before shutdown; require idle
+   state, zero Trusts, zero pending timers, and `TrustEngageType=0`. Only after
+   a separately authorized combat capture, generate the default combat report
+   from WSL with the canonical Python audit without `--readiness-only`.
 7. For CraftQA, keep Twills Alchemy 110 / Cooking 70 unless a future plan
    explicitly switches specialization. Use native client Synthesis History and
    `/lastsynth` as the proof path; CraftQA may stage ingredients and record
@@ -160,8 +167,15 @@ and tracked restore copy, then prove solo and full-alliance states with native
 - Buffs and debuffs must use missing-or-expiring maintenance gates.
 - Do not make broad movement/controller changes until the Trust action logs
   show the exact Trust, target, range, recast, or idle cause.
-- Generate post-combat evidence with:
-  - `powershell -NoProfile -ExecutionPolicy Bypass -File tools\mochirii\trust_parity_audit.ps1`
+- Generate readiness evidence with the canonical Python audit and
+  `--readiness-only`. Its successful report must still state
+  `combat_acceptance=not_run` and must never be presented as Trust parity.
+- Generate post-combat evidence with the same Python audit without
+  `--readiness-only`. The PowerShell entrypoint is only a thin argument and
+  exit-code forwarder.
+- Treat `twills_full_alliance_qa` as a permanent Mochirii extension, never as
+  retail acceptance. Retail-control evidence remains one PC plus exactly five
+  eligible Trusts in one party.
 - Review unresolved action names, runtime action issues, distance diagnostics,
   role-enmity decisions, alliance support scope, active effects, and early
   buff/debuff refreshes after every combat test.

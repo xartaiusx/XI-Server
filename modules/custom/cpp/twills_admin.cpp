@@ -6,9 +6,11 @@
  ************************************************************************/
 
 #include "common/database.h"
+#include "common/logging.h"
 #include "entities/char_entity.h"
 #include "lua/lua_base_entity.h"
 #include "map/utils/moduleutils.h"
+#include "map/utils/trustutils.h"
 #include "merit.h"
 #include "roe.h"
 #include "utils/charutils.h"
@@ -17,6 +19,7 @@
 #include <array>
 #include <cctype>
 #include <chrono>
+#include <limits>
 #include <string>
 #include <tuple>
 #include <unordered_map>
@@ -25,28 +28,38 @@
 namespace
 {
 
-constexpr uint16      kMaxCapacityPoints        = 29999;
-constexpr uint16      kMaxJobPoints             = 500;
-constexpr uint16      kMaxJobPointsSpent        = 2100;
-constexpr uint8       kMaxJobPointCategory      = 20;
-constexpr uint8       kMaxAlterEgoCategory      = 50;
-constexpr uint16      kMaxAlterEgoPointWallet   = 1350;
-constexpr uint16      kMaxFameValue             = 613;
-constexpr uint16      kMaxAbysseaFameValue      = 425;
-constexpr uint8       kMaxInventorySize         = 80;
-constexpr uint32      kGuildPointWallet         = 200000;
-constexpr uint16      kMaxChocobucks            = 1000;
-constexpr uint8       kMaxFewell                = 99;
-constexpr uint8       kMaxMasterLevel           = 50;
-constexpr uint8       kCurrentBootVersion       = 9;
-constexpr uint8       kSylvieUnityLeader        = 11;
-constexpr uint32      kVeteranPlaytimeSeconds   = 36000000;
-constexpr uint32      kBallistaPointCap         = 2000;
-constexpr uint16      kMaxHeldMerits            = 75;
-constexpr uint16      kMaxLimitPoints           = 9999;
-constexpr const char* kVeteranTimestamp         = "2011-07-11 00:00:00";
-constexpr auto        kMartialTechniquePrimer   = static_cast<KeyItem>(3224);
-constexpr auto        kMartialTechniqueTreatise = static_cast<KeyItem>(3225);
+constexpr uint16      kMaxCapacityPoints         = 29999;
+constexpr uint16      kMaxJobPoints              = 500;
+constexpr uint16      kMaxJobPointsSpent         = 2100;
+constexpr uint8       kMaxJobPointCategory       = 20;
+constexpr uint8       kMaxAlterEgoCategory       = 50;
+constexpr uint16      kMaxAlterEgoPointWallet    = 1350;
+constexpr uint16      kMaxFameValue              = 613;
+constexpr uint16      kMaxAbysseaFameValue       = 425;
+constexpr uint8       kMaxInventorySize          = 80;
+constexpr uint32      kGuildPointWallet          = 200000;
+constexpr uint16      kMaxChocobucks             = 1000;
+constexpr uint8       kMaxFewell                 = 99;
+constexpr uint8       kMaxMasterLevel            = 50;
+constexpr uint8       kCurrentBootVersion        = 9;
+constexpr uint8       kSylvieUnityLeader         = 11;
+constexpr uint32      kVeteranPlaytimeSeconds    = 36000000;
+constexpr uint32      kBallistaPointCap          = 2000;
+constexpr uint16      kMaxHeldMerits             = 75;
+constexpr uint16      kMaxLimitPoints            = 9999;
+constexpr const char* kVeteranTimestamp          = "2011-07-11 00:00:00";
+constexpr auto        kMartialTechniquePrimer    = static_cast<KeyItem>(3224);
+constexpr auto        kMartialTechniqueTreatise  = static_cast<KeyItem>(3225);
+constexpr auto        kTrustAllianceAccessVar    = "MochiriiTrustAllianceAccess";
+constexpr auto        kTrustSessionStateVar      = "MochiriiTrustSessionState";
+constexpr auto        kTrustEvidenceModeVar      = "MochiriiTrustEvidenceMode";
+constexpr auto        kTrustSessionGenerationVar = "MochiriiTrustSessionGeneration";
+constexpr auto        kTrustSessionStartedVar    = "MochiriiTrustSessionStarted";
+constexpr auto        kTrustSessionZoneVar       = "MochiriiTrustSessionZone";
+constexpr auto        kTrustEvidenceSequenceVar  = "MochiriiTrustEvidenceSeq";
+constexpr auto        kTrustEvidenceSchemaVar    = "MochiriiTrustEvidenceSchema";
+constexpr auto        kTrustPendingTimersVar     = "MochiriiTrustAlliancePendingTimers";
+constexpr auto        kTrustLogTruncatedVar      = "MochiriiTrustLogTruncated";
 
 constexpr uint32 kOutpostMask       = ((1u << 19) - 1u) << 5; // Region bits 5-23.
 constexpr uint32 kRunicPortalMask   = 0x0000007Eu;            // Runic portal bits 1-6.
@@ -675,17 +688,17 @@ auto auditDbState(sol::this_state state, uint32 charId) -> sol::table
             "SELECT "
             "SUM(varname = 'TwillsBootVersion' AND value >= ?) AS boot_ok, "
             "SUM(varname = 'TwillsRdmSchGearVersion' AND value >= 3) AS gear_ok, "
-            "SUM(varname = 'TrustEngageType' AND value = 1) AS trust_ok "
+            "SUM(varname = 'MochiriiTrustAllianceAccess' AND value = 1) AS trust_access_ok "
             "FROM char_vars WHERE charid = ? AND varname IN "
-            "('TwillsBootVersion', 'TwillsRdmSchGearVersion', 'TrustEngageType')",
+            "('TwillsBootVersion', 'TwillsRdmSchGearVersion', 'MochiriiTrustAllianceAccess')",
             kCurrentBootVersion,
             charId);
         rset && rset->rowsCount() && rset->next())
     {
         const bool ok = rset->get<uint8>("boot_ok") == 1 &&
                         rset->get<uint8>("gear_ok") == 1 &&
-                        rset->get<uint8>("trust_ok") == 1;
-        addAuditLine(rows, index, ok, "Repair Markers", ok ? "boot v9, gear v3, TrustEngageType 1" : "repair marker mismatch");
+                        rset->get<uint8>("trust_access_ok") == 1;
+        addAuditLine(rows, index, ok, "Repair Markers", ok ? "boot v9, gear v3, Trust alliance entitlement 1" : "repair marker mismatch");
     }
 
     if (const auto rset =
@@ -1242,10 +1255,88 @@ void repairAlterEgoPoints(uint32 charId)
     }
 }
 
-void repairTrustEngagement(uint32 charId)
+void repairTrustAllianceEntitlement(uint32 charId)
 {
-    // TrustEngageType=1 is "Attack: Master engage".
-    charutils::SetCharVar(charId, "TrustEngageType", 1, 0);
+    charutils::SetCharVar(charId, kTrustAllianceAccessVar, 1, 0);
+}
+
+void resetTwillsTrustSession(CCharEntity* PChar)
+{
+    if (!PChar || PChar->getName() != "Twills")
+    {
+        return;
+    }
+
+    // Active sessions are closed by the paired pre/post zone-out Lua callbacks.
+    // This fallback only normalizes an already-idle session.
+    if (PChar->GetLocalVar(kTrustSessionStateVar) != 0 || PChar->GetLocalVar(kTrustEvidenceModeVar) != 0)
+    {
+        return;
+    }
+
+    const auto generation = PChar->GetLocalVar(kTrustSessionGenerationVar);
+    PChar->SetLocalVar(
+        kTrustSessionGenerationVar,
+        generation == std::numeric_limits<uint32>::max() ? 1U : generation + 1U);
+    PChar->SetLocalVar(kTrustSessionStateVar, 0);
+    PChar->SetLocalVar(kTrustEvidenceModeVar, 0);
+    PChar->SetLocalVar(kTrustSessionStartedVar, 0);
+    PChar->SetLocalVar(kTrustSessionZoneVar, 0);
+    PChar->SetLocalVar(kTrustEvidenceSequenceVar, 0);
+    PChar->SetLocalVar(kTrustEvidenceSchemaVar, 0);
+    PChar->SetLocalVar(kTrustPendingTimersVar, 0);
+    PChar->SetLocalVar(kTrustLogTruncatedVar, 0);
+    charutils::SetCharVar(PChar, "TrustEngageType", 0, 0);
+}
+
+void forceDeactivateTwillsTrustSession(CCharEntity* PChar)
+{
+    if (!PChar || PChar->getName() != "Twills")
+    {
+        return;
+    }
+
+    const auto state = trustutils::GetTwillsFullAllianceState(PChar);
+    if (state == trustutils::TwillsFullAllianceState::Spawning || state == trustutils::TwillsFullAllianceState::Ready)
+    {
+        trustutils::SetTwillsFullAllianceState(PChar, trustutils::TwillsFullAllianceState::Failed);
+    }
+    else if (state != trustutils::TwillsFullAllianceState::Failed && PChar->GetLocalVar(kTrustEvidenceModeVar) != 0)
+    {
+        // A malformed non-idle mode must still become projection-inactive before
+        // native teardown. The post-zone fallback normalizes it to Idle.
+        PChar->SetLocalVar(kTrustSessionStateVar, static_cast<uint32>(trustutils::TwillsFullAllianceState::Failed));
+    }
+
+    PChar->SetLocalVar(kTrustPendingTimersVar, 0);
+    charutils::SetCharVar(PChar, "TrustEngageType", 0, 0);
+}
+
+void forceResetTwillsTrustSession(CCharEntity* PChar)
+{
+    if (!PChar || PChar->getName() != "Twills")
+    {
+        return;
+    }
+
+    const auto generation = PChar->GetLocalVar(kTrustSessionGenerationVar);
+    PChar->SetLocalVar(
+        kTrustSessionGenerationVar,
+        generation == std::numeric_limits<uint32>::max() ? 1U : generation + 1U);
+    PChar->SetLocalVar(kTrustSessionStateVar, static_cast<uint32>(trustutils::TwillsFullAllianceState::Idle));
+    PChar->SetLocalVar(kTrustEvidenceModeVar, 0);
+    PChar->SetLocalVar(kTrustSessionStartedVar, 0);
+    PChar->SetLocalVar(kTrustSessionZoneVar, 0);
+    PChar->SetLocalVar(kTrustEvidenceSequenceVar, 0);
+    PChar->SetLocalVar(kTrustEvidenceSchemaVar, 0);
+    PChar->SetLocalVar(kTrustPendingTimersVar, 0);
+    PChar->SetLocalVar(kTrustLogTruncatedVar, 0);
+    charutils::SetCharVar(PChar, "TrustEngageType", 0, 0);
+}
+
+auto lifecycleCloseReason(const CCharEntity* PChar) -> const char*
+{
+    return PChar && PChar->status == xi::Status::Shutdown ? "logout" : "zone";
 }
 
 bool repairChocobo(uint32 charId)
@@ -1344,6 +1435,89 @@ void repairProfileAndStorage(uint32 charId)
 class TwillsAdminModule : public CPPModule
 {
 public:
+    void OnCharZoneIn(CCharEntity* PChar) override
+    {
+        resetTwillsTrustSession(PChar);
+    }
+
+    void OnCharPreZoneOut(CCharEntity* PChar) override
+    {
+        if (!PChar || PChar->getName() != "Twills")
+        {
+            return;
+        }
+
+        const auto state      = trustutils::GetTwillsFullAllianceState(PChar);
+        const auto mode       = PChar->GetLocalVar(kTrustEvidenceModeVar);
+        const auto hasSession = state != trustutils::TwillsFullAllianceState::Idle || mode != 0;
+        if (!hasSession)
+        {
+            return;
+        }
+
+        const auto callbackSucceeded = callTrustLifecycle("beginLifecycleClose", PChar, lifecycleCloseReason(PChar));
+        const auto luaDeactivated =
+            trustutils::GetTwillsFullAllianceState(PChar) == trustutils::TwillsFullAllianceState::Failed &&
+            PChar->GetLocalVar(kTrustPendingTimersVar) == 0 &&
+            charutils::GetCharVar(PChar, "TrustEngageType") == 0;
+        if (!callbackSucceeded || !luaDeactivated)
+        {
+            trustutils::MarkTrustEvidenceTruncated(
+                PChar,
+                callbackSucceeded ? "lifecycle_pre_incomplete" : "lifecycle_pre_failed");
+        }
+
+        // Lua owns the evidence rows. C++ owns the teardown invariant: the QA
+        // projection and its pending callbacks must be inactive before the
+        // upstream zone-out path's first effective ClearTrusts call, even if
+        // Lua or evidence I/O fails.
+        forceDeactivateTwillsTrustSession(PChar);
+    }
+
+    void OnCharZoneOut(CCharEntity* PChar) override
+    {
+        if (!PChar || PChar->getName() != "Twills")
+        {
+            return;
+        }
+
+        const auto state        = trustutils::GetTwillsFullAllianceState(PChar);
+        const auto mode         = PChar->GetLocalVar(kTrustEvidenceModeVar);
+        const auto pendingClose = state == trustutils::TwillsFullAllianceState::Failed && mode != 0;
+
+        if (pendingClose)
+        {
+            const auto callbackSucceeded = callTrustLifecycle("finishLifecycleClose", PChar, lifecycleCloseReason(PChar));
+            const auto cleanupComplete =
+                trustutils::GetTwillsFullAllianceState(PChar) == trustutils::TwillsFullAllianceState::Idle &&
+                PChar->GetLocalVar(kTrustEvidenceModeVar) == 0 &&
+                PChar->GetLocalVar(kTrustPendingTimersVar) == 0 &&
+                charutils::GetCharVar(PChar, "TrustEngageType") == 0 &&
+                PChar->PTrusts.empty();
+
+            if (!cleanupComplete)
+            {
+                trustutils::MarkTrustEvidenceTruncated(PChar, "lifecycle_post_incomplete");
+                forceResetTwillsTrustSession(PChar);
+            }
+            else if (!callbackSucceeded)
+            {
+                ShowWarning("Mochirii Trust lifecycle: post callback reported an evidence sink failure after cleanup");
+            }
+
+            return;
+        }
+
+        if (state != trustutils::TwillsFullAllianceState::Idle || mode != 0)
+        {
+            trustutils::MarkTrustEvidenceTruncated(PChar, "lifecycle_post_stale_state");
+            forceResetTwillsTrustSession(PChar);
+            return;
+        }
+
+        resetTwillsTrustSession(PChar);
+    }
+
     void OnInit() override
     {
         auto xi          = lua["xi"].get_or_create<sol::table>();
@@ -1374,7 +1548,7 @@ public:
             repairTravelUnlocks(charId);
             repairUnitySylvie(charId);
             repairSpellbook(charId);
-            repairTrustEngagement(charId);
+            repairTrustAllianceEntitlement(charId);
             repairProfileAndStorage(charId);
 
             return true;
@@ -1388,6 +1562,57 @@ public:
         native["repairMerits"]         = repairMeritsForPlayer;
         native["repairCurrencyPolicy"] = repairCurrencyPolicyForPlayer;
         native["repairChocobo"]        = repairChocobo;
+    }
+
+private:
+    auto callTrustLifecycle(const char* functionName, CCharEntity* PChar, const char* reason) -> bool
+    {
+        try
+        {
+            const sol::object xiObject = lua["xi"];
+            if (xiObject.get_type() != sol::type::table)
+            {
+                ShowWarningFmt("Mochirii Trust lifecycle: xi table unavailable for {}", functionName);
+                return false;
+            }
+
+            const auto        xiObjectTable = xiObject.as<sol::table>();
+            const sol::object parityObject  = xiObjectTable["trustRetailParity"];
+            if (parityObject.get_type() != sol::type::table)
+            {
+                ShowWarningFmt("Mochirii Trust lifecycle: trustRetailParity table unavailable for {}", functionName);
+                return false;
+            }
+
+            const auto        parityTable    = parityObject.as<sol::table>();
+            const sol::object callbackObject = parityTable[functionName];
+            if (callbackObject.get_type() != sol::type::function)
+            {
+                ShowWarningFmt("Mochirii Trust lifecycle: {} callback unavailable", functionName);
+                return false;
+            }
+
+            auto       callback = callbackObject.as<sol::protected_function>();
+            const auto result   = callback(PChar, reason);
+            if (!result.valid())
+            {
+                const sol::error error = result;
+                ShowWarningFmt("Mochirii Trust lifecycle: {} failed: {}", functionName, error.what());
+                return false;
+            }
+
+            return result.get_type(0) != sol::type::boolean || result.get<bool>(0);
+        }
+        catch (const std::exception& error)
+        {
+            ShowWarningFmt("Mochirii Trust lifecycle: {} threw: {}", functionName, error.what());
+            return false;
+        }
+        catch (...)
+        {
+            ShowWarningFmt("Mochirii Trust lifecycle: {} threw an unknown exception", functionName);
+            return false;
+        }
     }
 };
 

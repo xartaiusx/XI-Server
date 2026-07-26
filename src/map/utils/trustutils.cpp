@@ -22,7 +22,9 @@
 #include "trustutils.h"
 
 #include "common/earth_time.h"
+#include "common/settings.h"
 #include "common/utils.h"
+#include "common/version.h"
 
 #include <common/types/hash_map.h>
 
@@ -41,13 +43,16 @@
 #include "roe.h"
 #include "zoneutils.h"
 
+#include "alliance.h"
 #include "grades.h"
 #include "mob_spell_list.h"
+#include "party.h"
 
 #include "action/action.h"
 #include "ai/ai_container.h"
 #include "ai/controllers/trust_controller.h"
 #include "ai/helpers/gambits_container.h"
+#include "enmity_container.h"
 #include "entities/char_entity.h"
 #include "entities/mob_entity.h"
 #include "entities/trust_entity.h"
@@ -66,6 +71,267 @@
 void BuildTrustData(uint32 TrustID);
 auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*;
 void LoadTrustStatsAndSkills(CTrustEntity* PTrust);
+
+namespace
+{
+
+constexpr auto TwillsCharacterName       = "Twills";
+constexpr auto TrustAllianceAccessVar    = "MochiriiTrustAllianceAccess";
+constexpr auto TrustSessionStateVar      = "MochiriiTrustSessionState";
+constexpr auto TrustEvidenceModeVar      = "MochiriiTrustEvidenceMode";
+constexpr auto TrustSessionGenerationVar = "MochiriiTrustSessionGeneration";
+constexpr auto TrustSessionStartedVar    = "MochiriiTrustSessionStarted";
+constexpr auto TrustSessionZoneVar       = "MochiriiTrustSessionZone";
+constexpr auto TrustEvidenceSequenceVar  = "MochiriiTrustEvidenceSeq";
+constexpr auto TrustEvidenceSchemaVar    = "MochiriiTrustEvidenceSchema";
+constexpr auto TrustLogTruncatedVar      = "MochiriiTrustLogTruncated";
+constexpr uint32 TrustEvidenceSchemaVersion = 2;
+
+auto GetTwillsFullAllianceAccessContext(CCharEntity* PMaster) -> trustutils::TwillsFullAllianceAccessContext
+{
+    if (!PMaster)
+    {
+        return {};
+    }
+
+    return {
+        .characterName  = PMaster->getName(),
+        .actualGmLevel  = PMaster->m_GMlevel,
+        .visibleGmLevel = PMaster->visibleGmLevel,
+        .entitlement    = charutils::GetCharVar(PMaster, TrustAllianceAccessVar),
+        .featureEnabled = settings::get<bool>("main.ENABLE_MOCHIRII_TWILLS_FULL_ALLIANCE"),
+        .maxParties     = settings::get<uint8>("main.MOCHIRII_TWILLS_FULL_ALLIANCE_MAX_PARTIES"),
+    };
+}
+
+auto GetTwillsTrustEvidenceMode(CCharEntity* PMaster) -> std::optional<trustutils::TwillsTrustEvidenceMode>
+{
+    if (!PMaster)
+    {
+        return std::nullopt;
+    }
+
+    const auto rawMode = PMaster->GetLocalVar(TrustEvidenceModeVar);
+    if (rawMode > static_cast<uint32>(trustutils::TwillsTrustEvidenceMode::FullAllianceQualityAssurance))
+    {
+        return std::nullopt;
+    }
+
+    return static_cast<trustutils::TwillsTrustEvidenceMode>(rawMode);
+}
+
+auto HasSupportedTrustSessionPartyShape(CCharEntity* PMaster) -> bool
+{
+    if (!PMaster || !PMaster->PParty)
+    {
+        return PMaster != nullptr;
+    }
+
+    auto* PParty = PMaster->PParty;
+    return PParty->m_PAlliance == nullptr &&
+           PParty->members.size() == 1 &&
+           PParty->members.front() == PMaster &&
+           PParty->GetLeader() == PMaster;
+}
+
+} // namespace
+
+auto trustutils::CanUseTwillsFullAlliance(const TwillsFullAllianceAccessContext& context) -> bool
+{
+    return context.featureEnabled &&
+           context.maxParties == kFullAlliancePartyLimit &&
+           context.characterName == TwillsCharacterName &&
+           context.actualGmLevel == 5 &&
+           context.visibleGmLevel == 0 &&
+           context.entitlement == 1;
+}
+
+auto trustutils::CanUseTwillsFullAlliance(CCharEntity* PMaster) -> bool
+{
+    return PMaster && CanUseTwillsFullAlliance(GetTwillsFullAllianceAccessContext(PMaster));
+}
+
+auto trustutils::GetTwillsFullAllianceState(CCharEntity* PMaster) -> TwillsFullAllianceState
+{
+    if (!PMaster)
+    {
+        return TwillsFullAllianceState::Failed;
+    }
+
+    const auto rawState = PMaster->GetLocalVar(TrustSessionStateVar);
+    if (rawState > static_cast<uint32>(TwillsFullAllianceState::Failed))
+    {
+        return TwillsFullAllianceState::Failed;
+    }
+
+    return static_cast<TwillsFullAllianceState>(rawState);
+}
+
+auto trustutils::IsTwillsFullAllianceActive(
+    const TwillsFullAllianceAccessContext& context,
+    TwillsFullAllianceState                state,
+    TwillsTrustEvidenceMode                evidenceMode) -> bool
+{
+    return CanUseTwillsFullAlliance(context) &&
+           evidenceMode == TwillsTrustEvidenceMode::FullAllianceQualityAssurance &&
+           (state == TwillsFullAllianceState::Spawning || state == TwillsFullAllianceState::Ready);
+}
+
+auto trustutils::IsTwillsFullAllianceActive(CCharEntity* PMaster) -> bool
+{
+    const auto evidenceMode = GetTwillsTrustEvidenceMode(PMaster);
+    return PMaster && evidenceMode &&
+           IsTwillsFullAllianceActive(
+               GetTwillsFullAllianceAccessContext(PMaster),
+               GetTwillsFullAllianceState(PMaster),
+               *evidenceMode);
+}
+
+auto trustutils::IsTwillsFullAllianceTransitionAllowed(TwillsFullAllianceState current, TwillsFullAllianceState next) -> bool
+{
+    // Returning to Idle is cleanup-safe from every state and makes `clear`
+    // idempotent. Other same-state transitions are not lifecycle progress.
+    if (next == TwillsFullAllianceState::Idle)
+    {
+        return true;
+    }
+
+    switch (current)
+    {
+        case TwillsFullAllianceState::Idle:
+            return next == TwillsFullAllianceState::Spawning;
+        case TwillsFullAllianceState::Spawning:
+            return next == TwillsFullAllianceState::Ready || next == TwillsFullAllianceState::Failed;
+        case TwillsFullAllianceState::Ready:
+            return next == TwillsFullAllianceState::Failed;
+        case TwillsFullAllianceState::Failed:
+        default:
+            return false;
+    }
+}
+
+auto trustutils::SetTwillsFullAllianceState(CCharEntity* PMaster, TwillsFullAllianceState next) -> bool
+{
+    if (!PMaster || !IsTwillsFullAllianceTransitionAllowed(GetTwillsFullAllianceState(PMaster), next))
+    {
+        return false;
+    }
+
+    PMaster->SetLocalVar(TrustSessionStateVar, static_cast<uint32>(next));
+    return true;
+}
+
+auto trustutils::MapTwillsFullAllianceSlot(std::size_t globalMemberIndex) -> std::optional<TrustPartySlot>
+{
+    if (globalMemberIndex >= kFullAllianceMemberLimit)
+    {
+        return std::nullopt;
+    }
+
+    return TrustPartySlot{
+        .partyNo  = static_cast<uint8>(globalMemberIndex / kRetailPartyMemberLimit),
+        .memberNo = static_cast<uint8>(globalMemberIndex % kRetailPartyMemberLimit),
+    };
+}
+
+auto trustutils::ResolveTrustPartyProjection(
+    const TwillsFullAllianceAccessContext& context,
+    TwillsFullAllianceState                state,
+    TwillsTrustEvidenceMode                evidenceMode,
+    std::size_t                            globalMemberIndex) -> std::optional<TrustPartyProjection>
+{
+    if (IsTwillsFullAllianceActive(context, state, evidenceMode))
+    {
+        const auto slot = MapTwillsFullAllianceSlot(globalMemberIndex);
+        if (!slot)
+        {
+            return std::nullopt;
+        }
+
+        return TrustPartyProjection{ .kind = PartyKind::Alliance, .slot = *slot };
+    }
+
+    const bool retailSession   = evidenceMode == TwillsTrustEvidenceMode::RetailControl &&
+                                 CanUseTwillsFullAlliance(context) &&
+                                 (state == TwillsFullAllianceState::Spawning || state == TwillsFullAllianceState::Ready);
+    const bool ordinarySession = evidenceMode == TwillsTrustEvidenceMode::Idle && state == TwillsFullAllianceState::Idle;
+    if ((!retailSession && !ordinarySession) || globalMemberIndex >= kRetailPartyMemberLimit)
+    {
+        return std::nullopt;
+    }
+
+    return TrustPartyProjection{
+        .kind = PartyKind::Party,
+        .slot = TrustPartySlot{ .partyNo = 0, .memberNo = static_cast<uint8>(globalMemberIndex) },
+    };
+}
+
+auto trustutils::ResolveTrustPartyProjection(CCharEntity* PMaster, std::size_t globalMemberIndex) -> std::optional<TrustPartyProjection>
+{
+    const auto evidenceMode = GetTwillsTrustEvidenceMode(PMaster);
+    if (!PMaster || !evidenceMode)
+    {
+        return std::nullopt;
+    }
+
+    if (*evidenceMode != TwillsTrustEvidenceMode::Idle && !HasSupportedTrustSessionPartyShape(PMaster))
+    {
+        return std::nullopt;
+    }
+
+    return ResolveTrustPartyProjection(
+        GetTwillsFullAllianceAccessContext(PMaster),
+        GetTwillsFullAllianceState(PMaster),
+        *evidenceMode,
+        globalMemberIndex);
+}
+
+auto trustutils::ResolveTrustMemberLimit(
+    const TwillsFullAllianceAccessContext& context,
+    TwillsFullAllianceState                state,
+    TwillsTrustEvidenceMode                evidenceMode) -> std::optional<std::size_t>
+{
+    if (evidenceMode == TwillsTrustEvidenceMode::Idle && state == TwillsFullAllianceState::Idle)
+    {
+        return kRetailPartyMemberLimit;
+    }
+
+    if (state != TwillsFullAllianceState::Spawning || !CanUseTwillsFullAlliance(context))
+    {
+        return std::nullopt;
+    }
+
+    if (evidenceMode == TwillsTrustEvidenceMode::RetailControl)
+    {
+        return kRetailPartyMemberLimit;
+    }
+
+    if (evidenceMode == TwillsTrustEvidenceMode::FullAllianceQualityAssurance)
+    {
+        return kFullAllianceMemberLimit;
+    }
+
+    return std::nullopt;
+}
+
+auto trustutils::ResolveTrustMemberLimit(CCharEntity* PMaster) -> std::optional<std::size_t>
+{
+    const auto evidenceMode = GetTwillsTrustEvidenceMode(PMaster);
+    if (!PMaster || !evidenceMode)
+    {
+        return std::nullopt;
+    }
+
+    if (*evidenceMode != TwillsTrustEvidenceMode::Idle && !HasSupportedTrustSessionPartyShape(PMaster))
+    {
+        return std::nullopt;
+    }
+
+    return ResolveTrustMemberLimit(
+        GetTwillsFullAllianceAccessContext(PMaster),
+        GetTwillsFullAllianceState(PMaster),
+        *evidenceMode);
+}
 
 auto SafeLogValue(std::string value) -> std::string
 {
@@ -95,12 +361,20 @@ auto SafeLogName(const std::string& value) -> std::string
     return safe.empty() ? "unknown" : safe;
 }
 
-auto NowLogStamp() -> std::string
+struct TrustLogStamp
 {
-    std::tm localTime = earth_time::to_local_tm();
-    char    buffer[32]{};
-    std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%S", &localTime);
-    return buffer;
+    int64       epoch{};
+    std::string utc;
+};
+
+auto CurrentTrustLogStamp() -> TrustLogStamp
+{
+    const auto now   = earth_time::now();
+    const auto epoch = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+    const auto utc   = earth_time::to_utc_tm(now);
+    char       buffer[32]{};
+    std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &utc);
+    return { .epoch = epoch, .utc = buffer };
 }
 
 auto ActionCategoryName(ActionCategory category) -> const char*
@@ -464,6 +738,10 @@ void AddEntityFields(std::ostringstream& line, const char* prefix, const CBaseEn
     line << '\t' << prefix << "_id=" << (PEntity ? PEntity->id : 0);
     line << '\t' << prefix << "_targid=" << (PEntity ? PEntity->targid : 0);
     line << '\t' << prefix << "_objtype=" << (PEntity ? static_cast<uint16>(PEntity->objtype) : 0);
+    line << '\t' << prefix << "_x=" << (PEntity ? fmt::format("{:.3f}", PEntity->loc.p.x) : "nil");
+    line << '\t' << prefix << "_y=" << (PEntity ? fmt::format("{:.3f}", PEntity->loc.p.y) : "nil");
+    line << '\t' << prefix << "_z=" << (PEntity ? fmt::format("{:.3f}", PEntity->loc.p.z) : "nil");
+    line << '\t' << prefix << "_rotation=" << (PEntity ? std::to_string(PEntity->loc.p.rotation) : "nil");
 
     if (const auto* PBattle = dynamic_cast<const CBattleEntity*>(PEntity))
     {
@@ -477,120 +755,371 @@ void AddEntityFields(std::ostringstream& line, const char* prefix, const CBaseEn
     }
 }
 
-auto ShouldLogTrustPacket(CTrustEntity* PTrust, CCharEntity* PMaster) -> bool
+void AddEnmityFields(std::ostringstream& line, CTrustEntity* PTrust, const CBattleEntity* PTarget)
 {
-    if (!PTrust || !PMaster || !settings::get<bool>("main.ENABLE_TRUST_ACTION_LOG") || !settings::get<bool>("main.TRUST_ACTION_LOG_PACKET_RESULTS"))
+    const auto* PMob = dynamic_cast<const CMobEntity*>(PTarget);
+    if (!PTrust || !PMob || !PMob->PEnmityContainer)
+    {
+        line << "\tenmity_ce=nil\tenmity_ve=nil\tenmity_total=nil";
+        return;
+    }
+
+    const auto ce = PMob->PEnmityContainer->GetCE(PTrust);
+    const auto ve = PMob->PEnmityContainer->GetVE(PTrust);
+    line << "\tenmity_ce=" << ce;
+    line << "\tenmity_ve=" << ve;
+    line << "\tenmity_total=" << (ce + ve);
+}
+
+struct TrustEvidenceSession
+{
+    trustutils::TwillsTrustEvidenceMode mode{};
+    trustutils::TwillsFullAllianceState state{};
+    uint32                              generation{};
+    uint32                              startedAt{};
+    uint16                              zone{};
+    std::string                         sessionId;
+    std::string                         serverCommit;
+};
+
+auto EvidenceModeName(trustutils::TwillsTrustEvidenceMode mode) -> const char*
+{
+    switch (mode)
+    {
+        case trustutils::TwillsTrustEvidenceMode::RetailControl:
+            return "retail_control";
+        case trustutils::TwillsTrustEvidenceMode::FullAllianceQualityAssurance:
+            return "twills_full_alliance_qa";
+        case trustutils::TwillsTrustEvidenceMode::Idle:
+        default:
+            return "idle";
+    }
+}
+
+auto EvidenceTopologyName(trustutils::TwillsTrustEvidenceMode mode) -> const char*
+{
+    return mode == trustutils::TwillsTrustEvidenceMode::FullAllianceQualityAssurance ? "virtual_trust_alliance_5_6_6" : "retail_party_1_plus_5";
+}
+
+auto EvidenceStateName(trustutils::TwillsFullAllianceState state) -> const char*
+{
+    switch (state)
+    {
+        case trustutils::TwillsFullAllianceState::Spawning:
+            return "spawning";
+        case trustutils::TwillsFullAllianceState::Ready:
+            return "ready";
+        case trustutils::TwillsFullAllianceState::Failed:
+            return "failed";
+        case trustutils::TwillsFullAllianceState::Idle:
+        default:
+            return "idle";
+    }
+}
+
+auto IsFullCommitIdentity(std::string_view commit) -> bool
+{
+    if (commit.size() != 40)
     {
         return false;
     }
 
-    const auto configured = settings::get<std::string>("main.TRUST_ACTION_LOG_PLAYER");
-    return configured.empty() || PMaster->getName() == configured;
+    return std::ranges::all_of(commit, [](unsigned char ch)
+                               {
+                                   return std::isdigit(ch) || (ch >= 'a' && ch <= 'f');
+                               });
 }
 
-auto LogPathForOwner(const std::string& ownerName) -> std::filesystem::path
+auto GetTrustEvidenceSession(
+    CCharEntity* PMaster,
+    bool         requirePacketResults,
+    bool         truncationMarkerContext = false) -> std::optional<TrustEvidenceSession>
+{
+    if (!PMaster || !settings::get<bool>("main.ENABLE_TRUST_ACTION_LOG") ||
+        (requirePacketResults && !settings::get<bool>("main.TRUST_ACTION_LOG_PACKET_RESULTS")))
+    {
+        return std::nullopt;
+    }
+
+    const auto configuredOwner = settings::get<std::string>("main.TRUST_ACTION_LOG_PLAYER");
+    const auto evidenceMode    = GetTwillsTrustEvidenceMode(PMaster);
+    const auto state           = trustutils::GetTwillsFullAllianceState(PMaster);
+    const auto generation      = PMaster->GetLocalVar(TrustSessionGenerationVar);
+    const auto startedAt       = PMaster->GetLocalVar(TrustSessionStartedVar);
+    const auto sessionZone     = PMaster->GetLocalVar(TrustSessionZoneVar);
+    const auto evidenceSchema  = PMaster->GetLocalVar(TrustEvidenceSchemaVar);
+    const auto logTruncated    = PMaster->GetLocalVar(TrustLogTruncatedVar);
+    const auto serverCommit    = std::string(version::GetGitSha());
+
+    const auto validActionState =
+        state == trustutils::TwillsFullAllianceState::Spawning ||
+        state == trustutils::TwillsFullAllianceState::Ready;
+    const auto validMarkerState = truncationMarkerContext && state == trustutils::TwillsFullAllianceState::Failed;
+    const auto validOwnerPolicy =
+        truncationMarkerContext ? PMaster->getName() == TwillsCharacterName :
+                                  configuredOwner == PMaster->getName() && trustutils::CanUseTwillsFullAlliance(PMaster);
+
+    if (!validOwnerPolicy ||
+        !evidenceMode ||
+        (*evidenceMode != trustutils::TwillsTrustEvidenceMode::RetailControl &&
+         *evidenceMode != trustutils::TwillsTrustEvidenceMode::FullAllianceQualityAssurance) ||
+        (!validActionState && !validMarkerState) ||
+        generation == 0 || startedAt == 0 || sessionZone != PMaster->getZone() ||
+        evidenceSchema != TrustEvidenceSchemaVersion || (!truncationMarkerContext && logTruncated != 0) ||
+        !IsFullCommitIdentity(serverCommit))
+    {
+        return std::nullopt;
+    }
+
+    const auto sessionId = fmt::format(
+        "{}-{}-{}-{}",
+        SafeLogName(PMaster->getName()),
+        PMaster->id,
+        startedAt,
+        generation);
+
+    return TrustEvidenceSession{
+        .mode         = *evidenceMode,
+        .state        = state,
+        .generation   = generation,
+        .startedAt    = startedAt,
+        .zone         = static_cast<uint16>(sessionZone),
+        .sessionId    = sessionId,
+        .serverCommit = serverCommit,
+    };
+}
+
+auto LogPathForOwner(const std::string& ownerName) -> std::optional<std::filesystem::path>
 {
     auto root = std::filesystem::path(settings::get<std::string>("main.TRUST_ACTION_LOG_DIR"));
     auto live = root / "live";
-    std::filesystem::create_directories(live);
+    std::error_code error;
+    std::filesystem::create_directories(live, error);
+    if (error)
+    {
+        ShowWarningFmt("Mochirii TrustLog: failed to create {}: {}", live.string(), error.message());
+        return std::nullopt;
+    }
+
     return live / fmt::format("{}.log", SafeLogName(ownerName));
 }
 
-auto CurrentArchivePathForOwner(const std::string& ownerName) -> std::filesystem::path
+auto ArchivePathForSession(const std::string& sessionId) -> std::optional<std::filesystem::path>
 {
     auto root    = std::filesystem::path(settings::get<std::string>("main.TRUST_ACTION_LOG_DIR"));
     auto archive = root / "archive";
-    std::filesystem::create_directories(archive);
-
-    const auto                      prefix = fmt::format("{}-", SafeLogName(ownerName));
-    std::filesystem::path           bestPath;
-    std::filesystem::file_time_type bestTime{};
-    std::error_code                 error;
-
-    for (const auto& entry : std::filesystem::directory_iterator(archive, error))
+    std::error_code error;
+    std::filesystem::create_directories(archive, error);
+    if (error)
     {
-        if (error || !entry.is_regular_file())
-        {
-            continue;
-        }
-
-        const auto filename = entry.path().filename().string();
-        if (filename.rfind(prefix, 0) != 0 || entry.path().extension() != ".log")
-        {
-            continue;
-        }
-
-        const auto writeTime = entry.last_write_time(error);
-        if (error)
-        {
-            error.clear();
-            continue;
-        }
-
-        if (bestPath.empty() || writeTime > bestTime)
-        {
-            bestPath = entry.path();
-            bestTime = writeTime;
-        }
+        ShowWarningFmt("Mochirii TrustLog: failed to create {}: {}", archive.string(), error.message());
+        return std::nullopt;
     }
 
-    return bestPath;
+    return archive / fmt::format("{}.log", SafeLogName(sessionId));
 }
 
-void WriteTrustLogLine(const std::filesystem::path& path, const std::string& line)
+auto WriteTrustLogLine(const std::filesystem::path& path, const std::string& line) -> bool
 {
     std::ofstream file(path, std::ios::app);
     if (!file)
     {
         ShowWarningFmt("Mochirii TrustLog: failed to open {}", path.string());
-        return;
+        return false;
     }
 
     file << line << '\n';
+    file.flush();
+    if (!file)
+    {
+        ShowWarningFmt("Mochirii TrustLog: failed to write {}", path.string());
+        return false;
+    }
+
+    return true;
 }
 
-void AppendTrustLogLine(CCharEntity* PMaster, const std::string& line)
+auto WouldExceedTrustLogLimit(const std::filesystem::path& path, std::size_t lineBytes, uint32 maxBytes) -> bool
 {
-    const auto path     = LogPathForOwner(PMaster->getName());
-    const auto maxBytes = settings::get<uint32>("main.TRUST_ACTION_LOG_MAX_BYTES_PER_SESSION");
+    if (maxBytes == 0)
+    {
+        return false;
+    }
 
-    if (maxBytes > 0 && std::filesystem::exists(path) && std::filesystem::file_size(path) >= maxBytes)
+    std::error_code error;
+    const auto      currentBytes = std::filesystem::exists(path, error) ? std::filesystem::file_size(path, error) : 0;
+    return error || currentBytes + lineBytes + 1U > maxBytes;
+}
+
+void trustutils::MarkTrustEvidenceTruncated(CCharEntity* PMaster, std::string_view reason)
+{
+    if (!PMaster)
     {
         return;
     }
 
-    WriteTrustLogLine(path, line);
-
-    const auto archivePath = CurrentArchivePathForOwner(PMaster->getName());
-    if (!archivePath.empty())
+    // Capture the session even after the lifecycle pre-hook has transitioned
+    // it to Failed, and even if Lua already set the fail-closed local. The
+    // marker is deliberately allowed to exceed the logical session cap: its
+    // bounded size makes a partial prefix durably unfit for acceptance.
+    const auto session = GetTrustEvidenceSession(PMaster, false, true);
+    PMaster->SetLocalVar(TrustLogTruncatedVar, 1);
+    if (!session)
     {
-        WriteTrustLogLine(archivePath, line);
+        return;
+    }
+
+    const auto currentSequence = PMaster->GetLocalVar(TrustEvidenceSequenceVar);
+    const auto markerSequence  = currentSequence == std::numeric_limits<uint32>::max() ? currentSequence : currentSequence + 1U;
+    if (currentSequence != std::numeric_limits<uint32>::max())
+    {
+        PMaster->SetLocalVar(TrustEvidenceSequenceVar, markerSequence);
+    }
+
+    const auto stamp      = CurrentTrustLogStamp();
+    const auto safeReason = SafeLogValue(std::string(reason.substr(0, 64)));
+    std::ostringstream line;
+    line << "schema_version=" << TrustEvidenceSchemaVersion;
+    line << "\trecord_type=logger";
+    line << "\tsession_id=" << session->sessionId;
+    line << "\tserver_commit=" << session->serverCommit;
+    line << "\tsequence=" << std::max<uint32>(1U, markerSequence);
+    line << "\ttimestamp_epoch=" << stamp.epoch;
+    line << "\ttimestamp_utc=" << stamp.utc;
+    line << "\ttime=" << stamp.utc;
+    line << "\towner=" << SafeLogValue(PMaster->getName());
+    line << "\towner_id=" << PMaster->id;
+    line << "\tevidence_mode=" << EvidenceModeName(session->mode);
+    line << "\ttopology=" << EvidenceTopologyName(session->mode);
+    line << "\tstate=" << EvidenceStateName(session->state);
+    line << "\tgeneration=" << session->generation;
+    line << "\tsession_started=" << session->startedAt;
+    line << "\tzone=" << session->zone;
+    line << "\ttrust_engage_type=" << charutils::GetCharVar(PMaster, "TrustEngageType");
+    line << "\tevent=log_truncated";
+    line << "\tlog_truncated=true";
+    line << "\treason=" << (safeReason.empty() ? "unknown" : safeReason);
+
+    const auto archivePath = ArchivePathForSession(session->sessionId);
+    const auto livePath    = LogPathForOwner(PMaster->getName());
+    const auto marker      = line.str();
+
+    // Attempt each sink independently. Failure of one must never suppress the
+    // invalidation marker in the other.
+    const auto archiveWritten = archivePath && WriteTrustLogLine(*archivePath, marker);
+    const auto liveWritten    = livePath && WriteTrustLogLine(*livePath, marker);
+    if (!archiveWritten || !liveWritten)
+    {
+        ShowWarningFmt(
+            "Mochirii TrustLog: truncation marker was not durable in every sink (archive={}, live={})",
+            archiveWritten,
+            liveWritten);
+    }
+}
+
+auto AppendTrustLogLine(CCharEntity* PMaster, const TrustEvidenceSession& session, const std::string& line) -> bool
+{
+    const auto livePath    = LogPathForOwner(PMaster->getName());
+    const auto archivePath = ArchivePathForSession(session.sessionId);
+    const auto maxBytes    = settings::get<uint32>("main.TRUST_ACTION_LOG_MAX_BYTES_PER_SESSION");
+
+    if (!livePath || !archivePath)
+    {
+        trustutils::MarkTrustEvidenceTruncated(PMaster, "log_path_unavailable");
+        return false;
+    }
+
+    if (WouldExceedTrustLogLimit(*livePath, line.size(), maxBytes) ||
+        WouldExceedTrustLogLimit(*archivePath, line.size(), maxBytes))
+    {
+        trustutils::MarkTrustEvidenceTruncated(PMaster, "session_size_limit");
+        return false;
+    }
+
+    // Keep the per-session archive authoritative. Any partial dual-sink write
+    // still marks the session truncated and permanently suppresses later C++
+    // rows, while Lua retains the terminal session_end path for rejection.
+    if (!WriteTrustLogLine(*archivePath, line))
+    {
+        trustutils::MarkTrustEvidenceTruncated(PMaster, "archive_write_failed");
+        return false;
+    }
+
+    if (!WriteTrustLogLine(*livePath, line))
+    {
+        trustutils::MarkTrustEvidenceTruncated(PMaster, "live_write_failed");
+        return false;
     }
 
     if (settings::get<bool>("main.TRUST_ACTION_LOG_MAP_ECHO"))
     {
         ShowInfoFmt("{}", line);
     }
+
+    return true;
+}
+
+auto AddTrustEvidenceFields(std::ostringstream& line, CCharEntity* PMaster, const TrustEvidenceSession& session) -> bool
+{
+    const auto currentSequence = PMaster->GetLocalVar(TrustEvidenceSequenceVar);
+    if (currentSequence == std::numeric_limits<uint32>::max())
+    {
+        trustutils::MarkTrustEvidenceTruncated(PMaster, "sequence_overflow");
+        return false;
+    }
+
+    const auto nextSequence = currentSequence + 1U;
+    PMaster->SetLocalVar(TrustEvidenceSequenceVar, nextSequence);
+
+    const auto stamp = CurrentTrustLogStamp();
+    line << "schema_version=" << TrustEvidenceSchemaVersion;
+    line << "\trecord_type=combat";
+    line << "\tsession_id=" << session.sessionId;
+    line << "\tserver_commit=" << session.serverCommit;
+    line << "\tsequence=" << nextSequence;
+    line << "\ttimestamp_epoch=" << stamp.epoch;
+    line << "\ttimestamp_utc=" << stamp.utc;
+    line << "\ttime=" << stamp.utc;
+    line << "\towner=" << SafeLogValue(PMaster->getName());
+    line << "\towner_id=" << PMaster->id;
+    line << "\tevidence_mode=" << EvidenceModeName(session.mode);
+    line << "\ttopology=" << EvidenceTopologyName(session.mode);
+    line << "\tstate=" << EvidenceStateName(session.state);
+    line << "\tgeneration=" << session.generation;
+    line << "\tsession_started=" << session.startedAt;
+    line << "\tzone=" << session.zone;
+    line << "\ttrust_engage_type=" << charutils::GetCharVar(PMaster, "TrustEngageType");
+    line << "\tentitlement=" << charutils::GetCharVar(PMaster, TrustAllianceAccessVar);
+    line << "\tactual_gm_level=" << static_cast<uint16>(PMaster->m_GMlevel);
+    line << "\tvisible_gm_level=" << static_cast<uint16>(PMaster->visibleGmLevel);
+    return true;
+}
+
+auto BuildTrustActionUid(CCharEntity* PMaster, const TrustEvidenceSession& session, CTrustEntity* PTrust) -> std::string
+{
+    return fmt::format(
+        "{}-{}-{}",
+        session.sessionId,
+        PTrust ? PTrust->id : 0,
+        static_cast<uint64>(PMaster->GetLocalVar(TrustEvidenceSequenceVar)) + 1U);
 }
 
 void LogTrustProgressionBonus(CTrustEntity* PTrust)
 {
-    auto* PMaster = PTrust ? dynamic_cast<CCharEntity*>(PTrust->PMaster) : nullptr;
-    if (!PTrust || !PMaster || !settings::get<bool>("main.ENABLE_TRUST_ACTION_LOG"))
-    {
-        return;
-    }
-
-    const auto configured = settings::get<std::string>("main.TRUST_ACTION_LOG_PLAYER");
-    if (!configured.empty() && PMaster->getName() != configured)
+    auto*      PMaster = PTrust ? dynamic_cast<CCharEntity*>(PTrust->PMaster) : nullptr;
+    const auto session = GetTrustEvidenceSession(PMaster, false);
+    if (!session)
     {
         return;
     }
 
     std::ostringstream line;
-    line << "time=" << NowLogStamp();
+    if (!AddTrustEvidenceFields(line, PMaster, *session))
+    {
+        return;
+    }
+
     line << "\tevent=progression_bonus";
-    line << "\towner=" << SafeLogValue(PMaster->getName());
     line << "\ttrust=" << SafeLogValue(PTrust->getName());
     line << "\ttrust_id=" << PTrust->trustID();
     line << "\ttrust_entity_id=" << PTrust->id;
@@ -609,18 +1138,35 @@ void LogTrustProgressionBonus(CTrustEntity* PTrust)
     line << "\taep_magic_rank=" << PTrust->GetLocalVar("MochiTrustAepMagicRank");
     line << "\tunity_parity_rank=" << PTrust->GetLocalVar("MochiTrustUnityRank");
     line << "\tunity_parity_stat_bonus=" << PTrust->GetLocalVar("MochiTrustUnityStatBonus");
-    line << "\tzone=" << PTrust->getZone();
-
-    AppendTrustLogLine(PMaster, line.str());
+    AppendTrustLogLine(PMaster, *session, line.str());
 }
 
-void AddTrustActionContext(std::ostringstream& line, CTrustEntity* PTrust, CCharEntity* PMaster, const action_t& action, const CBattleEntity* PPrimaryTarget, const char* source, const char* eventName)
+auto AddTrustActionContext(
+    std::ostringstream&         line,
+    CTrustEntity*               PTrust,
+    CCharEntity*                PMaster,
+    const TrustEvidenceSession& session,
+    const std::string&          actionUid,
+    const action_t&             action,
+    const CBattleEntity*        PPrimaryTarget,
+    const char*                 source,
+    const char*                 eventName,
+    const char*                 decision,
+    const char*                 rejectionReason,
+    const char*                 outcome) -> bool
 {
     auto* PBattleTarget = PTrust->GetBattleTarget();
 
-    line << "time=" << NowLogStamp();
+    if (!AddTrustEvidenceFields(line, PMaster, session))
+    {
+        return false;
+    }
+
     line << "\tevent=" << SafeLogValue(eventName ? eventName : "action_packet");
-    line << "\towner=" << SafeLogValue(PMaster->getName());
+    line << "\taction_uid=" << SafeLogValue(actionUid);
+    line << "\tdecision=" << SafeLogValue(decision ? decision : "unknown");
+    line << "\trejection_reason=" << SafeLogValue(rejectionReason ? rejectionReason : "none");
+    line << "\toutcome=" << SafeLogValue(outcome ? outcome : "unknown");
     line << "\ttrust=" << SafeLogValue(PTrust->getName());
     line << "\ttrust_id=" << PTrust->trustID();
     line << "\ttrust_entity_id=" << PTrust->id;
@@ -639,17 +1185,16 @@ void AddTrustActionContext(std::ostringstream& line, CTrustEntity* PTrust, CChar
     line << "\taep_magic_rank=" << PTrust->GetLocalVar("MochiTrustAepMagicRank");
     line << "\tunity_parity_rank=" << PTrust->GetLocalVar("MochiTrustUnityRank");
     line << "\tunity_parity_stat_bonus=" << PTrust->GetLocalVar("MochiTrustUnityStatBonus");
-    line << "\tzone=" << PTrust->getZone();
     line << "\tsource=" << SafeLogValue(source ? source : "unknown");
     line << "\taction_category=" << static_cast<uint16>(action.actiontype);
     line << "\taction_category_name=" << ActionCategoryName(action.actiontype);
     line << "\taction_id=" << action.actionid;
     line << "\taction_recast_ms=" << std::chrono::duration_cast<std::chrono::milliseconds>(action.recast).count();
     line << "\tspell_group=" << static_cast<uint16>(action.spellgroup);
-    line << "\tfocus_target_targid=" << PTrust->GetLocalVar("MochiTrustFocusTarget");
+    line << "\tfocus_target_targid=" << PTrust->GetLocalVar("MochiTrustFocusTargetTargId");
     line << "\tfocus_reason=" << PTrust->GetLocalVar("MochiTrustFocusReason");
     line << "\trole_enmity_action=" << PTrust->GetLocalVar("MochiTrustRoleEnmityAction");
-    line << "\trole_enmity_target_targid=" << PTrust->GetLocalVar("MochiTrustRoleEnmityTarget");
+    line << "\trole_enmity_target_targid=" << PTrust->GetLocalVar("MochiTrustRoleEnmityTargetTargId");
     line << "\tgambit_target=" << PTrust->GetLocalVar("MochiTrustGambitTargetSelector");
     line << "\tgambit_reaction=" << PTrust->GetLocalVar("MochiTrustGambitReaction");
     line << "\tgambit_select=" << PTrust->GetLocalVar("MochiTrustGambitSelect");
@@ -660,7 +1205,13 @@ void AddTrustActionContext(std::ostringstream& line, CTrustEntity* PTrust, CChar
     line << "\tcurrent_battle_target_targid=" << (PBattleTarget ? PBattleTarget->targid : 0);
     line << "\tdistance_to_current_target=" << EntityDistance(PTrust, PBattleTarget);
     line << "\tdistance_to_primary_target=" << EntityDistance(PTrust, PPrimaryTarget);
+    line << "\taction_range=" << EntityDistance(PTrust, PPrimaryTarget);
     line << "\tdistance_to_master=" << EntityDistance(PTrust, PMaster);
+    AddEntityFields(line, "actor", PTrust);
+    AddEntityFields(line, "master", PMaster);
+    AddEntityFields(line, "current_target", PBattleTarget);
+    AddEntityFields(line, "primary_target", PPrimaryTarget);
+    return true;
 }
 
 auto ResultIsCritical(const action_result_t& result) -> bool
@@ -719,8 +1270,9 @@ void trustutils::LogTrustActionSkip(CBattleEntity* PActor, const CBattleEntity* 
         return;
     }
 
-    auto* PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
-    if (!ShouldLogTrustPacket(PTrust, PMaster))
+    auto*      PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    const auto session = GetTrustEvidenceSession(PMaster, true);
+    if (!session)
     {
         return;
     }
@@ -728,9 +1280,17 @@ void trustutils::LogTrustActionSkip(CBattleEntity* PActor, const CBattleEntity* 
     auto* PBattleTarget = PTrust->GetBattleTarget();
 
     std::ostringstream line;
-    line << "time=" << NowLogStamp();
+    const auto         actionUid = BuildTrustActionUid(PMaster, *session, PTrust);
+    if (!AddTrustEvidenceFields(line, PMaster, *session))
+    {
+        return;
+    }
+
     line << "\tevent=stale_target_skip";
-    line << "\towner=" << SafeLogValue(PMaster->getName());
+    line << "\taction_uid=" << actionUid;
+    line << "\tdecision=rejected";
+    line << "\trejection_reason=" << SafeLogValue(reason ? reason : "unknown");
+    line << "\toutcome=skipped";
     line << "\ttrust=" << SafeLogValue(PTrust->getName());
     line << "\ttrust_id=" << PTrust->trustID();
     line << "\ttrust_entity_id=" << PTrust->id;
@@ -742,10 +1302,11 @@ void trustutils::LogTrustActionSkip(CBattleEntity* PActor, const CBattleEntity* 
     line << "\ttrust_maxmp=" << PTrust->GetMaxMP();
     line << "\ttrust_mpp=" << static_cast<uint16>(PTrust->GetMPP());
     line << "\ttrust_tp=" << PTrust->health.tp;
-    line << "\tzone=" << PTrust->getZone();
     line << "\tsource=" << SafeLogValue(source ? source : "unknown");
     line << "\taction_category_name=MagicSkip";
+    line << "\taction_category=0";
     line << "\taction_id=" << actionId;
+    line << "\taction_recast_ms=nil";
     line << "\tskip_reason=" << SafeLogValue(reason ? reason : "unknown");
     line << "\tfocus_target_targid=" << PTrust->GetLocalVar("MochiTrustFocusTargetTargId");
     line << "\tfocus_reason=" << PTrust->GetLocalVar("MochiTrustFocusReason");
@@ -759,9 +1320,14 @@ void trustutils::LogTrustActionSkip(CBattleEntity* PActor, const CBattleEntity* 
     line << "\tcurrent_battle_target_targid=" << (PBattleTarget ? PBattleTarget->targid : 0);
     line << "\tdistance_to_current_target=" << EntityDistance(PTrust, PBattleTarget);
     line << "\tdistance_to_packet_target=" << EntityDistance(PTrust, PTarget);
+    line << "\taction_range=" << EntityDistance(PTrust, PTarget);
+    AddEntityFields(line, "actor", PTrust);
+    AddEntityFields(line, "master", PMaster);
+    AddEntityFields(line, "current_target", PBattleTarget);
     AddEntityFields(line, "packet_target", PTarget);
+    AddEnmityFields(line, PTrust, PTarget);
 
-    AppendTrustLogLine(PMaster, line.str());
+    AppendTrustLogLine(PMaster, *session, line.str());
 }
 
 void trustutils::LogTrustActionPacket(CBattleEntity* PActor, const action_t& action, const CBattleEntity* PPrimaryTarget, const char* source)
@@ -772,11 +1338,14 @@ void trustutils::LogTrustActionPacket(CBattleEntity* PActor, const action_t& act
         return;
     }
 
-    auto* PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
-    if (!ShouldLogTrustPacket(PTrust, PMaster))
+    auto*      PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    const auto session = GetTrustEvidenceSession(PMaster, true);
+    if (!session)
     {
         return;
     }
+
+    const auto actionUid = BuildTrustActionUid(PMaster, *session, PTrust);
 
     uint32 resultCount = 0;
     int64  totalParam  = 0;
@@ -791,14 +1360,33 @@ void trustutils::LogTrustActionPacket(CBattleEntity* PActor, const action_t& act
 
     {
         std::ostringstream line;
-        AddTrustActionContext(line, PTrust, PMaster, action, PPrimaryTarget, source, "action_packet");
+        if (!AddTrustActionContext(
+                line,
+                PTrust,
+                PMaster,
+                *session,
+                actionUid,
+                action,
+                PPrimaryTarget,
+                source,
+                "action_packet",
+                "executed",
+                "none",
+                "packet_emitted"))
+        {
+            return;
+        }
+
         line << "\tpacket_actor_id=" << action.actorId;
         line << "\ttarget_count=" << action.targets.size();
         line << "\tresult_count=" << resultCount;
         line << "\ttotal_param=" << totalParam;
-        AddEntityFields(line, "primary_target", PPrimaryTarget);
+        AddEnmityFields(line, PTrust, PPrimaryTarget);
 
-        AppendTrustLogLine(PMaster, line.str());
+        if (!AppendTrustLogLine(PMaster, *session, line.str()))
+        {
+            return;
+        }
     }
 
     if (settings::get<std::string>("main.TRUST_ACTION_LOG_RESULT_DETAIL") != "full")
@@ -809,7 +1397,7 @@ void trustutils::LogTrustActionPacket(CBattleEntity* PActor, const action_t& act
     uint32 targetIndex = 0;
     for (const auto& actionTarget : action.targets)
     {
-        auto*       PPacketTarget          = ResolvePacketTarget(PTrust, PMaster, PPrimaryTarget, actionTarget.actorId);
+        auto*       PPacketTarget          = dynamic_cast<const CBattleEntity*>(ResolvePacketTarget(PTrust, PMaster, PPrimaryTarget, actionTarget.actorId));
         const char* packetResolutionReason = PPacketTarget ? "entity" : "none";
         if (actionTarget.actorId == 0 && PMaster)
         {
@@ -821,7 +1409,23 @@ void trustutils::LogTrustActionPacket(CBattleEntity* PActor, const action_t& act
         for (const auto& result : actionTarget.results)
         {
             std::ostringstream line;
-            AddTrustActionContext(line, PTrust, PMaster, action, PPrimaryTarget, source, "action_result");
+            if (!AddTrustActionContext(
+                    line,
+                    PTrust,
+                    PMaster,
+                    *session,
+                    actionUid,
+                    action,
+                    PPacketTarget,
+                    source,
+                    "action_result",
+                    "executed",
+                    "none",
+                    ActionResolutionName(result.resolution)))
+            {
+                return;
+            }
+
             line << "\tpacket_actor_id=" << action.actorId;
             line << "\tpacket_raw_target_id=" << actionTarget.actorId;
             line << "\tpacket_raw_target_targid=" << TargetTargId(actionTarget.actorId);
@@ -849,8 +1453,12 @@ void trustutils::LogTrustActionPacket(CBattleEntity* PActor, const action_t& act
             line << "\tspikes_message_name=" << MsgBasicName(result.spikesMessage);
             line << "\tdistance_to_packet_target=" << EntityDistance(PTrust, PPacketTarget);
             AddEntityFields(line, "packet_target", PPacketTarget);
+            AddEnmityFields(line, PTrust, PPacketTarget);
 
-            AppendTrustLogLine(PMaster, line.str());
+            if (!AppendTrustLogLine(PMaster, *session, line.str()))
+            {
+                return;
+            }
             ++resultIndex;
         }
 
@@ -1010,7 +1618,7 @@ auto GetTrustUnityRank(CCharEntity* PMaster) -> uint8
 
 auto GetTrustUnityStatBonus(CCharEntity* PMaster) -> uint8
 {
-    if (!settings::get<bool>("main.ENABLE_TRUST_UNITY_RANK_STAT_PARITY"))
+    if (!settings::get<bool>("main.ENABLE_TRUST_UNITY_RANK_STAT_PARITY") || !trustutils::IsTwillsFullAllianceActive(PMaster))
     {
         return 0;
     }
@@ -1186,6 +1794,46 @@ void trustutils::LoadTrustList()
 
 auto trustutils::SpawnTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*
 {
+    if (!PMaster)
+    {
+        ShowWarning("trustutils::SpawnTrust - Master was null.");
+        return nullptr;
+    }
+
+    const auto memberLimit = ResolveTrustMemberLimit(PMaster);
+    if (!memberLimit)
+    {
+        ShowWarningFmt("trustutils::SpawnTrust - Rejected Trust {} for {} because the session policy is not spawnable.", TrustID, PMaster->getName());
+        return nullptr;
+    }
+
+    if (PMaster->PParty && PMaster->PParty->m_PAlliance)
+    {
+        ShowWarningFmt("trustutils::SpawnTrust - Rejected Trust {} for {} because a real alliance is active.", TrustID, PMaster->getName());
+        return nullptr;
+    }
+
+    const auto duplicate = std::ranges::find_if(PMaster->PTrusts, [TrustID](CTrustEntity* PTrust)
+                                                {
+                                                    return PTrust && PTrust->trustID() == TrustID;
+                                                });
+    if (duplicate != PMaster->PTrusts.end())
+    {
+        ShowWarningFmt("trustutils::SpawnTrust - Rejected duplicate Trust {} for {}.", TrustID, PMaster->getName());
+        return nullptr;
+    }
+
+    const auto realMemberCount = PMaster->PParty ? PMaster->PParty->members.size() : 1U;
+    if (realMemberCount + PMaster->PTrusts.size() >= *memberLimit)
+    {
+        ShowWarningFmt(
+            "trustutils::SpawnTrust - Rejected Trust {} for {} at the {}-member hard cap.",
+            TrustID,
+            PMaster->getName(),
+            *memberLimit);
+        return nullptr;
+    }
+
     CTrustEntity* PTrust = LoadTrust(PMaster, TrustID);
     if (PTrust == nullptr)
     {
@@ -1505,7 +2153,11 @@ auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*
 
 void LoadTrustStatsAndSkills(CTrustEntity* PTrust)
 {
-    if (settings::get<uint8>("main.ENABLE_TRUST_ALTER_EGO_EXPO") > 0) // Alter Ego Expo HPP/MPP +50%, All Status Resistance +25%
+    auto* PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    // Keep the optional Expo stat campaign inside the explicit QA extension;
+    // retail-control and ordinary Trusts retain upstream stats.
+    if (settings::get<uint8>("main.ENABLE_TRUST_ALTER_EGO_EXPO") > 0 &&
+        trustutils::IsTwillsFullAllianceActive(PMaster))
     {
         PTrust->addModifier(xi::Mod::HPP, 50);
         PTrust->addModifier(xi::Mod::MPP, 50);

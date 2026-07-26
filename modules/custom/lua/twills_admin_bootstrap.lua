@@ -22,9 +22,10 @@ local m = Module:new('twills_admin_bootstrap')
 local contentRegistry = require('modules/custom/lua/twills_content_parity_registry')
 
 local adminName = 'Twills'
-local currentBootVersion = 9
+local currentBootVersion = 10
 local maxEngineTitleId = 1143
 local longTimeRepairActiveVar = 'TwillsLongTimeRepairActive'
+local trustAllianceAccessVar = 'MochiriiTrustAllianceAccess'
 local varVersion = 'TwillsBootVersion'
 local varGearVersion = 'TwillsRdmSchGearVersion'
 local targetJobPoints = 500
@@ -1427,6 +1428,7 @@ local function repairCore(player)
     player:setGMLevel(5)
     player:setVisibleGMLevel(0)
     player:setGMHidden(false)
+    player:setCharVar(trustAllianceAccessVar, 1)
     player:setNation(xi.nation.SANDORIA)
     player:setRank(10)
     player:setRankPoints(0)
@@ -1466,7 +1468,7 @@ local function repairCore(player)
     player:setCharVar(varVersion, currentBootVersion)
 
     player:printToPlayer(string.format(
-        'Twills explicit core repair v%i complete: ML%i RDM/SCH foundation, %i travel unlocks refreshed, %i supported key items, chocobo %s, privileges kept, GM icon hidden. Merits, veteran metadata, currencies, missions, quests, content rewards, and gear were not changed. Relog to refresh client-side views.',
+        'Twills explicit core repair v%i complete: ML%i RDM/SCH foundation, %i travel unlocks refreshed, %i supported key items, chocobo %s, full-alliance QA entitlement enabled, privileges kept, GM icon hidden. Merits, veteran metadata, currencies, missions, quests, content rewards, and gear were not changed. Relog to refresh client-side views.',
         currentBootVersion,
         targetMasterLevel,
         travelAdded,
@@ -1483,5 +1485,6 @@ xi.twills_admin.currentVersion = currentBootVersion
 xi.twills_admin.repairCore = repairCore
 xi.twills_admin.repairGear = repairSupportedGear
 xi.twills_admin.contentRegistry = contentRegistry
+xi.twills_admin.trustAllianceAccessVar = trustAllianceAccessVar
 
 return m

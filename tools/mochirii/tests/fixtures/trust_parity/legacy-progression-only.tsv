@@ -1,0 +1,3 @@
+# Synthetic legacy progression-only evidence.
+time=2033-05-18T03:33:20	event=logger_attached	owner=Twills	trust=valaineral	trust_id=910
+time=2033-05-18T03:33:21	event=progression_bonus	owner=Twills	trust=valaineral	trust_id=910

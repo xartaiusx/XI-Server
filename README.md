@@ -37,7 +37,9 @@ Mochirii currently tracks three active workstreams:
 - `documentation/client_mod_admin_plan.md` tracks client, Windower, mod, server-control, and Trust QA state.
 - `documentation/client_graphics_stack.md` records current graphics ownership, versions, collision policy, renderer gates, and runtime proof.
 - `documentation/twills_rdm_sch_gear_completion.md` tracks Twills gear, storage, professions, chocobo, progression, and audit state.
-- `documentation/trust_retail_parity.md` tracks Trust combat, defensive behavior, logging, and per-Trust parity work.
+- `documentation/trust_retail_parity.md` tracks retail-control and Twills-only
+  full-alliance evidence lanes, Trust combat behavior, session-bound logging,
+  and per-Trust parity work.
 - `documentation/portable_restore.md` explains the Windows capture, GitHub-safe artifact policy, and Garuda restore path.
 - `restore/` contains Git-safe restore manifests, templates, and the tracked Windower golden-state subset.
 
