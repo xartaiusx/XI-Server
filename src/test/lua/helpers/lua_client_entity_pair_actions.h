@@ -27,6 +27,7 @@
 #include <sol/sol.hpp>
 
 enum class SpellID : uint16;
+class CBaseEntity;
 class CLuaClientEntityPair;
 class CLuaBaseEntity;
 
@@ -48,6 +49,9 @@ public:
     void inviteToParty(CLuaBaseEntity* player) const;
     void formAlliance(CLuaBaseEntity* player) const;
     void acceptPartyInvite() const;
+    bool formPartyForInvalidTrustState(CLuaBaseEntity* member) const;
+    bool formAllianceForInvalidTrustState(CLuaBaseEntity* firstMember, CLuaBaseEntity* secondLeader, CLuaBaseEntity* secondMember) const;
+    auto spawnTrustForInvalidGroupState(uint16 trustId) const -> CBaseEntity*;
     void tradeNpc(const sol::object& npcQuery, const sol::table& items, sol::optional<sol::table> expectedEvent) const;
     void tradeRequest(CLuaBaseEntity* target) const;
     void tradeAccept() const;

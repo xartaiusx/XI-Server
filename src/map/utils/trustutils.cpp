@@ -129,17 +129,8 @@ auto HasSupportedTrustSessionPartyShape(CCharEntity* PMaster) -> bool
 
     auto* PParty = PMaster->PParty;
     return PParty->m_PAlliance == nullptr &&
-           PParty->GetLeader() == PMaster &&
-           std::ranges::all_of(PParty->members, [PMaster](CBattleEntity* PMember)
-                               {
-                                   if (PMember == PMaster)
-                                   {
-                                       return true;
-                                   }
-
-                                   const auto* PTrust = dynamic_cast<CTrustEntity*>(PMember);
-                                   return PTrust && PTrust->PMaster == PMaster;
-                               });
+           PParty->members.size() == 1 &&
+           PParty->members.front() == PMaster;
 }
 
 } // namespace

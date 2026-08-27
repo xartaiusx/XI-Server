@@ -467,12 +467,33 @@ describe('Module: Trust evidence lanes', function()
 
         local partyTargets = xi.test.world:getPartyTargetTraversal(player)
         local seenTargets = {}
-        assert(#partyTargets == 18)
+        local passiveTrustIds =
+        {
+            [xi.magic.spell.CORNELIA] = true,
+            [xi.magic.spell.STAR_SIBYL] = true,
+        }
+
+        -- Passive aura Trusts remain full roster members, but retail-style target
+        -- traversal intentionally excludes them because they cannot be targeted.
+        assert(#partyTargets == 16, string.format('party target traversal count=%u expected=16', #partyTargets))
         for _, member in ipairs(partyTargets) do
             local entityId = member:getID()
             assert(seenEntities[entityId], 'party target traversal returned an unexpected entity')
             assert(not seenTargets[entityId], 'party target traversal returned a duplicate entity')
+            if member:getObjType() == xi.objType.TRUST then
+                assert(not passiveTrustIds[member:getTrustID()], 'party target traversal returned a passive aura Trust')
+            end
+
             seenTargets[entityId] = true
+        end
+
+        for _, member in ipairs(members) do
+            local isPassiveTrust =
+                member:getObjType() == xi.objType.TRUST and
+                passiveTrustIds[member:getTrustID()]
+            local wasTargetable = seenTargets[member:getID()] == true
+
+            assert(wasTargetable == (not isPassiveTrust))
         end
 
         assert(player:spawnTrust(xi.magic.spell.KUPIPI) == nil, 'an eighteenth Trust must be rejected')
@@ -667,12 +688,12 @@ describe('Module: Trust evidence lanes', function()
     end)
 
     it('rejects a real party without clearing the existing Trust roster', function()
-        local existing = player:spawnTrust(xi.magic.spell.VALAINERAL)
-        assert(existing ~= nil)
-
         local member = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE })
-        player.actions:inviteToParty(member)
-        member.actions:acceptPartyInvite()
+        assert(player.actions:formPartyForInvalidTrustState(member))
+        assert(player:checkSoloPartyAlliance() == 1)
+
+        local existing = player.actions:spawnTrustForInvalidGroupState(xi.magic.spell.VALAINERAL)
+        assert(existing ~= nil)
 
         local started, reason = xi.trustRetailParity.summonQa(player)
         assert(not started and reason == 'real_player_roster_mismatch')
@@ -681,15 +702,12 @@ describe('Module: Trust evidence lanes', function()
     end)
 
     it('rejects a real alliance without clearing the existing Trust roster', function()
-        assert(player:spawnTrust(xi.magic.spell.VALAINERAL) ~= nil)
-
+        local firstMember = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE })
         local secondLeader = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE })
         local secondMember = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE })
-        secondLeader.actions:inviteToParty(secondMember)
-        secondMember.actions:acceptPartyInvite()
-        player.actions:formAlliance(secondLeader)
-        secondLeader.actions:acceptPartyInvite()
+        assert(player.actions:formAllianceForInvalidTrustState(firstMember, secondLeader, secondMember))
         assert(player:checkSoloPartyAlliance() == 2)
+        assert(player.actions:spawnTrustForInvalidGroupState(xi.magic.spell.VALAINERAL) ~= nil)
 
         local started, reason = xi.trustRetailParity.summonQa(player)
         assert(not started and reason == 'real_alliance_present')
@@ -739,7 +757,7 @@ describe('Module: Trust evidence lanes', function()
     end)
 
     it('rejects enmity without clearing the existing Trust roster', function()
-        local mob = player.entities:get(17109014) -- Forest Hare in West Ronfaure.
+        local mob = player.entities:get('Forest_Hare')
         assert(mob ~= nil)
         if not mob:isSpawned() then
             mob:spawn()
