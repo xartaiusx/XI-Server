@@ -54,9 +54,18 @@ Windower QA overlay:
   run `!trustparty summonretail`, wait for `ready`, inspect `!trustparty mode`,
   capture native proof, and run the Python audit with `--readiness-only`; then
   `!trustparty clear` and repeat with `!trustparty summonqa`. Clear again before
-  shutdown. A readiness pass must report `combat_acceptance=not_run`; the QA
-  report must also display `MOCHIRII EXTENSION — NOT RETAIL ACCEPTANCE`. Do not
-  run `combattest`, engage a mob, or claim Trust parity during readiness QA.
+  shutdown. The QA lane must retain Twills' exact 17-Trust `5/6/6` alliance;
+  never shrink or replace that roster to make the client or overlay pass. A
+  readiness pass must report `combat_acceptance=not_run`; the QA report must
+  also display `MOCHIRII EXTENSION — NOT RETAIL ACCEPTANCE`. Do not run
+  `combattest`, engage a mob, or claim Trust parity during readiness QA.
+- The pre-combat terminal gate is equally explicit. After the final clear,
+  require idle, zero Trusts, zero pending timers, and `TrustEngageType=0`; use
+  the runtime-linked `Stop-MochiriiClient.ps1` so native FFXI `/shutdown` is
+  acknowledged; then use the canonical full server stop. Require zero accepted
+  client processes plus `status-mochirii-wsl.sh --expect-stopped-disabled`.
+  Stop at that state until the next phase begins with a fresh full-alliance
+  action log and a separate retail-control reproduction.
 - The 2026-07-06 report is a legacy descriptive snapshot only: it observed 17
   QA Trusts and useful action diagnostics, but predates the schema-v2 session
   contract and cannot satisfy readiness or combat acceptance.

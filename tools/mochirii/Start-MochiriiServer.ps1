@@ -9,7 +9,7 @@ $stateDir = Join-Path $RuntimeRoot 'server-control'
 $keeperPidFile = Join-Path $stateDir 'mochirii-wsl-keeper.pid'
 $startScript = '/home/xartyzx/projects/FFXI-Runtime/server-control/start-mochirii-wsl.sh'
 $statusScript = '/home/xartyzx/projects/FFXI-Runtime/server-control/status-mochirii-wsl.sh'
-$ports = @(54001, 54002, 54003, 55030, 55031)
+$ports = @(3306, 54001, 54002, 54003, 55030, 55031)
 
 New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
 
@@ -56,7 +56,10 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ''
 Write-Host 'Mochirii service status:'
-& wsl.exe -d $Distro -u root -- $statusScript
+& wsl.exe -d $Distro -u root -- $statusScript --expect-running-manual
+if ($LASTEXITCODE -ne 0) {
+    throw "Mochirii WSL running/manual status gate failed with exit code $LASTEXITCODE"
+}
 
 Write-Host ''
 Write-Host 'Windows localhost port check:'

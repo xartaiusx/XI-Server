@@ -66,9 +66,24 @@ when referring to the game.
 - A successful key-send helper only proves Windows sent keys; verify command
   results with a native Windower screenshot or matching server/Windower logs.
 - After C++ changes, rebuild and restart `xi_map`.
+- On the canonical Ubuntu 24.04 development host, configure cpptrace with
+  `-DMOCHIRII_CPPTRACE_USE_ADDR2LINE_ON_LINUX=ON` when the packaged libdwarf
+  development headers are unavailable. The option is Linux-only and defaults
+  off so CI and supported libdwarf builds keep their normal backend.
 - After Lua-only Trust changes, rely on file watcher reload for quick checks,
   but restart `xi_map` when spell lists, SQL, or startup-loaded module behavior
   changed.
+- Start and stop Mochirii only with the canonical desktop/runtime controls.
+  Every start must satisfy `status-mochirii-wsl.sh --expect-running-manual`;
+  every full stop must satisfy `--expect-stopped-disabled`. MariaDB and all four
+  XI units must remain `enabled=disabled` even while active. The developer stop
+  path that leaves MariaDB running must satisfy
+  `--expect-xi-stopped-db-running-manual`.
+- Shut down the client with `tools\mochirii\Stop-MochiriiClient.ps1` through
+  its runtime link. It submits native FFXI `/shutdown` through the UUID bridge,
+  waits for all accepted Windower/PlayOnline/FFXI processes to exit, and fails
+  if any remain. Do not substitute Windower `terminate` or a default force-kill
+  path.
 - Treat `C:\Github Repo's\FFXI` as the Windows project/workspace root. Its
   `XI-Server`, `WSL-Runtime`, and `Client` entries are links to the single
   canonical WSL checkout, WSL runtime, and installed client; never create a
@@ -129,7 +144,11 @@ possible.
    state, zero Trusts, zero pending timers, and `TrustEngageType=0`. Only after
    a separately authorized combat capture, generate the default combat report
    from WSL with the canonical Python audit without `--readiness-only`.
-7. For CraftQA, keep Twills Alchemy 110 / Cooking 70 unless a future plan
+7. At the pre-combat stop boundary, run the runtime-linked
+   `Stop-MochiriiClient.ps1`, then the canonical full server stop. Require zero
+   accepted client processes plus `--expect-stopped-disabled`. Stop there until
+   a fresh full-alliance combat-action capture is explicitly authorized.
+8. For CraftQA, keep Twills Alchemy 110 / Cooking 70 unless a future plan
    explicitly switches specialization. Use native client Synthesis History and
    `/lastsynth` as the proof path; CraftQA may stage ingredients and record
    evidence, but must not fake a permanent synthesis history.
