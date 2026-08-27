@@ -309,6 +309,16 @@ CPMAddPackage(
 ) # defines: function2 (aliased to Fn, see src/common/types/fn.h)
 
 # How cpptrace turns a crash address into function + file:line, per platform:
+option(
+    MOCHIRII_CPPTRACE_USE_ADDR2LINE_ON_LINUX
+    "Use cpptrace's addr2line backend instead of external libdwarf on Linux."
+    OFF
+)
+
+if(MOCHIRII_CPPTRACE_USE_ADDR2LINE_ON_LINUX AND (NOT UNIX OR APPLE))
+    message(FATAL_ERROR "MOCHIRII_CPPTRACE_USE_ADDR2LINE_ON_LINUX is supported only on Linux.")
+endif()
+
 set(CPPTRACE_SYMBOL_OPTIONS "")
 if(APPLE)
     # macOS binaries carry a "debug map" pointing at the .o files rather than embedded DWARF;
@@ -318,13 +328,24 @@ if(APPLE)
         "CPPTRACE_GET_SYMBOLS_WITH_ADDR2LINE ON"
     )
 elseif(UNIX)
-    # Linux: resolve in-process with libdwarf.
-    list(APPEND CPPTRACE_SYMBOL_OPTIONS
-        "CPPTRACE_GET_SYMBOLS_WITH_ADDR2LINE OFF"
-        "CPPTRACE_GET_SYMBOLS_WITH_LIBDWARF ON"
-        "CPPTRACE_USE_EXTERNAL_LIBDWARF ON"
-        "CPPTRACE_FIND_LIBDWARF_WITH_PKGCONFIG ON"
-    )
+    if(MOCHIRII_CPPTRACE_USE_ADDR2LINE_ON_LINUX)
+        # Ubuntu 24.04 ships a libdwarf older than cpptrace v1.0.4 requires.
+        # Its system addr2line provides an explicit, dependency-free fallback.
+        list(APPEND CPPTRACE_SYMBOL_OPTIONS
+            "CPPTRACE_GET_SYMBOLS_WITH_ADDR2LINE ON"
+            "CPPTRACE_GET_SYMBOLS_WITH_LIBDWARF OFF"
+            "CPPTRACE_USE_EXTERNAL_LIBDWARF OFF"
+            "CPPTRACE_FIND_LIBDWARF_WITH_PKGCONFIG OFF"
+        )
+    else()
+        # Linux default: resolve in-process with libdwarf.
+        list(APPEND CPPTRACE_SYMBOL_OPTIONS
+            "CPPTRACE_GET_SYMBOLS_WITH_ADDR2LINE OFF"
+            "CPPTRACE_GET_SYMBOLS_WITH_LIBDWARF ON"
+            "CPPTRACE_USE_EXTERNAL_LIBDWARF ON"
+            "CPPTRACE_FIND_LIBDWARF_WITH_PKGCONFIG ON"
+        )
+    endif()
 endif()
 
 CPMAddPackage(
