@@ -246,6 +246,16 @@ describe('Module: Trust evidence lanes', function()
         assert(context.topology == 'retail_party_1_plus_5')
     end)
 
+    it('accepts the native no-battlefield sentinel during preflight', function()
+        assert(player:getBattlefield() == nil)
+        assert(player:getBattlefieldID() == -1)
+
+        local allowed, reason = xi.trustRetailParity.preflight(
+            player,
+            xi.trustRetailParity.evidenceMode.RETAIL)
+        assert(allowed, tostring(reason))
+    end)
+
     it('emits an idle prepare sequence before enabling the QA projection', function()
         assert(xi.trustRetailParity.summonQa(player))
         assert(#records >= 5)
@@ -682,7 +692,7 @@ describe('Module: Trust evidence lanes', function()
         player:gotoZone(xi.zone.GHELSBA_OUTPOST)
         configureTwills(player)
         player.bcnm:enter('Hut_Door', xi.battlefield.id.SAVE_THE_CHILDREN)
-        assert(player:getBattlefield() ~= nil or player:getBattlefieldID() ~= 0)
+        assert(player:getBattlefield() ~= nil or player:getBattlefieldID() >= 0)
 
         assert(player:spawnTrust(xi.magic.spell.VALAINERAL) ~= nil)
         local started, reason = xi.trustRetailParity.summonQa(player)

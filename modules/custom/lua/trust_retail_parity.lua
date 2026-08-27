@@ -1309,6 +1309,13 @@ local function advanceSessionGeneration(player)
     return generation
 end
 
+local function hasActiveBattlefield(player)
+    local battlefieldId = player:getBattlefieldID()
+    return
+        player:getBattlefield() ~= nil or
+        (type(battlefieldId) == 'number' and battlefieldId >= 0)
+end
+
 local function preflight(player, mode)
     if player == nil then
         return false, 'missing_player'
@@ -1335,7 +1342,7 @@ local function preflight(player, mode)
         return false, 'zone_disallows_trusts'
     elseif player:getZoneID() <= 0 then
         return false, 'invalid_zone'
-    elseif player:getBattlefield() ~= nil or player:getBattlefieldID() ~= 0 then
+    elseif hasActiveBattlefield(player) then
         return false, 'battlefield_present'
     elseif player:getInstance() ~= nil then
         return false, 'instance_present'
@@ -1391,7 +1398,7 @@ local function guardSession(player, generation, mode, requiredState, summonGates
             return false, 'trust_casting_disabled'
         elseif not player:canUseMisc(xi.zoneMisc.TRUST) then
             return false, 'zone_disallows_trusts'
-        elseif player:getBattlefield() ~= nil or player:getBattlefieldID() ~= 0 then
+        elseif hasActiveBattlefield(player) then
             return false, 'battlefield_present'
         elseif player:getInstance() ~= nil then
             return false, 'instance_present'
