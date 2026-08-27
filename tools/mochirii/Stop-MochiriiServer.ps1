@@ -13,7 +13,14 @@ $statusScript = '/home/xartyzx/projects/FFXI-Runtime/server-control/status-mochi
 Write-Host 'Stopping Mochirii WSL services...'
 & wsl.exe -d $Distro -u root -- $stopScript --stop-db
 if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Mochirii WSL stop script exited with code $LASTEXITCODE"
+    throw "Mochirii WSL stop script failed with exit code $LASTEXITCODE"
+}
+
+Write-Host ''
+Write-Host 'Mochirii service status:'
+& wsl.exe -d $Distro -u root -- $statusScript --expect-stopped-disabled
+if ($LASTEXITCODE -ne 0) {
+    throw "Mochirii WSL stopped/disabled status gate failed with exit code $LASTEXITCODE"
 }
 
 if (Test-Path $keeperPidFile) {
@@ -31,10 +38,6 @@ if (Test-Path $keeperPidFile) {
     }
     Remove-Item -LiteralPath $keeperPidFile -Force -ErrorAction SilentlyContinue
 }
-
-Write-Host ''
-Write-Host 'Mochirii service status:'
-& wsl.exe -d $Distro -u root -- $statusScript
 
 Write-Host ''
 Write-Host 'Mochirii FFXI server stopped.'

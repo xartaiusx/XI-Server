@@ -62,6 +62,41 @@ and installed into `Windower\addons\MochiriiScreenshotQA`.
   temporary client config in `/run/mochirii` because MariaDB correctly rejects
   option files presented as world-writable by the Windows mount.
 
+## Canonical Runtime Lifecycle
+
+Use the desktop shortcuts or their linked tracked wrappers for every Mochirii
+server transition. `Start-MochiriiServer.ps1` succeeds only when MariaDB plus all
+four XI units are active, disabled for autostart, have positive main PIDs, and
+listen on ports `3306`, `54001`, `54002`, `54003`, `55030`, and `55031`.
+`Stop-MochiriiServer.ps1` performs the full desktop stop and succeeds only when
+all five units are inactive, disabled, have PID 0, and none of those ports are
+listening. Both wrappers fail closed if the WSL status assertion fails.
+
+The WSL status helper exposes the same explicit gates:
+
+```bash
+tools/mochirii/wsl-server-control/status-mochirii-wsl.sh --expect-running-manual
+tools/mochirii/wsl-server-control/status-mochirii-wsl.sh --expect-stopped-disabled
+tools/mochirii/wsl-server-control/status-mochirii-wsl.sh --expect-xi-stopped-db-running-manual
+```
+
+The third mode preserves the developer workflow where the XI services stop but
+MariaDB remains active for database access; MariaDB still must be disabled for
+autostart. A default WSL stop also accepts an already-stopped MariaDB, but never
+an enabled unit or a stray XI listener.
+
+For the live client, run the runtime-linked helper:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Github Repo's\FFXI\Runtime\client-tools\Stop-MochiriiClient.ps1"
+```
+
+If the client is already absent, the command succeeds idempotently. Otherwise
+it submits native FFXI `/shutdown` through the acknowledged UUID bridge and
+waits a bounded interval for `Windower`, `xiloader`, `pol`, `polboot`, `polcore`,
+and `ffximain` to exit. It never substitutes Windower `terminate` or a default
+force kill, and it fails if any accepted process remains.
+
 ## Repeatable Native Command Sequence
 
 For every in-client test, keep the command surface stable and native:
@@ -86,6 +121,11 @@ For every in-client test, keep the command surface stable and native:
    Readiness evidence is not combat or retail-parity acceptance.
 5. Use `capture_windower_window.ps1` for proof. The helper must trigger native
    Windower screenshot output and must report full client dimensions.
+6. After the final readiness lane, use `!trustparty clear` and require idle,
+   zero Trusts, zero pending timers, and `TrustEngageType=0`. Then use
+   `Stop-MochiriiClient.ps1` and the canonical full server stop. Require zero
+   accepted client processes and the strict stopped/disabled server gate before
+   ending the pre-combat phase.
 
 Do not add another helper for a task already covered here unless a native
 Windower/Final Fantasy XI/GearSwap/XivParty/Mochirii command cannot do the job.

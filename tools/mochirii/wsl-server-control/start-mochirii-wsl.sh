@@ -6,6 +6,7 @@ RUNTIME_ROOT="/home/xartyzx/projects/FFXI-Runtime"
 LOG_ROOT="$RUNTIME_ROOT/logs/server"
 STATE_FILE="$RUNTIME_ROOT/server-control/mochirii-server-state.json"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+STATUS_SCRIPT="$SCRIPT_DIR/status-mochirii-wsl.sh"
 
 SERVICES=(
   "mochirii-xi-connect.service"
@@ -14,7 +15,12 @@ SERVICES=(
   "mochirii-xi-map.service"
 )
 
-PORTS=(54001 54002 54003 55030 55031)
+ALL_SERVICES=(
+  "mariadb.service"
+  "${SERVICES[@]}"
+)
+
+PORTS=(3306 54001 54002 54003 55030 55031)
 
 if [[ "$(id -u)" != "0" ]]; then
   echo "Run this script as root inside WSL." >&2
@@ -37,9 +43,18 @@ done
 
 mysql_args=(--defaults-extra-file="$MYSQL_DEFAULTS")
 
+enforce_manual_start() {
+  local service
+  for service in "${ALL_SERVICES[@]}"; do
+    systemctl disable "$service" >/dev/null
+  done
+}
+
+systemctl daemon-reload
+enforce_manual_start
+
 echo "Starting MariaDB..."
 systemctl start mariadb.service >/dev/null
-systemctl disable mariadb.service >/dev/null 2>&1 || true
 
 for _ in {1..30}; do
   if mariadb "${mysql_args[@]}" -h127.0.0.1 -P3306 -e "SELECT 1;" >/dev/null 2>&1; then
@@ -53,8 +68,6 @@ UPDATE xidb.zone_settings SET zoneip='127.0.0.1' WHERE zoneip <> '127.0.0.1';
 UPDATE xidb.zone_settings SET zoneport=55030 WHERE zoneport <> 55030;
 "
 
-systemctl daemon-reload
-
 echo "Stopping any existing Mochirii XI services..."
 for service in "${SERVICES[@]}"; do
   systemctl stop "$service" >/dev/null 2>&1 || true
@@ -67,6 +80,8 @@ for service in "${SERVICES[@]}"; do
   sleep 1
 done
 
+enforce_manual_start
+
 port_is_listening() {
   local port="$1"
   ss -ltnH | awk '{ print $4 }' | grep -Eq "[:.]${port}$"
@@ -74,7 +89,7 @@ port_is_listening() {
 
 all_ready() {
   local service
-  for service in "${SERVICES[@]}"; do
+  for service in "${ALL_SERVICES[@]}"; do
     systemctl is-active --quiet "$service" || return 1
   done
 
@@ -117,6 +132,7 @@ fi
   echo "}"
 } > "$STATE_FILE"
 
+"$STATUS_SCRIPT" --expect-running-manual
+
 echo "Mochirii XI server is up."
 echo "State: $STATE_FILE"
-ss -ltnp | grep -E ':(3306|54001|54002|54003|55030|55031)\b' || true
