@@ -16,7 +16,12 @@ describe('Module: Trust evidence lanes', function()
     local testArchivePath
     local testLivePath
     local testRestPath
+    local realResetForLogin = xi.trustActionLogger.resetForLogin
     local realBeginSession = xi.trustActionLogger.beginSession
+    local realRecordSessionEvent = xi.trustActionLogger.recordSessionEvent
+    local realEndSession = xi.trustActionLogger.endSession
+    local realAttach = xi.trustActionLogger.attach
+    local realAttachmentCount = xi.trustActionLogger.attachmentCount
 
     local function trustCount(target)
         local count = 0
@@ -119,11 +124,11 @@ describe('Module: Trust evidence lanes', function()
         assert(xi.trustRetailParity.setSpawnTrustTestHook(nil))
         assert(xi.trustRetailParity.setClearTrustsTestHook(nil))
 
-        stub('xi.trustActionLogger.resetForLogin', function()
+        xi.trustActionLogger.resetForLogin = function()
             return true
-        end)
+        end
 
-        stub('xi.trustActionLogger.beginSession', function(target, fields)
+        xi.trustActionLogger.beginSession = function(target, fields)
             if beginDelegate ~= nil then
                 return beginDelegate(target, fields)
             end
@@ -138,9 +143,9 @@ describe('Module: Trust evidence lanes', function()
                 allianceActive = target:isTwillsFullAllianceActive(),
             }
             return beginSucceeds, beginFailureReason
-        end)
+        end
 
-        stub('xi.trustActionLogger.recordSessionEvent', function(target, recordType, event, fields)
+        xi.trustActionLogger.recordSessionEvent = function(target, recordType, event, fields)
             records[#records + 1] =
             {
                 recordType = recordType,
@@ -151,9 +156,9 @@ describe('Module: Trust evidence lanes', function()
                 allianceActive = target:isTwillsFullAllianceActive(),
             }
             return true
-        end)
+        end
 
-        stub('xi.trustActionLogger.endSession', function(target, completion, reason, fields)
+        xi.trustActionLogger.endSession = function(target, completion, reason, fields)
             records[#records + 1] =
             {
                 recordType = 'session_end',
@@ -166,14 +171,14 @@ describe('Module: Trust evidence lanes', function()
                 allianceActive = target:isTwillsFullAllianceActive(),
             }
             return endSucceeds
-        end)
+        end
 
-        stub('xi.trustActionLogger.attach', function(trust)
+        xi.trustActionLogger.attach = function(trust)
             attached[trust:getTrustID()] = true
             return true, 'attached'
-        end)
+        end
 
-        stub('xi.trustActionLogger.attachmentCount', attachedCount)
+        xi.trustActionLogger.attachmentCount = attachedCount
 
         player = xi.test.world:spawnPlayer(
             {
@@ -186,6 +191,12 @@ describe('Module: Trust evidence lanes', function()
     end)
 
     after_each(function()
+        xi.trustActionLogger.resetForLogin = realResetForLogin
+        xi.trustActionLogger.beginSession = realBeginSession
+        xi.trustActionLogger.recordSessionEvent = realRecordSessionEvent
+        xi.trustActionLogger.endSession = realEndSession
+        xi.trustActionLogger.attach = realAttach
+        xi.trustActionLogger.attachmentCount = realAttachmentCount
         xi.settings.main.TRUST_ACTION_LOG_DIR = originalLogDir
         xi.settings.main.TRUST_ACTION_LOG_PLAYER = originalLogPlayer
         if testLogRoot ~= nil then
