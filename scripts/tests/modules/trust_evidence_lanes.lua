@@ -89,6 +89,10 @@ describe('Module: Trust evidence lanes', function()
         assert(failureIndex ~= nil and failureIndex > failedIndex, 'roster failure must follow Failed')
         assert(endIndex ~= nil and endIndex > failureIndex, 'terminal session_end must follow failure evidence')
         assert(endIndex == #records, 'session_end must be the final evidence record')
+        assert(
+            sessionEnd ~= nil,
+            'terminal session_end record must be available for validation'
+        )
         assert(sessionEnd.completion == 'failed')
         assert(sessionEnd.state == xi.trustRetailParity.sessionState.IDLE)
     end
