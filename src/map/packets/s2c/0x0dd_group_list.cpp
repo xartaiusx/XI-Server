@@ -24,6 +24,7 @@
 #include "common/logging.h"
 #include "entities/char_entity.h"
 #include "entities/trust_entity.h"
+#include "utils/trustutils.h"
 
 GP_SERV_COMMAND_GROUP_LIST::GP_SERV_COMMAND_GROUP_LIST(const CCharEntity* PChar, const uint8_t MemberNumber, const uint16_t memberflags, const uint16_t ZoneID)
 {
@@ -85,10 +86,19 @@ GP_SERV_COMMAND_GROUP_LIST::GP_SERV_COMMAND_GROUP_LIST(const CTrustEntity* PTrus
         return;
     }
 
+    if (MemberNumber >= trustutils::kRetailPartyMemberLimit || PartyNo >= trustutils::kFullAlliancePartyLimit)
+    {
+        ShowErrorFmt(
+            "GP_SERV_COMMAND_GROUP_LIST::GP_SERV_COMMAND_GROUP_LIST() - Invalid Trust projection party {} member {}.",
+            PartyNo,
+            MemberNumber);
+        return;
+    }
+
     auto& packet = this->data();
 
     packet.UniqueNo      = PTrust->id;
-    packet.GAttr.PartyNo = PartyNo & 0x03;
+    packet.GAttr.PartyNo = PartyNo;
     packet.Hp            = PTrust->health.hp;
     packet.Mp            = PTrust->health.mp;
     packet.Tp            = PTrust->health.tp;

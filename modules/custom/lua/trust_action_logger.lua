@@ -2,10 +2,12 @@
 -- Mochirii Trust action logger.
 --
 -- Captures Trust combat choices for QA without changing Trust behavior.
--- Live logs are reset on player login; archive logs persist per session.
+-- Evidence is bound to an explicit server-derived session. Live logs rotate at
+-- evidence-mode transitions; archive logs persist per session.
 -----------------------------------
 require('modules/module_utils')
 -----------------------------------
+-- luacheck: globals GetServerGitCommit
 
 xi = xi or {}
 xi.trustActionLogger = xi.trustActionLogger or {}
@@ -13,6 +15,7 @@ xi.trustActionLogger = xi.trustActionLogger or {}
 local trustActionLogger = xi.trustActionLogger
 local m = Module:new('trust_action_logger')
 
+local schemaVersion = 2
 local attachedVar = 'MochiTrustLogAttached'
 local lastTargetVar = 'MochiTrustLogLastTarget'
 local lastRestBlockVar = 'MochiTrustLogLastRestBlock'
@@ -25,13 +28,22 @@ local lastMagicTargetHpVar = 'MochiTrustLogMagicTargetHp'
 local lastMagicTargetMaxHpVar = 'MochiTrustLogMagicTargetMaxHp'
 local lastMagicTargetHppVar = 'MochiTrustLogMagicTargetHpp'
 local lastMagicTrustMppVar = 'MochiTrustLogMagicTrustMpp'
+local sessionStateVar = 'MochiriiTrustSessionState'
+local evidenceModeVar = 'MochiriiTrustEvidenceMode'
+local evidenceSchemaVar = 'MochiriiTrustEvidenceSchema'
+local sessionGenerationVar = 'MochiriiTrustSessionGeneration'
+local sessionStartedVar = 'MochiriiTrustSessionStarted'
+local sessionZoneVar = 'MochiriiTrustSessionZone'
+local evidenceSequenceVar = 'MochiriiTrustEvidenceSeq'
+local logTruncatedVar = 'MochiriiTrustLogTruncated'
+local pendingTimersVar = 'MochiriiTrustAlliancePendingTimers'
 local runtimeRoot = os.getenv('MOCHIRII_RUNTIME_ROOT')
 local defaultLogDir = runtimeRoot and (runtimeRoot .. '/logs/trust_actions') or 'log/trust_actions'
 
-local activeArchives = {}
 local ensuredDirs = {}
 local fileErrorShown = {}
 local restStates = {}
+local cachedServerCommit
 
 local function setting(name, default)
     if
@@ -52,7 +64,7 @@ end
 
 local function clean(value)
     if value == nil then
-        return 'nil'
+        return 'none'
     end
 
     return tostring(value):gsub('[\r\n\t]', ' ')
@@ -116,8 +128,8 @@ local function livePath(ownerName)
     return pathJoin(rootDir(), 'live', safeName(ownerName) .. '.log')
 end
 
-local function archivePath(ownerName, stamp)
-    return pathJoin(rootDir(), 'archive', safeName(ownerName) .. '-' .. stamp .. '.log')
+local function archivePath(sessionId)
+    return pathJoin(rootDir(), 'archive', safeName(sessionId) .. '.log')
 end
 
 local function restStatePath(ownerName)
@@ -132,15 +144,57 @@ local function writeFile(path, mode, line)
             fileErrorShown[path] = true
         end
 
-        return
+        return false
     end
 
+    local writeOk = true
     if line ~= nil and line ~= '' then
-        file:write(line)
-        file:write('\n')
+        local called, result = pcall(file.write, file, line, '\n')
+        writeOk = called and result ~= nil
     end
 
-    file:close()
+    local flushCalled, flushResult = pcall(file.flush, file)
+    local closeCalled, closeResult = pcall(file.close, file)
+    local succeeded =
+        writeOk and
+        flushCalled and
+        flushResult ~= nil and
+        closeCalled and
+        closeResult ~= nil
+    if not succeeded and not fileErrorShown[path] then
+        print(string.format('Mochirii TrustLog: failed to write %s', path))
+        fileErrorShown[path] = true
+    end
+
+    return succeeded
+end
+
+local function fileExists(path)
+    local file = io.open(path, 'rb')
+    if file == nil then
+        return false
+    end
+
+    pcall(file.close, file)
+    return true
+end
+
+local function sessionLineFits(path, line, replace)
+    local maxBytes = tonumber(setting('TRUST_ACTION_LOG_MAX_BYTES_PER_SESSION', 0)) or 0
+    if maxBytes <= 0 then
+        return true
+    end
+
+    local currentBytes = 0
+    if not replace then
+        local file = io.open(path, 'rb')
+        if file ~= nil then
+            currentBytes = file:seek('end') or 0
+            file:close()
+        end
+    end
+
+    return currentBytes + #line + 1 <= maxBytes
 end
 
 local call
@@ -219,8 +273,11 @@ local function shouldLogOwner(ownerName)
         return false
     end
 
-    local configured = setting('TRUST_ACTION_LOG_PLAYER', 'Twills')
-    return configured == nil or configured == '' or ownerName == configured
+    local configured = setting('TRUST_ACTION_LOG_PLAYER', '')
+    return
+        type(configured) == 'string' and
+        configured ~= '' and
+        ownerName == configured
 end
 
 call = function(entity, methodName, ...)
@@ -242,6 +299,191 @@ local function ownerForTrust(trust)
 
     return owner, ownerName
 end
+
+local evidenceModeNames =
+{
+    [1] = 'retail_control',
+    [2] = 'twills_full_alliance_qa',
+}
+
+local evidenceTopologyNames =
+{
+    [1] = 'retail_party_1_plus_5',
+    [2] = 'virtual_trust_alliance_5_6_6',
+}
+
+local sessionStateNames =
+{
+    [0] = 'idle',
+    [1] = 'spawning',
+    [2] = 'ready',
+    [3] = 'failed',
+}
+
+local function serverCommit()
+    if cachedServerCommit ~= nil then
+        return cachedServerCommit
+    end
+
+    local commit
+    if GetServerGitCommit ~= nil then
+        local ok, value = pcall(GetServerGitCommit)
+        if ok then
+            commit = tostring(value or ''):lower()
+        end
+    end
+
+    if commit == nil and BuildString ~= nil then
+        local ok, build = pcall(BuildString)
+        if ok then
+            local normalized = tostring(build or ''):gsub('\r', '')
+            commit = normalized:match('%-([0-9a-fA-F]+)\n')
+            commit = commit ~= nil and commit:lower() or nil
+        end
+    end
+
+    if
+        commit == nil or
+        #commit ~= 40 or
+        commit:match('^[0-9a-f]+$') == nil
+    then
+        return nil
+    end
+
+    cachedServerCommit = commit
+    return cachedServerCommit
+end
+
+local function sessionIdForPlayer(player)
+    if player == nil then
+        return nil
+    end
+
+    local ownerName = call(player, 'getName')
+    local ownerId = tonumber(call(player, 'getID') or 0) or 0
+    local startedAt = tonumber(call(player, 'getLocalVar', sessionStartedVar) or 0) or 0
+    local generation = tonumber(call(player, 'getLocalVar', sessionGenerationVar) or 0) or 0
+    if ownerName == nil or ownerId <= 0 or startedAt <= 0 or generation <= 0 then
+        return nil
+    end
+
+    return string.format('%s-%u-%u-%u', safeName(ownerName), ownerId, startedAt, generation)
+end
+
+-- Session validation intentionally keeps every evidence-contract gate in one
+-- place so callers cannot accidentally accept a partial context.
+-- luacheck: ignore 561
+local function sessionContext(player)
+    if player == nil then
+        return nil, 'missing_player'
+    end
+
+    local mode = tonumber(call(player, 'getLocalVar', evidenceModeVar) or 0) or 0
+    local schema = tonumber(call(player, 'getLocalVar', evidenceSchemaVar) or 0) or 0
+    local state = tonumber(call(player, 'getLocalVar', sessionStateVar) or 0) or 0
+    local generation = tonumber(call(player, 'getLocalVar', sessionGenerationVar) or 0) or 0
+    local startedAt = tonumber(call(player, 'getLocalVar', sessionStartedVar) or 0) or 0
+    local zone = tonumber(call(player, 'getLocalVar', sessionZoneVar) or 0) or 0
+    local sessionId = sessionIdForPlayer(player)
+    local commit = serverCommit()
+    local currentZone = tonumber(call(player, 'getZoneID') or 0) or 0
+    local authorized = call(player, 'canUseTwillsFullAlliance') == true
+    local trustEngageType = tonumber(call(player, 'getCharVar', 'TrustEngageType') or 0) or 0
+    local activeState = state == 1 or state == 2
+
+    if schema ~= schemaVersion then
+        return nil, 'invalid_evidence_schema'
+    elseif evidenceModeNames[mode] == nil or evidenceTopologyNames[mode] == nil then
+        return nil, 'invalid_evidence_mode'
+    elseif sessionStateNames[state] == nil then
+        return nil, 'invalid_session_state'
+    elseif generation <= 0 or startedAt <= 0 or zone <= 0 or sessionId == nil then
+        return nil, 'incomplete_session_state'
+    elseif commit == nil then
+        return nil, 'invalid_server_commit'
+    elseif activeState and not authorized then
+        return nil, 'authorization_denied'
+    elseif activeState and currentZone ~= zone then
+        return nil, 'session_zone_mismatch'
+    elseif
+        activeState and
+        (
+            (mode == 1 and trustEngageType ~= 0) or
+            (mode == 2 and trustEngageType ~= 1)
+        )
+    then
+        return nil, 'engagement_mode_mismatch'
+    end
+
+    return
+    {
+        owner = tostring(call(player, 'getName') or 'unknown'),
+        ownerId = tonumber(call(player, 'getID') or 0) or 0,
+        mode = mode,
+        schema = schema,
+        modeName = evidenceModeNames[mode],
+        topology = evidenceTopologyNames[mode],
+        state = state,
+        stateName = sessionStateNames[state],
+        generation = generation,
+        startedAt = startedAt,
+        zone = zone,
+        sessionId = sessionId,
+        serverCommit = commit,
+        trustEngageType = trustEngageType,
+        authorized = authorized,
+    }
+end
+
+local function nextSequence(player)
+    local current = tonumber(call(player, 'getLocalVar', evidenceSequenceVar) or 0) or 0
+    if current >= 4294967295 then
+        player:setLocalVar(logTruncatedVar, 1)
+        return nil
+    end
+
+    local sequence = current + 1
+    player:setLocalVar(evidenceSequenceVar, sequence)
+    return sequence
+end
+
+local function commonFields(player, recordType, eventName)
+    local context, reason = sessionContext(player)
+    if context == nil then
+        return nil, nil, reason
+    end
+
+    local sequence = nextSequence(player)
+    if sequence == nil then
+        return nil, nil, 'sequence_exhausted'
+    end
+
+    local timestamp = GetSystemTime()
+    local fields =
+    {
+        'schema_version=' .. schemaVersion,
+        'record_type=' .. clean(recordType),
+        'session_id=' .. clean(context.sessionId),
+        'server_commit=' .. clean(context.serverCommit),
+        'sequence=' .. clean(sequence),
+        'timestamp_epoch=' .. clean(timestamp),
+        'timestamp_utc=' .. clean(os.date('!%Y-%m-%dT%H:%M:%SZ', timestamp)),
+        'owner=' .. clean(context.owner),
+        'owner_id=' .. clean(context.ownerId),
+        'evidence_mode=' .. clean(context.modeName),
+        'topology=' .. clean(context.topology),
+        'state=' .. clean(context.stateName),
+        'generation=' .. clean(context.generation),
+        'zone=' .. clean(context.zone),
+        'trust_engage_type=' .. clean(context.trustEngageType),
+        'event=' .. clean(eventName),
+    }
+
+    return fields, context, nil
+end
+
+trustActionLogger.sessionIdForPlayer = sessionIdForPlayer
+trustActionLogger.sessionContext = sessionContext
 
 local function entityFields(prefix, entity, fields)
     fields[#fields + 1] = prefix .. '_name=' .. clean(call(entity, 'getName') or 'none')
@@ -759,50 +1001,189 @@ local function restStateFields(actor)
     }
 end
 
-local function currentArchive(ownerName)
-    if activeArchives[ownerName] == nil then
-        local stamp = os.date('%Y%m%d-%H%M%S')
-        activeArchives[ownerName] = archivePath(ownerName, stamp)
-        writeFile(activeArchives[ownerName], 'a', string.format('# Mochirii Trust action archive for %s, recovered session %s', ownerName, stamp))
-    end
-
-    return activeArchives[ownerName]
-end
-
 trustActionLogger.resetForLogin = function(player)
     if player == nil then
-        return
+        return false
     end
 
     local ownerName = player:getName()
     if not shouldLogOwner(ownerName) then
-        return
+        return false
     end
 
     ensureLogDirs()
-
-    local stamp = os.date('%Y%m%d-%H%M%S')
-    activeArchives[ownerName] = archivePath(ownerName, stamp)
-    writeFile(livePath(ownerName), 'w', '')
     restStates[ownerName] = {}
-    writeFile(restStatePath(ownerName), 'w', '')
-    writeFile(activeArchives[ownerName], 'w', string.format('# Mochirii Trust action archive for %s, session %s', ownerName, stamp))
-    print(string.format('Mochirii TrustLog: reset live log for %s; archive=%s', ownerName, activeArchives[ownerName]))
+    player:setLocalVar(logTruncatedVar, 0)
+
+    local liveReset = writeFile(livePath(ownerName), 'w', '')
+    local restReset = writeFile(restStatePath(ownerName), 'w', '')
+    if not liveReset or not restReset then
+        player:setLocalVar(logTruncatedVar, 1)
+        return false
+    end
+
+    return true
+end
+
+local function addFields(fields, extraFields)
+    if extraFields == nil then
+        return
+    end
+
+    for _, field in ipairs(extraFields) do
+        fields[#fields + 1] = tostring(field)
+    end
+end
+
+local function sessionLine(player, recordType, eventName, extraFields)
+    local fields, context, reason = commonFields(player, recordType, eventName)
+    if fields == nil then
+        return nil, nil, reason
+    end
+
+    fields[#fields + 1] = 'log_truncated=' .. tostring(player:getLocalVar(logTruncatedVar) == 1)
+    addFields(fields, extraFields)
+    return table.concat(fields, '\t'), context, nil
+end
+
+local function markLogTruncated(player, reason)
+    player:setLocalVar(logTruncatedVar, 1)
+    local line, context = sessionLine(player, 'logger', 'log_truncated', {
+        'reason=' .. clean(reason or 'session_size_limit'),
+    })
+    if line == nil then
+        return false
+    end
+
+    -- This one bounded marker deliberately bypasses the cap so an audit can
+    -- never mistake a silently shortened evidence stream for acceptance.
+    local archiveOk = writeFile(archivePath(context.sessionId), 'a', line)
+    local liveOk = writeFile(livePath(context.owner), 'a', line)
+    return archiveOk and liveOk
+end
+
+trustActionLogger.markLogTruncated = markLogTruncated
+
+local function appendSessionLine(player, recordType, eventName, extraFields)
+    local line, context, reason = sessionLine(player, recordType, eventName, extraFields)
+    if line == nil then
+        return false, reason
+    end
+
+    ensureLogDirs()
+    local archive = archivePath(context.sessionId)
+    local live = livePath(context.owner)
+    if
+        player:getLocalVar(logTruncatedVar) ~= 1 and
+        (not sessionLineFits(archive, line, false) or not sessionLineFits(live, line, false))
+    then
+        markLogTruncated(player, 'session_size_limit')
+        return false, 'session_size_limit'
+    end
+
+    local archiveOk = writeFile(archive, 'a', line)
+    if not archiveOk then
+        markLogTruncated(player, 'archive_write_failed')
+        return false, 'archive_write_failed'
+    end
+
+    local liveOk = writeFile(live, 'a', line)
+    if not liveOk then
+        markLogTruncated(player, 'live_write_failed')
+        return false, 'live_write_failed'
+    end
+
+    return true, nil
+end
+
+trustActionLogger.beginSession = function(player, extraFields)
+    if player == nil then
+        return false, 'missing_player'
+    elseif not shouldLogOwner(call(player, 'getName')) then
+        return false, 'owner_not_logged'
+    end
+
+    player:setLocalVar(evidenceSequenceVar, 0)
+    player:setLocalVar(logTruncatedVar, 0)
+    local line, context, reason = sessionLine(player, 'session_begin', 'session_begin', extraFields)
+    if line == nil then
+        return false, reason
+    end
+
+    ensureLogDirs()
+    restStates[context.owner] = {}
+    local archive = archivePath(context.sessionId)
+    local live = livePath(context.owner)
+    if fileExists(archive) then
+        player:setLocalVar(logTruncatedVar, 1)
+        return false, 'archive_already_exists'
+    end
+
+    if
+        not sessionLineFits(archive, line, true) or
+        not sessionLineFits(live, line, true)
+    then
+        player:setLocalVar(logTruncatedVar, 1)
+        return false, 'session_begin_exceeds_size_limit'
+    end
+
+    local archiveOk = writeFile(archive, 'a', line)
+    if not archiveOk then
+        player:setLocalVar(logTruncatedVar, 1)
+        return false, 'archive_create_failed'
+    end
+
+    local liveOk = writeFile(live, 'w', line)
+    local restOk = writeFile(restStatePath(context.owner), 'w', '')
+    if not liveOk or not restOk then
+        player:setLocalVar(logTruncatedVar, 1)
+        return false, not liveOk and 'live_create_failed' or 'rest_state_reset_failed'
+    end
+
+    return true, nil
+end
+
+trustActionLogger.recordSessionEvent = function(player, recordType, eventName, extraFields)
+    if player == nil or not shouldLogOwner(call(player, 'getName')) then
+        return false, 'owner_not_logged'
+    end
+
+    return appendSessionLine(player, recordType, eventName, extraFields)
+end
+
+trustActionLogger.endSession = function(player, completion, reason, extraFields)
+    local fields =
+    {
+        'completion=' .. clean(completion or 'incomplete'),
+        'reason=' .. clean(reason or 'none'),
+    }
+
+    addFields(fields, extraFields)
+    return trustActionLogger.recordSessionEvent(player, 'session_end', 'session_end', fields)
 end
 
 -- Disable cyclomatic complexity check for the event logger dispatcher:
 -- luacheck: ignore 561
 trustActionLogger.log = function(trust, eventName, target, extraFields)
     if trust == nil or call(trust, 'getObjType') ~= xi.objType.TRUST then
-        return
+        return false
     end
 
     local owner, ownerName = ownerForTrust(trust)
     if ownerName == nil or not shouldLogOwner(ownerName) then
-        return
+        return false
+    elseif owner:getLocalVar(logTruncatedVar) == 1 then
+        return false
     end
 
     ensureLogDirs()
+
+    -- Listener snapshots are diagnostic context, not authoritative action
+    -- decisions. Combat acceptance is sourced only from C++ packet/result rows.
+    local fields, context = commonFields(owner, 'diagnostic', eventName)
+    if fields == nil then
+        return false
+    end
 
     local restBlockReason = call(trust, 'getLocalVar', 'MochiTrustRestBlockReason') or 0
     local restMode = call(trust, 'getLocalVar', 'MochiTrustRestMode') or 0
@@ -814,12 +1195,11 @@ trustActionLogger.log = function(trust, eventName, target, extraFields)
     local tpSkillSkipReason = call(trust, 'getLocalVar', 'MochiTrustTpSkillSkipReason') or 0
     local focusReason = call(trust, 'getLocalVar', 'MochiTrustFocusReason') or 0
     local roleEnmityAction = call(trust, 'getLocalVar', 'MochiTrustRoleEnmityAction') or 0
-    local fields =
+    fields[#fields + 1] = 'log_truncated=' .. tostring(owner:getLocalVar(logTruncatedVar) == 1)
+    addFields(fields,
     {
-        'time=' .. os.date('%Y-%m-%dT%H:%M:%S'),
-        'event=' .. clean(eventName),
-        'owner=' .. clean(ownerName),
         'trust=' .. clean(call(trust, 'getName') or 'unknown'),
+        'trust_name=' .. clean(call(trust, 'getName') or 'unknown'),
         'trust_id=' .. clean(call(trust, 'getTrustID') or 0),
         'trust_entity_id=' .. clean(call(trust, 'getID') or 0),
         'trust_targid=' .. clean(call(trust, 'getTargID') or 0),
@@ -836,7 +1216,6 @@ trustActionLogger.log = function(trust, eventName, target, extraFields)
         'aep_magic_rank=' .. clean(call(trust, 'getLocalVar', 'MochiTrustAepMagicRank') or 0),
         'unity_parity_rank=' .. clean(call(trust, 'getLocalVar', 'MochiTrustUnityRank') or 0),
         'unity_parity_stat_bonus=' .. clean(call(trust, 'getLocalVar', 'MochiTrustUnityStatBonus') or 0),
-        'zone=' .. clean(call(trust, 'getZoneID') or 0),
         'trust_rest_mode=' .. clean(restMode),
         'trust_rest_mode_name=' .. clean(restModeName(restMode)),
         'trust_rest_start_reason=' .. clean(restStartReason),
@@ -864,27 +1243,43 @@ trustActionLogger.log = function(trust, eventName, target, extraFields)
         'tp_skill_skip_reason_name=' .. clean(tpSkillSkipReasonName(tpSkillSkipReason)),
         'tp_skill_skip_id=' .. clean(call(trust, 'getLocalVar', 'MochiTrustTpSkillSkipId') or 0),
         'tp_skill_skip_target_targid=' .. clean(call(trust, 'getLocalVar', 'MochiTrustTpSkillSkipTargetTargId') or 0),
-    }
+    })
 
     entityFields('target', target, fields)
     fields[#fields + 1] = 'trust_statuses=' .. clean(statusSnapshot(trust))
     fields[#fields + 1] = 'master_statuses=' .. clean(statusSnapshot(owner))
     fields[#fields + 1] = 'target_statuses=' .. clean(statusSnapshot(target))
 
-    if extraFields ~= nil then
-        for _, field in ipairs(extraFields) do
-            fields[#fields + 1] = field
-        end
-    end
+    addFields(fields, extraFields)
 
     local line = table.concat(fields, '\t')
-    writeFile(livePath(ownerName), 'a', line)
-    writeFile(currentArchive(ownerName), 'a', line)
+    local archive = archivePath(context.sessionId)
+    local live = livePath(ownerName)
+    if
+        not sessionLineFits(archive, line, false) or
+        not sessionLineFits(live, line, false)
+    then
+        markLogTruncated(owner, 'session_size_limit')
+        return false
+    end
+
+    if not writeFile(archive, 'a', line) then
+        markLogTruncated(owner, 'archive_write_failed')
+        return false
+    end
+
+    if not writeFile(live, 'a', line) then
+        markLogTruncated(owner, 'live_write_failed')
+        return false
+    end
+
     updateRestState(trust, ownerName)
 
     if settingEnabled('TRUST_ACTION_LOG_MAP_ECHO', false) then
         print('Mochirii TrustLog: ' .. line)
     end
+
+    return true
 end
 
 local function attachMagicListeners(trust)
@@ -1091,18 +1486,50 @@ local function attachRestListeners(trust)
     end)
 end
 
-trustActionLogger.attach = function(trust, reason)
-    if trust == nil or call(trust, 'getObjType') ~= xi.objType.TRUST then
-        return false
+local function attachmentCount(player)
+    local count = 0
+    for _, member in ipairs(player:getPartyWithTrusts()) do
+        if
+            call(member, 'getObjType') == xi.objType.TRUST and
+            call(member, 'getLocalVar', attachedVar) == 1
+        then
+            count = count + 1
+        end
     end
 
-    local _, ownerName = ownerForTrust(trust)
+    return count
+end
+
+trustActionLogger.attachmentCount = attachmentCount
+
+trustActionLogger.isAttached = function(trust)
+    return
+        trust ~= nil and
+        call(trust, 'getObjType') == xi.objType.TRUST and
+        call(trust, 'getLocalVar', attachedVar) == 1
+end
+
+trustActionLogger.attach = function(trust, reason, expectedGeneration)
+    if trust == nil or call(trust, 'getObjType') ~= xi.objType.TRUST then
+        return false, 'not_trust'
+    end
+
+    local owner, ownerName = ownerForTrust(trust)
     if ownerName == nil or not shouldLogOwner(ownerName) then
-        return false
+        return false, 'owner_not_logged'
+    end
+
+    local context, contextReason = sessionContext(owner)
+    if context == nil then
+        return false, contextReason
+    elseif context.state ~= 1 and context.state ~= 2 then
+        return false, 'session_not_attachable'
+    elseif expectedGeneration ~= nil and context.generation ~= expectedGeneration then
+        return false, 'stale_generation'
     end
 
     if trust:getLocalVar(attachedVar) == 1 then
-        return false
+        return true, 'already_attached'
     end
 
     trust:setLocalVar(attachedVar, 1)
@@ -1119,14 +1546,20 @@ trustActionLogger.attach = function(trust, reason)
     attachCombatDiagnosticListener(trust)
     attachRestListeners(trust)
 
-    trustActionLogger.log(trust, 'logger_attached', nil, {
-        'reason=' .. clean(reason or 'manual'),
+    local logged, logReason = trustActionLogger.recordSessionEvent(owner, 'logger', 'logger_attached', {
+        'trust_id=' .. clean(call(trust, 'getTrustID') or 0),
+        'trust_name=' .. clean(call(trust, 'getName') or 'unknown'),
+        'attach_reason=' .. clean(reason or 'manual'),
+        'attached_count=' .. clean(attachmentCount(owner)),
     })
+    if not logged then
+        return false, logReason or 'logger_attach_write_failed'
+    end
 
-    return true
+    return true, 'attached'
 end
 
-trustActionLogger.attachParty = function(player, reason)
+trustActionLogger.attachParty = function(player, reason, expectedGeneration)
     if player == nil then
         return 0
     end
@@ -1137,8 +1570,10 @@ trustActionLogger.attachParty = function(player, reason)
     end
 
     local attached = 0
-    for _, member in pairs(player:getPartyWithTrusts()) do
-        if trustActionLogger.attach(member, reason or 'party-scan') then
+    for _, member in ipairs(player:getPartyWithTrusts()) do
+        local wasAttached = trustActionLogger.isAttached(member)
+        local attachedOk = trustActionLogger.attach(member, reason or 'party-scan', expectedGeneration)
+        if attachedOk and not wasAttached then
             attached = attached + 1
         end
     end
@@ -1148,20 +1583,47 @@ end
 
 trustActionLogger.queueAttachParty = function(player, reason)
     if player == nil then
-        return
+        return false
     end
 
-    player:timer(250, function(playerArg)
-        if playerArg ~= nil then
-            trustActionLogger.attachParty(playerArg, reason or 'queued')
-        end
-    end)
+    local context = sessionContext(player)
+    if context == nil or (context.state ~= 1 and context.state ~= 2) then
+        return false
+    end
 
-    player:timer(1500, function(playerArg)
-        if playerArg ~= nil then
-            trustActionLogger.attachParty(playerArg, reason or 'queued-late')
+    local generation = context.generation
+    local mode = context.mode
+    local startedAt = context.startedAt
+    local function attachIfCurrent(playerArg, attachReason)
+        local current = sessionContext(playerArg)
+        if
+            current ~= nil and
+            (current.state == 1 or current.state == 2) and
+            current.generation == generation and
+            current.mode == mode and
+            current.startedAt == startedAt
+        then
+            trustActionLogger.attachParty(playerArg, attachReason, generation)
         end
-    end)
+    end
+
+    local function queue(delay, attachReason)
+        player:setLocalVar(pendingTimersVar, player:getLocalVar(pendingTimersVar) + 1)
+        player:timer(delay, function(playerArg)
+            if
+                playerArg ~= nil and
+                playerArg:getLocalVar(sessionGenerationVar) == generation
+            then
+                playerArg:setLocalVar(pendingTimersVar, math.max(0, playerArg:getLocalVar(pendingTimersVar) - 1))
+                attachIfCurrent(playerArg, attachReason)
+            end
+        end)
+    end
+
+    queue(250, reason or 'queued')
+    queue(1500, reason or 'queued-late')
+
+    return true
 end
 
 m:addOverride('xi.trust.spawn', function(caster, spell)
@@ -1172,18 +1634,6 @@ m:addOverride('xi.trust.spawn', function(caster, spell)
     end
 
     return result
-end)
-
-m:addOverride('xi.player.onGameIn', function(player, firstLogin, zoning)
-    super(player, firstLogin, zoning)
-
-    if trustActionLogger ~= nil then
-        if not zoning then
-            trustActionLogger.resetForLogin(player)
-        end
-
-        trustActionLogger.queueAttachParty(player, zoning and 'zone-in' or 'login')
-    end
 end)
 
 return m

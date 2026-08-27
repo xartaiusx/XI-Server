@@ -10,19 +10,35 @@ Primary references:
 - BG Wiki Trust pages for observed spell, ability, weapon skill, and special-feature behavior.
 - Local Trust controller and existing Trust spell scripts for supported movement, gambit, casting, and TP behavior.
 
-## Current Parity Patch
+## Evidence Lanes And Alliance Capability
 
-Trust defensive mode is handled in `src/map/ai/controllers/trust_controller.cpp`. When a hostile mob has enmity on the player or any active Trust, Trusts can engage defensively even if the player has not made a melee swing yet. This keeps the normal Mochirii `TrustEngageType` behavior for ordinary pulls while making Trust parties protect the player and each other from aggro.
+Retail control remains the default behavior: one player and no more than five
+Trusts in one party, with upstream party-size, Rhapsodies, duplicate, zone,
+battlefield, leader, and enmity gates intact. Twills' 17-Trust alliance is a
+permanent Mochirii QA capability, not retail behavior and never retail
+acceptance.
 
-Mochirii Trust settings:
+The full-alliance capability is active only when all of these are true:
 
-- `ALLOW_TRUST_CASTING_WITH_ENMITY = 1` lets players summon Trusts after they already have enmity or are in combat. This is a Mochirii server rule, while the remaining local gates still apply: Trust casting enabled, zone allows Trusts, solo/leader, no party-seeking, party-size/Rhapsodies limits, and battlefield trust permissions.
-- `ENABLE_TRUST_CASTING = 1`, `ENABLE_TRUST_QUESTS = 1`, and `ENABLE_TRUST_CUSTOM_ENGAGEMENT = 1` stay enabled. Prefer these native Mochirii controls before adding new custom behavior. Twills is repaired to `TrustEngageType = 1`, matching the custom engagement mode where Trusts attack when the master engages, not only after the first melee swing.
-- `ENABLE_TRUST_DEFENSIVE_MODE = true` lets Trusts automatically engage mobs that have enmity on the player or any active Trust party member. This is independent from `!trustengage`; `TrustEngageType` still controls ordinary proactive engagement rules.
-- `ENABLE_TRUST_SHARED_TARGETING = true` keeps Trusts coordinated on one focus target. The master's engaged target wins, then defensive threats, then the Trust's current target.
-- `ENABLE_TRUST_ROLE_ENMITY = true` lets tank Trusts add conservative enmity nudges on the focus target and lets non-tanks shed a percentage of accidental top enmity.
-- `ENABLE_TRUST_ALTER_EGO_POINT_BONUSES = true` applies Twills' stored Alter Ego Point ranks to Trust vitals, base stats, combat skills, and magic skills at summon time.
-- `ENABLE_TRUST_UNITY_RANK_STAT_PARITY = true` applies a small Unity-rank-like all-stat bonus to every Trust. This is a Mochirii parity layer: official Final Fantasy XI gives Unity leader alter egos rank-based bonuses, but this checkout does not expose a fully researched retail formula, and local Unity Trust scripts still mark the exact bonus as research-needed. If the summoner has no Unity leader/rank data, the configured default rank is used.
+- `ENABLE_MOCHIRII_TWILLS_FULL_ALLIANCE = true` and
+  `MOCHIRII_TWILLS_FULL_ALLIANCE_MAX_PARTIES = 3`;
+- the character is exactly `Twills`, actual GM level is exactly `5`, visible GM
+  level is `0`, and `MochiriiTrustAllianceAccess=1` is persisted;
+- the explicit `twills_full_alliance_qa` session is in `spawning` or `ready`.
+
+The shared C++ predicate owns that decision for direct spawning, party reloads,
+packets, Lua, and Trust AI. Direct Lua spawning cannot bypass the ordinary
+six-member limit, and a ready QA roster is locked against additional summons.
+Virtual indices `0-17` map to parties `0-2`, slots `0-5`; index `18` and above
+is rejected rather than masked or clamped.
+
+Mochirii-only defensive scanning, shared targeting, role-enmity injection,
+combat resting, Unity-wide bonuses, and custom engagement behavior are gated by
+the active QA predicate. Retail-control mode restores upstream controller
+behavior. Alter Ego Point bonuses remain available in both lanes. Twills repair
+grants/audits the alliance entitlement but never permanently sets
+`TrustEngageType`; clear, login, logout, zoning, timeout, and failure restore it
+to `0`.
 
 Trust positioning:
 
@@ -34,8 +50,16 @@ Windower QA overlay:
 - The current 2560x1600 `mochirii_xiv` layout uses `alignBottom=true`: party `0.88,0.985`, alliance1 `0.88,0.853`, alliance2 `0.88,0.808`, with Twills scale `0.72`. The main panel replaces the native party region, its right-aligned buff grid keeps all 32 icons inside the panel, and the smaller alliance panes stack upward at consistent 12-pixel gaps without cropping. If resolution changes, adjust through `//xp setup` or the settings file, mirror the live, runtime-golden, and tracked-restore copies, then verify both solo and full-alliance states after `//lua reload XivParty`.
 - The current default Windower QA addon stack is intentionally lean and loaded exactly once from `Windower\scripts\init.txt`: `XIPivot`, `XICamera`, `shortcuts`, `battlemod`, `DressUp`, `findAll`, `craft`, `GearSwap`, `XivParty`, `xivhotbar`, and `MochiriiScreenshotQA`. The official plugin baseline currently loaded by startup is `Config`, with `LuaCore` as the addon runtime. Do not document or re-enable larger addon/plugin stacks unless they are installed, active, and verified in the live client.
 - Submit normal commands through `C:\Github Repo's\FFXI\Runtime\client-tools\Invoke-WindowerCommand.ps1`; its acknowledged UUID bridge runs without stealing foreground focus. Pass `-AllowMutation` only for a deliberately reviewed mutating GM command, and use `-RequireForeground` only for a documented DirectInput fallback. Screenshots count as evidence only when `capture_windower_window.ps1` triggers Windower's native screenshot, reports full client dimensions, and restores the previously active window.
-- Standard Trust test command order: `//lua list`, `//lua reload XivParty`, `//xp setup off`, `!trustparty summonqa`, wait for the summon-complete message, `!trustparty audit active`, native Windower screenshot, controlled combat, then `python3 tools/mochirii/trust_parity_audit.py --repo-root . --runtime-root /home/xartyzx/projects/FFXI-Runtime --player Twills` from the WSL repo. Do not run manual repair during the summon sequence.
-- 2026-07-06 verification basis: the latest audit report shows 17 active QA Trusts, no unresolved spell/skill/message names, no runtime action issues, no hostile magic stale-target skips, no early buff/debuff refreshes, and `tank_assist` limited to Amchuchu, August, and Valaineral. Distance diagnostics now separate hostile action range from support/alliance packet-target distance so support songs, rolls, and self-buffs do not create false movement findings.
+- Pre-combat readiness order is explicit and lane-isolated: load/reload the UI,
+  run `!trustparty summonretail`, wait for `ready`, inspect `!trustparty mode`,
+  capture native proof, and run the Python audit with `--readiness-only`; then
+  `!trustparty clear` and repeat with `!trustparty summonqa`. Clear again before
+  shutdown. A readiness pass must report `combat_acceptance=not_run`; the QA
+  report must also display `MOCHIRII EXTENSION — NOT RETAIL ACCEPTANCE`. Do not
+  run `combattest`, engage a mob, or claim Trust parity during readiness QA.
+- The 2026-07-06 report is a legacy descriptive snapshot only: it observed 17
+  QA Trusts and useful action diagnostics, but predates the schema-v2 session
+  contract and cannot satisfy readiness or combat acceptance.
 
 Valaineral is the first tank target because Twills' Trust party showed him active and he is a clear PLD/WAR baseline.
 
@@ -90,9 +114,28 @@ Kupipi is the first WHM healer target because she is a foundational starter Trus
 
 GM QA:
 
-- `!trustparty status` lists active Trusts and whether Mochirii has a parity profile for them.
-- `!trustparty summonqa` resets the QA alliance, summons the locked 17-Trust roster, waits until all expected Trusts are active, and then applies the repair pass automatically. Do not run `!trustparty repair` or `!trustparty audit active` while the summon sequence is still in progress; the command guard will refuse them until the roster is complete.
-- `!trustparty repair` refreshes supported active Trust spell lists and applies runtime gambits without requiring a full party recast. Use it only after normal Trust summoning is complete or after `!trustparty summonqa` prints the completion message.
+- `!trustparty summonretail` starts the locked retail-control session with
+  Valaineral, Yoran-Oran (UC), Ulmia, Lilisette II, and Shantotto II.
+- `!trustparty summonqa` starts the Twills-only alliance session with exact
+  Trust-party counts `5/6/6`: August, Yoran-Oran (UC), Koru-Moru, Qultada, and
+  Cornelia; Valaineral, Monberaux, Joachim, Ulmia, Lilisette II, and Matsui-P;
+  Amchuchu, Sylvie (UC), Apururu (UC), Shantotto II, Star Sibyl, and Selh'teus.
+- Both summon commands run every preflight before changing the current roster
+  or evidence log, then use a generation-bound `idle -> spawning -> ready`
+  state machine. Any spawn failure, timeout, cancellation, death, login,
+  logout, or zone boundary invalidates stale timers and returns fail-closed to
+  idle after clearing the partial roster.
+- `!trustparty clear` is idempotent, invalidates pending timers first, closes
+  the evidence session, dismisses Trusts, and restores `TrustEngageType=0`.
+- `!trustparty mode`, `status`, `audit`, and `composition` are read-only.
+  `mode` reports authorization, state, generation, session ID, evidence lane,
+  topology, exact roster, engagement type, logger state, and pending timers.
+- `!trustparty repair` refreshes supported active Trust spell lists and applies
+  runtime gambits but never selects a lane, rotates evidence, or changes
+  engagement type. It refuses while spawning.
+- `!trustparty combattest` consumes an already-ready exact roster and never
+  changes the evidence lane or engagement type. It is intentionally unused
+  during pre-combat readiness work.
 - `!trustparty audit active`, `!trustparty audit all`, and `!trustparty audit <trust>` report profile coverage, role model, support scope, range goal, buff/debuff maintenance policy, identity rules, status, and deferred work for active Trusts or the local roster.
 - Current QA alliance Trusts have explicit profile annotations for support scope, range, buff policy, and identity. The rest of the roster receives generated audit profiles so every local Trust script stays visible in audits until its source-backed parity pass is complete.
 - Lua Trust scripts and module commands can hot-reload through the local file watcher, but already-summoned Trusts keep their existing gambit list. Use `!trustparty repair` for additive runtime fixes after the party is fully settled, and dismiss/resummon Qultada or Joachim to verify revised roll/song priority from a clean spawn.
@@ -103,18 +146,36 @@ GM QA:
 Trust action logs:
 
 - `ENABLE_TRUST_ACTION_LOG = true` enables the Mochirii Trust action logger.
-- `TRUST_ACTION_LOG_PLAYER = 'Twills'` limits the trace to Twills' Trust party by default. Set it to an empty string only when intentionally tracing every player's Trusts.
+- `TRUST_ACTION_LOG_PLAYER = 'Twills'` is an exact, fail-closed owner gate. Only Twills' Trust party is logged; an empty value or any mismatched name disables session evidence instead of tracing other players.
 - `TRUST_ACTION_LOG_DIR = '/home/xartyzx/projects/FFXI-Runtime/logs/trust_actions'` writes logs to the live WSL runtime root outside the repo working tree.
-- `live/Twills.log` is truncated on each real Twills client login, not on normal zoning.
-- `archive/Twills-YYYYMMDD-HHMMSS.log` is created for each login session and keeps the same action lines for later analysis.
-- The logger attaches to every active Trust it sees through normal Trust magic, `!trustparty status`, `!trustparty repair`, and the Mochirii Trust QA summon helper. It records spell start/use/interruption/exit, ability start/use/exit, weapon skill start/exit, logical rest start/stop/tick, and target changes from `COMBAT_TICK`.
+- Formal evidence is schema version 2 and session-bound. Every record carries the
+  exact session ID, full server commit, evidence mode, topology, state,
+  generation, strictly increasing sequence, and UTC time. Lua and C++ route by
+  that exact session rather than scanning for the newest archive.
+- Each explicit mode transition receives its own collision-safe archive.
+  Login, logout, zoning, timeout, failure, cancellation, and clear write an
+  explicit session end when possible, then rotate to idle state. Legacy logs
+  remain descriptive-only and cannot satisfy readiness or combat acceptance.
+- Formal summoning attaches the logger synchronously to each returned Trust and
+  cannot enter `ready` unless the exact roster has exactly one attachment per
+  Trust. Delayed ordinary-spell attachment retries carry the current generation
+  so stale callbacks cannot contaminate a later session.
 - `live/Twills-resting.tsv` is rewritten as Trust rest state changes. XivParty reads this file and shows the rest marker only while the corresponding Trust is logically resting.
 - Each action row includes Alter Ego Point ranks and Unity parity fields (`aep_*`, `unity_parity_*`) so summon-time stat upgrades can be verified alongside combat behavior.
 - C++ action/result logging records melee, ranged, spells, abilities, weapon skills, mobskills, result resolution, message IDs, critical/miss/no-effect state, targets, target/result counts, distance to master/current target/packet target, role-enmity action, gambit context, AEP ranks, and Unity parity.
 - Local report generation resolves known action names such as `Utsusemi: Ichi`, `Blade: Rin`, `Monberaux Mix: Panacea-1`, and Amchuchu Vallation/Valiance messages from local data and report overrides.
 - Buff and debuff maintenance must use `STATUS_MISSING_OR_EXPIRING` or `CASTER_STATUS_MISSING_OR_EXPIRING`. The refresh window is duration-based: effects up to 60 seconds refresh in the last 5 seconds, effects up to 180 seconds in the last 15 seconds, effects up to 600 seconds in the last 30 seconds, and longer effects in the last 60 seconds.
-- `tools\mochirii\trust_parity_audit.ps1` generates the canonical post-fight report under `C:\Github Repo's\FFXI\Runtime\reports`. Review unresolved names, runtime action issues, distance diagnostics, role-enmity decisions, alliance support scope, active effects, entity effect state, and potential early buff/debuff refreshes after every combat test.
-- 2026-06-25 post-guard report snapshot: `C:\Github Repo's\FFXI\Runtime\reports\trust-parity-audit-20260625-015612.md` shows 122 local Trust scripts, 24 explicit profiles, 98 generated audit profiles, 17 active Trusts, no unresolved log names, no runtime action issues, no TP skill guard skips, no confirmed early buff/debuff refreshes, and `tank_assist` only on Amchuchu/August/Valaineral after `summonqa` waited for all expected Trusts before repairing.
+- `tools/mochirii/trust_parity_audit.py` is the only parser and report generator;
+  the PowerShell entrypoint only forwards arguments and preserves its exit code.
+  It always writes JSON and Markdown reports under the runtime root. Empty,
+  malformed, stale, mixed-session, mixed-mode, wrong-commit, wrong-roster,
+  readiness-only, logger-only, and progression-only evidence fails the default
+  combat gate.
+- `--readiness-only` validates authorization, exact roster/topology, logger
+  attachment, isolation, `ready`, and summon completion. It reports
+  `READINESS ONLY — NO COMBAT ACCEPTANCE`, `combat_acceptance=not_run`, and cannot
+  satisfy the default combat gate. Retail and QA sessions never satisfy or
+  contaminate one another.
 - LuaJIT syntax validation is now available locally. Use `luajit -bl` on Mochirii custom Lua before runtime testing.
 - When testing caster sustain, look for `rest_start` after combat ends with low MP, rising `trust_mpp` values on later action rows, and `rest_stop` before movement or renewed engagement.
 

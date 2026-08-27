@@ -32,7 +32,9 @@
 #include "lua/lua_simulation.h"
 #include "map/ability.h"
 #include "map/ai/controllers/player_controller.h"
+#include "map/alliance.h"
 #include "map/entities/char_entity.h"
+#include "map/entities/trust_entity.h"
 #include "map/enums/party_kind.h"
 #include "map/item_container.h"
 #include "map/items/item.h"
@@ -61,7 +63,9 @@
 #include "map/packets/c2s/0x0fe_myroom_plant_crop.h"
 #include "map/packets/c2s/0x0ff_myroom_plant_stop.h"
 #include "map/packets/c2s/0x102_extended_job.h"
+#include "map/party.h"
 #include "map/status_effect_container.h"
+#include "map/utils/trustutils.h"
 #include "packets/c2s/0x015_pos.h"
 #include "test_char.h"
 #include "test_common.h"
@@ -425,6 +429,94 @@ void CLuaClientEntityPairActions::acceptPartyInvite() const
     responsePacket->Res       = static_cast<uint8>(GP_CLI_COMMAND_GROUP_SOLICIT_RES_RES::Accept);
 
     parent_->packets().sendBasicPacket(*packet);
+}
+
+/************************************************************************
+ *  Function: formPartyForInvalidTrustState()
+ *  Purpose : Builds a native two-PC party for Trust preflight tests.
+ *  Example : player.actions:formPartyForInvalidTrustState(member)
+ *  Notes   : Test-only. Avoids packet name lookup for policy-name overrides.
+ ************************************************************************/
+
+bool CLuaClientEntityPairActions::formPartyForInvalidTrustState(CLuaBaseEntity* member) const
+{
+    auto* PChar   = parent_->testChar()->entity();
+    auto* PMember = member ? dynamic_cast<CCharEntity*>(member->GetBaseEntity()) : nullptr;
+    if (!PChar || !PMember || PChar == PMember || PChar->PParty || PMember->PParty)
+    {
+        TestError("formPartyForInvalidTrustState: Expected two ungrouped player characters");
+        return false;
+    }
+
+    auto* PParty = new CParty(PChar);
+    PParty->AddMember(PMember);
+    return PChar->PParty == PParty &&
+           PMember->PParty == PParty &&
+           PParty->members.size() == 2;
+}
+
+/************************************************************************
+ *  Function: formAllianceForInvalidTrustState()
+ *  Purpose : Builds a native two-party alliance for Trust preflight tests.
+ *  Example : player.actions:formAllianceForInvalidTrustState(a, b, c)
+ *  Notes   : Test-only. Avoids packet name lookup for policy-name overrides.
+ ************************************************************************/
+
+bool CLuaClientEntityPairActions::formAllianceForInvalidTrustState(
+    CLuaBaseEntity* firstMember,
+    CLuaBaseEntity* secondLeader,
+    CLuaBaseEntity* secondMember) const
+{
+    auto* PChar         = parent_->testChar()->entity();
+    auto* PFirstMember  = firstMember ? dynamic_cast<CCharEntity*>(firstMember->GetBaseEntity()) : nullptr;
+    auto* PSecondLeader = secondLeader ? dynamic_cast<CCharEntity*>(secondLeader->GetBaseEntity()) : nullptr;
+    auto* PSecondMember = secondMember ? dynamic_cast<CCharEntity*>(secondMember->GetBaseEntity()) : nullptr;
+    if (!PChar || !PFirstMember || !PSecondLeader || !PSecondMember ||
+        PChar == PFirstMember || PChar == PSecondLeader || PChar == PSecondMember ||
+        PFirstMember == PSecondLeader || PFirstMember == PSecondMember || PSecondLeader == PSecondMember ||
+        PChar->PParty || PFirstMember->PParty || PSecondLeader->PParty || PSecondMember->PParty)
+    {
+        TestError("formAllianceForInvalidTrustState: Expected four distinct ungrouped player characters");
+        return false;
+    }
+
+    auto* PFirstParty = new CParty(PChar);
+    PFirstParty->AddMember(PFirstMember);
+    auto* PSecondParty = new CParty(PSecondLeader);
+    PSecondParty->AddMember(PSecondMember);
+    auto* PAlliance = new CAlliance(PChar);
+    PAlliance->addParty(PSecondParty);
+
+    return PFirstParty->m_PAlliance == PAlliance &&
+           PSecondParty->m_PAlliance == PAlliance &&
+           PAlliance->partyList.size() == 2;
+}
+
+/************************************************************************
+ *  Function: spawnTrustForInvalidGroupState()
+ *  Purpose : Builds a deliberately invalid real-group-plus-Trust test fixture.
+ *  Example : player.actions:spawnTrustForInvalidGroupState(trustId)
+ *  Notes   : Test-only. Restores the real alliance immediately after spawning.
+ ************************************************************************/
+
+auto CLuaClientEntityPairActions::spawnTrustForInvalidGroupState(const uint16 trustId) const -> CBaseEntity*
+{
+    auto* PChar = parent_->testChar()->entity();
+    if (!PChar || !PChar->PParty)
+    {
+        TestError("spawnTrustForInvalidGroupState: Character must already have a real group");
+        return nullptr;
+    }
+
+    auto* PParty        = PChar->PParty;
+    auto* PAlliance     = PParty->m_PAlliance;
+    auto  realMembers   = PParty->members;
+    PParty->m_PAlliance = nullptr;
+    PParty->members     = { PChar };
+    auto* PTrust        = trustutils::SpawnTrust(PChar, trustId);
+    PParty->members     = std::move(realMembers);
+    PParty->m_PAlliance = PAlliance;
+    return PTrust;
 }
 
 /************************************************************************
@@ -1021,6 +1113,9 @@ void CLuaClientEntityPairActions::Register()
     SOL_REGISTER("inviteToParty", CLuaClientEntityPairActions::inviteToParty);
     SOL_REGISTER("formAlliance", CLuaClientEntityPairActions::formAlliance);
     SOL_REGISTER("acceptPartyInvite", CLuaClientEntityPairActions::acceptPartyInvite);
+    SOL_REGISTER("formPartyForInvalidTrustState", CLuaClientEntityPairActions::formPartyForInvalidTrustState);
+    SOL_REGISTER("formAllianceForInvalidTrustState", CLuaClientEntityPairActions::formAllianceForInvalidTrustState);
+    SOL_REGISTER("spawnTrustForInvalidGroupState", CLuaClientEntityPairActions::spawnTrustForInvalidGroupState);
     SOL_REGISTER("tradeNpc", CLuaClientEntityPairActions::tradeNpc);
     SOL_REGISTER("tradeRequest", CLuaClientEntityPairActions::tradeRequest);
     SOL_REGISTER("tradeAccept", CLuaClientEntityPairActions::tradeAccept);

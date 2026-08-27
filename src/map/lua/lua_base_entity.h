@@ -791,6 +791,10 @@ public:
 
     auto   spawnTrust(uint16 trustId) -> CBaseEntity*;
     void   clearTrusts();
+    bool   canUseTwillsFullAlliance();
+    bool   isTwillsFullAllianceActive();
+    uint8  getTwillsFullAllianceState();
+    bool   setTwillsFullAllianceState(uint32 state);
     uint32 getTrustID();
     void   trustPartyMessage(uint32 message_id) const;
     auto   addGambit(uint16 targ, const sol::table& predicates, const sol::table& reactions, const sol::object& retry) -> std::string;

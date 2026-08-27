@@ -9,6 +9,7 @@ local CSimulation = {}
 ---@field job? xi.job
 ---@field level? integer
 ---@field race? xi.race
+---@field name? string In-memory name override for name-bound policy tests; the database row keeps its generated unique name.
 ---@field new? boolean If true, spawn as a new player with zero playtime (for testing first login scenarios)
 
 ---Spawn a test player with specified configuration
@@ -16,6 +17,13 @@ local CSimulation = {}
 ---@nodiscard
 ---@return CClientEntityPair player The test player (combined client and entity)
 function CSimulation:spawnPlayer(params)
+end
+
+---Return entities selected by the production party-target traversal.
+---@param entity CBaseEntity
+---@nodiscard
+---@return CBaseEntity[]
+function CSimulation:getPartyTargetTraversal(entity)
 end
 
 ---@param ... xi.tick? Task boundary types to advance to. Defaults to xi.tick.ZONE if none provided.

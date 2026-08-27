@@ -21,42 +21,19 @@
 
 #include "0x0c8_group_tbl.h"
 
-#include <algorithm>
+#include <iterator>
 
 #include "alliance.h"
 #include "common/database.h"
 #include "common/logging.h"
-#include "common/settings.h"
 #include "map_engine.h"
 #include "party.h"
 
 #include "entities/char_entity.h"
 #include "entities/trust_entity.h"
 #include "enums/party_kind.h"
+#include "utils/trustutils.h"
 #include "utils/zoneutils.h"
-
-namespace
-{
-
-constexpr uint8 kTrustAutoAllianceMembersPerParty = 6;
-constexpr uint8 kTrustAutoAllianceMaxPartyNo      = 2;
-
-auto trustAutoAllianceEnabled() -> bool
-{
-    return settings::get<bool>("main.ENABLE_TRUST_AUTO_ALLIANCE");
-}
-
-auto trustVirtualPartyNo(uint8 memberIndex) -> uint8
-{
-    if (!trustAutoAllianceEnabled())
-    {
-        return 0;
-    }
-
-    return std::min<uint8>(memberIndex / kTrustAutoAllianceMembersPerParty, kTrustAutoAllianceMaxPartyNo);
-}
-
-} // namespace
 
 GP_SERV_COMMAND_GROUP_TBL::GP_SERV_COMMAND_GROUP_TBL(CParty* PParty, const bool loadTrust)
 {
@@ -72,17 +49,23 @@ GP_SERV_COMMAND_GROUP_TBL::GP_SERV_COMMAND_GROUP_TBL(CParty* PParty, const bool 
             allianceid = PParty->m_PAlliance->m_AllianceID;
         }
 
-        uint8      i    = 0;
-        const auto rset = db::preparedStmt("SELECT chars.charid, partyflag, pos_zone, pos_prevzone "
-                                           "FROM accounts_parties "
-                                           "LEFT JOIN chars ON accounts_parties.charid = chars.charid WHERE "
-                                           "IF (allianceid <> 0, allianceid = ?, partyid = ?) "
-                                           "ORDER BY partyflag & ?, timestamp",
-                                           allianceid,
-                                           PParty->GetPartyID(),
-                                           PARTY_SECOND | PARTY_THIRD);
+        std::size_t i    = 0;
+        const auto  rset = db::preparedStmt("SELECT chars.charid, partyflag, pos_zone, pos_prevzone "
+                                            "FROM accounts_parties "
+                                            "LEFT JOIN chars ON accounts_parties.charid = chars.charid WHERE "
+                                            "IF (allianceid <> 0, allianceid = ?, partyid = ?) "
+                                            "ORDER BY partyflag & ?, timestamp",
+                                            allianceid,
+                                            PParty->GetPartyID(),
+                                            PARTY_SECOND | PARTY_THIRD);
         FOR_DB_MULTIPLE_RESULTS(rset)
         {
+            if (i >= std::size(packet.GroupTbl))
+            {
+                ShowWarning("GP_SERV_COMMAND_GROUP_TBL - Real group table exceeded client entry cap.");
+                break;
+            }
+
             uint16 targid = 0;
             if (const auto* PChar = zoneutils::GetChar(rset->get<uint32>("charid")))
             {
@@ -107,20 +90,32 @@ GP_SERV_COMMAND_GROUP_TBL::GP_SERV_COMMAND_GROUP_TBL(CParty* PParty, const bool 
 
         if (loadTrust)
         {
-            const auto* PLeader = static_cast<CCharEntity*>(PParty->GetLeader());
+            auto* PLeader = dynamic_cast<CCharEntity*>(PParty->GetLeader());
             if (PLeader != nullptr)
             {
+                if (const auto projection = trustutils::ResolveTrustPartyProjection(PLeader, 0))
+                {
+                    packet.Kind = projection->kind;
+                }
+
                 for (const auto* PTrust : PLeader->PTrusts)
                 {
-                    if (i >= 20)
+                    if (i >= std::size(packet.GroupTbl))
                     {
                         ShowWarning("GP_SERV_COMMAND_GROUP_TBL - Trust group table exceeded client entry cap.");
                         break;
                     }
 
+                    const auto projection = trustutils::ResolveTrustPartyProjection(PLeader, i);
+                    if (!projection)
+                    {
+                        ShowWarningFmt("GP_SERV_COMMAND_GROUP_TBL - Rejected Trust projection at member index {} for {}.", i, PLeader->getName());
+                        break;
+                    }
+
                     packet.GroupTbl[i].UniqueNo          = PTrust->id;
                     packet.GroupTbl[i].ActIndex          = PTrust->targid;
-                    packet.GroupTbl[i].PartyNo           = trustVirtualPartyNo(i);
+                    packet.GroupTbl[i].PartyNo           = projection->slot.partyNo;
                     packet.GroupTbl[i].PartyLeaderFlg    = 0;
                     packet.GroupTbl[i].AllianceLeaderFlg = 0;
                     packet.GroupTbl[i].PartyRFlg         = 0;
@@ -131,11 +126,6 @@ GP_SERV_COMMAND_GROUP_TBL::GP_SERV_COMMAND_GROUP_TBL(CParty* PParty, const bool 
                     i++;
                 }
             }
-        }
-
-        if (trustAutoAllianceEnabled() && i > kTrustAutoAllianceMembersPerParty)
-        {
-            packet.Kind = PartyKind::Alliance;
         }
     }
 }

@@ -36,6 +36,13 @@ end
 function CClientEntityPair:gotoMogHouse(zoneId)
 end
 
+---Exercise the module callbacks around native Trust teardown.
+---This is a test-only seam: true models logout and false models zoning.
+---@param logout boolean
+---@return nil
+function CClientEntityPair:simulateZoneOutLifecycle(logout)
+end
+
 ---Check if the client is currently waiting for a zone change
 ---@nodiscard
 ---@return boolean

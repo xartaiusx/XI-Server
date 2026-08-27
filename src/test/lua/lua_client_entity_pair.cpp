@@ -28,6 +28,7 @@
 #include "map/lua/lua_base_entity.h"
 #include "map/lua/sol_bindings.h"
 #include "map/utils/charutils.h"
+#include "map/utils/moduleutils.h"
 #include "map/zone.h"
 #include "map_engine.h"
 #include "map_networking.h"
@@ -98,6 +99,35 @@ void CLuaClientEntityPair::gotoZone(ZONEID zoneId, sol::optional<sol::table> pos
 void CLuaClientEntityPair::gotoMogHouse(ZONEID zoneId)
 {
     doGotoZone(zoneId, sol::nullopt, true);
+}
+
+/************************************************************************
+ *  Function: simulateZoneOutLifecycle()
+ *  Purpose : Exercise the module callbacks around native Trust teardown
+ *  Example : player:simulateZoneOutLifecycle(true)
+ *  Notes   : Test-only seam; true models logout and false models zoning.
+ ************************************************************************/
+
+void CLuaClientEntityPair::simulateZoneOutLifecycle(bool logout)
+{
+    auto* PChar = testChar_->entity();
+    if (!PChar)
+    {
+        TestError("Cannot simulate zone-out lifecycle without a character");
+        return;
+    }
+
+    const auto previousStatus = PChar->status;
+    PChar->status             = logout ? xi::Status::Shutdown : xi::Status::Disappear;
+
+    moduleutils::OnCharPreZoneOut(PChar);
+    if (!PChar->PTrusts.empty())
+    {
+        PChar->ClearTrusts();
+    }
+    moduleutils::OnCharZoneOut(PChar);
+
+    PChar->status = previousStatus;
 }
 
 void CLuaClientEntityPair::doGotoZone(ZONEID zoneId, sol::optional<sol::table> pos, bool mogHouse)
@@ -362,6 +392,7 @@ void CLuaClientEntityPair::Register()
     SOL_REGISTER("tick", CLuaClientEntityPair::tick);
     SOL_REGISTER("gotoZone", CLuaClientEntityPair::gotoZone);
     SOL_REGISTER("gotoMogHouse", CLuaClientEntityPair::gotoMogHouse);
+    SOL_REGISTER("simulateZoneOutLifecycle", CLuaClientEntityPair::simulateZoneOutLifecycle);
     SOL_REGISTER("isPendingZone", CLuaClientEntityPair::isPendingZone);
     SOL_REGISTER("getItemInvSlot", CLuaClientEntityPair::getItemInvSlot);
     SOL_REGISTER("claimAndKillMob", CLuaClientEntityPair::claimAndKillMob);

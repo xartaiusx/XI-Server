@@ -3437,6 +3437,26 @@ function CBaseEntity:clearTrusts()
 end
 
 ---@nodiscard
+---@return boolean
+function CBaseEntity:canUseTwillsFullAlliance()
+end
+
+---@nodiscard
+---@return boolean
+function CBaseEntity:isTwillsFullAllianceActive()
+end
+
+---@nodiscard
+---@return integer
+function CBaseEntity:getTwillsFullAllianceState()
+end
+
+---@param state integer
+---@return boolean
+function CBaseEntity:setTwillsFullAllianceState(state)
+end
+
+---@nodiscard
 ---@return integer
 function CBaseEntity:getTrustID()
 end

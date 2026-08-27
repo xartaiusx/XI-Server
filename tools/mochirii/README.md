@@ -77,10 +77,13 @@ For every in-client test, keep the command surface stable and native:
 3. Prefer existing client/server commands before creating helpers: `//lua list`,
    `//lua reload <addon>`, `//xp setup off`, `//craft status`, `//gs reload`,
    `//gs validate sets`, `//gs validate inv`, `//gs c status`,
-   `!trustparty summonqa`, and `!trustparty audit active`.
-4. For Trust alliance QA, wait for the `!trustparty summonqa` completion message
-   before any repair, audit, screenshot, or combat command. The summon helper
-   owns the repair pass while it is active.
+   `!trustparty summonretail`, `!trustparty summonqa`, `!trustparty mode`, and
+   `!trustparty audit active`.
+4. For Trust readiness QA, wait for the selected summon command to report
+   `ready` before any repair, clear, screenshot, or combat command. Verify the
+   exact lane with `!trustparty mode`, run the Python audit with
+   `--readiness-only`, and use `!trustparty clear` before changing lanes.
+   Readiness evidence is not combat or retail-parity acceptance.
 5. Use `capture_windower_window.ps1` for proof. The helper must trigger native
    Windower screenshot output and must report full client dimensions.
 
@@ -125,8 +128,9 @@ IDs and writes a success or failure acknowledgement; the helper does not treat
 file consumption alone as success. It normalizes `//lua reload XivParty` to a
 Windower command, `/ma ...` to `input /ma ...`, and `!trustparty ...` to
 `input !trustparty ...`. Use `-AllowMutation` for commands such as
-`!trustparty summonqa`, `!twillsrepair`, and CraftQA staging/crafting. Do not use
-the switch for `!twillsaudit`, `!trustparty audit|status`, or
+`!trustparty summonretail`, `!trustparty summonqa`, `!trustparty clear`,
+`!twillsrepair`, and CraftQA staging/crafting. Do not use the switch for
+`!twillsaudit`, bare `!trustparty`, `!trustparty mode|audit|status|composition`, or
 `!craftqa cooking status|report`.
 
 `send_windower_text.ps1` is only a raw input helper for cases that truly require
@@ -144,19 +148,29 @@ native evidence.
 
 ## Trust Parity Audit
 
-When the live Mochirii server/runtime is running from WSL, generate the canonical
-Trust parity report from the WSL checkout so the audit reads the active live log
-without copying runtime files:
+When the live Mochirii server/runtime is running from WSL, generate reports from
+the canonical Python audit so it reads the active runtime evidence without
+copying files. For the pre-combat retail or QA topology smoke, use:
+
+```bash
+python3 tools/mochirii/trust_parity_audit.py --repo-root . --runtime-root /home/xartyzx/projects/FFXI-Runtime --player Twills --readiness-only
+```
+
+A readiness success must report `READINESS ONLY — NO COMBAT ACCEPTANCE` and
+`combat_acceptance=not_run`. The QA lane must also report `MOCHIRII EXTENSION —
+NOT RETAIL ACCEPTANCE`. Neither lane can satisfy or contaminate the other.
+
+Only after a separately authorized combat capture, run the default combat gate:
 
 ```bash
 python3 tools/mochirii/trust_parity_audit.py --repo-root . --runtime-root /home/xartyzx/projects/FFXI-Runtime --player Twills
 ```
 
-The report is written under `/home/xartyzx/projects/FFXI-Runtime/reports`. Use it
-after `!trustparty summonqa`, the summon-complete message, `!trustparty audit
-active`, and a controlled combat test. Fix Trust AI only from report evidence:
-unresolved names, runtime action issues, role mistakes, early buff/debuff
-refreshes, missing static preconditions, or support-scope gaps.
+JSON and Markdown reports are written under
+`/home/xartyzx/projects/FFXI-Runtime/reports`. Empty, legacy, malformed, stale,
+mixed-session, mixed-mode, wrong-commit, logger-only, progression-only, or
+readiness-only evidence fails the default combat gate. Fix Trust AI only from a
+fresh accepted combat session followed by retail-control reproduction.
 
 ## Twills GearSwap QA
 

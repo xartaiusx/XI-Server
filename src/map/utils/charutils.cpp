@@ -100,6 +100,7 @@
 #include "itemutils.h"
 #include "job_points.h"
 #include "map_engine.h"
+#include "moduleutils.h"
 #include "petutils.h"
 #include "puppetutils.h"
 #include "synthutils.h"
@@ -8115,6 +8116,10 @@ void removeCharFromZone(CCharEntity* PChar)
         PChar->animation = xi::Animation::None;
         PChar->updatemask |= UPDATE_HP;
     }
+
+    // Give modules a narrow pre-teardown callback while the Trust roster is
+    // still intact. Existing OnCharZoneOut ordering remains unchanged.
+    moduleutils::OnCharPreZoneOut(PChar);
 
     if (!PChar->PTrusts.empty())
     {

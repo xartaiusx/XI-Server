@@ -72,6 +72,7 @@ public:
     void resetWeather() const;
     void setSetupContext(bool inSetup);
     auto spawnPlayer(sol::optional<sol::table> params) -> CLuaClientEntityPair*;
+    auto getPartyTargetTraversal(CLuaBaseEntity& entity) const -> sol::table;
     auto getSpawnSlot(ZONEID zoneId, uint32 slotId) const -> sol::table;
 
     static void Register();

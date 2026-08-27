@@ -205,6 +205,11 @@ auto MobThreatensEntity(CMobEntity* PMob, CBattleEntity* PEntity) -> bool
 
 auto MobThreatensTrustParty(CMobEntity* PMob, CCharEntity* PMaster) -> bool
 {
+    if (!trustutils::IsTwillsFullAllianceActive(PMaster))
+    {
+        return false;
+    }
+
     bool threatens = false;
     ForTrustDefendedGroup(PMaster, [&](CBattleEntity* PEntity)
                           {
@@ -296,7 +301,9 @@ auto GetDefensiveTargetByScanningZone(CCharEntity* PMaster) -> CMobEntity*
 
 auto GetTrustDefensiveTarget(CCharEntity* PMaster) -> CMobEntity*
 {
-    if (!PMaster || !settings::get<bool>("main.ENABLE_TRUST_DEFENSIVE_MODE"))
+    if (!PMaster ||
+        !trustutils::IsTwillsFullAllianceActive(PMaster) ||
+        !settings::get<bool>("main.ENABLE_TRUST_DEFENSIVE_MODE"))
     {
         return nullptr;
     }
@@ -419,7 +426,7 @@ void SetTrustFocusVars(CTrustEntity* PTrust, const TrustFocusResult& focus)
 
 auto ResolveTrustFocusTarget(CCharEntity* PMaster, CTrustEntity* PTrust) -> TrustFocusResult
 {
-    if (!PMaster || !PTrust)
+    if (!PMaster || !PTrust || !trustutils::IsTwillsFullAllianceActive(PMaster))
     {
         return {};
     }
@@ -535,7 +542,9 @@ void SetTrustRoleEnmityVars(CTrustEntity* PTrust, TrustRoleEnmityAction action, 
 
 void ApplyTrustRoleEnmity(CTrustEntity* PTrust, CCharEntity* PMaster, CMobEntity* PMob)
 {
-    if (!PTrust || !PMaster || !PMob || !PMob->PEnmityContainer || !settings::get<bool>("main.ENABLE_TRUST_ROLE_ENMITY"))
+    if (!PTrust || !PMaster || !PMob || !PMob->PEnmityContainer ||
+        !trustutils::IsTwillsFullAllianceActive(PMaster) ||
+        !settings::get<bool>("main.ENABLE_TRUST_ROLE_ENMITY"))
     {
         return;
     }
@@ -822,34 +831,65 @@ auto CTrustController::DoCombatTick(timer::time_point tick) -> Task<void>
 {
     TracyZoneScoped;
 
-    CTrustEntity* PTrust  = static_cast<CTrustEntity*>(POwner);
-    CCharEntity*  PMaster = static_cast<CCharEntity*>(POwner->PMaster);
-    auto          focus   = ResolveTrustFocusTarget(PMaster, PTrust);
-    SetTrustFocusVars(PTrust, focus);
+    CTrustEntity* PTrust             = static_cast<CTrustEntity*>(POwner);
+    CCharEntity*  PMaster            = static_cast<CCharEntity*>(POwner->PMaster);
+    const bool    fullAllianceActive = trustutils::IsTwillsFullAllianceActive(PMaster);
+    CMobEntity*   PFocusMob          = nullptr;
 
-    if (focus.PMob)
+    if (fullAllianceActive)
     {
-        if (PTrust->GetBattleTargetID() != focus.PMob->targid)
+        const auto focus = ResolveTrustFocusTarget(PMaster, PTrust);
+        SetTrustFocusVars(PTrust, focus);
+        PFocusMob = focus.PMob;
+
+        if (PFocusMob)
         {
-            PTrust->PAI->Internal_ChangeTarget(focus.PMob->targid);
+            if (PTrust->GetBattleTargetID() != PFocusMob->targid)
+            {
+                PTrust->PAI->Internal_ChangeTarget(PFocusMob->targid);
+                m_LastTopEnmity = nullptr;
+            }
+
+            PTarget = PFocusMob;
+        }
+        else
+        {
+            PTrust->PAI->Internal_Disengage();
             m_LastTopEnmity = nullptr;
+            m_CombatEndTime = m_Tick;
+            co_return;
         }
 
-        PTarget = focus.PMob;
+        const auto roleEnmityDelay = std::chrono::seconds(settings::get<uint8>("main.TRUST_ROLE_ENMITY_TICK_SECONDS"));
+        if (m_Tick - m_LastRoleEnmityTime > roleEnmityDelay)
+        {
+            ApplyTrustRoleEnmity(PTrust, PMaster, PFocusMob);
+            m_LastRoleEnmityTime = m_Tick;
+        }
     }
     else
     {
-        PTrust->PAI->Internal_Disengage();
-        m_LastTopEnmity = nullptr;
-        m_CombatEndTime = m_Tick;
-        co_return;
-    }
+        CMobEntity* PMob = dynamic_cast<CMobEntity*>(PMaster->GetBattleTarget());
+        PTarget          = POwner->GetBattleTarget();
+        SetTrustFocusVars(PTrust, {});
 
-    const auto roleEnmityDelay = std::chrono::seconds(settings::get<uint8>("main.TRUST_ROLE_ENMITY_TICK_SECONDS"));
-    if (m_Tick - m_LastRoleEnmityTime > roleEnmityDelay)
-    {
-        ApplyTrustRoleEnmity(PTrust, PMaster, focus.PMob);
-        m_LastRoleEnmityTime = m_Tick;
+        if (!PMaster->PAI->IsEngaged())
+        {
+            PTrust->PAI->Internal_Disengage();
+            m_LastTopEnmity = nullptr;
+            m_CombatEndTime = m_Tick;
+        }
+
+        if (PMob && PTrust->GetBattleTargetID() != PMaster->GetBattleTargetID())
+        {
+            const auto* enmityList = PMob->PEnmityContainer->GetEnmityList();
+            if (const auto entry = enmityList->find(PMaster->id);
+                entry != enmityList->end() && entry->second.active && (entry->second.CE + entry->second.VE) > 0)
+            {
+                PTrust->PAI->Internal_ChangeTarget(PMaster->GetBattleTargetID());
+                m_LastTopEnmity = nullptr;
+            }
+        }
     }
 
     // If busy, don't run around!
@@ -956,9 +996,17 @@ auto CTrustController::DoNonCombatTick(const timer::time_point tick) -> Task<voi
     }
 
     // Keep COMBAT_TICK target valid for listeners/gambits.
-    auto focus = ResolveTrustFocusTarget(PMaster, PTrust);
-    SetTrustFocusVars(PTrust, focus);
-    PTarget = focus.PMob ? static_cast<CBattleEntity*>(focus.PMob) : PMaster->GetBattleTarget();
+    if (trustutils::IsTwillsFullAllianceActive(PMaster))
+    {
+        const auto focus = ResolveTrustFocusTarget(PMaster, PTrust);
+        SetTrustFocusVars(PTrust, focus);
+        PTarget = focus.PMob ? static_cast<CBattleEntity*>(focus.PMob) : PMaster->GetBattleTarget();
+    }
+    else
+    {
+        SetTrustFocusVars(PTrust, {});
+        PTarget = PMaster->GetBattleTarget();
+    }
 
     // Non-combat trust follow order:
     // - first trust follows master
@@ -1048,12 +1096,13 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
     const auto masterLastAttackTime = static_cast<CPlayerController*>(PMaster->PAI->GetController())->getLastAttackTime();
     const bool masterMeleeSwing     = masterLastAttackTime > timer::now() - 1s;
 
-    bool  trustEngageCondition  = false;
-    auto  focus                 = ResolveTrustFocusTarget(PMaster, PTrust);
-    auto* PDefensiveTarget      = focus.reason == TrustFocusReason::Defensive ? focus.PMob : nullptr;
-    auto  trustEngageTarget     = focus.PMob ? focus.PMob->entityId() : EntityId{};
-    bool  casterResting         = settings::get<bool>("main.ENABLE_TRUST_CASTER_RESTING") && IsBacklineMagicTrust(PTrust);
-    bool  trustCurrentlyResting = casterResting && IsTrustResting(PTrust);
+    const bool fullAllianceActive    = trustutils::IsTwillsFullAllianceActive(PMaster);
+    bool       trustEngageCondition  = false;
+    auto       focus                 = fullAllianceActive ? ResolveTrustFocusTarget(PMaster, PTrust) : TrustFocusResult{};
+    auto*      PDefensiveTarget      = focus.reason == TrustFocusReason::Defensive ? focus.PMob : nullptr;
+    auto       trustEngageTarget     = fullAllianceActive && focus.PMob ? focus.PMob->entityId() : PMaster->battleTarget();
+    bool       casterResting         = settings::get<bool>("main.ENABLE_TRUST_CASTER_RESTING") && IsBacklineMagicTrust(PTrust);
+    bool       trustCurrentlyResting = casterResting && IsTrustResting(PTrust);
 
     SetTrustFocusVars(PTrust, focus);
 
@@ -1063,7 +1112,7 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
     }
 
     // NOTE: charvars are now cached, this is essentially a localvar read now.
-    switch (PDefensiveTarget ? 1 : charutils::GetCharVar(PMaster, "TrustEngageType"))
+    switch (fullAllianceActive ? charutils::GetCharVar(PMaster, "TrustEngageType") : 0)
     {
         case 1: // Master engages a monster, no melee swing required
         {
@@ -1083,6 +1132,7 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
     const bool partyInCombat = PMaster->PAI->IsEngaged() || PDefensiveTarget != nullptr;
     const auto restCooldown  = std::chrono::seconds(settings::get<uint8>("main.TRUST_CASTER_REST_COOLDOWN"));
     const bool wantsCombatRest =
+        fullAllianceActive &&
         casterResting &&
         settings::get<bool>("main.ENABLE_TRUST_CASTER_COMBAT_RESTING") &&
         partyInCombat &&
@@ -1096,7 +1146,9 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
     constexpr uint16 modelID_Cornelia = 3119; // Cornielia does not have an Attack Schedule so do not engage.
 
     if (!trustCurrentlyResting && !wantsCombatRest &&
-        (PMaster->PAI->IsEngaged() || PDefensiveTarget) && focus.PMob && trustEngageCondition && trustEngageTarget.isSet() && POwner->GetModelId() != modelID_Cornelia)
+        (PMaster->PAI->IsEngaged() || PDefensiveTarget) &&
+        (!fullAllianceActive || focus.PMob) &&
+        trustEngageCondition && trustEngageTarget.isSet() && POwner->GetModelId() != modelID_Cornelia)
     {
         POwner->PAI->Internal_Engage(trustEngageTarget);
     }
@@ -1124,16 +1176,22 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
         const auto followGrace       = std::chrono::seconds(settings::get<uint8>("main.TRUST_CASTER_REST_FOLLOW_GRACE_SECONDS"));
         const bool followGraceActive = m_Tick - m_CasterRestStartTime < followGrace;
         const bool currentlyInCombat = PMaster->PAI->IsEngaged() || PDefensiveTarget != nullptr;
+        const auto currentRestMode   = static_cast<TrustRestMode>(PTrust->GetLocalVar(TrustRestModeVar));
         const bool combatRestUnsafe =
-            currentlyInCombat &&
-            (!settings::get<bool>("main.ENABLE_TRUST_CASTER_COMBAT_RESTING") ||
+            currentRestMode == TrustRestMode::Combat &&
+            (!fullAllianceActive ||
+             !settings::get<bool>("main.ENABLE_TRUST_CASTER_COMBAT_RESTING") ||
              TrustHasPersonalThreat(PTrust) ||
              TrustHasImmediateMpRecovery(PTrust) ||
              TrustPartyNeedsCasterNow(PTrust, PMaster, settings::get<uint8>("main.TRUST_CASTER_COMBAT_REST_PARTY_HPP_MIN")));
         const bool reachedRestFloor = currentlyInCombat ? POwner->GetMPP() >= combatRestStopMpp : (POwner->GetMPP() >= restStopMpp && POwner->GetHPP() >= restStopHpp);
 
         TrustRestStopReason stopReason = TrustRestStopReason::None;
-        if (POwner->PAI->IsEngaged())
+        if (combatRestUnsafe)
+        {
+            stopReason = TrustRestStopReason::CombatUnsafe;
+        }
+        else if (POwner->PAI->IsEngaged())
         {
             stopReason = TrustRestStopReason::Engaged;
         }
@@ -1144,10 +1202,6 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
         else if (reachedRestFloor)
         {
             stopReason = TrustRestStopReason::RecoveryFloor;
-        }
-        else if (combatRestUnsafe)
-        {
-            stopReason = TrustRestStopReason::CombatUnsafe;
         }
 
         if (stopReason != TrustRestStopReason::None)
@@ -1212,9 +1266,9 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
         const bool currentlyInCombat  = PMaster->PAI->IsEngaged() || PDefensiveTarget != nullptr;
         const bool wantsOutOfCombatMp = POwner->GetMPP() <= restStartMpp;
         const bool wantsOutOfCombatHp = POwner->GetHPP() <= restStartHpp;
-        const bool hasPersonalThreat  = TrustHasPersonalThreat(PTrust);
-        const bool hasImmediateMpTool = TrustHasImmediateMpRecovery(PTrust);
-        const bool partyNeedsCaster   = TrustPartyNeedsCasterNow(PTrust, PMaster, partyHppFloor);
+        const bool hasPersonalThreat  = fullAllianceActive && TrustHasPersonalThreat(PTrust);
+        const bool hasImmediateMpTool = fullAllianceActive && TrustHasImmediateMpRecovery(PTrust);
+        const bool partyNeedsCaster   = fullAllianceActive && TrustPartyNeedsCasterNow(PTrust, PMaster, partyHppFloor);
         const bool recentDamageClear  = m_Tick - POwner->LastAttacked > restCooldown;
         const bool canRest            = POwner->CanRest();
         const bool canChangeState     = POwner->PAI->CanChangeState();
@@ -1224,6 +1278,7 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
             m_Tick - m_CombatEndTime > restCooldown &&
             (wantsOutOfCombatMp || wantsOutOfCombatHp);
         const bool canStartCombatRest =
+            fullAllianceActive &&
             currentlyInCombat &&
             settings::get<bool>("main.ENABLE_TRUST_CASTER_COMBAT_RESTING") &&
             POwner->GetMPP() <= combatRestStartMpp &&
@@ -1259,7 +1314,8 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
         {
             blockReason = TrustRestBlockReason::RecentDamage;
         }
-        else if (currentlyInCombat && !settings::get<bool>("main.ENABLE_TRUST_CASTER_COMBAT_RESTING"))
+        else if (currentlyInCombat &&
+                 (!fullAllianceActive || !settings::get<bool>("main.ENABLE_TRUST_CASTER_COMBAT_RESTING")))
         {
             blockReason = TrustRestBlockReason::CombatRestDisabled;
         }
@@ -1480,11 +1536,12 @@ auto CTrustController::Cast(const EntityId target, SpellID spellid) -> bool
         auto*                         PMaster      = dynamic_cast<CCharEntity*>(POwner->PMaster);
         auto*                         PCurrentMob  = dynamic_cast<CMobEntity*>(POwner->GetBattleTarget());
 
+        const bool fullAllianceActive   = trustutils::IsTwillsFullAllianceActive(PMaster);
         const auto focusTargId          = static_cast<uint16>(POwner->GetLocalVar(TrustFocusTargetTargIdVar));
         const bool targetMatchesContext = PMobTarget != nullptr &&
                                           ((PCurrentMob != nullptr && PCurrentMob->id == PMobTarget->id) ||
-                                           (focusTargId != 0 && focusTargId == PMobTarget->targid) ||
-                                           (PMaster != nullptr && MobThreatensTrustParty(PMobTarget, PMaster)));
+                                           (fullAllianceActive && focusTargId != 0 && focusTargId == PMobTarget->targid) ||
+                                           (fullAllianceActive && MobThreatensTrustParty(PMobTarget, PMaster)));
 
         if (PValidTarget == nullptr || !PValidTarget->isAlive() || PValidTarget->loc.zone != POwner->loc.zone || !targetMatchesContext)
         {
@@ -1557,7 +1614,9 @@ auto CTrustController::GetTopEnmity() const -> CBattleEntity*
     TracyZoneScoped;
 
     CBattleEntity* PEntity = nullptr;
-    if (const auto* PMob = dynamic_cast<CMobEntity*>(POwner->GetBattleTarget()))
+    auto*          PMaster = dynamic_cast<CCharEntity*>(POwner->PMaster);
+    auto*          PTarget = trustutils::IsTwillsFullAllianceActive(PMaster) ? POwner->GetBattleTarget() : (PMaster ? PMaster->GetBattleTarget() : nullptr);
+    if (const auto* PMob = dynamic_cast<CMobEntity*>(PTarget))
     {
         return PMob->PEnmityContainer->GetHighestEnmity();
     }

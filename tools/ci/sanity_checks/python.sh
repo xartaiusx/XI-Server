@@ -43,14 +43,16 @@ done
 
 for file in "${targets[@]}"; do
     if [[ $file == tools/mochirii/client_graphics_audit.py ||
+          $file == tools/mochirii/trust_parity_audit.py ||
           $file == tools/mochirii/tests/test_*.py ||
+          $file == tools/mochirii/tests/fixtures/trust_parity/* ||
           $file == restore/manifests/client-graphics-gates.manifest.json ]]; then
         if ! unittest_output=$(python -m unittest discover -s tools/mochirii/tests -p 'test_*.py' 2>&1); then
             if ! $any_issues; then
                 echo "## :x: Python Checks Failed"
                 any_issues=true
             fi
-            echo "#### Mochirii Client Graphics Tests:"
+            echo "#### Mochirii Tool Tests:"
             echo '```'
             echo "$unittest_output"
             echo '```'

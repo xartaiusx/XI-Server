@@ -25,8 +25,10 @@ function Test-ReadOnlyGmCommand {
 
     if (
         $tokens[0] -eq '!trustparty' -and
-        $tokens.Count -ge 2 -and
-        $tokens[1] -in @('audit', 'status')
+        (
+            $tokens.Count -eq 1 -or
+            ($tokens.Count -ge 2 -and $tokens[1] -in @('audit', 'status', 'mode', 'composition'))
+        )
     ) {
         return $true
     }

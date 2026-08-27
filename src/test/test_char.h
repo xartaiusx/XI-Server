@@ -26,13 +26,15 @@
 #include "map/map_session.h"
 
 #include <memory>
+#include <string>
+#include <string_view>
 
 class TestChar
 {
 public:
     TestChar() = default;
 
-    static auto create(uint16_t zoneId = 240) -> std::unique_ptr<TestChar>;
+    static auto create(uint16_t zoneId = 240, std::string_view entityNameOverride = {}) -> std::unique_ptr<TestChar>;
     static void clean(uint32_t charId = 0);
 
     ~TestChar();
@@ -59,6 +61,7 @@ private:
     uint32_t    accountId_{};
     uint32_t    charId_{};
     std::string charName_{};
+    std::string entityNameOverride_{};
 
     IPP         ipp_{};
     MapSession* session_{ nullptr };

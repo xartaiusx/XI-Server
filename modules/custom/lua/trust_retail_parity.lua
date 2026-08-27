@@ -14,9 +14,95 @@ local trustRetailParity = xi.trustRetailParity
 local m = Module:new('trust_retail_parity')
 
 local qaAdminName = 'Twills'
-local qaAutoVar = 'MochiriiTrustQAAuto'
-local qaRunningVar = 'MochiriiTrustQARunning'
-local qaExpectedCountVar = 'MochiriiTrustQAExpected'
+local entitlementVar = 'MochiriiTrustAllianceAccess'
+local evidenceModeVar = 'MochiriiTrustEvidenceMode'
+local evidenceSchemaVar = 'MochiriiTrustEvidenceSchema'
+local sessionGenerationVar = 'MochiriiTrustSessionGeneration'
+local sessionStartedVar = 'MochiriiTrustSessionStarted'
+local sessionZoneVar = 'MochiriiTrustSessionZone'
+local evidenceSequenceVar = 'MochiriiTrustEvidenceSeq'
+local pendingTimersVar = 'MochiriiTrustAlliancePendingTimers'
+local logTruncatedVar = 'MochiriiTrustLogTruncated'
+local clearTrustsTestHook
+local spawnTrustTestHook
+
+local sessionState =
+{
+    IDLE = 0,
+    SPAWNING = 1,
+    READY = 2,
+    FAILED = 3,
+}
+
+local evidenceMode =
+{
+    IDLE = 0,
+    RETAIL = 1,
+    QA = 2,
+}
+
+local stateNames =
+{
+    [sessionState.IDLE] = 'idle',
+    [sessionState.SPAWNING] = 'spawning',
+    [sessionState.READY] = 'ready',
+    [sessionState.FAILED] = 'failed',
+}
+
+local modeNames =
+{
+    [evidenceMode.IDLE] = 'idle',
+    [evidenceMode.RETAIL] = 'retail_control',
+    [evidenceMode.QA] = 'twills_full_alliance_qa',
+}
+
+local topologyNames =
+{
+    [evidenceMode.IDLE] = 'none',
+    [evidenceMode.RETAIL] = 'retail_party_1_plus_5',
+    [evidenceMode.QA] = 'virtual_trust_alliance_5_6_6',
+}
+
+trustRetailParity.sessionState = sessionState
+trustRetailParity.evidenceMode = evidenceMode
+
+local function setting(name, default)
+    if
+        xi.settings == nil or
+        xi.settings.main == nil or
+        xi.settings.main[name] == nil
+    then
+        return default
+    end
+
+    return xi.settings.main[name]
+end
+
+local function settingEnabled(name, default)
+    local value = setting(name, default)
+    return value == true or value == 1
+end
+
+local function boolString(value)
+    return value and 'true' or 'false'
+end
+
+local function safeCall(entity, methodName, ...)
+    if entity == nil or type(entity[methodName]) ~= 'function' then
+        return nil, false
+    end
+
+    local ok, value = pcall(entity[methodName], entity, ...)
+    if not ok then
+        return nil, false
+    end
+
+    return value, true
+end
+
+local function testEnvironmentActive()
+    return xi.test ~= nil and xi.test.world ~= nil
+end
 
 local function normalizeTrustName(name)
     return tostring(name or ''):lower():gsub('[^%w]', '')
@@ -242,6 +328,23 @@ trustRetailParity.qaAllianceComposition =
     },
 }
 
+trustRetailParity.retailControlComposition =
+{
+    {
+        party = 1,
+        name = 'Retail control party',
+        notes = 'Twills plus the locked five-Trust retail-control roster.',
+        trusts =
+        {
+            { spell = xi.magic.spell.VALAINERAL, name = 'Valaineral' },
+            { spell = xi.magic.spell.YORAN_ORAN_UC, name = 'Yoran-Oran UC' },
+            { spell = xi.magic.spell.ULMIA, name = 'Ulmia' },
+            { spell = xi.magic.spell.LILISETTE_II, name = 'Lilisette II' },
+            { spell = xi.magic.spell.SHANTOTTO_II, name = 'Shantotto II' },
+        },
+    },
+}
+
 trustRetailParity.roster =
 {
     'aaev', 'aagk', 'aahm', 'aamr', 'aatt', 'abenzio', 'abquhbah', 'adelheid',
@@ -266,6 +369,7 @@ trustRetailParity.roster =
 
 local isTrust
 local qaTrustIds
+local rosterAudit
 
 local function explicitNameProfileForName(name)
     return trustRetailParity.nameProfiles[normalizeTrustName(name)]
@@ -310,46 +414,58 @@ local function printLine(player, line)
     player:printToPlayer(line, xi.msg.channel.SYSTEM_3, '')
 end
 
-local function printClientSummary(player, line)
-    local text = tostring(line or '')
-    if #text > 180 then
-        text = text:sub(1, 177) .. '...'
+local function getSessionState(player)
+    local state, called = safeCall(player, 'getTwillsFullAllianceState')
+    state = tonumber(state)
+    if not called or stateNames[state] == nil then
+        return nil
     end
 
-    printLine(player, text)
+    return state
 end
 
-local function hasTrust(player, trustId)
-    local party = player:getPartyWithTrusts()
-
-    for _, member in pairs(party) do
-        if isTrust(member) and member:getTrustID() == trustId then
-            return true
-        end
+local function setSessionState(player, state)
+    if stateNames[state] == nil then
+        return false
     end
 
-    return false
+    local changed, called = safeCall(player, 'setTwillsFullAllianceState', state)
+    return called and changed == true and getSessionState(player) == state
 end
 
-local function countActiveQaTrusts(player, trustIds)
-    local expected = {}
-    for _, trustId in ipairs(trustIds) do
-        expected[trustId] = true
+local function clearTrustsWithInactiveProjection(player)
+    local state = getSessionState(player)
+    if state ~= sessionState.IDLE and state ~= sessionState.FAILED then
+        return false, 'trust_projection_active'
     end
 
-    local active = 0
-    local party = player:getPartyWithTrusts()
-    for _, member in pairs(party) do
-        if isTrust(member) and expected[member:getTrustID()] then
-            active = active + 1
-        end
+    if clearTrustsTestHook ~= nil and not testEnvironmentActive() then
+        clearTrustsTestHook = nil
     end
 
-    return active
+    if clearTrustsTestHook ~= nil and testEnvironmentActive() then
+        clearTrustsTestHook(player)
+    else
+        player:clearTrusts()
+    end
+
+    return true, 'cleared'
+end
+
+trustRetailParity.setClearTrustsTestHook = function(hook)
+    if not testEnvironmentActive() or (hook ~= nil and type(hook) ~= 'function') then
+        return false
+    end
+
+    clearTrustsTestHook = hook
+    return true
 end
 
 trustRetailParity.isQaSummonRunning = function(player)
-    return player ~= nil and player:getCharVar(qaRunningVar) == 1
+    return
+        player ~= nil and
+        getSessionState(player) == sessionState.SPAWNING and
+        player:getLocalVar(evidenceModeVar) == evidenceMode.QA
 end
 
 trustRetailParity.qaAllianceReady = function(player)
@@ -357,11 +473,11 @@ trustRetailParity.qaAllianceReady = function(player)
         return false, 0, 0
     end
 
-    local trustIds = qaTrustIds()
-    local expected = #trustIds
-    local active = countActiveQaTrusts(player, trustIds)
+    local audit = rosterAudit ~= nil and rosterAudit(player, evidenceMode.QA) or nil
+    local expected = #qaTrustIds()
+    local active = audit ~= nil and audit.activeCount or 0
 
-    return active >= expected, active, expected
+    return audit ~= nil and audit.exactMatch, active, expected
 end
 
 local function applyValaineral(trust, profile)
@@ -646,6 +762,13 @@ trustRetailParity.applyTrust = function(trust)
         return false, 'not a Trust'
     end
 
+    local owner = trust:getMaster()
+    local authorized, predicateAvailable = safeCall(owner, 'canUseTwillsFullAlliance')
+    local hasAccess = predicateAvailable and type(authorized) == 'boolean' and authorized
+    if not hasAccess then
+        return false, 'Twills full-alliance authorization required'
+    end
+
     local trustId = trust:getTrustID()
     local profile = trustRetailParity.profiles[trustId] or nameProfileForName(trust:getName())
     if profile == nil then
@@ -684,12 +807,16 @@ trustRetailParity.partyRows = function(player, apply)
     local rows = {}
     local party = player:getPartyWithTrusts()
 
-    for _, member in pairs(party) do
-        if isTrust(member) then
-            if xi.trustActionLogger ~= nil then
-                xi.trustActionLogger.attach(member, 'trustparty-scan')
-            end
+    if apply then
+        local authorized, predicateAvailable = safeCall(player, 'canUseTwillsFullAlliance')
+        local hasAccess = predicateAvailable and type(authorized) == 'boolean' and authorized
+        if not hasAccess then
+            return { 'Repair denied: Twills full-alliance authorization required.' }
+        end
+    end
 
+    for _, member in ipairs(party) do
+        if isTrust(member) then
             local trustId = member:getTrustID()
             local profile = profileForTrust(member)
             local profileName = profile ~= nil and profile.name or 'unprofiled'
@@ -802,13 +929,1123 @@ qaTrustIds = function()
     return trustIds
 end
 
+local function compositionForMode(mode)
+    if mode == evidenceMode.RETAIL then
+        return trustRetailParity.retailControlComposition
+    elseif mode == evidenceMode.QA then
+        return trustRetailParity.qaAllianceComposition
+    end
+
+    return nil
+end
+
+local function expectedRoster(mode)
+    local entries = {}
+    local parties = { {}, {}, {} }
+    local composition = compositionForMode(mode) or {}
+
+    for _, party in ipairs(composition) do
+        for _, entry in ipairs(party.trusts) do
+            entries[#entries + 1] = entry
+            parties[party.party][#parties[party.party] + 1] = entry
+        end
+    end
+
+    return entries, parties
+end
+
+local function csv(values)
+    if #values == 0 then
+        return 'none'
+    end
+
+    local result = {}
+    for _, value in ipairs(values) do
+        result[#result + 1] = tostring(value)
+    end
+
+    return table.concat(result, ',')
+end
+
+local function entryIds(entries)
+    local values = {}
+    for _, entry in ipairs(entries) do
+        values[#values + 1] = entry.spell
+    end
+
+    return values
+end
+
+local function entryNames(entries)
+    local values = {}
+    for _, entry in ipairs(entries) do
+        values[#values + 1] = entry.name
+    end
+
+    return values
+end
+
+rosterAudit = function(player, mode)
+    local expectedEntries, parties = expectedRoster(mode)
+    local expectedIds = entryIds(expectedEntries)
+    local expectedSet = {}
+    for _, trustId in ipairs(expectedIds) do
+        expectedSet[trustId] = true
+    end
+
+    local party = player ~= nil and player:getPartyWithTrusts() or {}
+    local activeIds = {}
+    local activeNames = {}
+    local seen = {}
+    local realPcCount = 0
+    local duplicateCount = 0
+    local unexpectedCount = 0
+
+    for _, member in ipairs(party) do
+        if isTrust(member) then
+            local trustId = member:getTrustID()
+            activeIds[#activeIds + 1] = trustId
+            activeNames[#activeNames + 1] = member:getName()
+            if seen[trustId] then
+                duplicateCount = duplicateCount + 1
+            end
+
+            seen[trustId] = true
+            if not expectedSet[trustId] then
+                unexpectedCount = unexpectedCount + 1
+            end
+        else
+            realPcCount = realPcCount + 1
+        end
+    end
+
+    local orderMatch = #activeIds == #expectedIds
+    if orderMatch then
+        for index, trustId in ipairs(expectedIds) do
+            if activeIds[index] ~= trustId then
+                orderMatch = false
+                break
+            end
+        end
+    end
+
+    local party1Count = #party
+    local party2Count = 0
+    local party3Count = 0
+    if mode == evidenceMode.QA then
+        party1Count = math.min(#party, 6)
+        party2Count = math.min(math.max(#party - 6, 0), 6)
+        party3Count = math.max(#party - 12, 0)
+    end
+
+    local exactMatch =
+        realPcCount == 1 and
+        #party == #expectedIds + 1 and
+        duplicateCount == 0 and
+        unexpectedCount == 0 and
+        orderMatch
+
+    return
+    {
+        expectedEntries = expectedEntries,
+        expectedIds = expectedIds,
+        expectedNames = entryNames(expectedEntries),
+        expectedParties = parties,
+        expectedCount = #expectedIds,
+        activeIds = activeIds,
+        activeNames = activeNames,
+        activeCount = #activeIds,
+        realPcCount = realPcCount,
+        party1Count = party1Count,
+        party2Count = party2Count,
+        party3Count = party3Count,
+        duplicateCount = duplicateCount,
+        unexpectedCount = unexpectedCount,
+        orderMatch = orderMatch,
+        exactMatch = exactMatch,
+    }
+end
+
+trustRetailParity.rosterAudit = rosterAudit
+
+local function rosterFields(player, mode)
+    local audit = rosterAudit(player, mode)
+    local party1 = audit.expectedParties[1]
+    local party2 = audit.expectedParties[2]
+    local party3 = audit.expectedParties[3]
+    local attachedCount = 0
+    if
+        xi.trustActionLogger ~= nil and
+        type(xi.trustActionLogger.attachmentCount) == 'function'
+    then
+        attachedCount = xi.trustActionLogger.attachmentCount(player)
+    end
+
+    return
+    {
+        'expected_count=' .. audit.expectedCount,
+        'expected_trust_ids=' .. csv(audit.expectedIds),
+        'expected_trust_names=' .. csv(audit.expectedNames),
+        'expected_party1_trusts=' .. csv(entryNames(party1)),
+        'expected_party2_trusts=' .. csv(entryNames(party2)),
+        'expected_party3_trusts=' .. csv(entryNames(party3)),
+        'expected_party1_count=' .. #party1,
+        'expected_party2_count=' .. #party2,
+        'expected_party3_count=' .. #party3,
+        'expected_party1_trust_ids=' .. csv(entryIds(party1)),
+        'expected_party2_trust_ids=' .. csv(entryIds(party2)),
+        'expected_party3_trust_ids=' .. csv(entryIds(party3)),
+        'active_count=' .. audit.activeCount,
+        'active_trust_ids=' .. csv(audit.activeIds),
+        'active_trust_names=' .. csv(audit.activeNames),
+        'real_pc_count=' .. audit.realPcCount,
+        'party1_count=' .. audit.party1Count,
+        'party2_count=' .. audit.party2Count,
+        'party3_count=' .. audit.party3Count,
+        'duplicate_count=' .. audit.duplicateCount,
+        'unexpected_count=' .. audit.unexpectedCount,
+        'order_match=' .. boolString(audit.orderMatch),
+        'exact_match=' .. boolString(audit.exactMatch),
+        'attached_count=' .. attachedCount,
+        'pending_timers=' .. (player:getLocalVar(pendingTimersVar) or 0),
+    }, audit
+end
+
+local function appendFields(destination, source)
+    for _, field in ipairs(source or {}) do
+        destination[#destination + 1] = field
+    end
+
+    return destination
+end
+
+local function authorization(player)
+    local authorized, called = safeCall(player, 'canUseTwillsFullAlliance')
+    local active, activeCalled = safeCall(player, 'isTwillsFullAllianceActive')
+
+    return
+    {
+        authorized = called and authorized == true,
+        active = activeCalled and active == true,
+        actualGm = tonumber(player and player:getGMLevel() or 0) or 0,
+        visibleGm = tonumber(player and player:getVisibleGMLevel() or 0) or 0,
+        entitlement = tonumber(player and player:getCharVar(entitlementVar) or 0) or 0,
+        featureEnabled = settingEnabled('ENABLE_MOCHIRII_TWILLS_FULL_ALLIANCE', false),
+        maxParties = tonumber(setting('MOCHIRII_TWILLS_FULL_ALLIANCE_MAX_PARTIES', 0)) or 0,
+        predicateAvailable = called,
+    }
+end
+
+trustRetailParity.authorization = authorization
+
+local function authorizationFields(player)
+    local auth = authorization(player)
+    return
+    {
+        'entitlement=' .. auth.entitlement,
+        'actual_gm=' .. auth.actualGm,
+        'visible_gm=' .. auth.visibleGm,
+        'authorized=' .. boolString(auth.authorized),
+        'alliance_active=' .. boolString(auth.active),
+        'authorization_predicate_available=' .. boolString(auth.predicateAvailable),
+        'feature_enabled=' .. boolString(auth.featureEnabled),
+        'max_parties=' .. auth.maxParties,
+    }, auth
+end
+
+local function settingsFields(mode)
+    local qa = mode == evidenceMode.QA
+    local aep = settingEnabled('ENABLE_TRUST_ALTER_EGO_POINT_BONUSES', false)
+    local unity = settingEnabled('ENABLE_TRUST_UNITY_RANK_STAT_PARITY', false)
+    local defensive = settingEnabled('ENABLE_TRUST_DEFENSIVE_MODE', false)
+    local sharedTarget = settingEnabled('ENABLE_TRUST_SHARED_TARGETING', false)
+    local roleEnmity = settingEnabled('ENABLE_TRUST_ROLE_ENMITY', false)
+    local combatRest = settingEnabled('ENABLE_TRUST_CASTER_COMBAT_RESTING', false)
+    local extravaganza = tonumber(setting('ENABLE_TRUST_ALTER_EGO_EXTRAVAGANZA', 0)) or 0
+    local expo = tonumber(setting('ENABLE_TRUST_ALTER_EGO_EXPO', 0)) or 0
+    local expoEffective = qa and expo ~= 0
+
+    return
+    {
+        'aep_setting=' .. boolString(aep),
+        'aep_effective=' .. boolString(aep),
+        'unity_setting=' .. boolString(unity),
+        'unity_effective=' .. boolString(qa and unity),
+        'campaign_extravaganza_setting=' .. extravaganza,
+        'campaign_expo_setting=' .. expo,
+        'campaign_extravaganza_effective=false',
+        'campaign_expo_effective=' .. boolString(expoEffective),
+        'campaign_effective=' .. boolString(expoEffective),
+        'combat_summoning_setting=false',
+        'combat_summoning_effective=false',
+        'defensive_setting=' .. boolString(defensive),
+        'defensive_effective=' .. boolString(qa and defensive),
+        'shared_target_setting=' .. boolString(sharedTarget),
+        'shared_target_effective=' .. boolString(qa and sharedTarget),
+        'role_enmity_setting=' .. boolString(roleEnmity),
+        'role_enmity_effective=' .. boolString(qa and roleEnmity),
+        'combat_rest_setting=' .. boolString(combatRest),
+        'combat_rest_effective=' .. boolString(qa and combatRest),
+        'qa_extension=' .. boolString(qa),
+        'qa_watermark=' .. (qa and 'MOCHIRII EXTENSION — NOT RETAIL ACCEPTANCE' or 'none'),
+    }
+end
+
+local function loggerEvent(player, recordType, eventName, fields)
+    if
+        xi.trustActionLogger == nil or
+        type(xi.trustActionLogger.recordSessionEvent) ~= 'function'
+    then
+        return false, 'logger_unavailable'
+    end
+
+    local called, success, reason = pcall(
+        xi.trustActionLogger.recordSessionEvent,
+        player,
+        recordType,
+        eventName,
+        fields)
+    if not called then
+        return false, 'logger_exception'
+    end
+
+    return success == true, reason
+end
+
+local function resetLoggerLive(player)
+    if
+        xi.trustActionLogger == nil or
+        type(xi.trustActionLogger.resetForLogin) ~= 'function'
+    then
+        return false
+    end
+
+    local called, success = pcall(xi.trustActionLogger.resetForLogin, player)
+    return called and success == true
+end
+
+local function stateRows(player)
+    local mode = tonumber(player:getLocalVar(evidenceModeVar) or 0) or 0
+    local state = getSessionState(player)
+    local fields, audit = rosterFields(player, mode)
+    local auth = authorization(player)
+    local rows =
+    {
+        string.format(
+            'authorization name=%s actual_gm=%u visible_gm=%u entitlement=%u authorized=%s feature=%s max_parties=%u',
+            player:getName(),
+            auth.actualGm,
+            auth.visibleGm,
+            auth.entitlement,
+            boolString(auth.authorized),
+            boolString(auth.featureEnabled),
+            auth.maxParties
+        ),
+        string.format(
+            'session state=%s mode=%s topology=%s schema=%u generation=%u zone=%u engage_type=%u active=%s pending_timers=%u log_truncated=%s',
+            stateNames[state] or 'invalid',
+            modeNames[mode] or 'invalid',
+            topologyNames[mode] or 'invalid',
+            player:getLocalVar(evidenceSchemaVar),
+            player:getLocalVar(sessionGenerationVar),
+            player:getLocalVar(sessionZoneVar),
+            player:getCharVar('TrustEngageType'),
+            boolString(auth.active),
+            player:getLocalVar(pendingTimersVar),
+            boolString(player:getLocalVar(logTruncatedVar) == 1)
+        ),
+        string.format(
+            'roster active=%u expected=%u real_pcs=%u parties=%u/%u/%u duplicate=%u unexpected=%u order=%s exact=%s ids=%s',
+            audit.activeCount,
+            audit.expectedCount,
+            audit.realPcCount,
+            audit.party1Count,
+            audit.party2Count,
+            audit.party3Count,
+            audit.duplicateCount,
+            audit.unexpectedCount,
+            boolString(audit.orderMatch),
+            boolString(audit.exactMatch),
+            csv(audit.activeIds)
+        ),
+    }
+
+    -- Keep the full machine-readable vector in the map log without flooding chat.
+    print('Mochirii Trust mode: ' .. table.concat(fields, '\t'))
+    return rows
+end
+
+trustRetailParity.modeRows = stateRows
+
+trustRetailParity.sessionProgress = function(player)
+    if player == nil then
+        return 0, 0
+    end
+
+    local mode = player:getLocalVar(evidenceModeVar)
+    if compositionForMode(mode) == nil then
+        return 0, 0
+    end
+
+    local audit = rosterAudit(player, mode)
+    return audit.activeCount, audit.expectedCount
+end
+
+local function resetSessionLocals(player)
+    player:setCharVar('TrustEngageType', 0)
+    player:setLocalVar(evidenceModeVar, evidenceMode.IDLE)
+    player:setLocalVar(evidenceSchemaVar, 0)
+    player:setLocalVar(sessionStartedVar, 0)
+    player:setLocalVar(sessionZoneVar, 0)
+    player:setLocalVar(evidenceSequenceVar, 0)
+    player:setLocalVar(pendingTimersVar, 0)
+    player:setLocalVar(logTruncatedVar, 0)
+end
+
+local function advanceSessionGeneration(player)
+    local generation = tonumber(player:getLocalVar(sessionGenerationVar) or 0) or 0
+    generation = generation >= 2147483646 and 1 or generation + 1
+    player:setLocalVar(sessionGenerationVar, generation)
+    return generation
+end
+
+local function hasActiveBattlefield(player)
+    local battlefieldId = player:getBattlefieldID()
+    return
+        player:getBattlefield() ~= nil or
+        (type(battlefieldId) == 'number' and battlefieldId >= 0)
+end
+
+local function preflight(player, mode)
+    if player == nil then
+        return false, 'missing_player'
+    elseif compositionForMode(mode) == nil then
+        return false, 'invalid_evidence_mode'
+    end
+
+    local auth = authorization(player)
+    if not auth.predicateAvailable then
+        return false, 'authorization_predicate_unavailable'
+    elseif not auth.authorized then
+        return false, 'twills_authorization_denied'
+    elseif getSessionState(player) ~= sessionState.IDLE then
+        return false, 'session_not_idle'
+    elseif player:getLocalVar(evidenceModeVar) ~= evidenceMode.IDLE then
+        return false, 'stale_evidence_mode'
+    elseif player:getLocalVar(evidenceSchemaVar) ~= 0 then
+        return false, 'stale_evidence_schema'
+    elseif not settingEnabled('ENABLE_TRUST_CASTING', true) then
+        return false, 'trust_casting_disabled'
+    elseif player:checkSoloPartyAlliance() == 2 then
+        return false, 'real_alliance_present'
+    elseif not player:canUseMisc(xi.zoneMisc.TRUST) then
+        return false, 'zone_disallows_trusts'
+    elseif player:getZoneID() <= 0 then
+        return false, 'invalid_zone'
+    elseif hasActiveBattlefield(player) then
+        return false, 'battlefield_present'
+    elseif player:getInstance() ~= nil then
+        return false, 'instance_present'
+    elseif player:hasEnmity() then
+        return false, 'player_has_enmity'
+    elseif player:isSeekingParty() then
+        return false, 'seeking_party'
+    end
+
+    local audit = rosterAudit(player, mode)
+    if audit.realPcCount ~= 1 then
+        return false, 'real_player_roster_mismatch'
+    end
+
+    return true, 'ready'
+end
+
+trustRetailParity.preflight = preflight
+
+local function guardSession(player, generation, mode, requiredState, summonGates)
+    if player == nil then
+        return false, 'missing_player'
+    elseif type(generation) ~= 'number' or generation <= 0 then
+        return false, 'invalid_generation'
+    elseif player:getLocalVar(sessionGenerationVar) ~= generation then
+        return false, 'stale_generation'
+    elseif compositionForMode(mode) == nil then
+        return false, 'invalid_evidence_mode'
+    elseif player:getLocalVar(evidenceModeVar) ~= mode then
+        return false, 'mode_changed'
+    elseif player:getLocalVar(evidenceSchemaVar) ~= 2 then
+        return false, 'invalid_evidence_schema'
+    elseif player:getLocalVar(logTruncatedVar) ~= 0 then
+        return false, 'log_truncated'
+    elseif getSessionState(player) ~= requiredState then
+        return false, 'state_changed'
+    elseif player:getLocalVar(sessionStartedVar) <= 0 then
+        return false, 'invalid_session_start'
+    elseif player:getLocalVar(sessionZoneVar) ~= player:getZoneID() then
+        return false, 'zone_changed'
+    elseif not authorization(player).authorized then
+        return false, 'authorization_revoked'
+    elseif player:checkSoloPartyAlliance() == 2 then
+        return false, 'real_alliance_present'
+    end
+
+    if rosterAudit(player, mode).realPcCount ~= 1 then
+        return false, 'real_party_member_present'
+    end
+
+    if summonGates then
+        if not settingEnabled('ENABLE_TRUST_CASTING', true) then
+            return false, 'trust_casting_disabled'
+        elseif not player:canUseMisc(xi.zoneMisc.TRUST) then
+            return false, 'zone_disallows_trusts'
+        elseif hasActiveBattlefield(player) then
+            return false, 'battlefield_present'
+        elseif player:getInstance() ~= nil then
+            return false, 'instance_present'
+        elseif player:hasEnmity() then
+            return false, 'player_has_enmity'
+        elseif player:isSeekingParty() then
+            return false, 'seeking_party'
+        end
+    end
+
+    return true, 'current'
+end
+
+local function scheduleSessionTimer(player, generation, delay, callback)
+    if
+        player == nil or
+        player:getLocalVar(sessionGenerationVar) ~= generation
+    then
+        return false
+    end
+
+    player:setLocalVar(pendingTimersVar, player:getLocalVar(pendingTimersVar) + 1)
+    player:timer(delay, function(playerArg)
+        if
+            playerArg ~= nil and
+            playerArg:getLocalVar(sessionGenerationVar) == generation
+        then
+            playerArg:setLocalVar(pendingTimersVar, math.max(0, playerArg:getLocalVar(pendingTimersVar) - 1))
+            callback(playerArg, generation)
+        end
+    end)
+
+    return true
+end
+
+local function finishEvidenceSession(player, mode, completion, reason)
+    local fields = rosterFields(player, mode)
+    appendFields(fields, authorizationFields(player))
+    appendFields(fields, settingsFields(mode))
+    fields[#fields + 1] = 'final_pending_timers=' .. player:getLocalVar(pendingTimersVar)
+
+    if
+        xi.trustActionLogger ~= nil and
+        type(xi.trustActionLogger.endSession) == 'function'
+    then
+        local called, success = pcall(
+            xi.trustActionLogger.endSession,
+            player,
+            completion,
+            reason,
+            fields)
+        return called and success == true
+    end
+
+    return false
+end
+
+local function clearTrustsAndVerify(player, mode)
+    local fields
+    local audit
+    local clearReason = 'clear_not_attempted'
+    for _ = 1, 2 do
+        player:setLocalVar(pendingTimersVar, 0)
+        local cleared
+        cleared, clearReason = clearTrustsWithInactiveProjection(player)
+        if not cleared then
+            return false, fields, audit, clearReason
+        end
+
+        fields, audit = rosterFields(player, mode)
+        if audit.activeCount == 0 and player:getLocalVar(pendingTimersVar) == 0 then
+            return true, fields, audit, 'cleared'
+        end
+
+        clearReason = 'clear_verification_mismatch'
+    end
+
+    return false, fields, audit, clearReason
+end
+
+local function abortPreparedSession(player, mode, reason)
+    local failureReason = reason or 'prepared_session_failed'
+    player:setLocalVar(pendingTimersVar, 0)
+    player:setCharVar('TrustEngageType', 0)
+
+    local fields = rosterFields(player, mode)
+    fields[#fields + 1] = 'reason=' .. failureReason
+    loggerEvent(player, 'roster', 'failure', fields)
+    loggerEvent(player, 'session_state', 'idle', {
+        'reason=' .. failureReason,
+    })
+    finishEvidenceSession(player, mode, 'failed', failureReason)
+    advanceSessionGeneration(player)
+    resetSessionLocals(player)
+    resetLoggerLive(player)
+
+    print(string.format(
+        'Mochirii Trust prepared session aborted: player=%s reason=%s',
+        player:getName(),
+        failureReason
+    ))
+    printLine(player, string.format(
+        'Mochirii Trust summon aborted before spawning (%s).',
+        failureReason
+    ))
+    return false, failureReason
+end
+
+local function failSession(player, generation, reason)
+    if
+        player == nil or
+        player:getLocalVar(sessionGenerationVar) ~= generation
+    then
+        return false
+    end
+
+    local mode = player:getLocalVar(evidenceModeVar)
+    local state = getSessionState(player)
+    if modeNames[mode] == nil or mode == evidenceMode.IDLE then
+        if
+            state ~= sessionState.IDLE and
+            state ~= sessionState.FAILED and
+            not setSessionState(player, sessionState.FAILED)
+        then
+            return false
+        end
+
+        if not clearTrustsWithInactiveProjection(player) then
+            return false
+        end
+
+        if
+            getSessionState(player) == sessionState.FAILED and
+            not setSessionState(player, sessionState.IDLE)
+        then
+            return false
+        end
+
+        resetSessionLocals(player)
+        return false
+    end
+
+    if
+        state ~= sessionState.FAILED and
+        not setSessionState(player, sessionState.FAILED)
+    then
+        print(string.format(
+            'Mochirii Trust session cleanup blocked: player=%s reason=%s state=%s',
+            player:getName(),
+            tostring(reason),
+            stateNames[state] or 'invalid'
+        ))
+        return false
+    end
+
+    local stateFields = authorizationFields(player)
+    stateFields[#stateFields + 1] = 'reason=' .. tostring(reason or 'unknown_failure')
+    loggerEvent(player, 'session_state', 'failed', stateFields)
+
+    local failureFields = rosterFields(player, mode)
+    failureFields[#failureFields + 1] = 'reason=' .. tostring(reason or 'unknown_failure')
+    loggerEvent(player, 'roster', 'failure', failureFields)
+
+    player:setLocalVar(pendingTimersVar, 0)
+    player:setCharVar('TrustEngageType', 0)
+    local cleared, clearedFields, _, clearReason = clearTrustsAndVerify(player, mode)
+    local terminalReason = tostring(reason or 'unknown_failure')
+    clearedFields = clearedFields or rosterFields(player, mode)
+    clearedFields[#clearedFields + 1] = 'reason=' .. terminalReason
+    if cleared then
+        loggerEvent(player, 'roster', 'cleared', clearedFields)
+    else
+        terminalReason = terminalReason .. '_' .. tostring(clearReason or 'cleanup_failed')
+        clearedFields[#clearedFields + 1] = 'cleanup_mismatch=true'
+        loggerEvent(player, 'roster', 'failure', clearedFields)
+    end
+
+    if not setSessionState(player, sessionState.IDLE) then
+        safeCall(player, 'setLocalVar', 'MochiriiTrustSessionState', sessionState.IDLE)
+    end
+
+    loggerEvent(player, 'session_state', 'idle', {
+        'reason=' .. terminalReason,
+    })
+
+    finishEvidenceSession(player, mode, 'failed', terminalReason)
+    advanceSessionGeneration(player)
+    resetSessionLocals(player)
+    resetLoggerLive(player)
+
+    print(string.format('Mochirii Trust session failed: player=%s reason=%s', player:getName(), tostring(reason)))
+    printLine(player, string.format('Mochirii Trust session failed safely (%s); partial Trusts were cleared.', tostring(reason)))
+    return false
+end
+
+trustRetailParity.failSession = failSession
+
+trustRetailParity.setSpawnTrustTestHook = function(hook)
+    if not testEnvironmentActive() or (hook ~= nil and type(hook) ~= 'function') then
+        return false
+    end
+
+    spawnTrustTestHook = hook
+    return true
+end
+
+trustRetailParity.spawnTrust = function(player, trustId)
+    if player == nil then
+        return nil, 'missing_player'
+    end
+
+    local mode = player:getLocalVar(evidenceModeVar)
+    local generation = player:getLocalVar(sessionGenerationVar)
+    local current, reason = guardSession(
+        player,
+        generation,
+        mode,
+        sessionState.SPAWNING,
+        true)
+    if not current then
+        return nil, reason
+    end
+
+    local expected = false
+    for _, entry in ipairs(expectedRoster(mode)) do
+        if entry.spell == trustId then
+            expected = true
+            break
+        end
+    end
+
+    if not expected then
+        return nil, 'trust_not_in_locked_roster'
+    end
+
+    if spawnTrustTestHook ~= nil and testEnvironmentActive() then
+        return spawnTrustTestHook(player, trustId)
+    end
+
+    return player:spawnTrust(trustId)
+end
+
+local function readyWatchdog(player, generation)
+    local mode = player:getLocalVar(evidenceModeVar)
+    local current, reason = guardSession(player, generation, mode, sessionState.READY, false)
+    if not current then
+        failSession(player, generation, 'watchdog_' .. reason)
+        return
+    end
+
+    local _, audit = rosterFields(player, mode)
+    local attached =
+        xi.trustActionLogger ~= nil and
+        xi.trustActionLogger.attachmentCount ~= nil and
+        xi.trustActionLogger.attachmentCount(player) or 0
+    if not audit.exactMatch or attached ~= audit.expectedCount then
+        failSession(player, generation, not audit.exactMatch and 'watchdog_roster_mismatch' or 'watchdog_logger_mismatch')
+        return
+    end
+
+    -- Keep a single bounded health timer live without adding periodic evidence
+    -- rows. Any generation-changing clear invalidates the callback in
+    -- scheduleSessionTimer before it can inspect or reschedule the old session.
+    scheduleSessionTimer(player, generation, 5000, readyWatchdog)
+end
+
+local function completeSummon(player, generation, mode)
+    local current, reason = guardSession(player, generation, mode, sessionState.SPAWNING, true)
+    if not current then
+        failSession(player, generation, reason)
+        return false
+    end
+
+    local _, audit = rosterFields(player, mode)
+    local attached =
+        xi.trustActionLogger ~= nil and
+        xi.trustActionLogger.attachmentCount ~= nil and
+        xi.trustActionLogger.attachmentCount(player) or 0
+    if not audit.exactMatch then
+        failSession(player, generation, 'summon_roster_mismatch')
+        return false
+    elseif attached ~= audit.expectedCount then
+        failSession(player, generation, 'logger_attachment_mismatch')
+        return false
+    end
+
+    -- Profile repair is deterministic and mode-neutral; it cannot select or
+    -- alter the evidence lane or TrustEngageType.
+    local repairRows = trustRetailParity.partyRows(player, true)
+    for _, row in ipairs(repairRows) do
+        print('Mochirii Trust session repair: ' .. row)
+    end
+
+    if not setSessionState(player, sessionState.READY) then
+        failSession(player, generation, 'ready_transition_rejected')
+        return false
+    end
+
+    local stateFields = authorizationFields(player)
+    appendFields(stateFields, settingsFields(mode))
+    if not loggerEvent(player, 'session_state', 'ready', stateFields) then
+        failSession(player, generation, 'ready_state_log_failed')
+        return false
+    end
+
+    scheduleSessionTimer(player, generation, 5000, readyWatchdog)
+
+    local fields = rosterFields(player, mode)
+    appendFields(fields, authorizationFields(player))
+    appendFields(fields, settingsFields(mode))
+    if not loggerEvent(player, 'roster', 'summon_complete', fields) then
+        failSession(player, generation, 'summon_complete_log_failed')
+        return false
+    end
+
+    local checkpointFields = rosterFields(player, mode)
+    appendFields(checkpointFields, authorizationFields(player))
+    appendFields(checkpointFields, settingsFields(mode))
+    checkpointFields[#checkpointFields + 1] = 'combat_acceptance=not_run'
+    if not loggerEvent(player, 'checkpoint', 'summon_complete', checkpointFields) then
+        failSession(player, generation, 'checkpoint_log_failed')
+        return false
+    end
+
+    print(string.format(
+        'Mochirii Trust session ready: player=%s mode=%s active=%u topology=%s',
+        player:getName(),
+        modeNames[mode],
+        audit.activeCount,
+        topologyNames[mode]
+    ))
+    printLine(player, string.format(
+        'Mochirii Trust summon complete: mode=%s Trusts=%u topology=%s.',
+        modeNames[mode],
+        audit.activeCount,
+        topologyNames[mode]
+    ))
+
+    if mode == evidenceMode.QA then
+        printLine(player, 'MOCHIRII EXTENSION — NOT RETAIL ACCEPTANCE')
+    end
+
+    return true
+end
+
+local function spawnRoster(player, generation, mode, index)
+    local current, reason = guardSession(player, generation, mode, sessionState.SPAWNING, true)
+    if not current then
+        failSession(player, generation, reason)
+        return
+    end
+
+    if GetSystemTime() - player:getLocalVar(sessionStartedVar) > 45 then
+        failSession(player, generation, 'summon_timeout')
+        return
+    end
+
+    local entries = expectedRoster(mode)
+    if index > #entries then
+        completeSummon(player, generation, mode)
+        return
+    end
+
+    local entry = entries[index]
+    local called, trust = pcall(trustRetailParity.spawnTrust, player, entry.spell)
+    if not called or trust == nil then
+        local fields = rosterFields(player, mode)
+        fields[#fields + 1] = 'trust_id=' .. entry.spell
+        fields[#fields + 1] = 'trust_name=' .. entry.name
+        fields[#fields + 1] = 'spawn_index=' .. index
+        fields[#fields + 1] = 'spawn_ok=false'
+        loggerEvent(player, 'roster', 'spawn_result', fields)
+        failSession(player, generation, 'spawn_returned_nil_' .. entry.spell)
+        return
+    elseif not isTrust(trust) or trust:getTrustID() ~= entry.spell then
+        failSession(player, generation, 'spawn_identity_mismatch_' .. entry.spell)
+        return
+    end
+
+    local attached, attachReason = false, 'logger_unavailable'
+    if
+        xi.trustActionLogger ~= nil and
+        type(xi.trustActionLogger.attach) == 'function'
+    then
+        local attachCalled
+        attachCalled, attached, attachReason = pcall(
+            xi.trustActionLogger.attach,
+            trust,
+            'evidence-spawn',
+            generation)
+        if not attachCalled then
+            attached = false
+            attachReason = 'logger_attach_exception'
+        end
+    end
+
+    if not attached then
+        loggerEvent(player, 'logger', 'logger_attach_failed', {
+            'trust_id=' .. entry.spell,
+            'trust_name=' .. entry.name,
+            'attach_reason=' .. tostring(attachReason or 'unknown'),
+            'attached_count=' .. (
+                xi.trustActionLogger ~= nil and
+                xi.trustActionLogger.attachmentCount ~= nil and
+                xi.trustActionLogger.attachmentCount(player) or 0
+            ),
+        })
+        failSession(player, generation, 'logger_attach_failed_' .. entry.spell)
+        return
+    end
+
+    local spawnFields = rosterFields(player, mode)
+    spawnFields[#spawnFields + 1] = 'trust_id=' .. entry.spell
+    spawnFields[#spawnFields + 1] = 'trust_name=' .. entry.name
+    spawnFields[#spawnFields + 1] = 'spawn_index=' .. index
+    spawnFields[#spawnFields + 1] = 'spawn_ok=true'
+    if not loggerEvent(player, 'roster', 'spawn_result', spawnFields) then
+        failSession(player, generation, 'spawn_result_log_failed_' .. entry.spell)
+        return
+    end
+
+    scheduleSessionTimer(player, generation, 500, function(nextPlayer)
+        spawnRoster(nextPlayer, generation, mode, index + 1)
+    end)
+end
+
+local function beginEvidenceSession(player, mode)
+    local allowed, reason = preflight(player, mode)
+    if not allowed then
+        printLine(player, string.format('Mochirii Trust summon denied: %s.', reason))
+        return false, reason
+    end
+
+    local generation = advanceSessionGeneration(player)
+    local startedAt = GetSystemTime()
+    player:setLocalVar(evidenceModeVar, mode)
+    player:setLocalVar(evidenceSchemaVar, 2)
+    player:setLocalVar(sessionGenerationVar, generation)
+    player:setLocalVar(sessionStartedVar, startedAt)
+    player:setLocalVar(sessionZoneVar, player:getZoneID())
+    player:setLocalVar(evidenceSequenceVar, 0)
+    player:setLocalVar(pendingTimersVar, 0)
+    player:setLocalVar(logTruncatedVar, 0)
+    player:setCharVar('TrustEngageType', mode == evidenceMode.QA and 1 or 0)
+
+    local beginFields = rosterFields(player, mode)
+    appendFields(beginFields, authorizationFields(player))
+    appendFields(beginFields, settingsFields(mode))
+
+    if
+        xi.trustActionLogger == nil or
+        type(xi.trustActionLogger.beginSession) ~= 'function'
+    then
+        resetSessionLocals(player)
+        return false, 'logger_unavailable'
+    end
+
+    local beginCalled, began, beginReason = pcall(xi.trustActionLogger.beginSession, player, beginFields)
+    if not beginCalled then
+        began = false
+        beginReason = 'logger_exception'
+    end
+
+    if not began then
+        resetSessionLocals(player)
+        printLine(player, string.format('Mochirii Trust summon denied: evidence logger %s.', tostring(beginReason)))
+        return false, beginReason or 'session_begin_failed'
+    end
+
+    local preflightFields = rosterFields(player, mode)
+    appendFields(preflightFields, authorizationFields(player))
+    if not loggerEvent(player, 'roster', 'preflight', preflightFields) then
+        return abortPreparedSession(player, mode, 'preflight_log_failed')
+    end
+
+    -- Rotate evidence and record the preflight while the native projection is
+    -- still inactive. Existing Trusts are not touched unless both operations
+    -- succeed, so logger preparation failures preserve the player's roster.
+    local cleared, clearedFields, clearedAudit, clearReason = clearTrustsAndVerify(player, mode)
+    if
+        not cleared or
+        clearedAudit == nil or
+        clearedAudit.activeCount ~= 0 or
+        clearedAudit.realPcCount ~= 1
+    then
+        return abortPreparedSession(player, mode, 'initial_clear_' .. tostring(clearReason or 'mismatch'))
+    end
+
+    if not loggerEvent(player, 'roster', 'cleared', clearedFields) then
+        return abortPreparedSession(player, mode, 'cleared_log_failed')
+    end
+
+    if not setSessionState(player, sessionState.SPAWNING) then
+        return abortPreparedSession(player, mode, 'spawning_transition_rejected')
+    end
+
+    local stateFields = authorizationFields(player)
+    appendFields(stateFields, settingsFields(mode))
+    if not loggerEvent(player, 'session_state', 'spawning', stateFields) then
+        failSession(player, generation, 'spawning_state_log_failed')
+        return false, 'spawning_state_log_failed'
+    end
+
+    local checkpointFields = rosterFields(player, mode)
+    appendFields(checkpointFields, authorizationFields(player))
+    appendFields(checkpointFields, settingsFields(mode))
+    if not loggerEvent(player, 'checkpoint', 'summon_attempt', checkpointFields) then
+        failSession(player, generation, 'summon_attempt_log_failed')
+        return false, 'summon_attempt_log_failed'
+    end
+
+    scheduleSessionTimer(player, generation, 250, function(nextPlayer)
+        spawnRoster(nextPlayer, generation, mode, 1)
+    end)
+
+    scheduleSessionTimer(player, generation, 45000, function(timeoutPlayer)
+        if getSessionState(timeoutPlayer) == sessionState.SPAWNING then
+            failSession(timeoutPlayer, generation, 'summon_timeout')
+        end
+    end)
+
+    printLine(player, string.format(
+        'Starting Mochirii Trust summon: mode=%s expected=%u.',
+        modeNames[mode],
+        #expectedRoster(mode)
+    ))
+    return true, 'spawning'
+end
+
+trustRetailParity.beginEvidenceSession = beginEvidenceSession
+trustRetailParity.summonRetail = function(player)
+    return beginEvidenceSession(player, evidenceMode.RETAIL)
+end
+
+trustRetailParity.summonQa = function(player)
+    return beginEvidenceSession(player, evidenceMode.QA)
+end
+
+trustRetailParity.autoSummonQaParty = trustRetailParity.summonQa
+
+trustRetailParity.clearSession = function(player, reason)
+    if player == nil then
+        return false, 'missing_player'
+    elseif player:getName() ~= qaAdminName then
+        return false, 'wrong_character'
+    end
+
+    local mode = player:getLocalVar(evidenceModeVar)
+    local state = getSessionState(player)
+    if state == nil then
+        return false, 'invalid_session_state'
+    end
+
+    if mode == evidenceMode.IDLE and state == sessionState.IDLE then
+        local cleared = clearTrustsAndVerify(player, evidenceMode.IDLE)
+
+        advanceSessionGeneration(player)
+        resetSessionLocals(player)
+        resetLoggerLive(player)
+
+        return cleared, cleared and 'already_idle' or 'idle_clear_verification_failed'
+    end
+
+    if mode == evidenceMode.IDLE then
+        failSession(player, player:getLocalVar(sessionGenerationVar), 'manual_clear_stale_state')
+        return false, 'manual_clear_stale_state'
+    elseif not setSessionState(player, sessionState.IDLE) then
+        failSession(player, player:getLocalVar(sessionGenerationVar), 'manual_clear_idle_transition_rejected')
+        return false, 'manual_clear_idle_transition_rejected'
+    end
+
+    player:setLocalVar(pendingTimersVar, 0)
+    player:setCharVar('TrustEngageType', 0)
+    local cleared, clearedFields, _, clearReason = clearTrustsAndVerify(player, mode)
+    local terminalReason = tostring(reason or 'manual_clear')
+    clearedFields = clearedFields or rosterFields(player, mode)
+    clearedFields[#clearedFields + 1] = 'reason=' .. terminalReason
+    local rosterLogged
+    if cleared then
+        rosterLogged = loggerEvent(player, 'roster', 'cleared', clearedFields)
+    else
+        terminalReason = terminalReason .. '_' .. tostring(clearReason or 'cleanup_failed')
+        clearedFields[#clearedFields + 1] = 'cleanup_mismatch=true'
+        rosterLogged = loggerEvent(player, 'roster', 'failure', clearedFields)
+    end
+
+    local idleLogged = loggerEvent(player, 'session_state', 'idle', {
+        'reason=' .. terminalReason,
+    })
+
+    local ended = finishEvidenceSession(
+        player,
+        mode,
+        cleared and 'cleared' or 'failed',
+        terminalReason)
+    advanceSessionGeneration(player)
+    resetSessionLocals(player)
+    local liveReset = resetLoggerLive(player)
+
+    local evidenceClosed = rosterLogged and idleLogged and ended and liveReset
+    if cleared and evidenceClosed then
+        printLine(player, 'Mochirii Trust session cleared: zero Trusts, idle mode, TrustEngageType=0.')
+        return true, 'cleared'
+    end
+
+    printLine(player, string.format(
+        'Mochirii Trust cleanup completed with a failed evidence close (%s).',
+        terminalReason
+    ))
+    return false, cleared and 'evidence_close_failed' or 'manual_clear_verification_failed'
+end
+
+trustRetailParity.isCombatTestReady = function(player)
+    local mode = player ~= nil and player:getLocalVar(evidenceModeVar) or evidenceMode.IDLE
+    local state = player ~= nil and getSessionState(player) or nil
+    if
+        (mode ~= evidenceMode.RETAIL and mode ~= evidenceMode.QA) or
+        state ~= sessionState.READY
+    then
+        return false, 'evidence_session_not_ready'
+    end
+
+    local current, reason = guardSession(
+        player,
+        player:getLocalVar(sessionGenerationVar),
+        mode,
+        sessionState.READY,
+        false)
+    if not current then
+        return false, reason
+    end
+
+    local audit = rosterAudit(player, mode)
+    if not audit.exactMatch then
+        return false, 'roster_mismatch'
+    end
+
+    return true, modeNames[mode]
+end
+
 trustRetailParity.auditRows = function(player, target)
     local rows = {}
     local scope = target or 'active'
 
     if scope == 'active' then
         rows[#rows + 1] = 'Active Trust retail-player parity audit:'
-        for _, member in pairs(player:getPartyWithTrusts()) do
+        for _, member in ipairs(player:getPartyWithTrusts()) do
             if isTrust(member) then
                 rows[#rows + 1] = auditProfileRow(member:getName(), profileForTrust(member))
             end
@@ -849,182 +2086,194 @@ trustRetailParity.auditRows = function(player, target)
     return rows
 end
 
-trustRetailParity.autoSummonQaParty = function(player)
-    local trustIds = qaTrustIds()
-    local spawned = 0
-    local expectedCount = #trustIds
-
-    player:setCharVar(qaRunningVar, 1)
-    player:setCharVar(qaExpectedCountVar, expectedCount)
-
-    local function finalizeWhenReady(reportPlayer, attempt)
-        if reportPlayer == nil then
-            return
-        end
-
-        local activeCount = countActiveQaTrusts(reportPlayer, trustIds)
-        if activeCount < expectedCount then
-            if attempt < 12 then
-                print(string.format(
-                    'Mochirii Trust QA: waiting for active alliance for %s active=%u expected=%u attempt=%u',
-                    reportPlayer:getName(),
-                    activeCount,
-                    expectedCount,
-                    attempt
-                ))
-
-                if attempt == 1 then
-                    printLine(reportPlayer, string.format(
-                        'Mochirii Trust QA: waiting for all Trusts before repair (%u/%u active).',
-                        activeCount,
-                        expectedCount
-                    ))
-                end
-
-                reportPlayer:timer(3000, function(nextReportPlayer)
-                    finalizeWhenReady(nextReportPlayer, attempt + 1)
-                end)
-
-                return
-            end
-
-            print(string.format(
-                'Mochirii Trust QA: summon did not settle for %s active=%u expected=%u; parity repair skipped',
-                reportPlayer:getName(),
-                activeCount,
-                expectedCount
-            ))
-            printLine(reportPlayer, string.format(
-                'Mochirii Trust QA: summon did not settle (%u/%u active). Repair skipped; relog and run summonqa again.',
-                activeCount,
-                expectedCount
-            ))
-            reportPlayer:setCharVar(qaAutoVar, 0)
-            reportPlayer:setCharVar(qaRunningVar, 0)
-            return
-        end
-
-        print(string.format('Mochirii Trust QA: reporting active party for %s active=%u expected=%u', reportPlayer:getName(), activeCount, expectedCount))
-        printLine(reportPlayer, 'Mochirii Trust QA parity status follows in map log; client rows are shortened.')
-        local rows = trustRetailParity.partyRows(reportPlayer, true)
-        local clientRows = 0
-        for _, row in ipairs(rows) do
-            print('Mochirii Trust QA: ' .. row)
-            if clientRows < 6 then
-                printClientSummary(reportPlayer, row)
-                clientRows = clientRows + 1
-            end
-        end
-
-        if #rows > clientRows then
-            printLine(reportPlayer, string.format('Mochirii Trust QA: %u more row(s) written to map log/report.', #rows - clientRows))
-        end
-
-        reportPlayer:setCharVar(qaAutoVar, 0)
-        reportPlayer:setCharVar(qaRunningVar, 0)
+local function closeAndClearLifecycleSession(player, reason)
+    if player == nil or player:getName() ~= qaAdminName then
+        return
     end
 
-    local function spawnNext(playerArg, index)
-        if playerArg == nil then
-            return
+    local state = getSessionState(player)
+    if
+        state ~= nil and
+        state ~= sessionState.IDLE
+    then
+        failSession(player, player:getLocalVar(sessionGenerationVar), reason)
+    else
+        if state == sessionState.IDLE then
+            clearTrustsWithInactiveProjection(player)
         end
 
-        if index > #trustIds then
-            print(string.format('Mochirii Trust QA: spawn sequence complete for %s; spawned=%u', playerArg:getName(), spawned))
-            printLine(playerArg, string.format('Mochirii Trust QA: spawned %u new Trust(s); waiting for all %u active Trusts before repair.', spawned, expectedCount))
+        resetSessionLocals(player)
+    end
+end
 
-            playerArg:timer(5000, function(reportPlayer)
-                finalizeWhenReady(reportPlayer, 1)
-            end)
+local function beginLifecycleClose(player, reason)
+    if player == nil or player:getName() ~= qaAdminName then
+        return false, 'not_twills'
+    end
 
-            return
-        end
+    local mode = player:getLocalVar(evidenceModeVar)
+    local state = getSessionState(player)
+    if mode == evidenceMode.IDLE or state == nil or state == sessionState.IDLE then
+        return false, 'session_not_active'
+    end
 
-        local trustId = trustIds[index]
-        if not hasTrust(playerArg, trustId) then
-            print(string.format('Mochirii Trust QA: spawning trustId=%u for %s', trustId, playerArg:getName()))
-            playerArg:spawnTrust(trustId)
-            if xi.trustActionLogger ~= nil then
-                xi.trustActionLogger.queueAttachParty(playerArg, 'trust-qa-spawn')
-            end
+    if
+        state ~= sessionState.FAILED and
+        not setSessionState(player, sessionState.FAILED)
+    then
+        return false, 'lifecycle_failed_transition_rejected'
+    end
 
-            spawned = spawned + 1
-        else
-            print(string.format('Mochirii Trust QA: trustId=%u already active for %s', trustId, playerArg:getName()))
-        end
+    player:setLocalVar(pendingTimersVar, 0)
+    player:setCharVar('TrustEngageType', 0)
 
-        playerArg:timer(1500, function(nextPlayer)
-            spawnNext(nextPlayer, index + 1)
-        end)
+    local closeReason = tostring(reason or 'zone_or_logout')
+    local stateFields = authorizationFields(player)
+    stateFields[#stateFields + 1] = 'reason=' .. closeReason
+    local stateLogged = loggerEvent(player, 'session_state', 'failed', stateFields)
+
+    local failureFields = rosterFields(player, mode)
+    failureFields[#failureFields + 1] = 'reason=' .. closeReason
+    local failureLogged = loggerEvent(player, 'roster', 'failure', failureFields)
+    return stateLogged and failureLogged, closeReason
+end
+
+local function finishLifecycleClose(player, reason)
+    if player == nil or player:getName() ~= qaAdminName then
+        return false, 'not_twills'
+    end
+
+    local mode = player:getLocalVar(evidenceModeVar)
+    local state = getSessionState(player)
+    if mode == evidenceMode.IDLE or state ~= sessionState.FAILED then
+        return false, 'lifecycle_close_not_pending'
+    end
+
+    player:setLocalVar(pendingTimersVar, 0)
+    player:setCharVar('TrustEngageType', 0)
+
+    local closeReason = tostring(reason or 'zone_or_logout')
+    local clearedFields, clearedAudit = rosterFields(player, mode)
+    clearedFields[#clearedFields + 1] = 'reason=' .. closeReason
+    local rosterCleared = clearedAudit.activeCount == 0 and player:getLocalVar(pendingTimersVar) == 0
+    local rosterLogged
+    if rosterCleared then
+        rosterLogged = loggerEvent(player, 'roster', 'cleared', clearedFields)
+    else
+        clearedFields[#clearedFields + 1] = 'cleanup_mismatch=true'
+        rosterLogged = loggerEvent(player, 'roster', 'failure', clearedFields)
+        closeReason = 'native_clear_mismatch'
+    end
+
+    local idleTransitioned = setSessionState(player, sessionState.IDLE)
+    local idleLogged = false
+    local ended = false
+    if idleTransitioned then
+        idleLogged = loggerEvent(player, 'session_state', 'idle', {
+            'reason=' .. closeReason,
+        })
+        ended = finishEvidenceSession(player, mode, 'failed', closeReason)
+    end
+
+    advanceSessionGeneration(player)
+    resetSessionLocals(player)
+    local liveReset = resetLoggerLive(player)
+    return
+        rosterCleared and
+        rosterLogged and
+        idleTransitioned and
+        idleLogged and
+        ended and
+        liveReset,
+        closeReason
+end
+
+local function bestEffortLifecyclePreFallback(player)
+    if player == nil then
+        return
+    end
+
+    safeCall(player, 'setLocalVar', pendingTimersVar, 0)
+    safeCall(player, 'setCharVar', 'TrustEngageType', 0)
+    local state = getSessionState(player)
+    if state == sessionState.SPAWNING or state == sessionState.READY then
+        setSessionState(player, sessionState.FAILED)
+    end
+end
+
+local function bestEffortLifecyclePostFallback(player)
+    if player == nil then
+        return
     end
 
     if
         xi.trustActionLogger ~= nil and
-        xi.trustActionLogger.resetForLogin ~= nil
+        type(xi.trustActionLogger.markLogTruncated) == 'function'
     then
-        xi.trustActionLogger.resetForLogin(player)
+        pcall(xi.trustActionLogger.markLogTruncated, player, 'lifecycle_post_exception')
+    else
+        safeCall(player, 'setLocalVar', logTruncatedVar, 1)
     end
 
-    print(string.format('Mochirii Trust QA: rebuilding recommended alliance for %s', player:getName()))
-    printLine(player, 'Mochirii Trust QA: reset logs, clear Trusts, summon alliance, then auto-repair when all Trusts are ready.')
-    for _, row in ipairs(trustRetailParity.compositionRows()) do
-        print('Mochirii Trust QA composition: ' .. row)
+    safeCall(player, 'setLocalVar', pendingTimersVar, 0)
+    safeCall(player, 'setCharVar', 'TrustEngageType', 0)
+    if
+        getSessionState(player) ~= sessionState.IDLE and
+        not setSessionState(player, sessionState.IDLE)
+    then
+        safeCall(player, 'setLocalVar', 'MochiriiTrustSessionState', sessionState.IDLE)
     end
 
-    player:clearTrusts()
-    player:timer(2500, function(playerArg)
-        spawnNext(playerArg, 1)
-    end)
+    local generation = tonumber(player:getLocalVar(sessionGenerationVar) or 0) or 0
+    safeCall(
+        player,
+        'setLocalVar',
+        sessionGenerationVar,
+        generation >= 2147483646 and 1 or generation + 1)
+    pcall(resetSessionLocals, player)
+    pcall(resetLoggerLive, player)
+end
 
-    return spawned
+-- Called before upstream's first effective ClearTrusts and after its existing
+-- later idempotent teardown. These wrappers never throw into the C++
+-- zone/logout path; C++ still performs its own final state reset if evidence
+-- I/O or Lua cleanup reports failure.
+trustRetailParity.beginLifecycleClose = function(player, reason)
+    local called, success, detail = pcall(beginLifecycleClose, player, reason)
+    if not called then
+        pcall(bestEffortLifecyclePreFallback, player)
+        return false, 'lifecycle_pre_exception'
+    end
+
+    return success == true, detail
+end
+
+trustRetailParity.finishLifecycleClose = function(player, reason)
+    local called, success, detail = pcall(finishLifecycleClose, player, reason)
+    if not called then
+        pcall(bestEffortLifecyclePostFallback, player)
+        return false, 'lifecycle_post_exception'
+    end
+
+    return success == true, detail
 end
 
 m:addOverride('xi.player.onGameIn', function(player, firstLogin, zoning)
     super(player, firstLogin, zoning)
-
     if
+        player ~= nil and
         player:getName() == qaAdminName and
-        player:getCharVar(qaAutoVar) ~= 1 and
-        player:getCharVar(qaRunningVar) == 1
+        getSessionState(player) == sessionState.IDLE
     then
-        print(string.format('Mochirii Trust QA: clearing stale running flag for %s on game-in', player:getName()))
-        player:setCharVar(qaRunningVar, 0)
+        resetSessionLocals(player)
     end
 
-    if
-        player:getName() ~= qaAdminName or
-        player:getCharVar(qaAutoVar) ~= 1
-    then
-        return
-    end
+    resetLoggerLive(player)
+end)
 
-    print(string.format('Mochirii Trust QA: queued for %s on game-in', player:getName()))
-    player:timer(10000, function(playerArg)
-        if
-            playerArg ~= nil and
-            playerArg:getCharVar(qaAutoVar) == 1 and
-            playerArg:getCharVar(qaRunningVar) ~= 1
-        then
-            if not playerArg:canUseMisc(xi.zoneMisc.TRUST) then
-                print(string.format('Mochirii Trust QA: zone disallows Trusts for %s', playerArg:getName()))
-                printLine(playerArg, 'Mochirii Trust QA: current zone does not allow Trust summoning.')
-                playerArg:setCharVar(qaAutoVar, 0)
-                playerArg:setCharVar(qaRunningVar, 0)
-                return
-            end
-
-            print(string.format('Mochirii Trust QA: starting summon sequence for %s', playerArg:getName()))
-            playerArg:setCharVar(qaRunningVar, 1)
-            trustRetailParity.autoSummonQaParty(playerArg)
-        elseif playerArg ~= nil then
-            print(string.format(
-                'Mochirii Trust QA: skipped timer for %s auto=%u running=%u',
-                playerArg:getName(),
-                playerArg:getCharVar(qaAutoVar),
-                playerArg:getCharVar(qaRunningVar)
-            ))
-        end
-    end)
+m:addOverride('xi.player.onPlayerDeath', function(player)
+    super(player)
+    closeAndClearLifecycleSession(player, 'player_death')
 end)
 
 return m
