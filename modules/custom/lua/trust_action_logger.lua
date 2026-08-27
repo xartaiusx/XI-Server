@@ -7,6 +7,7 @@
 -----------------------------------
 require('modules/module_utils')
 -----------------------------------
+-- luacheck: globals GetServerGitCommit
 
 xi = xi or {}
 xi.trustActionLogger = xi.trustActionLogger or {}
@@ -369,6 +370,9 @@ local function sessionIdForPlayer(player)
     return string.format('%s-%u-%u-%u', safeName(ownerName), ownerId, startedAt, generation)
 end
 
+-- Session validation intentionally keeps every evidence-contract gate in one
+-- place so callers cannot accidentally accept a partial context.
+-- luacheck: ignore 561
 local function sessionContext(player)
     if player == nil then
         return nil, 'missing_player'
@@ -401,7 +405,13 @@ local function sessionContext(player)
         return nil, 'authorization_denied'
     elseif activeState and currentZone ~= zone then
         return nil, 'session_zone_mismatch'
-    elseif activeState and ((mode == 1 and trustEngageType ~= 0) or (mode == 2 and trustEngageType ~= 1)) then
+    elseif
+        activeState and
+        (
+            (mode == 1 and trustEngageType ~= 0) or
+            (mode == 2 and trustEngageType ~= 1)
+        )
+    then
         return nil, 'engagement_mode_mismatch'
     end
 
@@ -1086,7 +1096,6 @@ local function appendSessionLine(player, recordType, eventName, extraFields)
     return true, nil
 end
 
-
 trustActionLogger.beginSession = function(player, extraFields)
     if player == nil then
         return false, 'missing_player'
@@ -1110,7 +1119,10 @@ trustActionLogger.beginSession = function(player, extraFields)
         return false, 'archive_already_exists'
     end
 
-    if not sessionLineFits(archive, line, true) or not sessionLineFits(live, line, true) then
+    if
+        not sessionLineFits(archive, line, true) or
+        not sessionLineFits(live, line, true)
+    then
         player:setLocalVar(logTruncatedVar, 1)
         return false, 'session_begin_exceeds_size_limit'
     end
@@ -1243,7 +1255,10 @@ trustActionLogger.log = function(trust, eventName, target, extraFields)
     local line = table.concat(fields, '\t')
     local archive = archivePath(context.sessionId)
     local live = livePath(ownerName)
-    if not sessionLineFits(archive, line, false) or not sessionLineFits(live, line, false) then
+    if
+        not sessionLineFits(archive, line, false) or
+        not sessionLineFits(live, line, false)
+    then
         markLogTruncated(owner, 'session_size_limit')
         return false
     end

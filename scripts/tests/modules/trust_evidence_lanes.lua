@@ -118,6 +118,7 @@ describe('Module: Trust evidence lanes', function()
         stub('xi.trustActionLogger.resetForLogin', function()
             return true
         end)
+
         stub('xi.trustActionLogger.beginSession', function(target, fields)
             if beginDelegate ~= nil then
                 return beginDelegate(target, fields)
@@ -134,6 +135,7 @@ describe('Module: Trust evidence lanes', function()
             }
             return beginSucceeds, beginFailureReason
         end)
+
         stub('xi.trustActionLogger.recordSessionEvent', function(target, recordType, event, fields)
             records[#records + 1] =
             {
@@ -146,6 +148,7 @@ describe('Module: Trust evidence lanes', function()
             }
             return true
         end)
+
         stub('xi.trustActionLogger.endSession', function(target, completion, reason, fields)
             records[#records + 1] =
             {
@@ -160,10 +163,12 @@ describe('Module: Trust evidence lanes', function()
             }
             return endSucceeds
         end)
+
         stub('xi.trustActionLogger.attach', function(trust)
             attached[trust:getTrustID()] = true
             return true, 'attached'
         end)
+
         stub('xi.trustActionLogger.attachmentCount', attachedCount)
 
         player = xi.test.world:spawnPlayer(
@@ -183,12 +188,15 @@ describe('Module: Trust evidence lanes', function()
             if testArchivePath ~= nil then
                 os.remove(testArchivePath)
             end
+
             if testLivePath ~= nil then
                 os.remove(testLivePath)
             end
+
             if testRestPath ~= nil then
                 os.remove(testRestPath)
             end
+
             os.remove(testLogRoot .. '/archive')
             os.remove(testLogRoot .. '/live')
             os.remove(testLogRoot)
@@ -302,8 +310,8 @@ describe('Module: Trust evidence lanes', function()
         testRestPath = testLogRoot .. '/live/Twills-resting.tsv'
 
         local archive = assert(io.open(testArchivePath, 'rb'))
-        local sealedContent = archive:read('*a')
-        archive:close()
+        local sealedContent = archive.read(archive, '*a')
+        archive.close(archive)
         assert(#sealedContent > 0)
 
         player:setLocalVar('MochiriiTrustEvidenceMode', xi.trustRetailParity.evidenceMode.IDLE)
@@ -323,8 +331,8 @@ describe('Module: Trust evidence lanes', function()
         assert(player:getTwillsFullAllianceState() == xi.trustRetailParity.sessionState.IDLE)
 
         archive = assert(io.open(testArchivePath, 'rb'))
-        local preservedContent = archive:read('*a')
-        archive:close()
+        local preservedContent = archive.read(archive, '*a')
+        archive.close(archive)
         assert(preservedContent == sealedContent, 'colliding begin must never alter sealed archive bytes')
     end)
 
@@ -591,6 +599,7 @@ describe('Module: Trust evidence lanes', function()
         local nativeSpawn = function(target, trustId)
             return target:spawnTrust(trustId)
         end
+
         local failNextSpawn = true
         assert(xi.trustRetailParity.setSpawnTrustTestHook(function(target, trustId)
             if failNextSpawn then

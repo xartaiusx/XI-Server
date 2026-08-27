@@ -394,6 +394,18 @@ def validate(
     )
 
 
+def validate_fixture(
+    name: str,
+    *,
+    readiness_only: bool,
+) -> tuple[dict[str, object], int]:
+    encoded = (FIXTURE_ROOT / name).read_text(encoding="utf-8")
+    with tempfile.TemporaryDirectory() as temporary:
+        decoded = Path(temporary) / name
+        decoded.write_text(encoded.replace(r"\t", "\t"), encoding="utf-8")
+        return validate(decoded, readiness_only=readiness_only)
+
+
 class TrustParityAuditTests(unittest.TestCase):
     def test_emitter_lifecycle_uses_idle_prepare_then_authoritative_projection(self) -> None:
         for mode in (audit.MODE_RETAIL, audit.MODE_ALLIANCE):
@@ -443,7 +455,7 @@ class TrustParityAuditTests(unittest.TestCase):
     def test_legacy_fixtures_are_descriptive_only_and_fail(self) -> None:
         for name in ("legacy-header-only.tsv", "legacy-progression-only.tsv"):
             with self.subTest(name=name):
-                report, exit_code = validate(FIXTURE_ROOT / name, readiness_only=True)
+                report, exit_code = validate_fixture(name, readiness_only=True)
                 self.assertEqual(exit_code, 1)
                 self.assertEqual(report["combat_acceptance"], "not_run")
                 self.assertTrue(report["legacy"]["descriptive_only"])
@@ -453,8 +465,8 @@ class TrustParityAuditTests(unittest.TestCase):
                 )
 
     def test_duplicate_key_fixture_fails_strict_parsing(self) -> None:
-        report, exit_code = validate(
-            FIXTURE_ROOT / "malformed-duplicate-key.tsv", readiness_only=True
+        report, exit_code = validate_fixture(
+            "malformed-duplicate-key.tsv", readiness_only=True
         )
         self.assertEqual(exit_code, 1)
         self.assertIn("duplicate_key", {issue["code"] for issue in report["issues"]})

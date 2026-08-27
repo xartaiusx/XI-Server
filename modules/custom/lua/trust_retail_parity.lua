@@ -448,6 +448,7 @@ local function clearTrustsWithInactiveProjection(player)
     else
         player:clearTrusts()
     end
+
     return true, 'cleared'
 end
 
@@ -763,7 +764,8 @@ trustRetailParity.applyTrust = function(trust)
 
     local owner = trust:getMaster()
     local authorized, predicateAvailable = safeCall(owner, 'canUseTwillsFullAlliance')
-    if not predicateAvailable or authorized ~= true then
+    local hasAccess = predicateAvailable and type(authorized) == 'boolean' and authorized
+    if not hasAccess then
         return false, 'Twills full-alliance authorization required'
     end
 
@@ -807,7 +809,8 @@ trustRetailParity.partyRows = function(player, apply)
 
     if apply then
         local authorized, predicateAvailable = safeCall(player, 'canUseTwillsFullAlliance')
-        if not predicateAvailable or authorized ~= true then
+        local hasAccess = predicateAvailable and type(authorized) == 'boolean' and authorized
+        if not hasAccess then
             return { 'Repair denied: Twills full-alliance authorization required.' }
         end
     end
@@ -1497,7 +1500,6 @@ local function abortPreparedSession(player, mode, reason)
     return false, failureReason
 end
 
-
 local function failSession(player, generation, reason)
     if
         player == nil or
@@ -1620,6 +1622,7 @@ trustRetailParity.spawnTrust = function(player, trustId)
             break
         end
     end
+
     if not expected then
         return nil, 'trust_not_in_locked_roster'
     end
@@ -1733,7 +1736,6 @@ local function completeSummon(player, generation, mode)
 
     return true
 end
-
 
 local function spawnRoster(player, generation, mode, index)
     local current, reason = guardSession(player, generation, mode, sessionState.SPAWNING, true)
@@ -1852,6 +1854,7 @@ local function beginEvidenceSession(player, mode)
         began = false
         beginReason = 'logger_exception'
     end
+
     if not began then
         resetSessionLocals(player)
         printLine(player, string.format('Mochirii Trust summon denied: evidence logger %s.', tostring(beginReason)))
@@ -1899,9 +1902,11 @@ local function beginEvidenceSession(player, mode)
         failSession(player, generation, 'summon_attempt_log_failed')
         return false, 'summon_attempt_log_failed'
     end
+
     scheduleSessionTimer(player, generation, 250, function(nextPlayer)
         spawnRoster(nextPlayer, generation, mode, 1)
     end)
+
     scheduleSessionTimer(player, generation, 45000, function(timeoutPlayer)
         if getSessionState(timeoutPlayer) == sessionState.SPAWNING then
             failSession(timeoutPlayer, generation, 'summon_timeout')
@@ -2074,13 +2079,11 @@ trustRetailParity.auditRows = function(player, target)
     return rows
 end
 
-
 local function closeAndClearLifecycleSession(player, reason)
     if player == nil or player:getName() ~= qaAdminName then
         return
     end
 
-    local mode = player:getLocalVar(evidenceModeVar)
     local state = getSessionState(player)
     if
         state ~= nil and
@@ -2107,7 +2110,10 @@ local function beginLifecycleClose(player, reason)
         return false, 'session_not_active'
     end
 
-    if state ~= sessionState.FAILED and not setSessionState(player, sessionState.FAILED) then
+    if
+        state ~= sessionState.FAILED and
+        not setSessionState(player, sessionState.FAILED)
+    then
         return false, 'lifecycle_failed_transition_rejected'
     end
 
@@ -2204,7 +2210,10 @@ local function bestEffortLifecyclePostFallback(player)
 
     safeCall(player, 'setLocalVar', pendingTimersVar, 0)
     safeCall(player, 'setCharVar', 'TrustEngageType', 0)
-    if getSessionState(player) ~= sessionState.IDLE and not setSessionState(player, sessionState.IDLE) then
+    if
+        getSessionState(player) ~= sessionState.IDLE and
+        not setSessionState(player, sessionState.IDLE)
+    then
         safeCall(player, 'setLocalVar', 'MochiriiTrustSessionState', sessionState.IDLE)
     end
 
@@ -2231,7 +2240,6 @@ trustRetailParity.beginLifecycleClose = function(player, reason)
 
     return success == true, detail
 end
-
 
 trustRetailParity.finishLifecycleClose = function(player, reason)
     local called, success, detail = pcall(finishLifecycleClose, player, reason)

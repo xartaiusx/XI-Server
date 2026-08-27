@@ -159,10 +159,10 @@ auto TestChar::create(const uint16_t zoneId, const std::string_view entityNameOv
 
     loginHelpers::saveCharacter(accId, charId, &mini);
 
-    auto testChar        = std::make_unique<TestChar>();
-    testChar->accountId_ = accId;
-    testChar->charId_    = charId;
-    testChar->charName_  = charName;
+    auto testChar                 = std::make_unique<TestChar>();
+    testChar->accountId_          = accId;
+    testChar->charId_             = charId;
+    testChar->charName_           = charName;
     testChar->entityNameOverride_ = entityNameOverride;
 
     return testChar;

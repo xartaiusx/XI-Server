@@ -75,16 +75,16 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust);
 namespace
 {
 
-constexpr auto TwillsCharacterName       = "Twills";
-constexpr auto TrustAllianceAccessVar    = "MochiriiTrustAllianceAccess";
-constexpr auto TrustSessionStateVar      = "MochiriiTrustSessionState";
-constexpr auto TrustEvidenceModeVar      = "MochiriiTrustEvidenceMode";
-constexpr auto TrustSessionGenerationVar = "MochiriiTrustSessionGeneration";
-constexpr auto TrustSessionStartedVar    = "MochiriiTrustSessionStarted";
-constexpr auto TrustSessionZoneVar       = "MochiriiTrustSessionZone";
-constexpr auto TrustEvidenceSequenceVar  = "MochiriiTrustEvidenceSeq";
-constexpr auto TrustEvidenceSchemaVar    = "MochiriiTrustEvidenceSchema";
-constexpr auto TrustLogTruncatedVar      = "MochiriiTrustLogTruncated";
+constexpr auto   TwillsCharacterName        = "Twills";
+constexpr auto   TrustAllianceAccessVar     = "MochiriiTrustAllianceAccess";
+constexpr auto   TrustSessionStateVar       = "MochiriiTrustSessionState";
+constexpr auto   TrustEvidenceModeVar       = "MochiriiTrustEvidenceMode";
+constexpr auto   TrustSessionGenerationVar  = "MochiriiTrustSessionGeneration";
+constexpr auto   TrustSessionStartedVar     = "MochiriiTrustSessionStarted";
+constexpr auto   TrustSessionZoneVar        = "MochiriiTrustSessionZone";
+constexpr auto   TrustEvidenceSequenceVar   = "MochiriiTrustEvidenceSeq";
+constexpr auto   TrustEvidenceSchemaVar     = "MochiriiTrustEvidenceSchema";
+constexpr auto   TrustLogTruncatedVar       = "MochiriiTrustLogTruncated";
 constexpr uint32 TrustEvidenceSchemaVersion = 2;
 
 auto GetTwillsFullAllianceAccessContext(CCharEntity* PMaster) -> trustutils::TwillsFullAllianceAccessContext
@@ -856,8 +856,7 @@ auto GetTrustEvidenceSession(
         state == trustutils::TwillsFullAllianceState::Ready;
     const auto validMarkerState = truncationMarkerContext && state == trustutils::TwillsFullAllianceState::Failed;
     const auto validOwnerPolicy =
-        truncationMarkerContext ? PMaster->getName() == TwillsCharacterName :
-                                  configuredOwner == PMaster->getName() && trustutils::CanUseTwillsFullAlliance(PMaster);
+        truncationMarkerContext ? PMaster->getName() == TwillsCharacterName : configuredOwner == PMaster->getName() && trustutils::CanUseTwillsFullAlliance(PMaster);
 
     if (!validOwnerPolicy ||
         !evidenceMode ||
@@ -891,8 +890,8 @@ auto GetTrustEvidenceSession(
 
 auto LogPathForOwner(const std::string& ownerName) -> std::optional<std::filesystem::path>
 {
-    auto root = std::filesystem::path(settings::get<std::string>("main.TRUST_ACTION_LOG_DIR"));
-    auto live = root / "live";
+    auto            root = std::filesystem::path(settings::get<std::string>("main.TRUST_ACTION_LOG_DIR"));
+    auto            live = root / "live";
     std::error_code error;
     std::filesystem::create_directories(live, error);
     if (error)
@@ -906,8 +905,8 @@ auto LogPathForOwner(const std::string& ownerName) -> std::optional<std::filesys
 
 auto ArchivePathForSession(const std::string& sessionId) -> std::optional<std::filesystem::path>
 {
-    auto root    = std::filesystem::path(settings::get<std::string>("main.TRUST_ACTION_LOG_DIR"));
-    auto archive = root / "archive";
+    auto            root    = std::filesystem::path(settings::get<std::string>("main.TRUST_ACTION_LOG_DIR"));
+    auto            archive = root / "archive";
     std::error_code error;
     std::filesystem::create_directories(archive, error);
     if (error)
@@ -976,8 +975,8 @@ void trustutils::MarkTrustEvidenceTruncated(CCharEntity* PMaster, std::string_vi
         PMaster->SetLocalVar(TrustEvidenceSequenceVar, markerSequence);
     }
 
-    const auto stamp      = CurrentTrustLogStamp();
-    const auto safeReason = SafeLogValue(std::string(reason.substr(0, 64)));
+    const auto         stamp      = CurrentTrustLogStamp();
+    const auto         safeReason = SafeLogValue(std::string(reason.substr(0, 64)));
     std::ostringstream line;
     line << "schema_version=" << TrustEvidenceSchemaVersion;
     line << "\trecord_type=logger";

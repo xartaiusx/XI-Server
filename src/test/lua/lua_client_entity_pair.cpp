@@ -118,7 +118,7 @@ void CLuaClientEntityPair::simulateZoneOutLifecycle(bool logout)
     }
 
     const auto previousStatus = PChar->status;
-    PChar->status              = logout ? xi::Status::Shutdown : xi::Status::Disappear;
+    PChar->status             = logout ? xi::Status::Shutdown : xi::Status::Disappear;
 
     moduleutils::OnCharPreZoneOut(PChar);
     if (!PChar->PTrusts.empty())

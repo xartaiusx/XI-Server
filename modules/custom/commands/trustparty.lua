@@ -48,6 +48,10 @@ local function printRows(player, rows)
     end
 end
 
+-- This command is an explicit dispatcher for the supported Trust QA verbs.
+-- Keeping the authorization and state checks alongside each verb makes the
+-- mutating lanes easy to audit.
+-- luacheck: ignore 561
 commandObj.onTrigger = function(player, action, target)
     local parity = ensureModule()
 
