@@ -84,6 +84,26 @@ end
 function CClientEntityPairActions:acceptPartyInvite()
 end
 
+---Build a native two-PC party for Trust preflight tests
+---@param member CBaseEntity Second player character
+---@return boolean
+function CClientEntityPairActions:formPartyForInvalidTrustState(member)
+end
+
+---Build a native two-party alliance for Trust preflight tests
+---@param firstMember CBaseEntity Member of the primary party
+---@param secondLeader CBaseEntity Leader of the second party
+---@param secondMember CBaseEntity Member of the second party
+---@return boolean
+function CClientEntityPairActions:formAllianceForInvalidTrustState(firstMember, secondLeader, secondMember)
+end
+
+---Spawn a Trust while preserving a deliberately invalid real-group fixture
+---@param trustId integer Trust spell ID
+---@return CBaseEntity?
+function CClientEntityPairActions:spawnTrustForInvalidGroupState(trustId)
+end
+
 ---@class TradeItem
 ---@field itemId xi.item Item ID
 ---@field quantity? integer Quantity (default: 1)
