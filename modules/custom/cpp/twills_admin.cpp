@@ -1521,7 +1521,7 @@ public:
 
     void OnInit() override
     {
-        auto xi          = lua["xi"].get_or_create<sol::table>();
+        auto xi          = ::lua["xi"].get_or_create<sol::table>();
         auto twillsAdmin = xi["twills_admin"].get_or_create<sol::table>();
         auto native      = twillsAdmin["native"].get_or_create<sol::table>();
 
@@ -1570,7 +1570,7 @@ private:
     {
         try
         {
-            const sol::object xiObject = lua["xi"];
+            const sol::object xiObject = ::lua["xi"];
             if (xiObject.get_type() != sol::type::table)
             {
                 ShowWarningFmt("Mochirii Trust lifecycle: xi table unavailable for {}", functionName);

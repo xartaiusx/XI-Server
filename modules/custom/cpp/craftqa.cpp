@@ -1493,7 +1493,7 @@ class CraftQaModule : public CPPModule
 public:
     void OnInit() override
     {
-        auto xi      = lua["xi"].get_or_create<sol::table>();
+        auto xi      = ::lua["xi"].get_or_create<sol::table>();
         auto craftqa = xi["craftqa"].get_or_create<sol::table>();
         auto native  = craftqa["native"].get_or_create<sol::table>();
 
