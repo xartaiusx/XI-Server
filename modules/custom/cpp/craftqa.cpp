@@ -9,9 +9,9 @@
 #include "common/database.h"
 #include "common/logging.h"
 #include "common/timer.h"
+#include "data/enums/key_item.h"
 #include "entities/char_entity.h"
 #include "enums/chat_message_type.h"
-#include "enums/key_items.h"
 #include "item_container.h"
 #include "items/item.h"
 #include "items/transactions/synth.h"
@@ -102,7 +102,7 @@ struct Recipe
 {
     uint32                id{};
     uint8                 desynth{};
-    KeyItem               requiredKeyItem{ KeyItem::NONE };
+    xi::KeyItem           requiredKeyItem{ xi::KeyItem::None };
     uint8                 cook{};
     uint16                crystal{};
     std::array<uint16, 8> ingredients{};
@@ -193,7 +193,7 @@ auto loadRecipe(uint32 recipeId) -> std::optional<Recipe>
     Recipe recipe{};
     recipe.id              = rset->get<uint32>("ID");
     recipe.desynth         = rset->get<uint8>("Desynth");
-    recipe.requiredKeyItem = rset->get<KeyItem>("KeyItem");
+    recipe.requiredKeyItem = rset->get<xi::KeyItem>("KeyItem");
     recipe.cook            = rset->get<uint8>("Cook");
     recipe.crystal         = rset->get<uint16>("Crystal");
     recipe.ingredients     = {
@@ -385,7 +385,7 @@ void logEvidence(CCharEntity* PChar, const Recipe* recipe, const std::string& ev
              << tsvSafe(recipe ? recipe->resultName : "") << '\t'
              << static_cast<uint32>(recipe ? recipe->cook : 0) << '\t'
              << (recipe ? recipe->crystal : 0) << '\t'
-             << static_cast<uint32>(recipe ? recipe->requiredKeyItem : KeyItem::NONE) << '\t'
+             << static_cast<uint32>(recipe ? recipe->requiredKeyItem : xi::KeyItem::None) << '\t'
              << itemId << '\t'
              << quantity << '\t'
              << tsvSafe(detail) << '\n';
@@ -836,7 +836,7 @@ auto repairDedicatedCook(CCharEntity* PChar) -> std::string
 
     for (const auto keyItem : kCookingKeyItems)
     {
-        const auto typedKeyItem = static_cast<KeyItem>(keyItem);
+        const auto typedKeyItem = static_cast<xi::KeyItem>(keyItem);
         if (!charutils::hasKeyItem(PChar, typedKeyItem))
         {
             charutils::addKeyItem(PChar, typedKeyItem);
@@ -874,7 +874,7 @@ auto startRecipe(CCharEntity* PChar, const Recipe& recipe, std::string& reason, 
         return false;
     }
 
-    if (recipe.requiredKeyItem != KeyItem::NONE && !charutils::hasKeyItem(PChar, recipe.requiredKeyItem))
+    if (recipe.requiredKeyItem != xi::KeyItem::None && !charutils::hasKeyItem(PChar, recipe.requiredKeyItem))
     {
         reason = "missing required Cooking key item";
         logEvidence(PChar, &recipe, "craft_blocked", 0, 0, reason);

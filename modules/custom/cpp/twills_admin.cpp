@@ -7,6 +7,7 @@
 
 #include "common/database.h"
 #include "common/logging.h"
+#include "data/enums/key_item.h"
 #include "entities/char_entity.h"
 #include "lua/lua_base_entity.h"
 #include "map/utils/moduleutils.h"
@@ -48,8 +49,8 @@ constexpr uint32      kBallistaPointCap          = 2000;
 constexpr uint16      kMaxHeldMerits             = 75;
 constexpr uint16      kMaxLimitPoints            = 9999;
 constexpr const char* kVeteranTimestamp          = "2011-07-11 00:00:00";
-constexpr auto        kMartialTechniquePrimer    = static_cast<KeyItem>(3224);
-constexpr auto        kMartialTechniqueTreatise  = static_cast<KeyItem>(3225);
+constexpr auto        kMartialTechniquePrimer    = xi::KeyItem::PrimerOnMartialTechniques;
+constexpr auto        kMartialTechniqueTreatise  = xi::KeyItem::TreatiseOnMartialTechniques;
 constexpr auto        kTrustAllianceAccessVar    = "MochiriiTrustAllianceAccess";
 constexpr auto        kTrustSessionStateVar      = "MochiriiTrustSessionState";
 constexpr auto        kTrustEvidenceModeVar      = "MochiriiTrustEvidenceMode";
