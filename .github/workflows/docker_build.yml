@@ -156,7 +156,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
             type=ref,event=pr
-            type=sha
+            type=sha,format=long
           labels: |
             org.opencontainers.image.authors=Mochirii
             org.opencontainers.image.title=Mochirii Server (${{ inputs.os }})
