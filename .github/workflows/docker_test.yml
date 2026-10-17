@@ -26,7 +26,7 @@ jobs:
       run:
         shell: bash
     env:
-      artifact_name: ${{ format('LSB_{0}_image_{1}', inputs.os, github.sha) }}
+      artifact_name: ${{ format('LSB_{0}_image_{1}', inputs.os, github.event.workflow_run.head_sha || github.sha) }}
       image_tag: ${{ format('{0}{1}', github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'latest', inputs.os == 'alpine' && '-alpine' || '') }}
       XI_NETWORK_SQL_HOST: database
       XI_NETWORK_SQL_PORT: 3306
@@ -59,6 +59,7 @@ jobs:
 
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 1
           submodules: recursive # For navmeshes
 
@@ -75,7 +76,7 @@ jobs:
         with:
           workflow: build.yml
           run_id: ${{ github.event.workflow_run.id }}
-          commit: ${{ github.sha }}
+          commit: ${{ github.event.workflow_run.head_sha || github.sha }}
           name: ${{ env.artifact_name }}
           path: ${{ runner.temp }}
 
@@ -132,7 +133,9 @@ jobs:
           github-report: true
           summary: true
           pull-request: false
-          status-check: ${{ github.event_name != 'pull_request' }}
+          # workflow_run can report a different context SHA. Retain workflow
+          # failures without adding a duplicate check to another commit.
+          status-check: ${{ github.event_name != 'pull_request' && github.event_name != 'workflow_run' }}
           status-check-name: "xi_test (${{ format('docker-{0}', inputs.os) }})"
           annotate: true
           upload-artifact: true
