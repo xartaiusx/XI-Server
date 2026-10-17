@@ -137,5 +137,5 @@ jobs:
       save_cache: ${{ matrix.save_cache }}
       build_modules: ${{ matrix.build_modules }}
       tracy: ${{ matrix.tracy }}
-      upload_artifact: false
+      upload_artifact: true
       publish: ${{ matrix.publish }}

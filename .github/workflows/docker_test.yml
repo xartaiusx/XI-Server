@@ -73,7 +73,9 @@ jobs:
         if: ${{ (github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch') && vars.PUBLISH_DOCKER == ''}}
         uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
+          workflow: build.yml
           run_id: ${{ github.event.workflow_run.id }}
+          commit: ${{ github.sha }}
           name: ${{ env.artifact_name }}
           path: ${{ runner.temp }}
 
