@@ -27,7 +27,7 @@ jobs:
         shell: bash
     env:
       artifact_name: ${{ format('LSB_{0}_image_{1}', inputs.os, github.event.workflow_run.head_sha || github.sha) }}
-      image_tag: ${{ format('{0}{1}', github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'latest', inputs.os == 'alpine' && '-alpine' || '') }}
+      image_tag: ${{ format('sha-{0}{1}', github.event.workflow_run.head_sha || github.sha, inputs.os == 'alpine' && '-alpine' || '') }}
       XI_NETWORK_SQL_HOST: database
       XI_NETWORK_SQL_PORT: 3306
       XI_NETWORK_SQL_DATABASE: xidb
@@ -85,11 +85,25 @@ jobs:
         run: |
           docker load --input ${{ runner.temp }}/${{ env.artifact_name }}.tar
 
+      - name: Verify artifact image revision
+        if: ${{ github.event_name == 'pull_request' || vars.PUBLISH_DOCKER == '' }}
+        env:
+          image_name: ${{ format('ghcr.io/{0}:{1}', env.REPO, env.image_tag) }}
+          expected_revision: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          image_revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image_name")"
+          if [[ "$image_revision" != "$expected_revision" ]]; then
+            echo "::error::Loaded image revision does not match the source commit."
+            exit 1
+          fi
+
       - name: Start container
         env:
           image_name: ${{ format('ghcr.io/{0}:{1}', env.REPO, env.image_tag) }}
+          pull_policy: ${{ (github.event_name == 'pull_request' || vars.PUBLISH_DOCKER == '') && 'never' || 'missing' }}
         run: |
           docker run -dt \
+            --pull="$pull_policy" \
             --name test-server \
             --user root \
             --network ${{ job.services.database.network }} \
