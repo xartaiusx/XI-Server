@@ -4,6 +4,7 @@
 describe('Module: Trust evidence lanes', function()
     ---@type CClientEntityPair
     local player
+    local previousFixtureId
     local records
     local attached
     local beginSucceeds
@@ -188,6 +189,10 @@ describe('Module: Trust evidence lanes', function()
                 level = 99,
             })
         configureTwills(player)
+        local fixtureId = player:getID()
+        assert(previousFixtureId == nil or fixtureId > previousFixtureId, 'Trust fixtures must not reuse persistent character IDs')
+        previousFixtureId = fixtureId
+        assert(not player:hasEnmity(), 'Trust fixture must begin without mob enmity')
     end)
 
     after_each(function()

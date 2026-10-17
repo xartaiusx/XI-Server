@@ -41,6 +41,11 @@ namespace
 constexpr uint32 MinTestCharId = 20000000;
 constexpr uint32 MinTestAccId  = 20000000;
 
+// Mob hate retains persistent character IDs across logout. Never reuse an ID
+// after fixture cleanup while the test world's mobs are still alive.
+uint64 nextTestCharId = MinTestCharId;
+uint64 nextTestAccId  = MinTestAccId;
+
 std::vector<std::string> charIdTables = {
     "chars",
     "char_chocobos",
@@ -54,6 +59,7 @@ std::vector<std::string> charIdTables = {
     "char_job_points",
     "char_jobs",
     "char_look",
+    "char_master_levels",
     "char_merit",
     "char_monstrosity",
     "char_pet",
@@ -133,7 +139,15 @@ auto TestChar::create(const xi::ZoneId zoneId, const CharRace race, const std::s
     auto rset = db::preparedStmt("SELECT max(id) FROM accounts");
     FOR_DB_SINGLE_RESULT(rset)
     {
-        accId = std::max(MinTestAccId, rset->get<uint32>("max(id)") + 1);
+        const auto nextId = std::max(nextTestAccId, static_cast<uint64>(rset->get<uint32>("max(id)")) + 1);
+        if (nextId > std::numeric_limits<uint32>::max())
+        {
+            TestError("Test account IDs exhausted");
+            return nullptr;
+        }
+
+        accId         = static_cast<uint32>(nextId);
+        nextTestAccId = nextId + 1;
     }
     else
     {
@@ -156,7 +170,15 @@ auto TestChar::create(const xi::ZoneId zoneId, const CharRace race, const std::s
     rset = db::preparedStmt("SELECT max(charid) FROM chars");
     FOR_DB_SINGLE_RESULT(rset)
     {
-        charId = std::max(MinTestCharId, rset->get<uint32>("max(charid)") + 1);
+        const auto nextId = std::max(nextTestCharId, static_cast<uint64>(rset->get<uint32>("max(charid)")) + 1);
+        if (nextId > std::numeric_limits<uint32>::max())
+        {
+            TestError("Test character IDs exhausted");
+            return nullptr;
+        }
+
+        charId         = static_cast<uint32>(nextId);
+        nextTestCharId = nextId + 1;
     }
     else
     {
