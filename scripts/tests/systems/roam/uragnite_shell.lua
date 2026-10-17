@@ -22,6 +22,7 @@ describe('Uragnite shell', function()
 
     after_each(function()
         if mob then
+            mob:removeListener('TEST_URAGNITE_CLOCK')
             mob:clearTimerQueue()
             mob:respawn()
         end
@@ -32,23 +33,37 @@ describe('Uragnite shell', function()
     end)
 
     it('closes during a rest and reopens', function()
+        stub('math.randomInt', function(minimum)
+            return minimum
+        end)
+
+        -- Exercise the shortest idle closure using the real AI clock.
+        mob:clearTimerQueue()
+        mob:triggerListener('ROAM_TICK', mob)
+        xi.test.world:tickEntity(mob)
+        local elapsedTime = 0
+        mob:addListener('TICK', 'TEST_URAGNITE_CLOCK', function(_, elapsed)
+            elapsedTime = elapsedTime + elapsed
+        end)
+
         local closedAt = nil
         local openedAt = nil
-        for second = 1, 300 do
+        for _ = 1, 300 do
             xi.test.world:skipTime(1)
             xi.test.world:tickEntity(mob)
             local sub = mob:getAnimationSub()
             if sub == 5 and not closedAt then
-                closedAt = second
+                closedAt = elapsedTime
             elseif sub == 4 and closedAt and not openedAt then
-                openedAt = second
+                openedAt = elapsedTime
                 break
             end
         end
 
+        mob:removeListener('TEST_URAGNITE_CLOCK')
         assert(closedAt, 'the shell never closed')
         assert(openedAt, 'the shell never opened again')
-        local closed = openedAt - closedAt
+        local closed = (openedAt - closedAt) / 1000
         assert(closed >= 15 and closed <= 35, 'shell was closed for ' .. closed .. ' s')
     end)
 
