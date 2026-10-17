@@ -22,7 +22,9 @@
 #include "0x102_extended_job.h"
 
 #include "blue_spell.h"
+#include "entities/automaton_entity.h"
 #include "entities/char_entity.h"
+#include "packets/c2s/validation.h"
 #include "packets/s2c/0x061_clistatus.h"
 #include "packets/s2c/0x0ac_command_data.h"
 #include "recast_container.h"
@@ -30,6 +32,7 @@
 #include "utils/charutils.h"
 #include "utils/petutils.h"
 #include "utils/puppetutils.h"
+#include "zone.h"
 
 auto GP_CLI_COMMAND_EXTENDED_JOB::validate(MapSession* PSession, const CCharEntity* PChar) const -> PacketValidationResult
 {
@@ -48,7 +51,7 @@ auto GP_CLI_COMMAND_EXTENDED_JOB::validate(MapSession* PSession, const CCharEnti
         pv.mustEqual(dynamic_cast<CAutomatonEntity*>(PChar->PPet), nullptr, "Player has a deployed automaton.");
         // TODO: Check if they own the attachments they are trying to equip.
     }
-    else if (PChar->loc.zone->GetID() == ZONE_FERETORY && PChar->m_PMonstrosity != nullptr)
+    else if (PChar->loc.zone->GetID() == xi::ZoneId::Feretory && PChar->m_PMonstrosity != nullptr)
     {
         // Case 3: Monstrosity equipment change
         if (this->Data.monData.Flags0.SpeciesFlag)
@@ -209,7 +212,7 @@ void GP_CLI_COMMAND_EXTENDED_JOB::process(MapSession* PSession, CCharEntity* PCh
         if (pupData.ItemId == 0x00)
         {
             // remove all attachments specified
-            for (uint8 i = 0; i < sizeof(pupData.Slots); i++)
+            for (uint8 i = static_cast<uint8>(AutomatonSlot::Attachment1); i < sizeof(pupData.Slots); i++)
             {
                 if (pupData.Slots[i] != 0)
                 {
@@ -230,7 +233,7 @@ void GP_CLI_COMMAND_EXTENDED_JOB::process(MapSession* PSession, CCharEntity* PCh
             }
             else
             {
-                for (uint8 i = 0; i < sizeof(pupData.Slots); i++)
+                for (uint8 i = static_cast<uint8>(AutomatonSlot::Attachment1); i < sizeof(pupData.Slots); i++)
                 {
                     if (pupData.Slots[i] != 0)
                     {
@@ -245,7 +248,7 @@ void GP_CLI_COMMAND_EXTENDED_JOB::process(MapSession* PSession, CCharEntity* PCh
         charutils::SendExtendedJobPackets(PChar);
         puppetutils::SaveAutomaton(PChar);
     }
-    else if (PChar->loc.zone->GetID() == ZONE_FERETORY && PChar->m_PMonstrosity != nullptr)
+    else if (PChar->loc.zone->GetID() == xi::ZoneId::Feretory && PChar->m_PMonstrosity != nullptr)
     {
         monstrosity::HandleEquipChangePacket(PChar, this->Data.monData);
     }

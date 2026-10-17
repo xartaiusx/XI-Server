@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -21,9 +21,7 @@
 
 #pragma once
 
-#include <common/cbasetypes.h>
 #include <common/scheduler.h>
-#include <common/timer.h>
 
 #include "map_config.h"
 

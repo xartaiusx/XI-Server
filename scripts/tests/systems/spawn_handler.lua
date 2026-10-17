@@ -15,6 +15,20 @@ describe('Spawn Handler', function()
             mob.assert:isSpawned()
         end)
 
+        it('does not inherit queued actions from its previous life', function()
+            local mob = player.entities:moveTo('Forest_Funguar')
+
+            -- deadline well past the despawn, so the only way it can leave the queue is the respawn dropping it
+            mob:queue(60000, function()
+            end)
+
+            assert(not mob:actionQueueEmpty(), 'precondition: the action is queued')
+
+            mob:respawn()
+
+            assert(mob:actionQueueEmpty(), 'a queued action outlived the respawn')
+        end)
+
         it('does not respawn a mob before its timer expires', function()
             local mob = player.entities:moveTo('Forest_Funguar')
             player:claimAndKillMob(mob)
@@ -23,8 +37,10 @@ describe('Spawn Handler', function()
         end)
 
         it('respawns after deaggro with 60 second timer', function()
+            local far = player:getPos()
             local mob = player.entities:moveTo('River_Crab')
-            mob:setPos(mob:getXPos() + 200, mob:getYPos(), mob:getZPos())
+            mob:setPos(far.x, far.y, far.z)
+            mob:clearPath()
             mob:disengage()
 
             for _ = 1, 10 do
@@ -58,6 +74,7 @@ describe('Spawn Handler', function()
 
         it('respawns same mob after deaggro', function()
             player:gotoZone(xi.zone.GHELSBA_OUTPOST)
+            local far   = { x = 99.0, y = 0.0, z = -34.0 }
             local mobs  = xi.test.world:getSpawnSlot(xi.zone.GHELSBA_OUTPOST, 1)
             local mob1  = mobs[1]
             local mob2  = mobs[2]
@@ -65,8 +82,11 @@ describe('Spawn Handler', function()
             local mob   = mob1:isSpawned() and mob1 or mob2
             local other = mob == mob1 and mob2 or mob1
 
+            player.entities:moveTo(mob)
+
             for _ = 1, 5 do
-                mob:setPos(mob:getXPos() + 200, mob:getYPos(), mob:getZPos())
+                mob:setPos(far.x, far.y, far.z)
+                mob:clearPath()
                 mob:disengage()
 
                 for _ = 1, 10 do
@@ -107,20 +127,20 @@ describe('Spawn Handler', function()
         end)
 
         it('spawns evening mobs during evening', function()
-            player:gotoZone(xi.zone.YUGHOTT_GROTTO)
+            player:gotoZone(xi.zone.EAST_RONFAURE_S)
             xi.test.world:setVanaTime(18, 0)
 
-            local mob = player.entities:moveTo('Grotto_Bats')
+            local mob = player.entities:moveTo('Ding_Bats')
             mob:setRespawnTime(1)
             xi.test.world:tick(xi.tick.SPAWN)
             mob.assert:isSpawned()
         end)
 
         it('blocks evening mobs during day', function()
-            player:gotoZone(xi.zone.YUGHOTT_GROTTO)
+            player:gotoZone(xi.zone.EAST_RONFAURE_S)
             xi.test.world:setVanaTime(12, 0)
 
-            local mob = player.entities:moveTo('Grotto_Bats')
+            local mob = player.entities:moveTo('Ding_Bats')
             mob:despawn()
             mob:setRespawnTime(1)
             xi.test.world:tick(xi.tick.SPAWN)
@@ -477,6 +497,71 @@ describe('Spawn Handler', function()
         end)
     end)
 
+    describe('dynamic entities', function()
+        local deGroupId     = 5
+        local deGroupZoneId = 154
+
+        local function insertDe(name, respawn)
+            local anchor = player.entities:moveTo('Forest_Funguar')
+            local zone   = GetZone(xi.zone.WEST_RONFAURE)
+            assert(zone, 'West Ronfaure not loaded')
+
+            local de = zone:insertDynamicEntity({
+                objtype              = xi.objType.MOB,
+                name                 = name,
+                x                    = anchor:getXPos(),
+                y                    = anchor:getYPos(),
+                z                    = anchor:getZPos(),
+                rotation             = anchor:getRotPos(),
+                groupId              = deGroupId,
+                groupZoneId          = deGroupZoneId,
+                minLevel             = 1,
+                maxLevel             = 1,
+                respawn              = respawn,
+                releaseIdOnDisappear = false,
+            })
+
+            assert(de, 'failed to insert dynamic entity ' .. name)
+
+            local mob = player.entities:moveTo(de:getID())
+            mob:setSpawn(anchor:getXPos(), anchor:getYPos(), anchor:getZPos(), anchor:getRotPos())
+            mob:spawn()
+            xi.test.world:tick()
+            mob.assert:isSpawned()
+
+            return mob
+        end
+
+        it('respawns a killed dynamic entity after its timer expires', function()
+            local mob = insertDe('Respawning_DE', 300)
+            player:claimAndKillMob(mob)
+
+            xi.test.world:skipTime(305)
+            xi.test.world:tick(xi.tick.SPAWN)
+
+            mob.assert:isSpawned()
+        end)
+
+        it('does not respawn a dynamic entity before its timer expires', function()
+            local mob = insertDe('Early_DE', 300)
+            player:claimAndKillMob(mob)
+
+            xi.test.world:tick(xi.tick.SPAWN)
+
+            mob.assert.no:isSpawned()
+        end)
+
+        it('never respawns a dynamic entity created without a respawn time', function()
+            local mob = insertDe('Oneshot_DE', 0)
+            player:claimAndKillMob(mob)
+
+            xi.test.world:skipTime(3600)
+            xi.test.world:tick(xi.tick.SPAWN)
+
+            mob.assert.no:isSpawned()
+        end)
+    end)
+
     -- Nunyenunc NM and Carrion Crow PH in West Sarutabaruta
     describe('placeholder to NM', function()
         it('spawns NM when lottery succeeds', function()
@@ -485,11 +570,9 @@ describe('Spawn Handler', function()
             local nm = player.entities:get(ID.mob.NUNYENUNC)
             local ph = player.entities:get(ID.mob.NUNYENUNC - 1)
 
-            for _ = 1, 100 do
-                if nm:isSpawned() then
-                    break
-                end
+            xi.test.world:setSlotChance(nm, 100)
 
+            if not nm:isSpawned() then
                 player:claimAndKillMob(ph)
                 xi.test.world:skipTime(305)
                 xi.test.world:tick(xi.tick.SPAWN)
@@ -504,11 +587,9 @@ describe('Spawn Handler', function()
             local nm = player.entities:get(ID.mob.NUNYENUNC)
             local ph = player.entities:get(ID.mob.NUNYENUNC - 1)
 
-            for _ = 1, 100 do
-                if nm:isSpawned() then
-                    break
-                end
+            xi.test.world:setSlotChance(nm, 100)
 
+            if not nm:isSpawned() then
                 player:claimAndKillMob(ph)
                 xi.test.world:skipTime(305)
                 xi.test.world:tick(xi.tick.SPAWN)
@@ -518,6 +599,310 @@ describe('Spawn Handler', function()
             xi.test.world:skipTime(305)
             xi.test.world:tick(xi.tick.SPAWN)
             ph.assert:isSpawned()
+        end)
+    end)
+
+    -- Valkurm Emperor and Golden Bat each share a spawn slot with their placeholder
+    describe('lottery slot', function()
+        ---@type CTestEntity
+        local nm
+        ---@type CTestEntity
+        local ph
+
+        local function killAndRespawn(mob)
+            player:claimAndKillMob(mob)
+            xi.test.world:skipTime(305)
+            xi.test.world:tick(xi.tick.SPAWN)
+        end
+
+        before_each(function()
+            player:gotoZone(xi.zone.VALKURM_DUNES)
+            local ID = zones[xi.zone.VALKURM_DUNES]
+            nm = player.entities:get(ID.mob.VALKURM_EMPEROR)
+            ph = player.entities:get(ID.mob.VALKURM_EMPEROR - 4)
+
+            xi.test.world:setSlotChance(nm, 100)
+
+            if nm:isSpawned() then
+                nm:despawn()
+                SpawnMob(ph:getID())
+            end
+        end)
+
+        it('rolls the NM in place of its placeholder', function()
+            killAndRespawn(ph)
+
+            nm.assert:isSpawned()
+            ph.assert.no:isSpawned()
+        end)
+
+        it('brings the same NM back after it deaggros', function()
+            killAndRespawn(ph)
+            nm.assert:isSpawned()
+
+            -- notorious mobs walk home instead of despawning, and a Hill Lizard across the zone marks walkable ground far outside the NM's region
+            nm:setMobMod(xi.mobMod.NO_DESPAWN, 0)
+            local far = player.entities:get(17199263):getPos()
+            nm:setPos(far.x, far.y, far.z)
+            nm:clearPath()
+
+            for _ = 1, 10 do
+                xi.test.world:skipTime(5)
+                xi.test.world:tickEntity(nm)
+            end
+
+            nm.assert.no:isSpawned()
+
+            xi.test.world:skipTime(65)
+            xi.test.world:tick(xi.tick.SPAWN)
+            nm.assert:isSpawned()
+            ph.assert.no:isSpawned()
+        end)
+
+        it('keeps the NM out of the roll until its cooldown ends', function()
+            local ID    = zones[xi.zone.VALKURM_DUNES]
+            local bat   = player.entities:get(ID.mob.GOLDEN_BAT)
+            local batPh = player.entities:get(ID.mob.GOLDEN_BAT - 2)
+            xi.test.world:setSlotChance(bat, 100)
+
+            killAndRespawn(batPh)
+            bat.assert:isSpawned()
+
+            -- the slot rolls again on the NM's own respawn timer
+            player:claimAndKillMob(bat)
+            xi.test.world:tick(xi.tick.SPAWN)
+            batPh.assert.no:isSpawned()
+
+            xi.test.world:skipTime(305)
+            xi.test.world:tick(xi.tick.SPAWN)
+            batPh.assert:isSpawned()
+
+            killAndRespawn(batPh)
+            batPh.assert:isSpawned()
+            bat.assert.no:isSpawned()
+
+            xi.test.world:skipTime(3600)
+            killAndRespawn(batPh)
+            bat.assert:isSpawned()
+        end)
+
+        it('starts the cooldown on a kill only', function()
+            local ID    = zones[xi.zone.VALKURM_DUNES]
+            local bat   = player.entities:get(ID.mob.GOLDEN_BAT)
+            local batPh = player.entities:get(ID.mob.GOLDEN_BAT - 2)
+            xi.test.world:setSlotChance(bat, 100)
+
+            if not bat:isSpawned() then
+                killAndRespawn(batPh)
+            end
+
+            bat.assert:isSpawned()
+
+            -- a despawn the NM survives, like the end of a spawn window
+            DespawnMob(bat:getID())
+            for _ = 1, 3 do
+                xi.test.world:skipTime(5)
+                xi.test.world:tickEntity(bat)
+            end
+
+            bat.assert.no:isSpawned()
+
+            -- nothing was killed, so the placeholder comes back first
+            xi.test.world:skipTime(305)
+            xi.test.world:tick(xi.tick.SPAWN)
+            batPh.assert:isSpawned()
+
+            killAndRespawn(batPh)
+            bat.assert:isSpawned()
+        end)
+    end)
+
+    -- Nussknacker shares a slot with a Sand Lizard and its script only lets it spawn in a sandstorm
+    describe('weather lottery slot', function()
+        ---@type CTestEntity
+        local nm
+        ---@type CTestEntity
+        local ph
+
+        local function killAndRespawn(mob)
+            player:claimAndKillMob(mob)
+            xi.test.world:skipTime(305)
+            xi.test.world:tick(xi.tick.SPAWN)
+        end
+
+        before_each(function()
+            player:gotoZone(xi.zone.QUICKSAND_CAVES)
+            local ID = zones[xi.zone.QUICKSAND_CAVES]
+            nm = player.entities:get(ID.mob.NUSSKNACKER)
+            ph = player.entities:get(ID.mob.NUSSKNACKER - 6)
+
+            xi.test.world:setSlotChance(nm, 100)
+
+            -- every case starts in clear weather with the placeholder up and the NM off cooldown
+            xi.test.world:skipTime(3600)
+            xi.test.world:tick(xi.tick.SPAWN)
+            if nm:isSpawned() then
+                DespawnMob(nm:getID())
+                for _ = 1, 3 do
+                    xi.test.world:skipTime(5)
+                    xi.test.world:tickEntity(nm)
+                end
+            end
+
+            if not ph:isSpawned() then
+                SpawnMob(ph:getID())
+            end
+        end)
+
+        it('brings the placeholder back in clear weather', function()
+            killAndRespawn(ph)
+
+            ph.assert:isSpawned()
+            nm.assert.no:isSpawned()
+        end)
+
+        it('rolls the NM in a sandstorm', function()
+            player:setWeather(xi.weather.SAND_STORM)
+            killAndRespawn(ph)
+
+            nm.assert:isSpawned()
+            ph.assert.no:isSpawned()
+        end)
+
+        it('does not roll the NM in a dust storm', function()
+            player:setWeather(xi.weather.DUST_STORM)
+            killAndRespawn(ph)
+
+            ph.assert:isSpawned()
+            nm.assert.no:isSpawned()
+        end)
+
+        it('leaves the NM up when the sandstorm ends', function()
+            player:setWeather(xi.weather.SAND_STORM)
+            killAndRespawn(ph)
+            nm.assert:isSpawned()
+
+            player:setWeather(xi.weather.NONE)
+            xi.test.world:skipTime(5)
+            xi.test.world:tickEntity(nm)
+            nm.assert:isSpawned()
+        end)
+    end)
+
+    -- Citipati shares a slot with its placeholder Corse, and both only spawn from 20:00 to 04:00
+    describe('night lottery slot', function()
+        ---@type CTestEntity
+        local nm
+        ---@type CTestEntity
+        local ph
+
+        local function killAndRespawn(mob)
+            player:claimAndKillMob(mob)
+            xi.test.world:skipTime(305)
+            xi.test.world:tick(xi.tick.SPAWN)
+        end
+
+        -- a despawn the mob survives
+        local function leaveAlive(mob)
+            DespawnMob(mob:getID())
+            for _ = 1, 3 do
+                xi.test.world:skipTime(5)
+                xi.test.world:tickEntity(mob)
+            end
+        end
+
+        -- hour by hour until the spawn window closes and the engine sends the mob home
+        local function waitForDawn(mob)
+            for _ = 1, 24 do
+                xi.test.world:tick(xi.tick.VANA_HOUR)
+                xi.test.world:skipTime(1)
+                xi.test.world:tickEntity(mob)
+                if not mob:isSpawned() then
+                    return
+                end
+            end
+        end
+
+        local function nextDusk()
+            xi.test.world:setVanaTime(22, 0)
+            xi.test.world:skipTime(305)
+            xi.test.world:tick(xi.tick.SPAWN)
+        end
+
+        before_each(function()
+            player:gotoZone(xi.zone.ATTOHWA_CHASM)
+            local ID = zones[xi.zone.ATTOHWA_CHASM]
+            nm = player.entities:get(ID.mob.CITIPATI)
+            ph = player.entities:get(ID.mob.CITIPATI - 1)
+
+            xi.test.world:setVanaTime(22, 0)
+            xi.test.world:setSlotChance(nm, 100)
+
+            -- every case starts at night with the placeholder up, the NM off cooldown and no roll left over
+            xi.test.world:skipTime(10800)
+            xi.test.world:tick(xi.tick.SPAWN)
+            if nm:isSpawned() then
+                leaveAlive(nm)
+            end
+
+            if not ph:isSpawned() then
+                SpawnMob(ph:getID())
+            end
+        end)
+
+        it('rolls the NM in place of its placeholder at night', function()
+            killAndRespawn(ph)
+
+            nm.assert:isSpawned()
+            ph.assert.no:isSpawned()
+        end)
+
+        it('leaves the slot empty during the day', function()
+            xi.test.world:setVanaTime(12, 0)
+            killAndRespawn(ph)
+
+            nm.assert.no:isSpawned()
+            ph.assert.no:isSpawned()
+        end)
+
+        it('brings the placeholder back at dusk, not the NM', function()
+            waitForDawn(ph)
+            ph.assert.no:isSpawned()
+
+            nextDusk()
+            ph.assert:isSpawned()
+            nm.assert.no:isSpawned()
+        end)
+
+        it('keeps the NM off cooldown when it leaves at dawn', function()
+            killAndRespawn(ph)
+            nm.assert:isSpawned()
+
+            waitForDawn(nm)
+            nm.assert.no:isSpawned()
+
+            -- the placeholder opens the next night, and its first kill can roll the NM again
+            nextDusk()
+            ph.assert:isSpawned()
+
+            killAndRespawn(ph)
+            nm.assert:isSpawned()
+        end)
+
+        it('keeps a killed NM out of the roll until its cooldown ends', function()
+            killAndRespawn(ph)
+            nm.assert:isSpawned()
+
+            killAndRespawn(nm)
+            ph.assert:isSpawned()
+
+            killAndRespawn(ph)
+            ph.assert:isSpawned()
+            nm.assert.no:isSpawned()
+
+            xi.test.world:skipTime(10800)
+            killAndRespawn(ph)
+            nm.assert:isSpawned()
         end)
     end)
 end)

@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -23,12 +23,13 @@
 
 #include <common/cbasetypes.h>
 
+#include <common/logging.h>
 #include <common/types/hash_map.h>
+#include <map/lua/sol_bindings.h>
 
 #include <functional>
+#include <string>
 #include <vector>
-
-#include <map/lua/luautils.h>
 
 class CAIEventHandler
 {

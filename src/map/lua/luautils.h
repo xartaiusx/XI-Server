@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -33,10 +33,21 @@
 //
 
 #include <common/cbasetypes.h>
+#include <common/types/flag.h>
 #include <common/types/maybe.h>
 
+#include "data/enums/content.h"
+
+#include <array>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <type_traits>
+#include <vector>
+
 #include "common/lua.h"
-extern sol::state lua;
 
 // Sol compilation definitions are in the base CMakeLists file
 // SOL_ALL_SAFETIES_ON = 1
@@ -46,24 +57,20 @@ extern sol::state lua;
 
 #include "common/xi.h"
 
-#include "attack.h"
-#include "items/item_equipment.h"
 #include "spell.h"
 
-#include "lua_ability.h"
-#include "lua_action.h"
-#include "lua_attack.h"
-#include "lua_base_entity.h"
-#include "lua_battlefield.h"
-#include "lua_instance.h"
-#include "lua_item.h"
-#include "lua_mobskill.h"
-#include "lua_petskill.h"
-#include "lua_spell.h"
-#include "lua_statuseffect.h"
-#include "lua_trade_container.h"
-#include "lua_trigger_area.h"
-#include "lua_zone.h"
+#include "data/datasets/zones/mobs/dataset.h"
+#include "data/datasets/zones/npcs/dataset.h"
+
+class IPP;
+enum class ItemFlag : uint32;
+
+namespace xi
+{
+
+enum class Weather : uint16_t;
+
+} // namespace xi
 
 enum class SendToDBoxReturnCode : uint8
 {
@@ -116,6 +123,13 @@ struct action_t;
 struct action_target_t;
 struct action_result_t;
 
+namespace monstrosity
+{
+
+struct MonstrosityData_t;
+
+} // namespace monstrosity
+
 enum ConquestUpdate : uint8;
 enum class Emote : uint8;
 
@@ -136,6 +150,18 @@ namespace detail
 // auto findCachedObject(const std::string& objName) -> sol::reference;
 // void cacheObject(const std::string& objName, sol::reference obj);
 auto findGlobalLuaFunction(const std::string& funcName) -> sol::function;
+
+// Whether a data lookup should create the entity's table, or report its absence.
+using CreateEntityData = xi::Flag<struct CreateEntityDataTag>;
+
+// The entity's data table itself. Kept in detail deliberately: handing a sol::table to general
+// callers leaks Lua impl details.
+auto getEntityDataTable(CBaseEntity* PEntity, CreateEntityData create) -> sol::table;
+
+// Walk `table` along the given keys and convert the value at the end to T. Also in detail: the
+// intermediate levels are sol::tables and must not escape.
+template <typename T, typename Key, typename... Rest>
+auto readEntityDataPath(const sol::table& table, const Key& key, const Rest&... rest) -> Maybe<T>;
 
 } // namespace detail
 
@@ -186,16 +212,79 @@ auto GetLuaObjectFromFilename(const std::string& filename) -> sol::table;
 auto getEntityCachedFunction(CBaseEntity* PEntity, const std::string& funcName) -> sol::function;
 auto getCachedFileFunction(const std::string& filename, const std::string& funcName) -> sol::function;
 
+//
+// Freeform per-entity Lua data
+//
+
+template <typename T, typename... Keys>
+auto getEntityData(CBaseEntity* PEntity, const Keys&... keys) -> Maybe<T>;
+void resetEntityData(CBaseEntity* PEntity);
+
 void OnEntityLoad(CBaseEntity* PEntity);
 
 void LoadExpDifficultyCurves(const sol::table& expToDifficultyTable, const uint8 incrediblyEasyPreyLevel, const uint16 incrediblyEasyPreyMinExp);
 
+// Base experience values, indexed by [levelDifference + 44][(charLevel - 1) / 5] for level differences -44 to +15.
+using ExperiencePointsTable = std::array<std::array<uint16, 20>, 60>;
+
+struct CalcExpInput
+{
+    uint32 baseExp            = 0;
+    uint8  mobDifficulty      = 0;
+    uint8  memberLevel        = 0;
+    uint8  highestMemberLevel = 0;
+    uint8  partySize          = 0;
+    uint32 memberTNL          = 0;
+    uint32 highestMemberTNL   = 0;
+    uint8  regionId           = 0;
+    uint16 chainNumber        = 0;
+    bool   chainActive        = false;
+};
+
+struct CalcExpResult
+{
+    uint32 exp         = 0;
+    bool   wasChained  = false;
+    uint16 chainWindow = 0;
+};
+
+auto SetupExperiencePoints() -> Maybe<ExperiencePointsTable>; // Validate functions and set up the base experience points table.
+auto CalculateExperiencePoints(CCharEntity* PMember, CMobEntity* PMob, const CalcExpInput& input) -> Maybe<CalcExpResult>;
+
 void PopulateIDLookupsByFilename(Maybe<std::string> maybeFilename = std::nullopt);
-void PopulateIDLookupsByZone(Maybe<uint16> maybeZoneId = std::nullopt);
+
+// Records the zone loader already parsed, so the id lookups do not read the files a second time.
+// An optional record set is either there or it is not; the lookups only want the pointer.
+template <class T>
+auto pointerTo(const std::optional<T>& value) -> const T*
+{
+    if (!value)
+    {
+        return nullptr;
+    }
+
+    return &*value;
+}
+
+struct ZoneEntityRecords
+{
+    ZoneEntityRecords() = default;
+
+    ZoneEntityRecords(const std::optional<xi::data::Npcs>& npcs, const std::optional<xi::data::Mobs>& mobs)
+    : Npcs(pointerTo(npcs))
+    , Mobs(pointerTo(mobs))
+    {
+    }
+
+    const xi::data::Npcs* Npcs{};
+    const xi::data::Mobs* Mobs{};
+};
+
+void PopulateIDLookupsByZone(Maybe<xi::ZoneId> maybeZoneId = std::nullopt, const ZoneEntityRecords& preloaded = {});
 
 void SendEntityVisualPacket(uint32 npcId, const char* command);
 void InitInteractionGlobal();
-auto GetZone(uint16 zoneId) -> CZone*;
+auto GetZone(xi::ZoneId zoneId) -> CZone*;
 auto GetItemByID(uint32 itemId) -> const CItem*;
 auto GetItemFlagsByID(uint32 itemId) -> ItemFlag;
 auto GetItemLevelRequirementsByID(uint32 itemId) -> uint8;
@@ -210,7 +299,7 @@ uint8 GetNationRank(uint8 nation);
 uint8 GetConquestBalance();
 bool  IsConquestAlliance();
 void  SetRegionalConquestOverseers(uint8 regionID); // Update NPC Conquest Guard
-void  SendLuaFuncStringToZone(uint16 requestingZoneId, uint16 executorZoneId, const std::string& str);
+void  SendLuaFuncStringToZone(xi::ZoneId requestingZoneId, xi::ZoneId executorZoneId, const std::string& str);
 
 void UpdateSanrakusMobs(); // Update sanraku's (ZNM) subject of interest and recommended fauna
 void ZNMPopPriceDecay();   // Price of ZNM pop items decay over time
@@ -234,6 +323,10 @@ auto LoadLinkshellConciergeSlots(uint16 zoneId) -> sol::table;
 void SetLinkshellConciergeSlot(uint16 zoneId, uint8 slotIndex, const sol::table& data);
 void DeleteLinkshellConciergeSlot(uint16 zoneId, uint8 slotIndex);
 void DecrementLinkshellConciergeMembersGoal(uint16 zoneId, uint32 linkshellid);
+auto LoadChocoboRaceResult(uint32 raceNo) -> sol::object;
+void SaveChocoboRaceResult(const sol::table& data);
+auto GetChocoboRaceQuills(uint32 raceNo) -> sol::table;
+void AddChocoboRaceQuills(uint32 raceNo, uint8 pair, uint32 quills);
 
 uint32 JstDayOfTheYear();
 uint32 JstDayOfTheMonth();
@@ -261,8 +354,8 @@ uint8  VanadielMoonDirection();
 uint8  VanadielRSERace();
 uint8  VanadielRSELocation();
 void   SetTimeOffset(int32 offset); // Manipulate earth time forward or backward by offset seconds. Affects Vana'Diel time.
-void   StartElevator(uint32 ElevatorID);
-int16  GetElevatorState(uint8 id); // Returns -1 if elevator is not found. Otherwise, returns the uint8 state.
+void   StartElevator(xi::Elevator elevatorID);
+auto   GetElevatorState(xi::Elevator elevatorID) -> int16; // Reaches Lua as xi.elevatorState, or -1 when there is no such elevator.
 
 int32 GetServerVariable(const std::string& name);
 void  SetServerVariable(const std::string& name, int32 value, const sol::object& expiry);
@@ -273,25 +366,27 @@ void  SetCharVar(uint32 charId, const std::string& varName, int32 value, const s
 void  ClearCharVarFromAll(const std::string& varName);                                               // Deletes a specific player variable from all players
 void  Terminate();                                                                                   // Logs off all characters and terminates the server
 
-int32 GetTextIDVariable(uint16 ZoneID, const char* variable); // Load the value of the TextID variable of the specified zone
-bool  IsContentEnabled(const std::string& content);
+auto GetTextIDVariable(xi::ZoneId ZoneID, const char* variable) -> int32; // Load the value of the TextID variable of the specified zone
+auto IsContentEnabled(const std::string& content) -> bool;
+auto IsContentEnabled(xi::Content content) -> bool;
 
 void OnGameDay(CZone* PZone);
 void OnGameHour(CZone* PZone);
-void OnZoneWeatherChange(uint16 zoneId, xi::Weather weather);
-void OnTOTDChange(uint16 ZoneID, uint8 TOTD);
+void OnZoneWeatherChange(xi::ZoneId zoneId, xi::Weather weather);
+void OnTOTDChange(xi::ZoneId ZoneID, uint8 TOTD);
 
 void OnGameIn(CCharEntity* PChar, bool zoning);
 void OnZoneIn(CCharEntity* PChar);
 void OnZoneOut(CCharEntity* PChar);
 void AfterZoneIn(CBaseEntity* PChar);
-void OnZoneInitialize(uint16 ZoneID);
+void OnZoneInitialize(xi::ZoneId ZoneID);
 void OnZoneTick(CZone* PZone);
 
 void OnTriggerAreaEnter(CCharEntity* PChar, const std::unique_ptr<ITriggerArea>& PTriggerArea); // when player enters a trigger area in a zone
 void OnTriggerAreaLeave(CCharEntity* PChar, const std::unique_ptr<ITriggerArea>& PTriggerArea); // when player leaves a trigger area in a zone
 
-void OnTransportEvent(CCharEntity* PChar, uint16 prevZoneId, uint16 transportId);
+void OnTransportEvent(CCharEntity* PChar, xi::ZoneId prevZoneId, std::string_view transport);
+void OnTransportVoyageEnd(CZone* PZone);
 void OnTimeTrigger(CNpcEntity* PNpc, uint8 triggerID);
 void OnConquestUpdate(CZone* PZone, ConquestUpdate type, uint8 influence, uint8 owner, uint8 ranking, bool isConquestAlliance); // conquest update (hourly or tally)
 
@@ -325,7 +420,7 @@ void  OnItemUnequip(CBaseEntity* PUser, CItem* PItem);
 void  CheckForGearSet(CBaseEntity* PTarget);
 
 int32 OnMagicCastingCheck(CBaseEntity* PChar, CBaseEntity* PTarget, CSpell* PSpell);
-int32 OnSpellCast(CBattleEntity* PCaster, CBattleEntity* PTarget, CSpell* PSpell);
+int32 OnSpellCast(CBattleEntity* PCaster, CBattleEntity* PTarget, CSpell* PSpell, action_t* action);
 void  OnSpellPrecast(CBattleEntity* PCaster, CSpell* PSpell);
 void  OnSpellCastStart(CBattleEntity* PCaster, CBattleEntity* PTarget, CSpell* PSpell);
 void  OnSpellInterrupted(CBattleEntity* PCaster, CSpell* PSpell);
@@ -357,6 +452,7 @@ void OnPetLevelRestriction(CBaseEntity* PMob);
 void OnPath(CBaseEntity* PEntity);
 void OnPathPoint(CBaseEntity* PEntity);
 void OnPathComplete(CBaseEntity* PEntity);
+void OnShopBuy(CCharEntity* PChar, CBaseEntity* PNpc, uint16 itemId, uint32 quantity, uint32 gil);
 
 int32 OnBattlefieldHandlerInitialize(CZone* PZone);
 void  OnBattlefieldInitialize(CBattlefield* PBattlefield); // what to do when initialising battlefield, battlefield:setLocalVar("lootId") here for any which have loot
@@ -379,9 +475,8 @@ void   OnMobSkillFinalize(CBaseEntity* PMob, CMobSkill* PMobSkill); // triggers 
 int32  OnAutomatonAbilityCheck(CBaseEntity* PChar, CAutomatonEntity* PAutomaton, CMobSkill* PMobSkill);
 int32  OnAutomatonAbility(CBaseEntity* PTarget, CBaseEntity* PMob, CMobSkill* PMobSkill, CBaseEntity* PMobMaster, action_t* action);
 
-auto GetMonstrosityLuaTable(CCharEntity* PChar) -> sol::table;
-void SetMonstrosityLuaTable(CCharEntity* PChar, sol::table data);
-void OnMonstrosityUpdate(CCharEntity* PChar);
+auto GetMonstrosityLuaTable(const monstrosity::MonstrosityData_t& data) -> sol::table;
+void SetMonstrosityLuaTable(monstrosity::MonstrosityData_t& data, sol::table table);
 void OnMonstrosityReturnToEntrance(CCharEntity* PChar);
 
 int32 OnAbilityCheck(CBaseEntity* PChar, CBaseEntity* PTarget, CAbility* PAbility, CBaseEntity** PMsgTarget);
@@ -395,16 +490,16 @@ bool OnCanUseSpell(CBattleEntity* PChar, CSpell* Spell); // triggers when CanUse
 
 auto GetCachedInstanceScript(uint16 instanceId) -> sol::table;
 
-void  OnInstanceZoneIn(CCharEntity* PChar, CInstance* PInstance);
-void  AfterInstanceRegister(CBaseEntity* PChar);                             // triggers after a character is registered and zoned into an instance (the first time)
-int32 OnInstanceLoadFailed(CZone* PZone);                                    // triggers when an instance load is failed (ie. instance no longer exists)
-void  OnInstanceTimeUpdate(CZone* PZone, CInstance* PInstance, uint32 time); // triggers every second for an instance
-void  OnInstanceFailure(CInstance* PInstance);                               // triggers when an instance is failed
-void  OnInstanceCreatedCallback(CCharEntity* PChar, CInstance* PInstance);   // triggers when an instance is created (per character - waiting outside for entry)
-void  OnInstanceCreated(CInstance* PInstance);                               // triggers when an instance is created (instance setup)
-void  OnInstanceProgressUpdate(CInstance* PInstance);
-void  OnInstanceStageChange(CInstance* PInstance);
-void  OnInstanceComplete(CInstance* PInstance);
+void OnInstanceZoneIn(CCharEntity* PChar, CInstance* PInstance);
+void AfterInstanceRegister(CBaseEntity* PChar);                                // triggers after a character is registered and zoned into an instance (the first time)
+auto OnInstanceLoadFailed(CZone* PZone) -> xi::ZoneId;                         // triggers when an instance load is failed (ie. instance no longer exists)
+void OnInstanceTimeUpdate(CZone* PZone, CInstance* PInstance, uint32 seconds); // triggers every second for an instance, with the elapsed seconds
+void OnInstanceFailure(CInstance* PInstance);                                  // triggers when an instance is failed
+void OnInstanceCreatedCallback(CCharEntity* PChar, CInstance* PInstance);      // triggers when an instance is created (per character - waiting outside for entry)
+void OnInstanceCreated(CInstance* PInstance);                                  // triggers when an instance is created (instance setup)
+void OnInstanceProgressUpdate(CInstance* PInstance);
+void OnInstanceStageChange(CInstance* PInstance);
+void OnInstanceComplete(CInstance* PInstance);
 
 uint32 GetMobRespawnTime(uint32 mobid);
 void   DisallowRespawn(uint32 mobid, bool allowRespawn);
@@ -428,7 +523,14 @@ void OnPlayerMount(CCharEntity* PChar);
 void OnPlayerEmote(CCharEntity* PChar, Emote EmoteID);
 void OnPlayerVolunteer(CCharEntity* PChar, const std::string& text);
 
-bool OnChocoboDig(CCharEntity* PChar);
+// Lua returns whether the dig went ahead, then whether the greens were kept.
+struct ChocoboDigResult
+{
+    bool dug{};
+    bool keepGreens{};
+};
+
+[[nodiscard]] auto OnChocoboDig(CCharEntity* PChar) -> ChocoboDigResult;
 
 // Utility method: checks for and loads a lua function for events
 auto LoadEventScript(CCharEntity* PChar, const char* functionName) -> sol::function;
@@ -468,6 +570,49 @@ auto GetSynergyRecipeByTrade(CLuaTradeContainer luaTradeContainer) -> sol::table
 //
 // template impls
 //
+
+template <typename T, typename Key, typename... Rest>
+auto luautils::detail::readEntityDataPath(const sol::table& table, const Key& key, const Rest&... rest) -> Maybe<T>
+{
+    if constexpr (sizeof...(Rest) == 0)
+    {
+        // sol::optional yields an empty optional on a type mismatch rather than throwing.
+        if (const auto value = table[key].template get<sol::optional<T>>())
+        {
+            return *value;
+        }
+
+        return std::nullopt;
+    }
+    else
+    {
+        const auto next = table[key];
+        if (!next.valid() || next.get_type() != sol::type::table)
+        {
+            return std::nullopt;
+        }
+
+        return readEntityDataPath<T>(next.template get<sol::table>(), rest...);
+    }
+}
+
+template <typename T, typename... Keys>
+auto luautils::getEntityData(CBaseEntity* PEntity, const Keys&... keys) -> Maybe<T>
+{
+    static_assert(std::is_integral_v<T> || std::is_floating_point_v<T> || std::is_same_v<T, std::string>,
+                  "getEntityData<T> only returns scalars and strings. Lua types must not escape luautils.");
+    static_assert(sizeof...(Keys) > 0, "getEntityData needs at least one key");
+    static_assert((!std::is_same_v<std::decay_t<Keys>, std::string_view> && ...),
+                  "A key reaches sol's deferred lookup, which stores a string_view without owning it. See the GOTCHA at the top of this header.");
+
+    const auto table = detail::getEntityDataTable(PEntity, detail::CreateEntityData::No);
+    if (!table.valid())
+    {
+        return std::nullopt;
+    }
+
+    return detail::readEntityDataPath<T>(table, keys...);
+}
 
 template <typename T, typename... Targs>
 auto luautils::callGlobal(const std::string& funcName, Targs... args)

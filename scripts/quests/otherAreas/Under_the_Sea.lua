@@ -14,9 +14,8 @@ local quest = Quest:new(xi.questLog.OTHER_AREAS, xi.quest.id.otherAreas.UNDER_TH
 
 quest.reward =
 {
-    item     = xi.item.AMBER_EARRING,
-    title    = xi.title.LIL_CUPID,
-    fameArea = xi.fameArea.SELBINA_RABAO,
+    item  = xi.item.AMBER_EARRING,
+    title = xi.title.LIL_CUPID,
 }
 
 quest.sections =
@@ -53,7 +52,7 @@ quest.sections =
                 onTrigger = function(player, npc)
                     if quest:getVar(player, 'Prog') == 0 then
                         return quest:progressEvent(32) -- Oswald is looking for his ring
-                    elseif player:hasKeyItem(xi.ki.ETCHED_RING) then
+                    elseif player:hasKeyItem(xi.keyItem.ETCHED_RING) then
                         return quest:progressEvent(37) -- You found it!
                     end
                 end,
@@ -106,7 +105,7 @@ quest.sections =
 
                 [35] = function(player, csid, option, npc)
                     player:confirmTrade()
-                    npcUtil.giveKeyItem(player, xi.ki.ETCHED_RING)
+                    npcUtil.giveKeyItem(player, xi.keyItem.ETCHED_RING)
                     quest:setVar(player, 'Prog', 4)
                 end,
 
@@ -116,7 +115,9 @@ quest.sections =
 
                 [37] = function(player, csid, option, npc)
                     if quest:complete(player) then
-                        player:delKeyItem(xi.ki.ETCHED_RING)
+                        player:addFame(xi.fameArea.SANDORIA, 10)
+                        player:addFame(xi.fameArea.BASTOK, 10)
+                        player:delKeyItem(xi.keyItem.ETCHED_RING)
                     end
                 end,
             },

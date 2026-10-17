@@ -90,7 +90,7 @@ entity.onTrigger = function(player, npc)
 
         -- TRUST
     elseif
-        player:hasKeyItem(xi.ki.WINDURST_TRUST_PERMIT) and
+        player:hasKeyItem(xi.keyItem.WINDURST_TRUST_PERMIT) and
         not player:hasSpell(xi.magic.spell.AJIDO_MARUJIDO)
     then
         local rank6 = player:getRank(player:getNation()) >= 6 and 1 or 0
@@ -104,7 +104,7 @@ entity.onEventFinish = function(player, csid, option, npc)
     if csid == 392 and option == 1 then
         player:setCharVar('theKindCardianVar', 1)
     elseif csid == 397 then
-        player:delKeyItem(xi.ki.TWO_OF_SWORDS)
+        player:delKeyItem(xi.keyItem.TWO_OF_SWORDS)
         player:setCharVar('theKindCardianVar', 2)
         player:addFame(xi.fameArea.WINDURST, 30)
         player:confirmTrade()
@@ -114,7 +114,10 @@ entity.onEventFinish = function(player, csid, option, npc)
         player:addQuest(xi.questLog.WINDURST, xi.quest.id.windurst.CAN_CARDIANS_CRY)
     elseif
         csid == 325 and
-        npcUtil.completeQuest(player, xi.questLog.WINDURST, xi.quest.id.windurst.CAN_CARDIANS_CRY, { gil = 5000 })
+        npcUtil.completeQuest(player, xi.questLog.WINDURST, xi.quest.id.windurst.CAN_CARDIANS_CRY, {
+            gil   = 5000,
+            title = xi.title.DELIVERER_OF_TEARFUL_NEWS
+        })
     then
         player:confirmTrade()
 

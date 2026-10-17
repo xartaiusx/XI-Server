@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -20,13 +20,8 @@
 */
 
 #include "state.h"
+#include "common/xi.h"
 #include "entities/base_entity.h"
-
-CStateInitException::CStateInitException(std::unique_ptr<CBasicPacket> _msg)
-: std::exception()
-, packet(std::move(_msg))
-{
-}
 
 void CState::TryInterrupt(CBattleEntity* PAttacker)
 {
@@ -34,40 +29,17 @@ void CState::TryInterrupt(CBattleEntity* PAttacker)
 
 CState::CState(CBaseEntity* PEntity, const EntityId& target)
 : m_PEntity(PEntity)
-, m_targid(target.targid)
 , target_(target)
 {
 }
 
-CState::CState(CBaseEntity* PEntity, const uint16 _targid)
-: m_PEntity(PEntity)
-, m_targid(_targid)
+void CState::UpdateTarget(const EntityId& target)
 {
 }
 
-void CState::UpdateTarget(const uint16 targid)
+auto CState::target() const -> EntityId
 {
-    m_PTarget = m_PEntity->GetEntity(targid);
-}
-
-void CState::UpdateTarget(CBaseEntity* target)
-{
-    m_PTarget = target;
-}
-
-auto CState::GetTarget() const -> CBaseEntity*
-{
-    return m_PTarget;
-}
-
-auto CState::GetTargetID() const -> uint16
-{
-    if (target_.isSet())
-    {
-        return target_.targid;
-    }
-
-    return m_targid;
+    return target_;
 }
 
 void CState::Complete()
@@ -89,10 +61,20 @@ void CState::SetTarget(const EntityId& target)
 {
     if (!target_.isSet() || target_ != target)
     {
-        target_  = target;
-        m_targid = target.targid;
-        UpdateTarget(target.targid);
+        target_ = target;
+        UpdateTarget(target);
     }
+}
+
+auto CState::refuseWithErrorMsg() const -> Error<std::unique_ptr<CBasicPacket>>
+{
+    if (m_errorMsg)
+    {
+        return Error{ m_errorMsg->copy() };
+    }
+
+    // The check failed but left no reason behind.
+    return RefuseSilently();
 }
 
 auto CState::HasErrorMsg() const -> bool
@@ -114,8 +96,20 @@ auto CState::GetErrorMsg() const -> std::unique_ptr<CBasicPacket>
 
 auto CState::DoUpdate(const timer::time_point tick) -> bool
 {
-    UpdateTarget(m_targid);
+    UpdateTarget(target_);
+
+    m_executing       = true;
+    const auto onExit = xi::finally([this]()
+                                    {
+                                        m_executing = false;
+                                    });
+
     return Update(tick);
+}
+
+auto CState::isExecuting() const -> bool
+{
+    return m_executing;
 }
 
 auto CState::IsCompleted() const -> bool

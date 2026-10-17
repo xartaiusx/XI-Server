@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2023 LandSandBoat Dev Teams
@@ -22,6 +22,8 @@
 #pragma once
 
 #include <map>
+
+#include "data/enums/zone.h"
 
 #include <common/mmo.h>
 #include <common/utils.h>
@@ -84,11 +86,20 @@ enum FEATURE_DISPLAY : uint16
 
 bool isStringMalformed(const std::string& str, std::size_t max_length);
 
+void loadZoneLookups();
+
 auto validateCharacterName(const std::string& name) -> Maybe<std::string>;
 
-auto isZoneAtPlayerCap(uint16 zoneId, bool isGM) -> bool;
+// Lobby error code when the account may not create a character with this name right now
+auto characterCreationError(uint32 accountID, const std::string& name) -> Maybe<uint16>;
+
+auto isZoneAtPlayerCap(xi::ZoneId zoneId, bool isGM) -> bool;
 
 session_t& get_authenticated_session(const std::string& ipAddr, const std::string& sessionHash);
+
+auto isLoginLockedOut(const std::string& ipAddr) -> bool;
+void recordLoginFailure(const std::string& ipAddr);
+void clearLoginFailures(const std::string& ipAddr);
 
 // https://github.com/atom0s/XiPackets/blob/main/lobby/S2C_0x0004_ResponseError.md
 void generateErrorMessage(uint8* packet, uint16 errorCode);

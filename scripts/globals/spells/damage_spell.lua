@@ -704,23 +704,6 @@ xi.spells.damage.calculateMagicCriticalMultiplier = function(caster)
     return 1
 end
 
--- Divine seal applies its own multiplier to healing spells when used against undead.
-xi.spells.damage.calculateDivineSealMultiplier = function(caster, target, skillType)
-    if not caster:hasStatusEffect(xi.effect.DIVINE_SEAL) then
-        return 1
-    end
-
-    if not target:isUndead() then
-        return 1
-    end
-
-    if skillType ~= xi.skill.HEALING_MAGIC then
-        return 1
-    end
-
-    return 2
-end
-
 -- Divine Emblem applies its own damage multiplier to divine spells.
 xi.spells.damage.calculateDivineEmblemMultiplier = function(caster, skillType)
     if not caster:hasStatusEffect(xi.effect.DIVINE_EMBLEM) then
@@ -1109,15 +1092,24 @@ xi.spells.damage.useDamageSpell = function(caster, target, spell)
     local skillType       = spell:getSkillType()
     local spellGroup      = spell:getSpellGroup()
     local statUsed        = xi.spells.damage.pTable[spellId][column.STAT_USED]
-    local bonusMacc       = xi.spells.damage.pTable[spellId][column.BONUS_MACC] + cardinalChantBonus(caster, target, xi.direction.SOUTH, spellId, skillType)
     local forceDayWeather = xi.spells.damage.pTable[spellId][column.FORCE_DAY_WEATHER]
+
+    local maccParams =
+    {
+        magicBurstTier = canMBurst and magicBurstTier or 0,
+        magicalElement = spellElement,
+        actorStat      = statUsed,
+        skillType      = skillType,
+        spellGroup     = spellGroup,
+        bonusMacc      = xi.spells.damage.pTable[spellId][column.BONUS_MACC] + cardinalChantBonus(caster, target, xi.direction.SOUTH, spellId, skillType),
+    }
 
     -- Calculate base damage and the rest of damage multipliers.
     local spellDamage                 = xi.spells.damage.calculateBaseDamage(caster, target, spellId, spellGroup, skillType, statUsed)
     local multipleTargetReduction     = xi.spells.damage.calculateMTDR(caster, spell)
     local elementalStaffBonus         = xi.spells.damage.calculateElementalStaffBonus(caster, spellElement)
     local elementalAffinityBonus      = xi.spells.damage.calculateElementalAffinityBonus(caster, spellElement)
-    local resistTier                  = not absorb and xi.combat.magicHitRate.calculateResistRate(caster, target, spellGroup, skillType, 0, spellElement, statUsed, 0, bonusMacc) or 1
+    local resistTier                  = not absorb and xi.combat.magicHitRate.calculateResistRate(caster, target, maccParams) or 1
     local additionalResistTier        = not absorb and xi.spells.damage.calculateAdditionalResistTier(caster, target, spellElement) or 1
     local magicBurst                  = canMBurst and xi.spells.damage.calculateIfMagicBurst(caster, target, spellElement, magicBurstTier) or 1
     local magicBurstBonus             = canMBurst and xi.spells.damage.calculateIfMagicBurstBonus(caster, target, spellId, skillType, spellElement) or 1
@@ -1127,7 +1119,6 @@ xi.spells.damage.useDamageSpell = function(caster, target, spell)
     local sdt                         = not absorb and xi.combat.damage.magicalElementSDT(target, spellElement) or 1
     local ecosystemMultiplier         = xi.combat.damage.ecosystemMultiplier(caster, target, 0)
     local criticalDamageMultiplier    = xi.spells.damage.calculateMagicCriticalMultiplier(caster)
-    local divineSealMultiplier        = xi.spells.damage.calculateDivineSealMultiplier(caster, target, skillType)
     local divineEmblemMultiplier      = xi.spells.damage.calculateDivineEmblemMultiplier(caster, skillType)
     local eleSealMultiplier           = xi.spells.damage.calculateEnhancedElementalSealMultiplier(caster, skillType, spellElement)
     local ebullienceMultiplier        = xi.spells.damage.calculateEbullienceMultiplier(caster, spellGroup)
@@ -1156,7 +1147,6 @@ xi.spells.damage.useDamageSpell = function(caster, target, spell)
     finalDamage = math.floor(finalDamage * sdt)
     finalDamage = math.floor(finalDamage * ecosystemMultiplier)
     finalDamage = math.floor(finalDamage * criticalDamageMultiplier)
-    finalDamage = math.floor(finalDamage * divineSealMultiplier)
     finalDamage = math.floor(finalDamage * divineEmblemMultiplier)
     finalDamage = math.floor(finalDamage * eleSealMultiplier)
     finalDamage = math.floor(finalDamage * ebullienceMultiplier)

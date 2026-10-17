@@ -2,21 +2,8 @@
 -- Area: Sea Serpent Grotto
 --   NM: Sea Hog
 -----------------------------------
-local ID = zones[xi.zone.SEA_SERPENT_GROTTO]
------------------------------------
 ---@type TMobEntity
 local entity = {}
-
-entity.spawnPoints =
-{
-    { x = -233.000, y =  10.000, z = -59.000 }
-}
-
-entity.phList =
-{
-    [ID.mob.SEA_HOG - 2] = ID.mob.SEA_HOG, -- Confirmed on retail
-    [ID.mob.SEA_HOG - 1] = ID.mob.SEA_HOG, -- Confirmed on retail
-}
 
 entity.onMobInitialize = function(mob)
     mob:setMobMod(xi.mobMod.GIL_MIN, 3600)

@@ -25,6 +25,7 @@
 #include "common/timer.h"
 #include "common/utils.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "enums/item_lockflg.h"
@@ -54,9 +55,11 @@
 
 #include "ai/ai_container.h"
 #include "ai/controllers/player_controller.h"
+#include "ai/helpers/action_queue.h"
 #include "ai/helpers/targetfind.h"
 #include "ai/states/ability_state.h"
 #include "ai/states/attack_state.h"
+#include "ai/states/death_state.h"
 #include "ai/states/item_state.h"
 #include "ai/states/magic_state.h"
 #include "ai/states/weaponskill_state.h"
@@ -70,20 +73,25 @@
 #include "action/interrupts.h"
 #include "blue_spell.h"
 #include "conquest_system.h"
+#include "data/enums/claim_type.h"
 #include "data/enums/mob_mod.h"
 #include "enums/recast.h"
 #include "ipc_client.h"
 #include "item_container.h"
 #include "items/item_equipment.h"
 #include "items/item_furnishing.h"
+#include "items/item_linkshell.h"
 #include "items/item_usable.h"
 #include "items/item_weapon.h"
+#include "items/transactions/npc_trade.h"
+#include "items/transactions/player_trade.h"
 #include "items/transactions/synth.h"
 #include "job_points.h"
 #include "latent_effect_container.h"
 #include "linkshell.h"
 #include "mobskill.h"
 #include "modifier.h"
+#include "monstrosity.h"
 #include "notoriety_container.h"
 #include "packets/s2c/0x020_item_attr.h"
 #include "packets/s2c/0x028_battle2.h"
@@ -132,24 +140,24 @@ CCharEntity::CCharEntity()
     Container      = new CTradeContainer();
     UContainer     = new CUContainer();
 
-    m_Inventory  = std::make_unique<CItemContainer>(LOC_INVENTORY);
-    m_Mogsafe    = std::make_unique<CItemContainer>(LOC_MOGSAFE);
-    m_Storage    = std::make_unique<CItemContainer>(LOC_STORAGE);
-    m_Tempitems  = std::make_unique<CItemContainer>(LOC_TEMPITEMS);
-    m_Moglocker  = std::make_unique<CItemContainer>(LOC_MOGLOCKER);
-    m_Mogsatchel = std::make_unique<CItemContainer>(LOC_MOGSATCHEL);
-    m_Mogsack    = std::make_unique<CItemContainer>(LOC_MOGSACK);
-    m_Mogcase    = std::make_unique<CItemContainer>(LOC_MOGCASE);
-    m_Wardrobe   = std::make_unique<CItemContainer>(LOC_WARDROBE);
-    m_Mogsafe2   = std::make_unique<CItemContainer>(LOC_MOGSAFE2);
-    m_Wardrobe2  = std::make_unique<CItemContainer>(LOC_WARDROBE2);
-    m_Wardrobe3  = std::make_unique<CItemContainer>(LOC_WARDROBE3);
-    m_Wardrobe4  = std::make_unique<CItemContainer>(LOC_WARDROBE4);
-    m_Wardrobe5  = std::make_unique<CItemContainer>(LOC_WARDROBE5);
-    m_Wardrobe6  = std::make_unique<CItemContainer>(LOC_WARDROBE6);
-    m_Wardrobe7  = std::make_unique<CItemContainer>(LOC_WARDROBE7);
-    m_Wardrobe8  = std::make_unique<CItemContainer>(LOC_WARDROBE8);
-    m_RecycleBin = std::make_unique<CItemContainer>(LOC_RECYCLEBIN);
+    m_Inventory  = std::make_unique<CItemContainer>(LOC_INVENTORY, this);
+    m_Mogsafe    = std::make_unique<CItemContainer>(LOC_MOGSAFE, this);
+    m_Storage    = std::make_unique<CItemContainer>(LOC_STORAGE, this);
+    m_Tempitems  = std::make_unique<CItemContainer>(LOC_TEMPITEMS, this);
+    m_Moglocker  = std::make_unique<CItemContainer>(LOC_MOGLOCKER, this);
+    m_Mogsatchel = std::make_unique<CItemContainer>(LOC_MOGSATCHEL, this);
+    m_Mogsack    = std::make_unique<CItemContainer>(LOC_MOGSACK, this);
+    m_Mogcase    = std::make_unique<CItemContainer>(LOC_MOGCASE, this);
+    m_Wardrobe   = std::make_unique<CItemContainer>(LOC_WARDROBE, this);
+    m_Mogsafe2   = std::make_unique<CItemContainer>(LOC_MOGSAFE2, this);
+    m_Wardrobe2  = std::make_unique<CItemContainer>(LOC_WARDROBE2, this);
+    m_Wardrobe3  = std::make_unique<CItemContainer>(LOC_WARDROBE3, this);
+    m_Wardrobe4  = std::make_unique<CItemContainer>(LOC_WARDROBE4, this);
+    m_Wardrobe5  = std::make_unique<CItemContainer>(LOC_WARDROBE5, this);
+    m_Wardrobe6  = std::make_unique<CItemContainer>(LOC_WARDROBE6, this);
+    m_Wardrobe7  = std::make_unique<CItemContainer>(LOC_WARDROBE7, this);
+    m_Wardrobe8  = std::make_unique<CItemContainer>(LOC_WARDROBE8, this);
+    m_RecycleBin = std::make_unique<CItemContainer>(LOC_RECYCLEBIN, this);
 
     keys = {};
 
@@ -162,7 +170,7 @@ CCharEntity::CCharEntity()
     std::memset(&m_PetCommands, 0, sizeof(m_PetCommands));
     std::memset(&m_WeaponSkills, 0, sizeof(m_WeaponSkills));
     std::memset(&m_SetBlueSpells, 0, sizeof(m_SetBlueSpells));
-    std::memset(&m_FieldChocobo, 0, sizeof(m_FieldChocobo));
+    std::memset(&m_chocoboUserData, 0, sizeof(m_chocoboUserData));
     std::memset(&m_unlockedAttachments, 0, sizeof(m_unlockedAttachments));
 
     std::memset(&m_questLog, 0, sizeof(m_questLog));
@@ -213,7 +221,6 @@ CCharEntity::CCharEntity()
 
     WideScanTarget = std::nullopt;
 
-    lastTradeInvite = {};
     TradePending.clean();
     InvitePending.clean();
 
@@ -316,14 +323,11 @@ CCharEntity::~CCharEntity()
             }
             if (PParty->GetSyncTarget() != nullptr)
             {
-                uint8 count = 0;
-                for (uint32 i = 0; i < PParty->members.size(); ++i)
-                {
-                    if (PParty->members.at(i) != this && PParty->members.at(i)->getZone() == PParty->GetSyncTarget()->getZone())
-                    {
-                        count++;
-                    }
-                }
+                const auto count = static_cast<uint8>(std::ranges::count_if(PParty->members,
+                                                                            [&](const auto* member)
+                                                                            {
+                                                                                return member != this && member->getZone() == PParty->GetSyncTarget()->getZone();
+                                                                            }));
                 if (count < 2) // 3, because one is zoning out - thus at least 2 will be left
                 {
                     PParty->SetSyncTarget("", MsgStd::LevelSyncRemoveTooFewMembers);
@@ -334,7 +338,7 @@ CCharEntity::~CCharEntity()
         StatusEffectContainer->DelStatusEffectSilent(xi::StatusEffect::LevelRestriction);
     }
 
-    if (PParty && loc.destination != 0 && !inMogHouse())
+    if (PParty && loc.destination != xi::ZoneId::Unknown && !inMogHouse())
     {
         if (PParty->m_PAlliance)
         {
@@ -349,12 +353,6 @@ CCharEntity::~CCharEntity()
             });
         }
     }
-
-    SpawnPCList.clear();
-    SpawnNPCList.clear();
-    SpawnMOBList.clear();
-    SpawnPETList.clear();
-    SpawnTRUSTList.clear();
 
     if (PParty)
     {
@@ -412,6 +410,13 @@ void CCharEntity::clearPacketList()
     {
         std::ignore = popPacket();
     }
+
+    // dropped spawns never reached the client, so let the spawn passes send them again
+    SpawnPCList.clear();
+    SpawnNPCList.clear();
+    SpawnMOBList.clear();
+    SpawnPETList.clear();
+    SpawnTRUSTList.clear();
 }
 
 void CCharEntity::pushPacket(std::unique_ptr<CBasicPacket>&& packet)
@@ -444,15 +449,7 @@ void CCharEntity::updateEntityPacket(CBaseEntity* PEntity, ENTITYUPDATE type, ui
     auto       itr              = EntityUpdatePackets.find(PEntity->id);
     const bool hasPendingPacket = itr != EntityUpdatePackets.end() && itr->second != nullptr;
 
-    auto* PChar = [&]() -> CCharEntity*
-    {
-        if (PEntity->objtype == TYPE_PC)
-        {
-            return static_cast<CCharEntity*>(PEntity);
-        }
-
-        return nullptr;
-    }();
+    auto* PChar = dynamic_cast<CCharEntity*>(PEntity);
 
     if (hasPendingPacket)
     {
@@ -560,9 +557,49 @@ bool CCharEntity::hasAutoTargetEnabled() const
     return !playerConfig.AutoTargetOffFlg;
 }
 
+auto CCharEntity::heldSlots(const uint8 location) const -> uint8
+{
+    uint8 held = 0;
+    for (const auto& transaction : transactions_)
+    {
+        if (transaction->isOpen())
+        {
+            held += transaction->heldSlots(location);
+        }
+    }
+
+    return held;
+}
+
 auto CCharEntity::isCrafting() const -> bool
 {
     return animation == xi::Animation::Synth || this->activeTransaction<SynthTransaction>();
+}
+
+auto CCharEntity::tradePartner() const -> CCharEntity*
+{
+    auto* other = TradePending.entity.resolve<CCharEntity>();
+    if (!other || other->TradePending.entity.UniqueNo != id)
+    {
+        return nullptr;
+    }
+
+    return other;
+}
+
+auto CCharEntity::activePlayerTradeTransaction() const -> PlayerTradeTransaction*
+{
+    if (auto* local = this->activeTransaction<PlayerTradeTransaction>())
+    {
+        return local;
+    }
+    auto* other = this->tradePartner();
+    if (!other)
+    {
+        return nullptr;
+    }
+
+    return other->activeTransaction<PlayerTradeTransaction>();
 }
 
 auto CCharEntity::isFishing() const -> bool
@@ -668,6 +705,12 @@ void CCharEntity::setAutomatonHead(const AutomatonHead head)
 
 void CCharEntity::setAutomatonAttachment(const uint8 slotid, const uint8 id)
 {
+    if (slotid >= automatonInfo_.equip.attachments.size())
+    {
+        ShowWarningFmt("setAutomatonAttachment: slot {} out of range", slotid);
+        return;
+    }
+
     automatonInfo_.equip.attachments[slotid] = id;
 }
 
@@ -709,19 +752,18 @@ auto CCharEntity::getAutomatonHead() const -> AutomatonHead
 
 auto CCharEntity::getAutomatonAttachment(const uint8 slotid) const -> uint8
 {
+    if (slotid >= automatonInfo_.equip.attachments.size())
+    {
+        ShowWarningFmt("getAutomatonAttachment: slot {} out of range", slotid);
+        return 0;
+    }
+
     return automatonInfo_.equip.attachments[slotid];
 }
 
 auto CCharEntity::hasAutomatonAttachment(const uint8 attachment) const -> bool
 {
-    for (auto&& attachmentid : automatonInfo_.equip.attachments)
-    {
-        if (attachmentid == attachment)
-        {
-            return true;
-        }
-    }
-    return false;
+    return std::ranges::contains(automatonInfo_.equip.attachments, attachment);
 }
 
 auto CCharEntity::getAutomatonElementMax(const uint8 element) const -> uint8
@@ -809,9 +851,28 @@ void CCharEntity::setLastProposalCloseTime(timer::time_point t)
     lastProposalCloseTime_ = t;
 }
 
-auto CCharEntity::inMogHouse() const -> bool
+auto CCharEntity::inMogHouse(const xi::MogHouse kind) const -> bool
 {
-    return m_moghouseID != 0;
+    switch (kind)
+    {
+        case xi::MogHouse::Own:
+            return m_moghouseID == id;
+        case xi::MogHouse::Visiting:
+            return m_moghouseID != 0 && m_moghouseID != id;
+        case xi::MogHouse::Any:
+        default:
+            return m_moghouseID != 0;
+    }
+}
+
+auto CCharEntity::moghouse() -> MogHouseContainer&
+{
+    return moghouse_;
+}
+
+auto CCharEntity::moghouse() const -> const MogHouseContainer&
+{
+    return moghouse_;
 }
 
 auto CCharEntity::gmCallContainer() -> GMCallContainer&
@@ -855,27 +916,25 @@ int16 CCharEntity::getShieldDefense()
 
 bool CCharEntity::hasBazaar()
 {
-    if (isSettingBazaarPrices)
+    // FFXIclopedia: a Monipulator has no bazaar, even one priced before entering.
+    if (isSettingBazaarPrices || m_PMonstrosity != nullptr)
     {
         return false;
     }
 
     CItemContainer* playerInventory = getStorage(LOC_INVENTORY);
-
-    if (playerInventory)
+    if (!playerInventory)
     {
-        for (uint8 slotID = 1; slotID <= playerInventory->GetSize(); ++slotID)
-        {
-            CItem* PItem = playerInventory->GetItem(slotID);
-
-            if ((PItem != nullptr) && (PItem->getCharPrice() != 0))
-            {
-                return true;
-                break;
-            }
-        }
+        return false;
     }
-    return false;
+
+    const auto* PListedItem = playerInventory->FindItem(
+        [](CItem* PItem)
+        {
+            return PItem->getCharPrice() != 0;
+        });
+
+    return PListedItem != nullptr;
 }
 
 void CCharEntity::SetName(const std::string& name)
@@ -959,7 +1018,30 @@ auto CCharEntity::getEquip(const SLOTTYPE slot) const -> CItemEquipment*
         return nullptr;
     }
 
-    return static_cast<CItemEquipment*>(equipped_[slot]);
+    auto* PItem = equipped_[slot];
+    if (!PItem || !PItem->isType(ITEM_EQUIPMENT))
+    {
+        return nullptr;
+    }
+
+    return static_cast<CItemEquipment*>(PItem);
+}
+
+auto CCharEntity::getLinkshell(const SLOTTYPE slot) const -> CItemLinkshell*
+{
+    if (slot != SLOT_LINK1 && slot != SLOT_LINK2)
+    {
+        ShowWarningFmt("getLinkshell: slot {} is not a linkshell slot", slot);
+        return nullptr;
+    }
+
+    auto* PItem = equipped_[slot];
+    if (!PItem || !PItem->isType(ITEM_LINKSHELL))
+    {
+        return nullptr;
+    }
+
+    return static_cast<CItemLinkshell*>(PItem);
 }
 
 auto CCharEntity::equipLocation(const uint8 equipSlot) const -> Maybe<ItemLocation>
@@ -1045,12 +1127,7 @@ void CCharEntity::RemoveTrust(CTrustEntity* PTrust)
         return;
     }
 
-    // clang-format off
-    auto trustIt = std::find_if(PTrusts.begin(), PTrusts.end(), [PTrust](auto trust)
-    {
-        return PTrust == trust;
-    });
-    // clang-format on
+    auto trustIt = std::ranges::find(PTrusts, PTrust);
 
     if (trustIt != PTrusts.end())
     {
@@ -1080,76 +1157,37 @@ void CCharEntity::ClearTrusts(const bool notifyClient)
     }
 }
 
-void CCharEntity::RequestPersist(CHAR_PERSIST toPersist)
+auto CCharEntity::persist() const -> CharPersist
 {
-    dataToPersist |= toPersist;
+    return persist_;
 }
 
-bool CCharEntity::PersistData()
+void CCharEntity::setPersist(CharPersist toPersist)
 {
-    bool didPersist = false;
-
-    if (!charVarChanges.empty())
-    {
-        for (auto&& charVarName : charVarChanges)
-        {
-            charutils::PersistCharVar(this->id, charVarName.c_str(), charVarCache[charVarName].first, charVarCache[charVarName].second);
-        }
-
-        charVarChanges.clear();
-        didPersist = true;
-    }
-
-    if (!dataToPersist)
-    {
-        return didPersist;
-    }
-    else
-    {
-        didPersist = true;
-    }
-
-    if (dataToPersist & CHAR_PERSIST::EQUIP)
-    {
-        charutils::SaveCharEquip(this);
-        charutils::SaveCharLook(this);
-    }
-
-    if (dataToPersist & CHAR_PERSIST::POSITION)
-    {
-        charutils::SaveCharPosition(this);
-    }
-
-    if (dataToPersist & CHAR_PERSIST::EFFECTS)
-    {
-        StatusEffectContainer->SaveStatusEffects(true);
-    }
-
-    /* TODO
-    if (dataToPersist & CHAR_PERSIST::LINKSHELL)
-    {
-        charutils::SaveCharLinkshells(this);
-    }
-    */
-
-    dataToPersist = 0;
-    return didPersist;
+    persist_ |= toPersist;
 }
 
-bool CCharEntity::PersistData(timer::time_point tick)
+void CCharEntity::clearPersist(CharPersist toPersist)
 {
-    if (tick < nextDataPersistTime || !PersistData())
+    persist_ &= ~toPersist;
+}
+
+void CCharEntity::takeCharVarChanges(std::vector<CharVarChange>& out)
+{
+    out.reserve(out.size() + charVarChanges.size());
+
+    for (const auto& charVarName : charVarChanges)
     {
-        return false;
+        const auto& cached = charVarCache[charVarName];
+        out.push_back({ id, charVarName, cached.first, cached.second });
     }
 
-    nextDataPersistTime = tick + TIME_BETWEEN_PERSIST;
-    return true;
+    charVarChanges.clear();
 }
 
 auto CCharEntity::Tick(timer::time_point tick) -> Task<void>
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CCharEntity::Tick");
 
     co_await CBattleEntity::Tick(tick);
 
@@ -1160,7 +1198,7 @@ auto CCharEntity::Tick(timer::time_point tick) -> Task<void>
         m_deathSyncTime = tick + death_update_frequency;
     }
 
-    if (inMogHouse())
+    if (inMogHouse(xi::MogHouse::Own))
     {
         gardenutils::UpdateGardening(this, SendPacket::Yes);
     }
@@ -1170,17 +1208,21 @@ auto CCharEntity::Tick(timer::time_point tick) -> Task<void>
 
 void CCharEntity::PostTick()
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CCharEntity::PostTick");
 
     CBattleEntity::PostTick();
 
     if (ReloadParty())
     {
+        TracyZoneNamed(reloadPartyZone, "CCharEntity::PostTick: ReloadParty");
+
         charutils::ReloadParty(this);
     }
 
     if (m_EffectsChanged)
     {
+        TracyZoneNamed(effectsChangedZone, "CCharEntity::PostTick: effects changed");
+
         pushPacket<CCharStatusPacket>(this);
         pushPacket<CCharSyncPacket>(this);
         charutils::SendExtendedJobPackets(this);
@@ -1196,6 +1238,8 @@ void CCharEntity::PostTick()
 
     if (updatemask && now > m_nextUpdateTimer)
     {
+        TracyZoneNamed(updateBroadcastZone, "CCharEntity::PostTick: update broadcast");
+
         m_nextUpdateTimer = now + 250ms;
 
         if (loc.zone && !m_isGMHidden)
@@ -1229,7 +1273,11 @@ void CCharEntity::PostTick()
         updatemask        = 0;
     }
 
-    inventorySyncState_.flushDirtyItems(this);
+    {
+        TracyZoneNamed(flushDirtyItemsZone, "CCharEntity::PostTick: flush dirty items");
+
+        inventorySyncState_.flushDirtyItems(this);
+    }
 }
 
 // Flush all pending equipment changes at end of network cycle after all SmallPackets have been processed
@@ -1322,9 +1370,20 @@ void CCharEntity::delTrait(CTrait* PTrait)
 
 bool CCharEntity::ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags)
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CCharEntity::ValidTarget");
 
     if (StatusEffectContainer->GetConfrontationEffect() != PInitiator->StatusEffectContainer->GetConfrontationEffect())
+    {
+        return false;
+    }
+
+    // Belligerents can only harm each other.
+    if (monstrosity::AreBelligerents(PInitiator, this))
+    {
+        return (targetFlags & TARGET_ENEMY) && !isDead();
+    }
+
+    if (allegiance == PInitiator->allegiance && !monstrosity::CanAssist(PInitiator, this))
     {
         return false;
     }
@@ -1381,7 +1440,12 @@ bool CCharEntity::ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags)
 
 bool CCharEntity::CanUseSpell(CSpell* PSpell)
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CCharEntity::CanUseSpell");
+
+    if (m_PMonstrosity && !monstrosity::CanCastSpell(PSpell))
+    {
+        return false;
+    }
 
     return charutils::hasSpell(this, static_cast<uint16>(PSpell->getID())) && CBattleEntity::CanUseSpell(PSpell);
 }
@@ -1397,7 +1461,7 @@ void CCharEntity::OnChangeTarget(CBattleEntity* PNewTarget)
 
 void CCharEntity::OnEngage(CAttackState& state)
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CCharEntity::OnEngage");
 
     CBattleEntity::OnEngage(state);
     PLatentEffectContainer->CheckLatentsTargetChange();
@@ -1406,7 +1470,12 @@ void CCharEntity::OnEngage(CAttackState& state)
 
 void CCharEntity::OnDisengage(CAttackState& state)
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CCharEntity::OnDisengage");
+
+    if (auto* controller = dynamic_cast<CPlayerController*>(PAI->GetController()))
+    {
+        controller->setEngageLockedUntil(timer::now() + state.EngageLockout());
+    }
 
     battleutils::RelinquishClaim(this);
     CBattleEntity::OnDisengage(state);
@@ -1419,7 +1488,7 @@ void CCharEntity::OnDisengage(CAttackState& state)
 
 bool CCharEntity::CanAttack(CBattleEntity* PTarget, std::unique_ptr<CBasicPacket>& errMsg)
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CCharEntity::CanAttack");
 
     if (PTarget->PAI->IsUntargetable())
     {
@@ -1456,7 +1525,7 @@ bool CCharEntity::CanAttack(CBattleEntity* PTarget, std::unique_ptr<CBasicPacket
 
 bool CCharEntity::OnAttack(CAttackState& state, action_t& action)
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CCharEntity::OnAttack");
 
     auto* controller{ static_cast<CPlayerController*>(PAI->GetController()) };
     controller->setLastAttackTime(timer::now());
@@ -1467,10 +1536,10 @@ bool CCharEntity::OnAttack(CAttackState& state, action_t& action)
 
 void CCharEntity::OnCastFinished(CMagicState& state, action_t& action)
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CCharEntity::OnCastFinished");
 
     auto* PSpell  = state.GetSpell();
-    auto* PTarget = static_cast<CBattleEntity*>(state.GetTarget());
+    auto* PTarget = state.target().resolve<CBattleEntity>();
 
     // not ideal, since Trick Attack character (taChar) is also calculated on the lua side for the base spell.
     // Only blue spells that act as a physical WS can TA.
@@ -1505,16 +1574,20 @@ void CCharEntity::OnCastFinished(CMagicState& state, action_t& action)
                     actionResult.recordSkillchain(effect, battleutils::TakeSkillchainDamage(this, PTarget, actionResult.param, taChar));
                 }
 
-                if (StatusEffectContainer->HasStatusEffect({ xi::StatusEffect::Sekkanoki, xi::StatusEffect::MeikyoShisui }))
+                // only Chain Affinity reduces TP
+                if (StatusEffectContainer->HasStatusEffect(xi::StatusEffect::ChainAffinity))
                 {
-                    health.tp = (health.tp > 1000 ? health.tp - 1000 : 0);
-                }
-                else
-                {
-                    health.tp = 0;
-                }
+                    if (StatusEffectContainer->HasStatusEffect({ xi::StatusEffect::Sekkanoki, xi::StatusEffect::MeikyoShisui }))
+                    {
+                        health.tp = (health.tp > 1000 ? health.tp - 1000 : 0);
+                    }
+                    else
+                    {
+                        health.tp = 0;
+                    }
 
-                StatusEffectContainer->DelStatusEffectSilent(xi::StatusEffect::ChainAffinity);
+                    StatusEffectContainer->DelStatusEffectSilent(xi::StatusEffect::ChainAffinity);
+                }
             }
 
             // Immanence will create or extend a skillchain for elemental spells
@@ -1631,7 +1704,7 @@ void CCharEntity::OnCastFinished(CMagicState& state, action_t& action)
 
 void CCharEntity::OnCastInterrupted(CMagicState& state, action_t& action, MsgBasic msg, bool blockedCast)
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CCharEntity::OnCastInterrupted");
 
     CBattleEntity::OnCastInterrupted(state, action, msg, blockedCast);
 
@@ -1649,12 +1722,12 @@ void CCharEntity::OnCastInterrupted(CMagicState& state, action_t& action, MsgBas
 
 void CCharEntity::OnWeaponSkillFinished(CWeaponSkillState& state, action_t& action)
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CCharEntity::OnWeaponSkillFinished");
 
     CBattleEntity::OnWeaponSkillFinished(state, action);
 
     auto* PWeaponSkill  = state.GetSkill();
-    auto* PBattleTarget = static_cast<CBattleEntity*>(state.GetTarget());
+    auto* PBattleTarget = state.target().resolve<CBattleEntity>();
 
     int16 tp = state.GetSpentTP();
     tp       = battleutils::CalculateWeaponSkillTP(this, PWeaponSkill, tp);
@@ -1805,7 +1878,7 @@ void CCharEntity::OnAbility(CAbilityState& state, action_t& action)
         findFlags |= FINDFLAGS_DEAD;
     }
 
-    auto* PTarget = static_cast<CBattleEntity*>(state.GetTarget());
+    auto* PTarget = state.target().resolve<CBattleEntity>();
     PAI->TargetFind->reset();
     PAI->TargetFind->findSingleTarget(PTarget, findFlags, PAbility->getValidTarget());
 
@@ -1824,7 +1897,7 @@ void CCharEntity::OnAbility(CAbilityState& state, action_t& action)
 
         if (PAbility->getMeritModID() > 0 && !(PAbility->getAddType() & ADDTYPE_MERIT))
         {
-            recastReduction = std::chrono::seconds(PMeritPoints->GetMeritValue((MERIT_TYPE)PAbility->getMeritModID(), this));
+            recastReduction = std::chrono::seconds(PMeritPoints->GetMeritValue(static_cast<xi::Merit>(PAbility->getMeritModID()), this));
 
             if (PAbility->getID() == ABILITY_THIRD_EYE && StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Seigan))
             {
@@ -1844,7 +1917,7 @@ void CCharEntity::OnAbility(CAbilityState& state, action_t& action)
             //  Can't assign merits via ability ID for Sic/Ready due to shenanigans
             if (PAbility->getRecastId() == Recast::Sic) // Sic/Ready recast ID
             {
-                recastReduction = std::chrono::seconds(PMeritPoints->GetMeritValue(MERIT_SIC_RECAST, this));
+                recastReduction = std::chrono::seconds(PMeritPoints->GetMeritValue(xi::Merit::SicRecast, this));
             }
             else if (PAbility->getRecastId() == Recast::Strategems)
             {
@@ -2105,7 +2178,7 @@ bool CCharEntity::IsMobOwner(CBattleEntity* PBattleTarget)
         return false;
     }
 
-    if (PBattleTarget->m_OwnerID.id == 0 || PBattleTarget->m_OwnerID.id == this->id || PBattleTarget->objtype == TYPE_PC)
+    if (PBattleTarget->m_OwnerID.UniqueNo == 0 || PBattleTarget->m_OwnerID.UniqueNo == this->id || dynamic_cast<const CCharEntity*>(PBattleTarget) != nullptr)
     {
         return true;
     }
@@ -2123,7 +2196,7 @@ bool CCharEntity::IsMobOwner(CBattleEntity* PBattleTarget)
     // clang-format off
     ForAlliance([&PBattleTarget, &found](CBattleEntity* PEntity)
     {
-        if (PEntity->id == PBattleTarget->m_OwnerID.id)
+        if (PEntity->id == PBattleTarget->m_OwnerID.UniqueNo)
         {
             found = true;
         }
@@ -2148,6 +2221,22 @@ void CCharEntity::OnDeathTimer()
     TracyZoneScoped;
 
     charutils::SetCharVar(this, "expLost", 0);
+
+    // A Monipulator has no home point to go to.
+    // TODO: Capture what retail does when the death menu times out.
+    if (m_PMonstrosity != nullptr)
+    {
+        PAI->QueueAction(
+            queueAction_t(
+                0ms,
+                false,
+                [](CBaseEntity* PEntity)
+                {
+                    monstrosity::HandleDeathMenu(static_cast<CCharEntity*>(PEntity), GP_CLI_COMMAND_ACTION_HOMEPOINTMENU::MonstrosityCancel);
+                }));
+        return;
+    }
+
     requestedWarp = WarpRequest::HomePoint; // zone entities will warp us on the next tick
 }
 
@@ -2164,8 +2253,11 @@ void CCharEntity::OnRaise()
             m_weaknessLvl = 1;
         }
 
+        const auto* PDeathState = dynamic_cast<CDeathState*>(PAI->GetCurrentState());
+        const bool  mijin       = PDeathState && PDeathState->params().mijin;
+
         // add weakness effect (75% reduction in HP/MP)
-        if (GetLocalVar("MijinGakure") == 0)
+        if (!mijin)
         {
             auto weaknessTime = 5min;
 
@@ -2190,7 +2282,7 @@ void CCharEntity::OnRaise()
         auto& actionResult = actionTarget.addResult();
 
         // Mijin Gakure used with MIJIN_RERAISE MOD
-        if (GetLocalVar("MijinGakure") != 0 && getMod(xi::Mod::MIJIN_RERAISE) != 0)
+        if (mijin && getMod(xi::Mod::MIJIN_RERAISE) != 0)
         {
             actionResult.animation = ActionAnimation::Raise;
             hpReturned             = (uint16)(GetMaxHP());
@@ -2198,13 +2290,13 @@ void CCharEntity::OnRaise()
         else if (m_hasRaise == 1)
         {
             actionResult.animation = ActionAnimation::Raise;
-            hpReturned             = static_cast<uint16>((GetLocalVar("MijinGakure") != 0) ? GetMaxHP() * 0.5 : GetMaxHP() * 0.1);
+            hpReturned             = static_cast<uint16>(mijin ? GetMaxHP() * 0.5 : GetMaxHP() * 0.1);
             ratioReturned          = 0.50f * static_cast<double>(1 - settings::get<uint8>("map.EXP_RETAIN"));
         }
         else if (m_hasRaise == 2)
         {
             actionResult.animation = ActionAnimation::Raise2;
-            hpReturned             = static_cast<uint16>((GetLocalVar("MijinGakure") != 0) ? GetMaxHP() * 0.5 : GetMaxHP() * 0.25);
+            hpReturned             = static_cast<uint16>(mijin ? GetMaxHP() * 0.5 : GetMaxHP() * 0.25);
             ratioReturned          = ((GetMLevel() <= 50) ? 0.50f : 0.75f) * static_cast<double>(1 - settings::get<uint8>("map.EXP_RETAIN"));
         }
         else if (m_hasRaise == 3)
@@ -2220,7 +2312,7 @@ void CCharEntity::OnRaise()
             ratioReturned          = ((GetMLevel() <= 50) ? 0.50f : 0.90f) * static_cast<double>(1 - settings::get<uint8>("map.EXP_RETAIN"));
         }
 
-        addHP(((hpReturned < 1) ? 1 : hpReturned));
+        addHP(std::max<uint16>(hpReturned, 1));
         updatemask |= UPDATE_HP;
 
         loc.zone->PushPacket(this, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
@@ -2242,7 +2334,6 @@ void CCharEntity::OnRaise()
             StatusEffectContainer->AddStatusEffect(xi::StatusEffect::Reraise, static_cast<uint16>(xi::StatusEffect::Reraise), 3, 0s, 1h);
         }
 
-        SetLocalVar("MijinGakure", 0);
         m_hasArise = false;
         m_hasRaise = 0;
     }
@@ -2252,10 +2343,10 @@ auto CCharEntity::OnItemFinish(CItemState& state, action_t& action) -> bool
 {
     TracyZoneScoped;
 
-    auto* PTarget = static_cast<CBattleEntity*>(state.GetTarget());
+    auto* PTarget = state.target().resolve<CBattleEntity>();
     auto* PItem   = state.GetItem();
 
-    if (!PItem->isType(ITEM_EQUIPMENT) && (PItem->getQuantity() < 1 || PItem->getReserve() > 0))
+    if (!PItem->isType(ITEM_EQUIPMENT) && PItem->getQuantity() < 1)
     {
         ShowWarning("OnItemFinish: %s attempted to use reserved/insufficient %s (%u).", this->getName(), PItem->getName(), PItem->getID());
         this->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>(this, this, PItem->getID(), 0, MsgBasic::ItemFailsToActivate);
@@ -2292,8 +2383,6 @@ auto CCharEntity::OnItemFinish(CItemState& state, action_t& action) -> bool
         actionResult.resolution       = ActionResolution::Hit;
         actionResult.animation        = PItem->getAnimationID();
 
-        // TODO: guard charutils::UpdateItem against InTransaction items so a
-        // Lua delItem inside OnItemUse can't decrement out-of-tx.
         int32 value = luautils::OnItemUse(this, PTargetFound, PItem, action);
 
         actionResult.param = value;
@@ -2354,14 +2443,14 @@ auto CCharEntity::OnItemFinish(CItemState& state, action_t& action) -> bool
 
 auto CCharEntity::IsValidTarget(uint16 targid, uint16 validTargetFlags, std::unique_ptr<CBasicPacket>& errMsg) -> CBattleEntity*
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CCharEntity::IsValidTarget");
 
     return applyTargetRestrictions(GetEntity(targid, TYPE_MOB | TYPE_PC | TYPE_PET | TYPE_TRUST), validTargetFlags, errMsg);
 }
 
 auto CCharEntity::IsValidTarget(EntityId target, uint16 validTargetFlags, std::unique_ptr<CBasicPacket>& errMsg) -> CBattleEntity*
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CCharEntity::IsValidTarget");
 
     return applyTargetRestrictions(target.resolve(), validTargetFlags, errMsg);
 }
@@ -2371,12 +2460,12 @@ auto CCharEntity::applyTargetRestrictions(CBaseEntity* PResolved, uint16 validTa
     auto* PTarget = PAI->TargetFind->getValidTarget(dynamic_cast<CBattleEntity*>(PResolved), validTargetFlags);
     if (PTarget)
     {
-        if (PTarget->objtype == TYPE_PC && charutils::IsAidBlocked(this, static_cast<CCharEntity*>(PTarget)))
+        if (auto* PChar = dynamic_cast<CCharEntity*>(PTarget); PChar && charutils::IsAidBlocked(this, PChar))
         {
             // Target is blocking assistance
             errMsg = std::make_unique<GP_SERV_COMMAND_SYSTEMMES>(0, 0, MsgStd::TargetIsCurrentlyBlocking);
             // Interaction was blocked
-            static_cast<CCharEntity*>(PTarget)->pushPacket<GP_SERV_COMMAND_SYSTEMMES>(0, 0, MsgStd::BlockedByBlockaid);
+            PChar->pushPacket<GP_SERV_COMMAND_SYSTEMMES>(0, 0, MsgStd::BlockedByBlockaid);
         }
         else if (IsMobOwner(PTarget))
         {
@@ -2413,7 +2502,7 @@ auto CCharEntity::applyTargetRestrictions(CBaseEntity* PResolved, uint16 validTa
 
 void CCharEntity::Die()
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CCharEntity::Die");
 
     if (auto* PLastAttacker = lastAttackerId_.resolve())
     {
@@ -2426,20 +2515,31 @@ void CCharEntity::Die()
 
     battleutils::RelinquishClaim(this);
 
+    if (auto* PWinner = dynamic_cast<CCharEntity*>(lastAttackerId_.resolve()))
+    {
+        monstrosity::HandleBelligerentDefeat(this, PWinner);
+    }
+
     if (this->PPet)
     {
         petutils::DespawnPet(this);
     }
 
-    Die(death_duration);
+    const auto staged = nextDeath_.value_or(DeathParams{});
+    nextDeath_.reset();
+
+    // Retail stopped charging EXP for a KO while charmed in June 2007
+    const DeathParams params{
+        .losesExp = staged.losesExp && !isCharmed,
+        .mijin    = staged.mijin,
+    };
+
+    Die(death_duration, params);
     SetDeathTime(timer::now());
 
     setBlockingAid(false);
 
-    // influence for conquest system
-    conquest::LoseInfluencePoints(this);
-
-    if (GetLocalVar("MijinGakure") == 0 &&
+    if (params.losesExp &&
         (PBattlefield == nullptr || (PBattlefield->GetRuleMask() & RULES_LOSE_EXP) == RULES_LOSE_EXP) &&
         GetMLevel() >= settings::get<uint8>("map.EXP_LOSS_LEVEL"))
     {
@@ -2450,9 +2550,19 @@ void CCharEntity::Die()
     luautils::OnPlayerDeath(this);
 }
 
-void CCharEntity::Die(timer::duration _duration)
+auto CCharEntity::nextDeath() const -> const Maybe<DeathParams>&
 {
-    TracyZoneScoped;
+    return nextDeath_;
+}
+
+void CCharEntity::setNextDeath(Maybe<DeathParams> params)
+{
+    nextDeath_ = params;
+}
+
+void CCharEntity::Die(timer::duration _duration, DeathParams params)
+{
+    TracyZoneScopedN("CCharEntity::Die");
 
     this->ClearTrusts();
 
@@ -2471,7 +2581,7 @@ void CCharEntity::Die(timer::duration _duration)
 
     m_deathSyncTime = timer::now() + death_update_frequency;
     PAI->ClearStateStack();
-    PAI->Internal_Die(_duration);
+    PAI->Internal_Die(_duration, params);
 
     // If player allegiance is not reset on death they will auto-homepoint
     allegiance = xi::Allegiance::Player;
@@ -2569,19 +2679,19 @@ void CCharEntity::UpdateMoghancement()
     std::array<uint16, 8> elements = { 0 };
     for (auto containerID : { LOC_MOGSAFE, LOC_MOGSAFE2 })
     {
-        CItemContainer* PContainer = getStorage(containerID);
-        for (int slotID = 1; slotID <= PContainer->GetSize(); ++slotID)
-        {
-            CItem* PItem = PContainer->GetItem(slotID);
-            if (PItem != nullptr && PItem->isType(ITEM_FURNISHING))
+        auto* PContainer = getStorage(containerID);
+        PContainer->ForEachItem(
+            [&](CItem* PItem)
             {
-                CItemFurnishing* PFurniture = static_cast<CItemFurnishing*>(PItem);
-                if (PFurniture->isInstalled() && !PFurniture->getOn2ndFloor())
+                if (PItem->isType(ITEM_FURNISHING))
                 {
-                    elements[PFurniture->getElement() - 1] += PFurniture->getAura();
+                    auto* PFurniture = static_cast<CItemFurnishing*>(PItem);
+                    if (PFurniture->isInstalled() && !PFurniture->getOn2ndFloor())
+                    {
+                        elements[PFurniture->getElement() - 1] += PFurniture->getAura();
+                    }
                 }
-            }
-        }
+            });
     }
 
     // Determine the dominant aura
@@ -2610,26 +2720,26 @@ void CCharEntity::UpdateMoghancement()
     {
         for (auto containerID : { LOC_MOGSAFE, LOC_MOGSAFE2 })
         {
-            CItemContainer* PContainer = getStorage(containerID);
-            for (int slotID = 1; slotID <= PContainer->GetSize(); ++slotID)
-            {
-                CItem* PItem = PContainer->GetItem(slotID);
-                if (PItem != nullptr && PItem->isType(ITEM_FURNISHING))
+            auto* PContainer = getStorage(containerID);
+            PContainer->ForEachItem(
+                [&](CItem* PItem)
                 {
-                    CItemFurnishing* PFurniture = static_cast<CItemFurnishing*>(PItem);
-                    // Highest aura wins, ties broken by highest moghancement id.
-                    if (PFurniture->isInstalled() && !PFurniture->getOn2ndFloor() && PFurniture->getElement() == dominantElement)
+                    if (PItem->isType(ITEM_FURNISHING))
                     {
-                        const uint8  aura         = PFurniture->getAura();
-                        const uint16 moghancement = PFurniture->getMoghancement();
-                        if (aura > bestAura || (aura == bestAura && moghancement > newMoghancementID))
+                        auto* PFurniture = static_cast<CItemFurnishing*>(PItem);
+                        // Highest aura wins, ties broken by highest moghancement id.
+                        if (PFurniture->isInstalled() && !PFurniture->getOn2ndFloor() && PFurniture->getElement() == dominantElement)
                         {
-                            bestAura          = aura;
-                            newMoghancementID = moghancement;
+                            const uint8  aura         = PFurniture->getAura();
+                            const uint16 moghancement = PFurniture->getMoghancement();
+                            if (aura > bestAura || (aura == bestAura && moghancement > newMoghancementID))
+                            {
+                                bestAura          = aura;
+                                newMoghancementID = moghancement;
+                            }
                         }
                     }
-                }
-            }
+                });
         }
     }
 
@@ -2644,13 +2754,13 @@ void CCharEntity::UpdateMoghancement()
         // Remove the previous moghancement
         if (m_moghancementID != 0)
         {
-            charutils::delKeyItem(this, static_cast<KeyItem>(m_moghancementID));
+            charutils::delKeyItem(this, static_cast<xi::KeyItem>(m_moghancementID));
         }
 
         // Add the new moghancement
         if (newMoghancementID != 0)
         {
-            charutils::addKeyItem(this, static_cast<KeyItem>(newMoghancementID));
+            charutils::addKeyItem(this, static_cast<xi::KeyItem>(newMoghancementID));
         }
 
         // Send only one key item packet if they are in the same key item table
@@ -2695,33 +2805,34 @@ void CCharEntity::changeMoghancement(uint16 moghancementID, bool isAdding)
         return;
     }
 
-    // Apply the Moghancement
+    // Apply moghancements
+    // Desynth/Crystal data: https://www.bluegartr.com/threads/135055-Extensive-Desynthesis-Rate-Research
     int16 multiplier = isAdding ? 1 : -1;
     switch (moghancementID)
     {
         case MOGHANCEMENT_FIRE:
-            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_FIRE, 5 * multiplier);
+            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_FIRE, 10 * multiplier);
             break;
         case MOGHANCEMENT_ICE:
-            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_ICE, 5 * multiplier);
+            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_ICE, 10 * multiplier);
             break;
         case MOGHANCEMENT_WIND:
-            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_WIND, 5 * multiplier);
+            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_WIND, 10 * multiplier);
             break;
         case MOGHANCEMENT_EARTH:
-            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_EARTH, 5 * multiplier);
+            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_EARTH, 10 * multiplier);
             break;
         case MOGHANCEMENT_LIGHTNING:
-            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_THUNDER, 5 * multiplier);
+            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_THUNDER, 10 * multiplier);
             break;
         case MOGHANCEMENT_WATER:
-            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_WATER, 5 * multiplier);
+            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_WATER, 10 * multiplier);
             break;
         case MOGHANCEMENT_LIGHT:
-            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_LIGHT, 5 * multiplier);
+            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_LIGHT, 10 * multiplier);
             break;
         case MOGHANCEMENT_DARK:
-            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_DARK, 5 * multiplier);
+            addModifier(xi::Mod::SYNTH_MATERIAL_LOSS_DARK, 10 * multiplier);
             break;
 
         case MOGHANCEMENT_FISHING:
@@ -2825,7 +2936,7 @@ void CCharEntity::changeMoghancement(uint16 moghancementID, bool isAdding)
             addModifier(xi::Mod::GARDENING_WILT_BONUS, 36 * multiplier);
             break;
         case MOGHANCEMENT_DESYNTHESIS:
-            addModifier(xi::Mod::SYNTH_SUCCESS_RATE_DESYNTHESIS, 2 * multiplier);
+            addModifier(xi::Mod::SYNTH_SUCCESS_RATE_DESYNTHESIS, 4 * multiplier);
             break;
         case MOGHANCEMENT_CONQUEST:
             addModifier(xi::Mod::CONQUEST_BONUS, 6 * multiplier);
@@ -2924,7 +3035,7 @@ bool CCharEntity::OnAttackError(CAttackState& state)
 
 bool CCharEntity::isInTriggerArea(uint32 triggerAreaID)
 {
-    return charTriggerAreaIDs.find(triggerAreaID) != charTriggerAreaIDs.end();
+    return charTriggerAreaIDs.contains(triggerAreaID);
 }
 
 void CCharEntity::onTriggerAreaEnter(uint32 triggerAreaID)
@@ -2954,6 +3065,13 @@ bool CCharEntity::isNpcLocked()
 
 void CCharEntity::endCurrentEvent()
 {
+    // release an offer the event never consumed
+    if (auto* offer = this->activeTransaction<NpcTradeTransaction>())
+    {
+        this->removeTransaction(offer);
+        TradeContainer->Clean();
+    }
+
     currentEvent->reset();
     eventPreparation->reset();
     setLocked(false);
@@ -3042,6 +3160,10 @@ void CCharEntity::tryStartNextEvent()
 
     // Set hidden status based on event data
     m_isPCHidden = currentEvent->isHidden;
+    if (m_isPCHidden)
+    {
+        updatemask |= UPDATE_HP;
+    }
 
     if (currentEvent->strings.empty())
     {
@@ -3225,7 +3347,7 @@ void CCharEntity::clearCharVarsWithPrefix(const std::string& prefix)
     auto iter = charVarCache.begin();
     while (iter != charVarCache.end())
     {
-        if (iter->first.rfind(prefix, 0) == 0)
+        if (iter->first.starts_with(prefix))
         {
             iter->second = { 0, 0 };
         }

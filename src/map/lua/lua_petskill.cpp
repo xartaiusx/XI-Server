@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2022 LandSandBoat Dev Team
@@ -22,6 +22,7 @@
 #include "common/logging.h"
 
 #include "lua_petskill.h"
+#include "luautils.h"
 #include "petskill.h"
 
 /************************************************************************

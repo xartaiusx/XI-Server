@@ -1,5 +1,5 @@
 -----------------------------------
--- Candle Making
+-- A Candlelight Vigil
 -----------------------------------
 -- !addquest 3 6
 -- Ilumida : !pos -75 -1 58 244
@@ -9,8 +9,6 @@ local quest = Quest:new(xi.questLog.JEUNO, xi.quest.id.jeuno.A_CANDLELIGHT_VIGIL
 
 quest.reward =
 {
-    fame     = 30,
-    fameArea = xi.fameArea.JEUNO,
     item     = xi.item.FLOWER_NECKLACE,
     title    = xi.title.ACTIVIST_FOR_KINDNESS,
 }
@@ -68,7 +66,7 @@ quest.sections =
             ['Ilumida'] =
             {
                 onTrigger = function(player, npc)
-                    if player:hasKeyItem(xi.ki.HOLY_CANDLE) then
+                    if player:hasKeyItem(xi.keyItem.HOLY_CANDLE) then
                         return quest:progressEvent(194)
                     else
                         return quest:progressEvent(191)
@@ -80,8 +78,11 @@ quest.sections =
             {
                 [194] = function(player, csid, option, npc)
                     if quest:complete(player) then
-                        player:delKeyItem(xi.ki.HOLY_CANDLE)
-                        player:setLocalVar('Quest[3][66]mustZone', 1)
+                        player:addFame(xi.fameArea.SANDORIA, 13)
+                        player:addFame(xi.fameArea.BASTOK, 13)
+                        player:addFame(xi.fameArea.WINDURST, 13)
+                        player:delKeyItem(xi.keyItem.HOLY_CANDLE)
+                        xi.quest.setMustZone(player, xi.questLog.JEUNO, xi.quest.id.jeuno.SEARCHING_FOR_THE_RIGHT_WORDS)
                     end
                 end,
             },

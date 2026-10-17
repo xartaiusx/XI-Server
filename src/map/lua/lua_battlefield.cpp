@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -24,11 +24,13 @@
 
 #include "ai/ai_container.h"
 #include "battlefield.h"
+#include "common/lua.h"
 #include "data/enums/mob_mod.h"
 #include "entities/char_entity.h"
 #include "entities/mob_entity.h"
 #include "entities/npc_entity.h"
 #include "entities/trust_entity.h"
+#include "lua/luautils.h"
 #include "lua_base_entity.h"
 #include "lua_battlefield.h"
 #include "utils/mobutils.h"
@@ -48,7 +50,7 @@ uint16 CLuaBattlefield::getID()
     return m_PLuaBattlefield->GetID();
 }
 
-uint16 CLuaBattlefield::getZoneID()
+auto CLuaBattlefield::getZoneID() -> xi::ZoneId
 {
     return m_PLuaBattlefield->GetZoneID();
 }
@@ -73,19 +75,9 @@ uint32 CLuaBattlefield::getRemainingTime()
     return static_cast<uint32>(timer::count_seconds(m_PLuaBattlefield->GetRemainingTime()));
 }
 
-uint32 CLuaBattlefield::getFightTick()
-{
-    return static_cast<uint32>(timer::count_seconds(m_PLuaBattlefield->GetFightTime() - m_PLuaBattlefield->GetStartTime()));
-}
-
 uint32 CLuaBattlefield::getWipeTime()
 {
     return static_cast<uint32>(timer::count_seconds(m_PLuaBattlefield->GetWipeTime() - timer::start_time));
-}
-
-uint32 CLuaBattlefield::getFightTime()
-{
-    return static_cast<uint32>(timer::count_seconds(timer::start_time - m_PLuaBattlefield->GetFightTime()));
 }
 
 uint32 CLuaBattlefield::getMaxParticipants()
@@ -389,7 +381,7 @@ void CLuaBattlefield::addGroups(const sol::table& groups, bool hasMultipleArenas
                     if (entity->id >= lowestId && entity->id <= highestId)
                     {
                         groupEntities.emplace_back(entity);
-                        if (entities.find(entity->id) == entities.end())
+                        if (!entities.contains(entity->id))
                         {
                             m_PLuaBattlefield->InsertEntity(entity, true);
                             entities.insert(entity->id);
@@ -411,7 +403,7 @@ void CLuaBattlefield::addGroups(const sol::table& groups, bool hasMultipleArenas
                     if (entity != nullptr)
                     {
                         groupEntities.emplace_back(entity);
-                        if (entities.find(entity->id) == entities.end())
+                        if (!entities.contains(entity->id))
                         {
                             m_PLuaBattlefield->InsertEntity(entity, true);
                             entities.insert(entity->id);
@@ -688,7 +680,7 @@ void CLuaBattlefield::addGroups(const sol::table& groups, bool hasMultipleArenas
     // are assigned after the zone-load party pass.
     for (uint32 entityID : entities)
     {
-        if (explicitPartyEntities.find(entityID) != explicitPartyEntities.end())
+        if (explicitPartyEntities.contains(entityID))
         {
             continue;
         }
@@ -702,7 +694,7 @@ void CLuaBattlefield::addGroups(const sol::table& groups, bool hasMultipleArenas
 
     for (uint32 entityID : entities)
     {
-        if (explicitPartyEntities.find(entityID) != explicitPartyEntities.end())
+        if (explicitPartyEntities.contains(entityID))
         {
             continue;
         }
@@ -737,9 +729,7 @@ void CLuaBattlefield::Register()
     SOL_REGISTER("getTimeLimit", CLuaBattlefield::getTimeLimit);
     SOL_REGISTER("getRemainingTime", CLuaBattlefield::getRemainingTime);
     SOL_REGISTER("getTimeInside", CLuaBattlefield::getTimeInside);
-    SOL_REGISTER("getFightTick", CLuaBattlefield::getFightTick);
     SOL_REGISTER("getWipeTime", CLuaBattlefield::getWipeTime);
-    SOL_REGISTER("getFightTime", CLuaBattlefield::getFightTime);
     SOL_REGISTER("getMaxParticipants", CLuaBattlefield::getMaxParticipants);
     SOL_REGISTER("getPlayerCount", CLuaBattlefield::getPlayerCount);
     SOL_REGISTER("getPlayers", CLuaBattlefield::getPlayers);

@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -25,13 +25,15 @@
 #include "common/logging.h"
 #include "common/timer.h"
 #include "common/types/flat_hash_map.h"
+#include "data/enums/key_item.h"
 #include "entities/battle_entity.h"
-#include "enums/key_items.h"
+#include "enums/msg_basic.h"
 #include "enums/synthesis_effect.h"
 #include "enums/synthesis_result.h"
 #include "items.h"
 #include "items/transactions/synth.h"
 #include "itemutils.h"
+#include "lua/luautils.h"
 #include "packets/char_status.h"
 #include "packets/s2c/0x029_battle_message.h"
 #include "packets/s2c/0x030_effect.h"
@@ -42,6 +44,7 @@
 #include "zone.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 // TODO: This largely overlaps with SYNTHESIS_RESULT and could be simplified.
@@ -56,35 +59,35 @@ namespace synthutils
 
 struct SynthRecipe
 {
-    uint32  ID{};
-    uint8   Desynth{};
-    KeyItem RequiredKeyItem{};
-    uint8   Wood{};
-    uint8   Smith{};
-    uint8   Gold{};
-    uint8   Cloth{};
-    uint8   Leather{};
-    uint8   Bone{};
-    uint8   Alchemy{};
-    uint8   Cook{};
-    uint16  Crystal{};
-    uint16  HQCrystal{};
-    uint16  Ingredient1{};
-    uint16  Ingredient2{};
-    uint16  Ingredient3{};
-    uint16  Ingredient4{};
-    uint16  Ingredient5{};
-    uint16  Ingredient6{};
-    uint16  Ingredient7{};
-    uint16  Ingredient8{};
-    uint16  Result{};
-    uint16  ResultHQ1{};
-    uint16  ResultHQ2{};
-    uint16  ResultHQ3{};
-    uint8   ResultQty{};
-    uint8   ResultHQ1Qty{};
-    uint8   ResultHQ2Qty{};
-    uint8   ResultHQ3Qty{};
+    uint32      ID{};
+    uint8       Desynth{};
+    xi::KeyItem RequiredKeyItem{};
+    uint8       Wood{};
+    uint8       Smith{};
+    uint8       Gold{};
+    uint8       Cloth{};
+    uint8       Leather{};
+    uint8       Bone{};
+    uint8       Alchemy{};
+    uint8       Cook{};
+    uint16      Crystal{};
+    uint16      HQCrystal{};
+    uint16      Ingredient1{};
+    uint16      Ingredient2{};
+    uint16      Ingredient3{};
+    uint16      Ingredient4{};
+    uint16      Ingredient5{};
+    uint16      Ingredient6{};
+    uint16      Ingredient7{};
+    uint16      Ingredient8{};
+    uint16      Result{};
+    uint16      ResultHQ1{};
+    uint16      ResultHQ2{};
+    uint16      ResultHQ3{};
+    uint8       ResultQty{};
+    uint8       ResultHQ1Qty{};
+    uint8       ResultHQ2Qty{};
+    uint8       ResultHQ3Qty{};
 
     std::string ResultName;
     std::string ContentTag;
@@ -296,7 +299,7 @@ void LoadSynthRecipes()
         const auto recipe = SynthRecipe{
             .ID              = rset->get<uint32>("ID"),
             .Desynth         = rset->get<uint8>("Desynth"),
-            .RequiredKeyItem = rset->get<KeyItem>("KeyItem"),
+            .RequiredKeyItem = rset->get<xi::KeyItem>("KeyItem"),
             .Wood            = rset->get<uint8>("Wood"),
             .Smith           = rset->get<uint8>("Smith"),
             .Gold            = rset->get<uint8>("Gold"),
@@ -375,7 +378,7 @@ auto resolveRecipe(CCharEntity* PChar, const SynthOffer& offer) -> bool
         return false;
     }
 
-    if (recipe.RequiredKeyItem != KeyItem::NONE && !charutils::hasKeyItem(PChar, recipe.RequiredKeyItem))
+    if (recipe.RequiredKeyItem != xi::KeyItem::None && !charutils::hasKeyItem(PChar, recipe.RequiredKeyItem))
     {
         PChar->pushPacket<GP_SERV_COMMAND_COMBINE_ANS>(PChar, SynthesisResult::CancelBadRecipe);
         return false;
@@ -780,31 +783,63 @@ auto handleSynthResult(CCharEntity* PChar) -> uint8
     return synthResult;
 }
 
+// Base chance (percent) an ingredient is lost when a synth breaks, keyed by item id. Unlisted materials use 50% break rate
+// 0 means the material always survives
+static const FlatHashMap<uint16, uint8> materialLossRates = {
+    { 489, 0 },    // Broken Lu Shang's Fishing Rod
+    { 722, 100 },  // Divine Log
+    { 860, 100 },  // Behemoth Hide
+    { 1288, 100 }, // Wooden Hakutaku Eye
+    { 1289, 100 }, // Burning Hakutaku Eye
+    { 1290, 100 }, // Earthen Hakutaku Eye
+    { 1291, 100 }, // Golden Hakutaku Eye
+    { 1292, 100 }, // Damp Hakutaku Eye
+    { 1409, 100 }, // Spool of Siren's Macrame
+    { 2169, 100 }, // Cerberus Hide
+    { 9091, 0 },   // Broken Lu Shang's Fishing Rod +1
+};
+
+auto materialLossRate(const uint16 itemId) -> uint8
+{
+    const auto entry = materialLossRates.find(itemId);
+    if (entry == materialLossRates.end())
+    {
+        return 50;
+    }
+
+    return entry->second;
+}
+
 // Used in: LOCAL handleSynthFail
 void handleMaterialLoss(CCharEntity* PChar)
 {
     auto& craftState       = PChar->craftState();
     auto& synthTransaction = *PChar->activeTransaction<SynthTransaction>();
 
-    uint8 currentCraft = craftState.failingSkill();
+    const uint8 currentCraft = craftState.failingSkill();
 
     const int16 breakGlobalReduction    = PChar->getMod(xi::Mod::SYNTH_MATERIAL_LOSS);
     const int16 breakElementalReduction = PChar->getMod(static_cast<xi::Mod>(static_cast<int32>(xi::Mod::SYNTH_MATERIAL_LOSS_FIRE) + craftState.element()));
     const int16 breakTypeReduction      = PChar->getMod(static_cast<xi::Mod>(static_cast<int32>(xi::Mod::SYNTH_MATERIAL_LOSS_WOODWORKING) + currentCraft - static_cast<uint8>(xi::SkillType::Woodworking)));
-    int16       synthDifficulty         = getSynthDifficulty(PChar, currentCraft);
-
-    synthDifficulty = std::max<int16>(synthDifficulty, 0);
-
-    // Break Chance.
-    // Clamp note: https://wiki-ffo-jp.translate.goog/html/36626.html?_x_tr_sl=ja&_x_tr_tl=en&_x_tr_hl=en&_x_tr_pto=sc
-    const int16 breakChance = static_cast<int16>(std::clamp(50 - breakGlobalReduction - breakElementalReduction - breakTypeReduction + 5 * synthDifficulty, 20, 100));
+    const int16 breakReduction          = breakGlobalReduction + breakElementalReduction + breakTypeReduction;
 
     for (uint8 idx = 0; idx < SynthMaxIngredients; ++idx)
     {
-        if (craftState.ingredientItemId(idx) == 0)
+        const uint16 itemId = craftState.ingredientItemId(idx);
+        if (itemId == 0)
         {
             continue;
         }
+
+        const uint8 baseLossRate = materialLossRate(itemId);
+        if (baseLossRate == 0)
+        {
+            synthTransaction.markSaved(idx);
+            continue;
+        }
+
+        // Clamp note: https://wiki-ffo-jp.translate.goog/html/36626.html?_x_tr_sl=ja&_x_tr_tl=en&_x_tr_hl=en&_x_tr_pto=sc
+        const int16 breakChance = static_cast<int16>(std::clamp(baseLossRate - breakReduction, 20, 100));
 
         const uint8 random = static_cast<uint8>(1 + xirand::GetRandomNumber(100));
         if (random <= breakChance)
@@ -856,38 +891,40 @@ void handleSynthSuccess(CCharEntity* PChar)
 // Used in: sendSynthDone
 void handleSynthFail(CCharEntity* PChar)
 {
-    auto& craftState       = PChar->craftState();
-    auto& synthTransaction = *PChar->activeTransaction<SynthTransaction>();
-
-    if (craftState.craftMode() != CRAFT_SYNTHESIS_NO_LOSS)
-    {
-        handleMaterialLoss(PChar);
-    }
-    else
-    {
-        // No-loss recipe: every claimed ingredient survives intact.
-        for (uint8 idx = 0; idx < SynthMaxIngredients; ++idx)
-        {
-            if (craftState.ingredientItemId(idx) != 0)
-            {
-                synthTransaction.markSaved(idx);
-            }
-        }
-    }
+    handleMaterialLoss(PChar);
 
     // Push "Synthesis failed" messages.
-    uint16 currentZone = PChar->loc.zone->GetID();
+    const auto currentZone = PChar->loc.zone->GetID();
 
-    if (currentZone &&
-        currentZone != ZONE_MONORAIL_PRE_RELEASE &&
-        currentZone != ZONE_49 &&
-        currentZone < MAX_ZONEID)
+    if (currentZone != xi::ZoneId::Unknown &&
+        currentZone != xi::ZoneId::None &&
+        static_cast<uint16>(currentZone) < MAX_ZONEID)
     {
         PChar->loc.zone->PushPacket(PChar, CHAR_INRANGE, std::make_unique<GP_SERV_COMMAND_COMBINE_INF>(PChar, SynthesisResult::Failed));
     }
 
     PChar->pushPacket<GP_SERV_COMMAND_COMBINE_ANS>(PChar, SynthesisResult::Failed, CCraftState::Result{ MANGLED_MESS, 0 });
 }
+
+// Percent chance of a +0.1 through +0.5 skill up given one occurred, indexed by floor distance (recipe level - charSkill / 10).
+// Derived from retail skill-up logs. Each row sums to 100.
+static constexpr std::array<std::array<uint8, 5>, 15> skillUpAmountWeights = { {
+    { 85, 15, 0, 0, 0 },   // 0 (and over-cap)
+    { 85, 15, 0, 0, 0 },   // 1
+    { 85, 15, 0, 0, 0 },   // 2
+    { 80, 20, 0, 0, 0 },   // 3
+    { 80, 20, 0, 0, 0 },   // 4
+    { 70, 30, 0, 0, 0 },   // 5
+    { 70, 30, 0, 0, 0 },   // 6
+    { 60, 40, 0, 0, 0 },   // 7
+    { 60, 40, 0, 0, 0 },   // 8
+    { 50, 40, 10, 0, 0 },  // 9
+    { 40, 40, 20, 0, 0 },  // 10
+    { 40, 40, 20, 0, 0 },  // 11
+    { 15, 45, 30, 10, 0 }, // 12
+    { 10, 40, 25, 25, 0 }, // 13
+    { 0, 40, 30, 20, 10 }, // 14+
+} };
 
 // Used in: sendSynthDone
 void doSynthSkillUp(CCharEntity* PChar)
@@ -913,11 +950,14 @@ void doSynthSkillUp(CCharEntity* PChar)
             continue; // Break current loop iteration.
         }
 
+        const bool modernSystem = settings::get<bool>("map.CRAFT_MODERN_SYSTEM");
+        const bool isDesynth    = PChar->craftState().craftMode() == CRAFT_DESYNTHESIS;
+
         // We don't Skill Up if the recipe isn't difficult enough.
         // Era -> Char lvl must be bellow recipe level. Retail -> Char level myst be bellow recipe level + 10.
         // Char level does NOT count the effects of image support/gear.
         const int16 baseDiff = static_cast<int16>(PChar->craftState().skillRequired(skillID - static_cast<uint8>(xi::SkillType::Woodworking)) - charSkill / 10);
-        const int8  minDiff  = settings::get<bool>("map.CRAFT_MODERN_SYSTEM") ? -11 : 0;
+        const int8  minDiff  = modernSystem ? -11 : 0;
         if (baseDiff <= minDiff)
         {
             continue; // Break current loop iteration.
@@ -934,7 +974,12 @@ void doSynthSkillUp(CCharEntity* PChar)
         //------------------------------
         double skillUpChance = 0.0;
 
-        if (settings::get<bool>("map.CRAFT_MODERN_SYSTEM"))
+        if (isDesynth)
+        {
+            // Retail desynth logs (2833 synths, recipe 1-5 levels over skill 0-10): flat ~5%, identical on break and success.
+            skillUpChance = 0.05;
+        }
+        else if (modernSystem)
         {
             if (baseDiff > 1)
             {
@@ -947,7 +992,18 @@ void doSynthSkillUp(CCharEntity* PChar)
         }
         else
         {
-            skillUpChance = static_cast<double>(baseDiff) * (3.0 - std::log(1.2 + static_cast<double>(charSkill) / 100.0)) / 10.0; // Original skill up equation.
+            // No data supports skill up chance scaling with the recipe level gap, so era rates are flat.
+            // This data has been taken mostly from this: https://www.bluegartr.com/threads/57123-Before-you-ask-a-stupid-crafting-question-read-this!
+            // Took the low of both ranges so 60% skillup below 50 and 25% skillup above 50.
+            // The data is not perfect but it is unfortunately the best we have for old rates.
+            if (charSkill < 500) // 0-49.9
+            {
+                skillUpChance = 0.6;
+            }
+            else // 50.0 and above
+            {
+                skillUpChance = 0.25;
+            }
         }
 
         // Apply synthesis skill gain rate modifier before synthesis fail modifier
@@ -958,15 +1014,10 @@ void doSynthSkillUp(CCharEntity* PChar)
         const double craftChanceMultiplier = settings::get<double>("map.CRAFT_CHANCE_MULTIPLIER");
         skillUpChance                      = skillUpChance * craftChanceMultiplier;
 
-        // Chance penalties.
+        // Chance penalties. The retail desynth rate was measured with breaks included, so it takes none.
         uint8 penalty = 1;
 
-        if (PChar->craftState().craftMode() == CRAFT_DESYNTHESIS) // If it's a desynth, lower skill up rate
-        {
-            penalty += 1;
-        }
-
-        if (PChar->craftState().result() == SYNTHESIS_FAIL) // If synth breaks, lower skill up rate
+        if (!isDesynth && PChar->craftState().result() == SYNTHESIS_FAIL) // If synth breaks, lower skill up rate
         {
             penalty += 1;
         }
@@ -986,51 +1037,22 @@ void doSynthSkillUp(CCharEntity* PChar)
         //------------------------------
         // Section 4: Calculate Skill Up Amount
         //------------------------------
-        uint8 maxAllowedAmount = 1;
+        uint8 skillUpAmount = 1;
         if (charSkill < 600) // No skill ups over 0.1 happen over level 60.
         {
-            if (baseDiff >= 12)
-            {
-                maxAllowedAmount = 4;
-            }
-            else if (baseDiff >= 6)
-            {
-                maxAllowedAmount = 3;
-            }
-            else if (baseDiff >= 3)
-            {
-                maxAllowedAmount = 2;
-            }
-        }
+            const auto& weights          = skillUpAmountWeights[std::clamp<int16>(baseDiff, 0, 14)];
+            const auto  roll             = xirand::GetRandomNumber(100);
+            int32       cumulativeWeight = 0;
 
-        // TODO: More info needed for rates. This is using what was already here since the dark ages.
-        uint8 skillUpAmount = 1;
-        if (maxAllowedAmount > 1)
-        {
-            const uint8 cicles = static_cast<uint8>(maxAllowedAmount - 1);
-            double      chance = 0.0;
-
-            for (uint8 i = 1; i <= cicles; i++) // Cicle up to 3 times until cap (0.4 skill-up value) or break. The lower the maxAllowedAmount, the more likely it will break.
+            for (uint8 amount = 1; amount <= weights.size(); ++amount)
             {
-                chance = static_cast<double>(maxAllowedAmount) * 0.1;
-
-                if (chance < xirand::GetRandomNumber(1.0))
+                cumulativeWeight += weights[amount - 1];
+                if (roll < cumulativeWeight)
                 {
+                    skillUpAmount = amount;
                     break;
                 }
-
-                skillUpAmount++;
-                maxAllowedAmount--;
             }
-        }
-
-        // Settings skill amount multiplier
-        if (settings::get<uint8>("map.CRAFT_AMOUNT_MULTIPLIER") > 1)
-        {
-            // Scaled at int width: at uint8 width a large multiplier setting wraps before the cap below can catch it.
-            const int scaledAmount = skillUpAmount + skillUpAmount * settings::get<uint8>("map.CRAFT_AMOUNT_MULTIPLIER");
-
-            skillUpAmount = static_cast<uint8>(std::min(scaledAmount, 9));
         }
 
         // Cap skill gain amount if character hits the current cap
@@ -1107,8 +1129,6 @@ void doSynthSkillUp(CCharEntity* PChar)
  ************************/
 void startSynth(CCharEntity* PChar, const SynthOffer& offer)
 {
-    PChar->m_LastSynthTime = timer::now();
-
     if (!resolveRecipe(PChar, offer))
     {
         return;
@@ -1122,9 +1142,19 @@ void startSynth(CCharEntity* PChar, const SynthOffer& offer)
         return;
     }
 
+    PChar->m_LastSynthTime = timer::now();
+
     const auto effect = crystalProps(offer.crystal.itemId).effect;
 
-    PChar->addTransaction(std::move(synthTransaction))->consumeCrystal();
+    auto* transaction = PChar->addTransaction(std::move(synthTransaction));
+    if (!transaction)
+    {
+        ShowWarningFmt("startSynth: {} could not start a synth", PChar->getName());
+        PChar->pushPacket<GP_SERV_COMMAND_COMBINE_ANS>(PChar, SynthesisResult::CancelBadRecipe);
+        return;
+    }
+
+    transaction->consumeCrystal();
 
     uint8 result = handleSynthResult(PChar);
 
@@ -1197,12 +1227,11 @@ void doSynthCriticalFail(CCharEntity* PChar)
     }
 
     // Push "Synthesis failed" messages.
-    uint16 currentZone = PChar->loc.zone->GetID();
+    const auto currentZone = PChar->loc.zone->GetID();
 
-    if (currentZone &&
-        currentZone != ZONE_MONORAIL_PRE_RELEASE &&
-        currentZone != ZONE_49 &&
-        currentZone < MAX_ZONEID)
+    if (currentZone != xi::ZoneId::Unknown &&
+        currentZone != xi::ZoneId::None &&
+        static_cast<uint16>(currentZone) < MAX_ZONEID)
     {
         PChar->loc.zone->PushPacket(PChar, CHAR_INRANGE, std::make_unique<GP_SERV_COMMAND_COMBINE_INF>(PChar, SynthesisResult::InterruptedCritical));
     }

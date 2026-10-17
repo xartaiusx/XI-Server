@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,10 +19,10 @@
 ===========================================================================
 */
 
-#ifndef _CLINKSHELLLISTPACKET_H_
-#define _CLINKSHELLLISTPACKET_H_
+#pragma once
 
 #include "common/cbasetypes.h"
+#include "data_loader.h"
 
 class CLinkshellListPacket
 {
@@ -30,15 +30,13 @@ public:
     CLinkshellListPacket(uint32 linkshellid, uint32 Total);
     ~CLinkshellListPacket() = default;
 
-    bool AddPlayer(SearchEntity* PPlayer);
+    auto AddPlayer(const SearchEntity& player) -> bool;
     void SetFinal();
 
-    uint8* GetData();
-    uint16 GetSize() const;
+    auto GetData() -> uint8*;
+    auto GetSize() const -> uint16;
 
 private:
     uint32 m_offset{};
     uint8  m_data[1024]{};
 };
-
-#endif

@@ -22,6 +22,7 @@
 #include "0x104_bazaar_exit.h"
 
 #include "entities/char_entity.h"
+#include "packets/c2s/validation.h"
 #include "packets/s2c/0x108_bazaar_shopping.h"
 
 auto GP_CLI_COMMAND_BAZAAR_EXIT::validate(MapSession* PSession, const CCharEntity* PChar) const -> PacketValidationResult
@@ -33,21 +34,19 @@ auto GP_CLI_COMMAND_BAZAAR_EXIT::validate(MapSession* PSession, const CCharEntit
 
 void GP_CLI_COMMAND_BAZAAR_EXIT::process(MapSession* PSession, CCharEntity* PChar) const
 {
-    auto* PEntity = PChar->GetEntity(PChar->BazaarID.targid, TYPE_PC);
+    auto* PEntity = PChar->BazaarID.resolve<CCharEntity>();
     if (!PEntity)
     {
         return;
     }
 
-    if (auto* PTarget = static_cast<CCharEntity*>(PEntity); PTarget->id == PChar->BazaarID.id)
+    if (auto* PTarget = static_cast<CCharEntity*>(PEntity); PTarget->id == PChar->BazaarID.UniqueNo)
     {
-        for (std::size_t i = 0; i < PTarget->BazaarCustomers.size(); ++i)
-        {
-            if (PTarget->BazaarCustomers[i].id == PChar->id)
-            {
-                PTarget->BazaarCustomers.erase(PTarget->BazaarCustomers.begin() + i--);
-            }
-        }
+        std::erase_if(PTarget->BazaarCustomers,
+                      [PChar](const auto& customer)
+                      {
+                          return customer.UniqueNo == PChar->id;
+                      });
         if (!PChar->m_isGMHidden || (PChar->m_isGMHidden && PTarget->m_GMlevel >= PChar->m_GMlevel))
         {
             PTarget->pushPacket<GP_SERV_COMMAND_BAZAAR_SHOPPING>(PChar, GP_SERV_COMMAND_BAZAAR_SHOPPING_STATE::Exit);

@@ -2,20 +2,8 @@
 -- Area: Misareaux Coast
 --   NM: Okyupete
 -----------------------------------
-local ID = zones[xi.zone.MISAREAUX_COAST]
------------------------------------
 ---@type TMobEntity
 local entity = {}
-
-entity.spawnPoints =
-{
-    { x = -44.180, y = -24.518, z =  511.993 }
-}
-
-entity.phList =
-{
-    [ID.mob.OKYUPETE - 8] = ID.mob.OKYUPETE,
-}
 
 entity.onMobInitialize = function(mob)
     mob:addImmunity(xi.immunity.BIND)

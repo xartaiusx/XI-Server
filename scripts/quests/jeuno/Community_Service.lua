@@ -10,8 +10,6 @@ local quest = Quest:new(xi.questLog.JEUNO, xi.quest.id.jeuno.COMMUNITY_SERVICE)
 
 quest.reward =
 {
-    fame     = 30,
-    fameArea = xi.fameArea.JEUNO,
     title    = xi.title.TORCHBEARER,
 }
 
@@ -162,7 +160,7 @@ xi.quest.communityServiceNotification = function(zone)
     local players = zone:getPlayers()
 
     for _, player in pairs(players) do
-        if player:hasKeyItem(xi.ki.LAMP_LIGHTERS_MEMBERSHIP_CARD) then
+        if player:hasKeyItem(xi.keyItem.LAMP_LIGHTERS_MEMBERSHIP_CARD) then
             player:messageSpecial(ID.text.ZAUKO_IS_RECRUITING)
         end
     end
@@ -188,7 +186,7 @@ quest.sections =
                     local date            = VanadielUniqueDay()
                     local doneCommService = (player:getQuestStatus(xi.questLog.JEUNO, xi.quest.id.jeuno.COMMUNITY_SERVICE) == xi.questStatus.QUEST_COMPLETED) and 1 or 0
                     local hour            = VanadielHour()
-                    local member          = player:hasKeyItem(xi.ki.LAMP_LIGHTERS_MEMBERSHIP_CARD) and 1 or 0
+                    local member          = player:hasKeyItem(xi.keyItem.LAMP_LIGHTERS_MEMBERSHIP_CARD) and 1 or 0
                     local progress        = quest:getVar(player, 'Prog')
                     local questStarted    = zone:getLocalVar('commServiceStart') -- Either 1 or 0
                     local questCompleted  = zone:getLocalVar('commServiceComp')  -- Either 1 or 0
@@ -235,7 +233,7 @@ quest.sections =
                     elseif
                         hour >= 5 and
                         hour < 18 and
-                        player:hasKeyItem(xi.ki.LAMP_LIGHTERS_MEMBERSHIP_CARD) and
+                        player:hasKeyItem(xi.keyItem.LAMP_LIGHTERS_MEMBERSHIP_CARD) and
                         quest:getVar(player, 'Wait') < VanadielUniqueDay()
                     then
                         return quest:event(118, 1)
@@ -369,17 +367,20 @@ quest.sections =
                     zone:setLocalVar('commServiceComp', 1)
                     zone:setLocalVar('commServicePlayer', player:getID())
                     quest:complete(player)
+                    player:addFame(xi.fameArea.SANDORIA, 7)
+                    player:addFame(xi.fameArea.BASTOK, 7)
+                    player:addFame(xi.fameArea.WINDURST, 7)
 
                     if option == 1 then
-                        npcUtil.giveKeyItem(player, xi.ki.LAMP_LIGHTERS_MEMBERSHIP_CARD)
+                        npcUtil.giveKeyItem(player, xi.keyItem.LAMP_LIGHTERS_MEMBERSHIP_CARD)
                     end
                 end,
 
                 [118] = function(player, csid, option, npc)
                     quest:setVar(player, 'Wait', VanadielUniqueDay())
                     if option == 1 then
-                        player:delKeyItem(xi.ki.LAMP_LIGHTERS_MEMBERSHIP_CARD)
-                        player:messageSpecial(ID.text.YOU_RETURN_THE, xi.ki.LAMP_LIGHTERS_MEMBERSHIP_CARD)
+                        player:delKeyItem(xi.keyItem.LAMP_LIGHTERS_MEMBERSHIP_CARD)
+                        player:messageSpecial(ID.text.YOU_RETURN_THE, xi.keyItem.LAMP_LIGHTERS_MEMBERSHIP_CARD)
                     end
                 end,
 

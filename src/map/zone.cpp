@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -21,7 +21,12 @@
 
 #include "packets/s2c/0x057_weather.h"
 
+#include "data/datasets/zones/mobs/dataset.h"
+#include "data/datasets/zones/npcs/dataset.h"
+#include "data/datasets/zones/regions/dataset.h"
+#include "data/datasets/zones/settings/dataset.h"
 #include "data/enums/weather.h"
+#include "data/loader.h"
 
 #include <common/types/hash_map.h>
 
@@ -30,7 +35,12 @@ namespace
 
 constexpr std::uint16_t WeatherCycle = 2160;
 
-}
+using ZoneSettingsDataset = xi::data::datasets::zones::settings::Dataset;
+using MobsDataset         = xi::data::datasets::zones::mobs::Dataset;
+using NpcsDataset         = xi::data::datasets::zones::npcs::Dataset;
+using RegionsDataset      = xi::data::datasets::zones::regions::Dataset;
+
+} // namespace
 
 // TODO:
 // It is necessary to divide the CZone class into basic and heirs. Already painted: Standard, Resident, Instance and Dynamis
@@ -44,20 +54,19 @@ constexpr std::uint16_t WeatherCycle = 2160;
 #include "common/utils.h"
 #include "common/vana_time.h"
 
-#include <cstring>
+#include <algorithm>
 #include <filesystem>
 
 #include "battlefield.h"
 #include "enums/loot_recast.h"
 #include "ipc_client.h"
 #include "latent_effect_container.h"
-#include "map/navmesh/navmesh.h"
-#include "map/navmesh/navmesh_builder.h"
 #include "map_engine.h"
 #include "monstrosity.h"
 #include "nominate_manager.h"
 #include "party.h"
 #include "recast_container.h"
+#include "roam_region.h"
 #include "spawn_handler.h"
 #include "status_effect_container.h"
 #include "treasure_pool.h"
@@ -72,9 +81,15 @@ constexpr std::uint16_t WeatherCycle = 2160;
 #include "utils/charutils.h"
 #include "utils/moduleutils.h"
 
+#include <map/navmesh/detour_navmesh.h>
+#include <map/navmesh/navmesh.h>
+#include <map/navmesh/navmesh_builder.h>
+#include <map/navmesh/null_navmesh.h>
+#include <map/ximesh/null_ximesh.h>
 #include <map/ximesh/ximesh.h>
+#include <map/ximesh/ximesh_impl.h>
 
-CZone::CZone(Scheduler& scheduler, MapConfig config, ZONEID ZoneID, REGION_TYPE RegionID, CONTINENT_TYPE ContinentID, uint8 levelRestriction)
+CZone::CZone(Scheduler& scheduler, MapConfig config, xi::ZoneId ZoneID, REGION_TYPE RegionID, CONTINENT_TYPE ContinentID, uint8 levelRestriction, const std::optional<xi::data::ZoneSettings>& settings)
 : scheduler_(scheduler)
 , config_(config)
 , navMesh_{ std::make_unique<NullNavMesh>() }
@@ -94,10 +109,8 @@ CZone::CZone(Scheduler& scheduler, MapConfig config, ZONEID ZoneID, REGION_TYPE 
     m_spawnHandler       = std::make_unique<SpawnHandler>(this);
     nominateManager_     = std::make_unique<NominateManager>(*this);
 
-    // settings should load first
-    LoadZoneSettings();
-
-    LoadZoneLines();
+    LoadZoneSettings(settings);
+    LoadZoneLines(settings);
     LoadZoneWeather();
 }
 
@@ -123,7 +136,7 @@ CZone::~CZone()
     m_zoneLineList.clear();
 }
 
-auto CZone::GetID() const -> ZONEID
+auto CZone::GetID() const -> xi::ZoneId
 {
     return m_zoneID;
 }
@@ -251,7 +264,7 @@ const QueryByNameResult_t& CZone::queryEntitiesByName(const std::string& pattern
 
     // Always ignore cache for queries explicitly looking for dynamic entities
     // TODO: make this memoization work for dynamic entities somehow?
-    if (pattern.rfind("DE_", 0) != 0)
+    if (!pattern.starts_with("DE_"))
     {
         // Use memoization since lookups are typically for the same mob names
         auto result = m_queryByNameResults.find(pattern);
@@ -313,14 +326,8 @@ bool CZone::CanUseMisc(xi::ZoneMisc misc) const
 
 zoneLine_t* CZone::GetZoneLine(uint32 zoneLineID)
 {
-    for (const auto& zoneLine : m_zoneLineList)
-    {
-        if (zoneLine->zoneLineId == zoneLineID)
-        {
-            return zoneLine;
-        }
-    }
-    return nullptr;
+    const auto it = std::ranges::find(m_zoneLineList, zoneLineID, &zoneLine_t::zoneLineId);
+    return it != m_zoneLineList.end() ? *it : nullptr;
 }
 
 // Spawns players across 8 fixed slots along the target zoneline area.
@@ -343,33 +350,27 @@ auto zoneLine_t::nextSpawnPosition() -> position_t
     };
 }
 
-void CZone::LoadZoneLines()
+void CZone::LoadZoneLines(const std::optional<xi::data::ZoneSettings>& settings)
 {
     TracyZoneScoped;
 
-    const auto rset = db::preparedStmt("SELECT zonelineid, from_zone, from_pos_x, from_pos_y, from_pos_z, "
-                                       "to_zone, to_pos_x, to_pos_y, to_pos_z, to_scale_x, to_scale_z, to_rotation "
-                                       "FROM zonelines "
-                                       "WHERE from_zone = ?",
-                                       m_zoneID);
-    FOR_DB_MULTIPLE_RESULTS(rset)
+    // TODO: Store the POD directly
+    if (settings)
     {
-        auto* zl = new zoneLine_t;
+        for (const auto& line : settings->ZoneLines)
+        {
+            auto* zl = new zoneLine_t;
 
-        zl->zoneLineId              = rset->get<uint32>("zonelineid");
-        zl->originZoneId            = rset->get<ZONEID>("from_zone");
-        zl->originPos.x             = rset->get<float>("from_pos_x");
-        zl->originPos.y             = rset->get<float>("from_pos_y");
-        zl->originPos.z             = rset->get<float>("from_pos_z");
-        zl->destinationZoneId       = rset->get<ZONEID>("to_zone");
-        zl->destinationPos.x        = rset->get<float>("to_pos_x");
-        zl->destinationPos.y        = rset->get<float>("to_pos_y");
-        zl->destinationPos.z        = rset->get<float>("to_pos_z");
-        zl->destinationPos.rotation = radianToRotation(rset->get<float>("to_rotation"));
-        zl->destinationScaleX       = rset->get<float>("to_scale_x");
-        zl->destinationScaleZ       = rset->get<float>("to_scale_z");
+            zl->zoneLineId        = line.Id;
+            zl->originZoneId      = m_zoneID;
+            zl->originPos         = line.Origin;
+            zl->destinationZoneId = line.DestinationZone;
+            zl->destinationPos    = line.Destination;
+            zl->destinationScaleX = line.ScaleX;
+            zl->destinationScaleZ = line.ScaleZ;
 
-        m_zoneLineList.emplace_back(zl);
+            m_zoneLineList.emplace_back(zl);
+        }
     }
 }
 
@@ -413,22 +414,11 @@ void CZone::LoadZoneWeather()
     }
 }
 
-void CZone::LoadZoneSettings()
+void CZone::LoadZoneSettings(const std::optional<xi::data::ZoneSettings>& settings)
 {
     TracyZoneScoped;
 
-    const auto rset = db::preparedStmt("SELECT "
-                                       "zone.name,"
-                                       "zone.zoneip,"
-                                       "zone.zoneport,"
-                                       "zone.music_day,"
-                                       "zone.music_night,"
-                                       "zone.battlesolo,"
-                                       "zone.battlemulti,"
-                                       "zone.tax,"
-                                       "zone.misc,"
-                                       "zone.zonetype,"
-                                       "bcnm.name AS bcnmname "
+    const auto rset = db::preparedStmt("SELECT zone.name, zone.zoneip, zone.zoneport, bcnm.name AS bcnmname "
                                        "FROM zone_settings AS zone "
                                        "LEFT JOIN bcnm_records AS bcnm "
                                        "USING (zoneid) "
@@ -441,13 +431,17 @@ void CZone::LoadZoneSettings()
         m_zoneIP   = str2ip(rset->get<std::string>("zoneip"));
         m_zonePort = rset->get<uint16>("zoneport");
 
-        m_zoneMusic.m_songDay   = rset->get<uint16>("music_day");
-        m_zoneMusic.m_songNight = rset->get<uint16>("music_night");
-        m_zoneMusic.m_bSongS    = rset->get<uint16>("battlesolo");
-        m_zoneMusic.m_bSongM    = rset->get<uint16>("battlemulti");
-        m_tax                   = static_cast<uint16>(rset->get<float>("tax") * 100); // tax for bazaar
-        m_miscMask              = rset->get<xi::ZoneMisc>("misc");
-        m_zoneType              = rset->get<xi::ZoneType>("zonetype");
+        if (settings)
+        {
+            m_zoneMusic.m_songDay   = settings->Music.Day;
+            m_zoneMusic.m_songNight = settings->Music.Night;
+            m_zoneMusic.m_bSongS    = settings->Music.BattleSolo;
+            m_zoneMusic.m_bSongM    = settings->Music.BattleParty;
+            m_tax                   = static_cast<uint16>(settings->Tax * 100); // tax for bazaar
+            m_miscMask              = settings->Misc;
+            m_zoneType              = settings->Type;
+            navMeshData_            = settings->NavMesh;
+        }
 
         if (rset->getOrDefault<std::string>("bcnmname", "") != "") // bcnmid cannot be used now, because they start from scratch
         {
@@ -466,9 +460,77 @@ void CZone::LoadZoneSettings()
     }
 }
 
+// The zone's lists join whatever the caller asked for, and the knobs it sets replace the caller's.
+// Seeds come from the data files, since the bake runs before the zone's mobs, NPCs and regions exist.
+// Zone lines are already loaded by then.
+void CZone::applyNavMeshOverrides(NavMeshConfig& config) const
+{
+    const auto& data = navMeshData_;
+
+    config.ySkipPlanes.insert(config.ySkipPlanes.end(), data.SkipPlanes.begin(), data.SkipPlanes.end());
+    for (const auto& sphere : data.SkipSpheres)
+    {
+        config.skipSpheres.push_back({ .center = sphere.Center, .radius = sphere.Radius });
+    }
+
+    config.generateOffMeshLinks = data.OffMeshLinks.value_or(config.generateOffMeshLinks);
+    config.offMeshMaxDrop       = data.OffMeshMaxDrop.value_or(config.offMeshMaxDrop);
+    config.offMeshHorizReach    = data.OffMeshReach.value_or(config.offMeshHorizReach);
+    config.walkableSlopeAngle   = data.WalkableSlopeAngle.value_or(config.walkableSlopeAngle);
+    config.agentMaxClimb        = data.AgentMaxClimb.value_or(config.agentMaxClimb);
+
+    const auto seed = [&](const position_t& position)
+    {
+        config.seeds.push_back({ position.x, position.y, position.z });
+    };
+
+    if (const auto mobs = xi::data::loadZoneFile<MobsDataset>(GetID()))
+    {
+        for (const auto& spawn : mobs->Spawns)
+        {
+            if (!spawn.Placed || !spawn.Regions.empty())
+            {
+                continue;
+            }
+
+            // a patrol lives on its route and its position is a placeholder
+            if (spawn.Route.empty())
+            {
+                seed(spawn.Position);
+            }
+
+            for (const auto& waypoint : spawn.Route)
+            {
+                seed(waypoint);
+            }
+        }
+    }
+
+    if (const auto npcs = xi::data::loadZoneFile<NpcsDataset>(GetID()))
+    {
+        for (const auto& npc : *npcs)
+        {
+            seed(npc.Position);
+        }
+    }
+
+    for (const auto* zoneLine : m_zoneLineList)
+    {
+        seed(zoneLine->originPos);
+    }
+
+    if (const auto regions = xi::data::loadZoneFile<RegionsDataset>(GetID()))
+    {
+        for (const auto& region : *regions)
+        {
+            config.seeds.insert(config.seeds.end(), region.Outer.begin(), region.Outer.end());
+        }
+    }
+}
+
 auto CZone::LoadNavMesh() -> Task<void>
 {
-    auto       navMesh = std::make_unique<CNavMesh>(static_cast<uint16>(GetID()));
+    auto       navMesh = std::make_unique<DetourNavMesh>(static_cast<uint16>(GetID()));
     const auto file    = fmt::format("navmeshes/{}.nav", getName());
 
     if (!config_.rebuildNavmeshes && navMesh->load(file))
@@ -479,7 +541,11 @@ auto CZone::LoadNavMesh() -> Task<void>
 
     NavMeshBuilder builder(*xiMesh_);
 
-    auto* dtNavMesh = co_await builder.buildAsync(scheduler_, getName(), static_cast<uint16>(GetID()), NavMeshConfig{});
+    auto config = NavMeshConfig{};
+
+    applyNavMeshOverrides(config);
+
+    auto* dtNavMesh = co_await builder.buildAsync(scheduler_, getName(), static_cast<uint16>(GetID()), config);
     if (dtNavMesh && navMesh->installNavMesh(dtNavMesh))
     {
         navMesh->save(file);
@@ -490,11 +556,14 @@ auto CZone::LoadNavMesh() -> Task<void>
     DebugNavmesh("CZone::LoadNavMesh: Build failed for zone (%s)", getName().c_str());
 }
 
-void CZone::RebuildNavMesh(const NavMeshConfig& config)
+void CZone::RebuildNavMesh(const NavMeshConfig& configIn)
 {
     const auto  zoneName  = getName();
     const auto  zoneID    = static_cast<uint16>(GetID());
     const auto* xiMeshPtr = xiMesh_.get();
+
+    auto config = configIn;
+    applyNavMeshOverrides(config);
 
     scheduler_.postToMainThread(
         [this, zoneName, zoneID, config, xiMeshPtr]() -> Task<void>
@@ -502,7 +571,7 @@ void CZone::RebuildNavMesh(const NavMeshConfig& config)
             NavMeshBuilder builder(*xiMeshPtr);
 
             auto* dtNavMesh = co_await builder.buildAsync(scheduler_, zoneName, zoneID, config);
-            auto  navMesh   = std::make_unique<CNavMesh>(zoneID);
+            auto  navMesh   = std::make_unique<DetourNavMesh>(zoneID);
             if (dtNavMesh && navMesh->installNavMesh(dtNavMesh))
             {
                 navMesh->save(fmt::format("navmeshes/{}.nav", zoneName));
@@ -511,14 +580,37 @@ void CZone::RebuildNavMesh(const NavMeshConfig& config)
         });
 }
 
-auto CZone::navMesh() const -> INavMesh*
+auto CZone::navMesh() const -> NavMesh*
 {
     return navMesh_.get();
 }
 
-auto CZone::xiMesh() const -> IXiMesh*
+auto CZone::xiMesh() const -> XiMesh*
 {
     return xiMesh_.get();
+}
+
+auto CZone::roamRegion(const std::string& name) const -> const RoamRegion*
+{
+    const auto region = roamRegions_.find(name);
+    if (region == roamRegions_.end())
+    {
+        return nullptr;
+    }
+
+    return region->second.get();
+}
+
+auto CZone::addRoamRegion(std::string name, RoamRegion region) -> const RoamRegion*
+{
+    // A duplicate name keeps the region already in place: replacing it would dangle every mob pointing at it.
+    const auto [entry, added] = roamRegions_.try_emplace(std::move(name), std::make_unique<RoamRegion>(std::move(region)));
+    if (!added)
+    {
+        ShowWarningFmt("Zone {}: duplicate roam region {}, ignoring it", m_zoneName, entry->first);
+    }
+
+    return entry->second.get();
 }
 
 void CZone::LoadXiMesh()
@@ -571,7 +663,7 @@ void CZone::LoadXiMesh()
     {
         try
         {
-            xiMesh_ = std::make_unique<XiMesh>(file);
+            xiMesh_ = std::make_unique<XiMeshImpl>(file);
         }
         catch (const std::exception& e)
         {
@@ -627,9 +719,14 @@ void CZone::onEntityMoved(CBaseEntity* PEntity)
     m_zoneEntities->onEntityMoved(PEntity);
 }
 
-void CZone::TransportDepart(uint16 boundary, uint16 prevZoneId, uint16 transportId)
+void CZone::TransportDepart(const uint16 boundary, const xi::ZoneId prevZoneId, const std::string_view transport)
 {
-    m_zoneEntities->TransportDepart(boundary, prevZoneId, transportId);
+    m_zoneEntities->TransportDepart(boundary, prevZoneId, transport);
+}
+
+void CZone::DisembarkAll()
+{
+    m_zoneEntities->DisembarkAll();
 }
 
 void CZone::updateCharLevelRestriction(CCharEntity* PChar)
@@ -881,14 +978,14 @@ CCharEntity* CZone::GetCharByID(uint32 id)
 
 void CZone::PushPacket(CBaseEntity* PEntity, GLOBAL_MESSAGE_TYPE message_type, const std::unique_ptr<CBasicPacket>& packet)
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CZone::PushPacket");
 
     m_zoneEntities->PushPacket(PEntity, message_type, packet);
 }
 
 void CZone::UpdateEntityPacket(CBaseEntity* PEntity, ENTITYUPDATE type, uint8 updatemask, bool alwaysInclude)
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CZone::UpdateEntityPacket");
 
     m_zoneEntities->UpdateEntityPacket(PEntity, type, updatemask, alwaysInclude);
 }
@@ -909,7 +1006,7 @@ void CZone::WideScan(CCharEntity* PChar, uint16 radius)
 
 auto CZone::ZoneServer(timer::time_point tick) -> Task<void>
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CZone::ZoneServer");
 
     co_await m_zoneEntities->ZoneServer(tick);
 
@@ -1043,7 +1140,7 @@ void CZone::CharZoneIn(CCharEntity* PChar)
     TracyZoneScoped;
 
     PChar->loc.zone        = this;
-    PChar->loc.destination = 0;
+    PChar->loc.destination = xi::ZoneId::Unknown;
     PChar->clearTriggerAreas();
 
     if (PChar->isMounted() && !CanUseMisc(xi::ZoneMisc::Mount))
@@ -1091,10 +1188,25 @@ void CZone::CharZoneIn(CCharEntity* PChar)
 
     if (m_BattlefieldHandler)
     {
+        // Zoning out drops the clearance effect, a player still registered in an open battlefield here gets it back
+        m_BattlefieldHandler->RestoreClearance(PChar);
+
         auto* PBattlefield = m_BattlefieldHandler->GetBattlefield(PChar, true);
         if (PBattlefield != nullptr && PChar->StatusEffectContainer->HasStatusEffectByFlag(xi::StatusEffectFlag::Confrontation))
         {
-            PBattlefield->InsertEntity(PChar, CBattlefield::hasPlayerEntered(PChar));
+            const bool entered = CBattlefield::hasPlayerEntered(PChar);
+
+            // Retail closes the fight once its last player has logged out
+            if (entered && !PBattlefield->IsOccupied() && PBattlefield->GetStatus() < BATTLEFIELD_STATUS_WON)
+            {
+                PBattlefield->RemoveRegistration(PChar);
+                PBattlefield->CanCleanup(true);
+                m_BattlefieldHandler->addOrphanedPlayer(PChar);
+            }
+            else
+            {
+                PBattlefield->InsertEntity(PChar, entered);
+            }
         }
         else if (PChar->StatusEffectContainer->HasStatusEffectByFlag(xi::StatusEffectFlag::Confrontation))
         {
@@ -1137,7 +1249,8 @@ void CZone::CharZoneIn(CCharEntity* PChar)
     }
 
     // Mark current zone as visited
-    PChar->m_ZonesVisitedList[PChar->getZone() >> 3] |= (1 << (PChar->getZone() % 8));
+    const auto visitedZone = static_cast<uint16>(PChar->getZone());
+    PChar->m_ZonesVisitedList[visitedZone >> 3] |= (1 << (visitedZone % 8));
 
     monstrosity::HandleZoneIn(PChar);
 
@@ -1213,14 +1326,11 @@ void CZone::CharZoneOut(CCharEntity* PChar)
             }
             if (PChar->PParty->GetSyncTarget() != nullptr)
             {
-                uint8 count = 0;
-                for (uint32 i = 0; i < PChar->PParty->members.size(); ++i)
-                {
-                    if (PChar->PParty->members.at(i) != PChar && PChar->PParty->members.at(i)->getZone() == PChar->PParty->GetSyncTarget()->getZone())
-                    {
-                        count++;
-                    }
-                }
+                const auto count = static_cast<uint8>(std::ranges::count_if(PChar->PParty->members,
+                                                                            [&](const auto* member)
+                                                                            {
+                                                                                return member != PChar && member->getZone() == PChar->PParty->GetSyncTarget()->getZone();
+                                                                            }));
                 if (count < 2) // 3, because one is zoning out - thus at least 2 will be left
                 {
                     PChar->PParty->SetSyncTarget("", MsgStd::LevelSyncRemoveTooFewMembers);

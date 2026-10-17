@@ -9,16 +9,16 @@ local quest = Quest:new(xi.questLog.BASTOK, xi.quest.id.bastok.A_TEST_OF_TRUE_LO
 
 quest.reward =
 {
-    fame     = 120,
+    fame     = 70,
     fameArea = xi.fameArea.BASTOK,
     gil      = 10000,
 }
 
 local pageKeyItems =
 {
-    xi.ki.UN_MOMENT,
-    xi.ki.LEPHEMERE,
-    xi.ki.LANCIENNE,
+    xi.keyItem.UN_MOMENT,
+    xi.keyItem.LEPHEMERE,
+    xi.keyItem.LANCIENNE,
 }
 
 local function getNumPages(player)

@@ -21,6 +21,7 @@
 
 #include "lua_test_entity_assertions.h"
 
+#include "lua/luautils.h"
 #include "lua_test_entity.h"
 #include "test_common.h"
 
@@ -170,13 +171,13 @@ void CLuaTestEntityAssertions::assertCondition(const bool result, const std::str
  *  Notes   :
  ************************************************************************/
 
-auto CLuaTestEntityAssertions::inZone(const ZONEID expectedZone) -> CLuaTestEntityAssertions&
+auto CLuaTestEntityAssertions::inZone(const xi::ZoneId expectedZone) -> CLuaTestEntityAssertions&
 {
     const auto actualZone = entity_->getZoneID();
 
-    assertCondition(entity_->getZoneID() == expectedZone,
-                    std::format("Expected to be in zone {}, but was in zone {}", getEnumKey("xi.zone", expectedZone), getEnumKey("xi.zone", actualZone)),
-                    std::format("Expected to NOT be in zone {}", getEnumKey("xi.zone", expectedZone)));
+    assertCondition(actualZone == expectedZone,
+                    std::format("Expected to be in zone {}, but was in zone {}", getEnumKey("xi.zone", static_cast<uint32>(expectedZone)), getEnumKey("xi.zone", static_cast<uint32>(actualZone))),
+                    std::format("Expected to NOT be in zone {}", getEnumKey("xi.zone", static_cast<uint32>(expectedZone))));
     return *this;
 }
 
@@ -253,11 +254,11 @@ auto CLuaTestEntityAssertions::hasNationRank(uint8 expectedRank) -> CLuaTestEnti
 /************************************************************************
  *  Function: hasKI()
  *  Purpose : Assert player has specified key item
- *  Example : player.assert:hasKI(xi.ki.AIRSHIP_PASS)
+ *  Example : player.assert:hasKI(xi.keyItem.AIRSHIP_PASS)
  *  Notes   :
  ************************************************************************/
 
-auto CLuaTestEntityAssertions::hasKI(KeyItem keyItemId) -> CLuaTestEntityAssertions&
+auto CLuaTestEntityAssertions::hasKI(xi::KeyItem keyItemId) -> CLuaTestEntityAssertions&
 {
     if (!entity_->isPC())
     {
@@ -266,8 +267,8 @@ auto CLuaTestEntityAssertions::hasKI(KeyItem keyItemId) -> CLuaTestEntityAsserti
     }
 
     assertCondition(entity_->hasKeyItem(keyItemId),
-                    std::format("Expected player to have key item {}", getEnumKey("xi.ki", static_cast<uint16>(keyItemId))),
-                    std::format("Expected player NOT to have key item {}", getEnumKey("xi.ki", static_cast<uint16>(keyItemId))));
+                    std::format("Expected player to have key item {}", getEnumKey("xi.keyItem", static_cast<uint16>(keyItemId))),
+                    std::format("Expected player NOT to have key item {}", getEnumKey("xi.keyItem", static_cast<uint16>(keyItemId))));
     return *this;
 }
 

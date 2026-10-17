@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -365,7 +365,7 @@ Maybe<SpellID> CMobSpellContainer::GetBestAgainstTargetWeakness(CBattleEntity* P
     };
     // clang-format on
 
-    std::size_t    weakestIndex     = std::distance(resistances.begin(), std::min_element(resistances.begin(), resistances.end()));
+    std::size_t    weakestIndex     = std::ranges::distance(resistances.begin(), std::ranges::min_element(resistances));
     Maybe<SpellID> choice           = std::nullopt;
     auto           Weakness_Element = weakestIndex + 1;
     if (spell::GetSpell(spellId) != nullptr)
@@ -440,7 +440,7 @@ Maybe<SpellID> CMobSpellContainer::EnSpellAgainstTargetWeakness(CBattleEntity* P
     };
     // clang-format on
 
-    std::size_t weakestIndex = std::distance(resistances.begin(), std::min_element(resistances.begin(), resistances.end()));
+    std::size_t weakestIndex = std::ranges::distance(resistances.begin(), std::ranges::min_element(resistances));
 
     // TODO: Figure this out properly:
     Maybe<SpellID> choice = std::nullopt;
@@ -497,7 +497,7 @@ Maybe<SpellID> CMobSpellContainer::StormDayAgainstTargetWeakness(CBattleEntity* 
     };
     // clang-format on
 
-    std::size_t weakestIndex = std::distance(resistances.begin(), std::min_element(resistances.begin(), resistances.end()));
+    std::size_t weakestIndex = std::ranges::distance(resistances.begin(), std::ranges::min_element(resistances));
 
     // TODO: Figure this out properly:
     Maybe<SpellID> choice = std::nullopt;
@@ -564,7 +564,7 @@ Maybe<SpellID> CMobSpellContainer::HelixAgainstTargetWeakness(CBattleEntity* PTa
     };
     // clang-format on
 
-    std::size_t weakestIndex = std::distance(resistances.begin(), std::min_element(resistances.begin(), resistances.end()));
+    std::size_t weakestIndex = std::ranges::distance(resistances.begin(), std::ranges::min_element(resistances));
 
     // TODO: Figure this out properly:
     Maybe<SpellID> choice = std::nullopt;
@@ -721,23 +721,12 @@ bool CMobSpellContainer::HasSpells() const
 
 bool CMobSpellContainer::HasMPSpells() const
 {
-    for (auto spell : m_damageList)
+    const auto hasMPCost = [](SpellID spell)
     {
-        if (spell::GetSpell(spell)->hasMPCost())
-        {
-            return true;
-        }
-    }
+        return spell::GetSpell(spell)->hasMPCost();
+    };
 
-    for (auto spell : m_buffList)
-    {
-        if (spell::GetSpell(spell)->hasMPCost())
-        {
-            return true;
-        }
-    }
-
-    return false;
+    return std::ranges::any_of(m_damageList, hasMPCost) || std::ranges::any_of(m_buffList, hasMPCost);
 }
 
 Maybe<SpellID> CMobSpellContainer::GetAggroSpell()
@@ -786,7 +775,10 @@ Maybe<SpellID> CMobSpellContainer::GetSpell()
 
     if (HasBuffSpells() && xirand::GetRandomNumber(100) < m_PMob->getMobMod(xi::MobMod::BuffChance))
     {
-        return GetBuffSpell();
+        if (const auto maybeBuffSpell = GetBuffSpell(); maybeBuffSpell.has_value())
+        {
+            return maybeBuffSpell;
+        }
     }
 
     // Grab whatever spell can be found
@@ -804,7 +796,10 @@ Maybe<SpellID> CMobSpellContainer::GetSpell()
 
     if (HasBuffSpells())
     {
-        return GetBuffSpell();
+        if (const auto maybeBuffSpell = GetBuffSpell(); maybeBuffSpell.has_value())
+        {
+            return maybeBuffSpell;
+        }
     }
 
     if (HasGaSpells())
@@ -867,14 +862,76 @@ Maybe<SpellID> CMobSpellContainer::GetDamageSpell()
     return m_damageList[xirand::GetRandomNumber(m_damageList.size())];
 }
 
+namespace
+{
+
+auto targetLacksBuff(CBattleEntity* PTarget, const CSpell& spell) -> bool
+{
+    const auto statusEffect = spell.statusEffect();
+    if (!statusEffect.has_value())
+    {
+        return true;
+    }
+
+    const auto* const PEffect = PTarget->StatusEffectContainer->GetStatusEffect(statusEffect.value());
+    if (PEffect == nullptr)
+    {
+        return true;
+    }
+
+    // A tier of 0 on either side means the buff is considered already present.
+    return spell.statusEffectTier() != 0 && PEffect->GetTier() != 0 && PEffect->GetTier() < spell.statusEffectTier();
+}
+
+} // namespace
+
+// What buffs does the target have on them?
+auto CMobSpellContainer::GetBuffSpellsFor(CBattleEntity* PTarget) -> std::vector<SpellID>
+{
+    std::vector<SpellID> missingBuffs;
+    missingBuffs.reserve(m_buffList.size());
+    for (const auto spellId : m_buffList)
+    {
+        const auto* const PSpell = spell::GetSpell(spellId);
+        if (PSpell == nullptr || !GetAvailable(spellId).has_value())
+        {
+            continue;
+        }
+
+        if (PTarget != m_PMob && !PTarget->ValidTarget(m_PMob, PSpell->getValidTarget()))
+        {
+            continue;
+        }
+
+        if (targetLacksBuff(PTarget, *PSpell))
+        {
+            missingBuffs.emplace_back(spellId);
+        }
+    }
+
+    return missingBuffs;
+}
+
 Maybe<SpellID> CMobSpellContainer::GetBuffSpell()
 {
-    if (m_buffList.empty())
+    // Buffs still active on the mob are skipped
+    std::vector<SpellID> missingBuffs;
+    missingBuffs.reserve(m_buffList.size());
+    for (const auto spellId : m_buffList)
+    {
+        const auto statusEffect = spell::GetSpell(spellId)->statusEffect();
+        if (!statusEffect.has_value() || !m_PMob->StatusEffectContainer->HasStatusEffect(statusEffect.value()))
+        {
+            missingBuffs.emplace_back(spellId);
+        }
+    }
+
+    if (missingBuffs.empty())
     {
         return {};
     }
 
-    return m_buffList[xirand::GetRandomNumber(m_buffList.size())];
+    return missingBuffs[xirand::GetRandomNumber(missingBuffs.size())];
 }
 
 Maybe<SpellID> CMobSpellContainer::GetDebuffSpell()
@@ -993,12 +1050,5 @@ bool CMobSpellContainer::HasSevereSpells() const
 
 bool CMobSpellContainer::HasNaSpell(SpellID spellId) const
 {
-    for (auto spell : m_naList)
-    {
-        if (spell == spellId)
-        {
-            return true;
-        }
-    }
-    return false;
+    return std::ranges::contains(m_naList, spellId);
 }

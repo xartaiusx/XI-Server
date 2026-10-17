@@ -21,9 +21,12 @@
 
 #include "0x0cb_myroom_is.h"
 
+#include "data/enums/key_item.h"
 #include "entities/char_entity.h"
 #include "enums/msg_std.h"
+#include "packets/c2s/validation.h"
 #include "utils/charutils.h"
+#include "zone.h"
 
 namespace
 {
@@ -56,6 +59,7 @@ auto GP_CLI_COMMAND_MYROOM_IS::validate(MapSession* PSession, const CCharEntity*
     return PacketValidator(PChar)
         .blockedBy({ BlockedState::InEvent })
         .mustEqual(PChar->m_moghouseID, PChar->id, "Character not in their mog house")
+        .mustEqual(this->Kind == static_cast<uint8_t>(GP_CLI_COMMAND_MYROOM_IS_KIND::Remodel) && PChar->moghouse().isOpen(), false, "Mog House is open to visitors")
         .oneOf<GP_CLI_COMMAND_MYROOM_IS_KIND>(this->Kind)
         .oneOf<GP_CLI_COMMAND_MYROOM_IS_PARAM2>(this->Param2);
 }
@@ -72,12 +76,10 @@ void GP_CLI_COMMAND_MYROOM_IS::process(MapSession* PSession, CCharEntity* PChar)
     switch (static_cast<GP_CLI_COMMAND_MYROOM_IS_KIND>(this->Kind))
     {
         case GP_CLI_COMMAND_MYROOM_IS_KIND::Open:
-            // Not implemented
-            // NOTE: If you zone or move floors while in the MH and you have someone visiting, they will be booted.
-            // NOTE: When you zone or move floors your "open MH" flag will be reset.
+            PChar->moghouse().open();
             break;
         case GP_CLI_COMMAND_MYROOM_IS_KIND::Close:
-            // Not implemented
+            PChar->moghouse().close();
             break;
         case GP_CLI_COMMAND_MYROOM_IS_KIND::Remodel:
         {
@@ -95,7 +97,7 @@ void GP_CLI_COMMAND_MYROOM_IS::process(MapSession* PSession, CCharEntity* PChar)
                 ShowWarning(fmt::format("Player {} remodeling MH2F without it unlocked.", PChar->getName()));
             }
 
-            if (this->Param2 == static_cast<uint16_t>(GP_CLI_COMMAND_MYROOM_IS_PARAM2::MogPatio) && !charutils::hasKeyItem(PChar, KeyItem::MOG_PATIO_DESIGN_DOCUMENT))
+            if (this->Param2 == static_cast<uint16_t>(GP_CLI_COMMAND_MYROOM_IS_PARAM2::MogPatio) && !charutils::hasKeyItem(PChar, xi::KeyItem::MogPatioDesignDocument))
             {
                 ShowWarning(fmt::format("Player {} remodeling MH2F to Patio without owning the KI to unlock it.", PChar->getName()));
                 newStyle = static_cast<uint16_t>(default2fStyle);

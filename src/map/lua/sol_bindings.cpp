@@ -63,7 +63,6 @@ SOL_BIND_DEF_CONST(CLuaItem, CItem);
 
 #include "items/item_currency.h"
 #include "items/item_equipment.h"
-#include "items/item_fish.h"
 #include "items/item_flowerpot.h"
 #include "items/item_furnishing.h"
 #include "items/item_general.h"
@@ -74,7 +73,6 @@ SOL_BIND_DEF_CONST(CLuaItem, CItem);
 #include "items/item_weapon.h"
 SOL_BIND_DEF_SUB(CLuaItem, CItem, CItemCurrency);
 SOL_BIND_DEF_SUB(CLuaItem, CItem, CItemEquipment);
-SOL_BIND_DEF_SUB(CLuaItem, CItem, CItemFish);
 SOL_BIND_DEF_SUB(CLuaItem, CItem, CItemFlowerpot);
 SOL_BIND_DEF_SUB(CLuaItem, CItem, CItemFurnishing);
 SOL_BIND_DEF_SUB(CLuaItem, CItem, CItemGeneral);
@@ -101,9 +99,6 @@ SOL_BIND_DEF(CLuaSpell, CSpell);
 
 #include "lua_statuseffect.h"
 SOL_BIND_DEF(CLuaStatusEffect, CStatusEffect);
-
-#include "lua_trade_container.h"
-SOL_BIND_DEF(CLuaTradeContainer, CTradeContainer);
 
 #include "lua_trait.h"
 SOL_BIND_DEF(CLuaTrait, CTrait);

@@ -9,9 +9,7 @@ local quest = Quest:new(xi.questLog.JEUNO, xi.quest.id.jeuno.CREST_OF_DAVOI)
 
 quest.reward =
 {
-    fame = 30,
-    fameArea = xi.fameArea.JEUNO,
-    keyItem = xi.ki.CREST_OF_DAVOI,
+    keyItem = xi.keyItem.CREST_OF_DAVOI,
 }
 
 quest.sections =
@@ -19,7 +17,7 @@ quest.sections =
     {
         check = function(player, status, vars)
             return status == xi.questStatus.QUEST_AVAILABLE and
-                player:hasKeyItem(xi.ki.SILVER_BELL)
+                player:hasKeyItem(xi.keyItem.SILVER_BELL)
         end,
 
         [xi.zone.UPPER_JEUNO] =
@@ -64,6 +62,9 @@ quest.sections =
             {
                 [171] = function(player, csid, option, npc)
                     if quest:complete(player) then
+                        player:addFame(xi.fameArea.SANDORIA, 7)
+                        player:addFame(xi.fameArea.BASTOK, 7)
+                        player:addFame(xi.fameArea.WINDURST, 7)
                         player:confirmTrade()
                     end
                 end,

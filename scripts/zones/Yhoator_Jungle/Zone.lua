@@ -12,9 +12,9 @@ zoneObject.onInitialize = function(zone)
 
     xi.helm.initZone(zone, xi.helmType.HARVESTING)
     xi.helm.initZone(zone, xi.helmType.LOGGING)
-    xi.chocobo.initZone(zone)
+    xi.rentalChocobo.initZone(zone)
 
-    xi.beastmenTreasure.updatePeddlestox(xi.zone.YUHTUNGA_JUNGLE, ID.npc.PEDDLESTOX)
+    xi.beastmenTreasure.updatePeddlestox(xi.zone.YHOATOR_JUNGLE, ID.npc.PEDDLESTOX)
 
     xi.expeditionaryForce.initZone(zone)
 end
@@ -62,6 +62,10 @@ end
 zoneObject.onZoneWeatherChange = function(weather)
     -- Harvesting points only appear during rainy weather
     xi.helm.weatherChange(weather, { xi.weather.RAIN, xi.weather.SQUALL }, ID.npc.HARVESTING)
+end
+
+zoneObject.onZoneOut = function(player)
+    xi.helm.onZoneOut(player)
 end
 
 return zoneObject

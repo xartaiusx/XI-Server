@@ -2,6 +2,8 @@
 -- func: craftqa
 -- desc: GM-only Cooking synthesis QA helper for Mochirii.
 -----------------------------------
+require('modules/module_utils')
+-----------------------------------
 ---@type TCommand
 local commandObj = {}
 
@@ -153,4 +155,4 @@ commandObj.onTrigger = function(player, scope, action, arg1, arg2)
     usage(player)
 end
 
-return commandObj
+xi.module.registerCommand('craftqa', commandObj)

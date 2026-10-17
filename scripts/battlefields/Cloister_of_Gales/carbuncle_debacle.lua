@@ -14,7 +14,7 @@ local content = BattlefieldQuest:new({
     index            = 1,
     entryNpc         = 'WP_Entrance',
     exitNpc          = 'Wind_Protocrystal',
-    requiredItems    = { xi.item.WIND_PENDULUM },
+    requiredItems    = { xi.item.WIND_PENDULUM, keep = true }, -- Wind Pendulum is not consumed on entry, but is required to enter the battlefield.
 
     questArea     = xi.questLog.WINDURST,
     quest         = xi.quest.id.windurst.CARBUNCLE_DEBACLE,
@@ -22,12 +22,21 @@ local content = BattlefieldQuest:new({
     requiredValue = 6,
 })
 
+-- Only the battlefield registrant needs to have the required item and quest state to initiate the battlefield.
+function content:checkRequirements(player, npc, isRegistrant, trade)
+    if isRegistrant then
+        return BattlefieldQuest.checkRequirements(self, player, npc, isRegistrant, trade)
+    end
+
+    return self:isValidEntry(player, npc)
+end
+
 function content:onEventFinishWin(player, csid, option, npc)
     if player:getCharVar('CarbuncleDebacleProgress') == 6 then
         player:setCharVar('CarbuncleDebacleProgress', 7)
     end
 
-    player:delKeyItem(xi.ki.DAZE_BREAKER_CHARM)
+    player:delKeyItem(xi.keyItem.DAZE_BREAKER_CHARM)
 end
 
 content.groups =

@@ -401,11 +401,6 @@ end
 
 xi.znm.ryo.onEventFinish = function(player, csid, option, npc)
     if csid == 914 then
-        local item = player:getTrade():getItem()
-        if item then
-            item:setReservedValue(0)
-        end
-
         player:getTrade():clean()
     end
 end
@@ -449,16 +444,11 @@ end
 -----------------------------------
 
 xi.znm.sanraku.handleTradeWithPlate = function(player, npc, item)
-    if not player:hasKeyItem(xi.ki.RHAPSODY_IN_AZURE) then
+    if not player:hasKeyItem(xi.keyItem.RHAPSODY_IN_AZURE) then
         local tradeLimit = xi.znm.SOULPLATE_TRADE_LIMIT
 
         if xi.znm.sanraku.platesTradedToday(player) >= tradeLimit then
             player:showText(npc, ID.text.APPRECIATE_MORE, 1, xi.item.SOUL_PLATE, tradeLimit)
-            local tradeItem = player:getTrade():getItem()
-            if tradeItem then
-                tradeItem:setReservedValue(0)
-            end
-
             player:getTrade():clean()
             return
         end
@@ -578,7 +568,7 @@ xi.znm.sanraku.handleGainingAccessToIslets = function(player, option)
     end
 
     -- Give the correct island's information + salt
-    local keyItem = xi.ki.SICKLEMOON_SALT + option - 300
+    local keyItem = xi.keyItem.SICKLEMOON_SALT + option - 300
     if player:getCurrency('zeni_point') < zeniCost then -- Not enough zeni
         player:updateEvent(2)
     elseif player:hasKeyItem(keyItem) then -- Already have the salt

@@ -11,9 +11,9 @@ local quest = Quest:new(xi.questLog.BASTOK, xi.quest.id.bastok.LURE_OF_THE_WILDC
 
 quest.reward =
 {
-    fame     = 150,
+    fame     = 0,
     fameArea = xi.fameArea.BASTOK,
-    keyItem  = xi.ki.BLUE_INVITATION_CARD,
+    keyItem  = xi.keyItem.BLUE_INVITATION_CARD,
 }
 
 local wildcatNpcData =
@@ -67,7 +67,7 @@ quest.sections =
             onEventFinish =
             {
                 [357] = function(player, csid, option, npc)
-                    npcUtil.giveKeyItem(player, xi.ki.BLUE_SENTINEL_BADGE)
+                    npcUtil.giveKeyItem(player, xi.keyItem.BLUE_SENTINEL_BADGE)
                     quest:begin(player)
                 end,
             },
@@ -165,8 +165,8 @@ quest.sections =
                 [356] = wildcatOnEventFinish,
 
                 [360] = function(player, csid, option, npc)
-                    player:delKeyItem(xi.ki.BLUE_SENTINEL_BADGE)
-                    player:messageSpecial(portBastokID.text.KEYITEM_LOST, xi.ki.BLUE_SENTINEL_BADGE)
+                    player:delKeyItem(xi.keyItem.BLUE_SENTINEL_BADGE)
+                    player:messageSpecial(portBastokID.text.KEYITEM_LOST, xi.keyItem.BLUE_SENTINEL_BADGE)
 
                     quest:complete(player)
                 end,

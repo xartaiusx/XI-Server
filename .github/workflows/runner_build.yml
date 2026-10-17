@@ -20,7 +20,7 @@ on:
         required: true
         type: string
       save_cache:
-        description: 'Cache build and Python virtual environment.'
+        description: 'Warm the branch-scoped sccache that PR builds read from.'
         required: false
         type: boolean
         default: false
@@ -58,19 +58,26 @@ jobs:
       run:
         shell: bash
     env:
-      SCCACHE_DIR: ${{ format('{0}/build/sccache', github.workspace) }}
-      SCCACHE_CACHE_SIZE: "1G"
+      # Per-object entries in the GHA cache. A restored build tree would be faster on a
+      # hit, but ninja cannot tell which compiler produced the objects it finds, and four
+      # multi-GB trees evicted each other out of the 10GB repo budget anyway.
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_RW_MODE: ${{ github.event_name == 'pull_request' && 'READ_ONLY' || 'READ_WRITE' }}
+      CPM_SOURCE_CACHE: ${{ format('{0}/.cpm-cache', github.workspace) }}
       SKIP_BUILD: false
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
     steps:
       - name: Download changed files artifact
         if: ${{ inputs.optional_build }}
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: changed-files
 
+      # Only the optional_build path needs bash 4 for mapfile; the runner ships bash 3.2.
       - name: Install bash (macOS)
-        if: ${{ runner.os == 'macOS' }}
-        run: brew update && brew install --quiet bash
+        if: ${{ runner.os == 'macOS' && inputs.optional_build }}
+        run: brew install --quiet bash
 
       - name: Check for changed source files
         id: check-changes
@@ -92,7 +99,7 @@ jobs:
 
       - name: Checkout
         if: ${{ env.SKIP_BUILD != 'true' }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 1
 
@@ -173,27 +180,46 @@ jobs:
           echo "CC=/usr/bin/clang${{ env.clang_version }}" >> $GITHUB_ENV
           echo "CXX=/usr/bin/clang++${{ env.clang_version }}" >> $GITHUB_ENV
 
+      # Static, ASAN-instrumented LuaJIT on the system allocator so ASAN tracks every Lua object.
+      # The interpreter and JIT traces stay uninstrumented.
+      - name: Build instrumented LuaJIT (Linux)
+        if: ${{ runner.os == 'Linux' && inputs.build_type == 'ASAN' && env.SKIP_BUILD != 'true' }}
+        run: |
+          git clone --depth 1 --branch v2.1 https://github.com/LuaJIT/LuaJIT.git $RUNNER_TEMP/luajit
+          make -C $RUNNER_TEMP/luajit -j$(nproc) BUILDMODE=static XCFLAGS="-DLUAJIT_USE_SYSMALLOC" HOST_CC="$CC" \
+            CC="$CC -fsanitize=address -fsanitize-recover=address -fno-omit-frame-pointer"
+          sudo make -C $RUNNER_TEMP/luajit install BUILDMODE=static PREFIX=/usr/local
+
       - name: Setup MSVC
         if: ${{ runner.os == 'Windows' && env.SKIP_BUILD != 'true' }}
-        uses: TheMrMilchmann/setup-msvc-dev@v4
+        uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4
         with:
           arch: x64
 
+      # sccache keys on the compiler itself, so this is diagnostic only: it names the
+      # toolchain in the log when a runner image bump changes it underneath us.
+      - name: Log toolchain
+        if: ${{ env.SKIP_BUILD != 'true' }}
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cl.exe 2>&1 | head -1
+          else
+            "${CXX:-c++}" --version | head -1
+          fi || true
+
       - name: Setup sccache
         if: ${{ env.SKIP_BUILD != 'true' }}
-        uses: mozilla-actions/sccache-action@v0.0.10
-        with:
-          disable_annotations: ${{ !inputs.save_cache }}
+        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
 
       - name: Setup Python
         if: ${{ env.SKIP_BUILD != 'true' }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'
 
       - name: Install Python codegen deps
         if: ${{ env.SKIP_BUILD != 'true' }}
-        run: python -m pip install jinja2 jsonschema pyyaml
+        run: python -m pip install jinja2 jsonschema ruamel.yaml
 
       - name: Enable modules
         if: ${{ inputs.build_modules && env.SKIP_BUILD != 'true' }}
@@ -201,23 +227,20 @@ jobs:
           python3 <<EOF
           with open("modules/init.txt", "w") as f:
               f.write("custom\n")
-              f.write("era\n")
+              f.write("era/lua\n")
               f.write("example\n")
-              f.write("renamer\n")
           EOF
 
-      - name: Restore build cache
+      # Roughly 20 CPM packages are git-cloned at configure time. They used to survive
+      # inside the cached build tree; this keeps them out of the network path.
+      - name: Cache CPM sources
         if: ${{ env.SKIP_BUILD != 'true' }}
-        id: restore_build
-        uses: actions/cache/restore@v5
-        env:
-          cmake_hash: ${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
-          source_hash: ${{ hashFiles('src/**/*', 'ext/**/*') }}
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
-          path: build
-          key: ${{ format('buildcache-{0}-{1}{2}-{3}-{4}-{5}', runner.os, inputs.compiler, inputs.compiler_version, inputs.build_type, env.cmake_hash, env.source_hash) }}
+          path: .cpm-cache
+          key: ${{ format('cpm-{0}-{1}', runner.os, hashFiles('CMakeLists.txt', 'cmake/**', 'ext/CMakeLists.txt')) }}
           restore-keys: |
-            ${{ format('buildcache-{0}-{1}{2}-{3}-{4}-', runner.os, inputs.compiler, inputs.compiler_version, inputs.build_type, env.cmake_hash) }}
+            ${{ format('cpm-{0}-', runner.os) }}
 
       - name: Configure CMake
         if: ${{ env.SKIP_BUILD != 'true' }}
@@ -226,8 +249,9 @@ jobs:
             -DCMAKE_BUILD_TYPE=${{ inputs.build_type }} \
             -DENABLE_CLANG_TIDY=${{ inputs.clang_tidy && 'ON' || 'OFF' }} \
             -DTRACY_ENABLE=${{ inputs.tracy && 'ON' || 'OFF' }} \
-            -DPCH_ENABLE=${{ inputs.build_type == 'Debug' && 'OFF' || 'ON' }} \
+            -DPCH_ENABLE=OFF \
             ${{ (runner.os == 'macOS' && startsWith(inputs.compiler, 'clang')) && '-DCMAKE_AR=$AR -DCMAKE_RANLIB=$RANLIB -DCMAKE_NM=$NM ' || '' }} \
+            ${{ runner.os == 'Windows' && '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded ' || '' }} \
             -DCACHE_OPTION=sccache
 
       - name: Build
@@ -236,28 +260,12 @@ jobs:
 
       - name: Upload artifact
         if: ${{ inputs.upload_artifact && env.SKIP_BUILD != 'true' }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ${{ format('LSB_{0}_{1}_{2}', runner.os, inputs.build_type, github.sha) }}
           path: |
             xi_*
             tracy.tar.gz
-
-      - name: Remove exes from build cache
-        if: ${{ inputs.save_cache && env.SKIP_BUILD != 'true' && steps.restore_build.outputs.cache-hit != 'true' }}
-        run: |
-          rm -f build/src/login/xi_connect*
-          rm -f build/src/map/xi_map*
-          rm -f build/src/search/xi_search*
-          rm -f build/src/test/xi_test*
-          rm -f build/src/world/xi_world*
-
-      - name: Cache build
-        if: ${{ inputs.save_cache && env.SKIP_BUILD != 'true' && steps.restore_build.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v5
-        with:
-          path: build
-          key: ${{ steps.restore_build.outputs.cache-primary-key }}
 
       - name: Summarize Clang Tidy Build
         if: ${{ inputs.clang_tidy && env.SKIP_BUILD != 'true' }}

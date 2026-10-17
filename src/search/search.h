@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,17 +19,32 @@
 ===========================================================================
 */
 
-#ifndef _SEARCH_H_
-#define _SEARCH_H_
+#pragma once
 
 #include "common/cbasetypes.h"
+#include "common/logging.h"
+#include "common/types/maybe.h"
+#include "enums/search_type.h"
 
-struct search_req
+#include <array>
+#include <string>
+#include <utility>
+#include <vector>
+
+// md5 hash + blowfish key appended by SearchHandler::encrypt()
+inline constexpr uint32 searchPacketTrailerSize = 0x10 + 0x04;
+
+// Worst case packed entity entry; largest real entry is linkshell at 64 bytes
+inline constexpr uint32 searchEntryMaxSize = 67;
+
+struct SearchRequest
 {
-    uint16        zoneid[15];
+    uint16        zoneid[16];
     uint8         jobid;
     uint8         minlvl;
     uint8         maxlvl;
+    uint8         minMasterLvl = 0;
+    uint8         maxMasterLvl = 0;
     uint8         race;
     uint8         nation;
     uint8         minRank;
@@ -39,15 +54,23 @@ struct search_req
     std::string   name;
     uint8         nameLen;
     uint8         commentType;
+    bool          friendsOnly     = false;
+    bool          requestListOnly = false;
+
+    // category and descending flag, highest priority first
+    std::vector<std::pair<SearchType, bool>> sortOrder;
+
+    std::vector<uint32>      characterIds;
+    std::vector<std::string> characterNames;
 };
 
-class searchPacket
+class SearchPacket
 {
 public:
     // max size of search packet is 1024 in packets
     static constexpr uint16_t max_size = 1024;
 
-    searchPacket(uint8_t* buffer, uint16_t length)
+    SearchPacket(const uint8_t* buffer, const uint16_t length)
     {
         if (length > max_size)
         {
@@ -60,12 +83,12 @@ public:
         size = length;
     }
 
-    uint16_t getSize()
+    auto getSize() const -> uint16_t
     {
         return size;
     }
 
-    uint8_t* getData()
+    auto getData() -> uint8_t*
     {
         return buff_.data();
     }
@@ -74,5 +97,3 @@ private:
     std::array<uint8_t, max_size> buff_;
     uint16_t                      size;
 };
-
-#endif

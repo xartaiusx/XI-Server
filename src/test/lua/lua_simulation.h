@@ -22,7 +22,10 @@
 #pragma once
 
 #include "common/cbasetypes.h"
+#include "common/settings.h"
 #include "lua_client_entity_pair.h"
+
+#include "data/enums/zone.h"
 
 #include <sol/forward.hpp>
 
@@ -33,7 +36,6 @@ class CLuaBaseEntity;
 
 enum class REGION_TYPE : uint8;
 enum NATION_TYPE : uint8;
-enum ZONEID : uint16;
 
 enum class ClientScope : uint8_t
 {
@@ -68,17 +70,22 @@ public:
     void skipVanaDays(uint32 days) const;
     void setRegionOwner(REGION_TYPE region, NATION_TYPE nation) const;
     void setSeed(uint64 seed) const;
+    auto getSetting(const std::string& key) const -> sol::object;
+    void setSetting(const std::string& key, const sol::object& value);
+    void restoreSettings();
     void seed() const;
     void resetWeather() const;
     void setSetupContext(bool inSetup);
     auto spawnPlayer(sol::optional<sol::table> params) -> CLuaClientEntityPair*;
     auto getPartyTargetTraversal(CLuaBaseEntity& entity) const -> sol::table;
-    auto getSpawnSlot(ZONEID zoneId, uint32 slotId) const -> sol::table;
+    auto getSpawnSlot(xi::ZoneId zoneId, uint32 slotId) const -> sol::table;
+    void setSlotChance(CLuaBaseEntity& entity, uint8 chance) const;
 
     static void Register();
 
 private:
     std::vector<ClientInfo>       clients_;
+    settings::SettingsMap         settingOverrides_;
     bool                          inSetupContext_{ false };
     MapEngine*                    engine_{ nullptr };
     std::shared_ptr<InMemorySink> sink_{ nullptr };

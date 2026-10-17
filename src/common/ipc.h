@@ -54,7 +54,7 @@ auto fromBytesWithHeader(const std::span<const uint8> message) -> Maybe<T>;
 #include "ipc_structs.h"
 #include "ipc_stubs.h"
 
-#include <alpaca/alpaca.h>
+#include <glaze/cbor.hpp>
 
 namespace ipc
 {
@@ -67,23 +67,21 @@ template <typename T>
 auto toBytes(const T& object) -> std::vector<uint8>
 {
     auto bytes = std::vector<uint8>();
-    alpaca::serialize(object, bytes);
+    if (glz::write_cbor(object, bytes))
+    {
+        ShowErrorFmt("Failed to serialize {}", glz::type_name<T>);
+        return {};
+    }
+
     return bytes;
 }
 
 template <typename T>
 auto toBytesWithHeader(const T& object) -> std::vector<uint8>
 {
-    auto       bytes         = std::vector<uint8>();
-    const auto bytes_written = alpaca::serialize(object, bytes);
-
-    const auto type = static_cast<uint8>(EnumTypeV<T>);
-
-    std::vector<uint8> message(1 + bytes_written);
-    message[0] = type;
-    std::memcpy(message.data() + 1, bytes.data(), bytes_written);
-
-    return message;
+    auto bytes = toBytes(object);
+    bytes.insert(bytes.begin(), static_cast<uint8>(EnumTypeV<T>));
+    return bytes;
 }
 
 template <typename T>
@@ -94,9 +92,8 @@ auto fromBytes(const std::span<const uint8> message) -> Maybe<T>
         return std::nullopt;
     }
 
-    auto       ec     = std::error_code{};
-    const auto object = alpaca::deserialize<T>(message, ec);
-    if (ec)
+    auto object = T{};
+    if (glz::read_cbor(object, message))
     {
         return std::nullopt;
     }
@@ -118,16 +115,7 @@ auto fromBytesWithHeader(const std::span<const uint8> message) -> Maybe<T>
         return std::nullopt;
     }
 
-    const auto bytes = std::span(message.data() + 1, message.size() - 1);
-
-    auto       ec     = std::error_code{};
-    const auto object = alpaca::deserialize<T>(bytes, ec);
-    if (ec)
-    {
-        return std::nullopt;
-    }
-
-    return object;
+    return fromBytes<T>(message.subspan(1));
 }
 
 } // namespace ipc

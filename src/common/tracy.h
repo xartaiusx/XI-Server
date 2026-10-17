@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2023 LandSandBoat Dev Teams
@@ -48,10 +48,6 @@ inline std::string hex32ToString(std::uint32_t hex)
 // clang-format off
 #ifdef TRACY_ENABLE
 
-#ifndef TRACY_CALLSTACK
-#define TRACY_CALLSTACK 4
-#endif
-
 #include "tracy/Tracy.hpp"
 
 #include <cstdint>
@@ -64,6 +60,8 @@ inline std::string hex32ToString(std::uint32_t hex)
 #define TracyZoneNamed(var, name) ZoneNamedN(var, name, true)
 #define TracyZoneText(n, l)       ZoneText(n, l)
 #define TracyZoneScopedC(c)       ZoneScopedC(c)
+#define TracyZoneScopedNC(n, c)   ZoneScopedNC(n, c)
+#define TracyZoneScopedS(depth)   ZoneScopedS(depth)
 #define TracyZoneString(str)      ZoneText(str.c_str(), str.size())
 #define TracyZoneCString(cstr)    ZoneText(cstr, std::strlen(cstr))
 #define TracyMessageStr(str)      TracyMessage(str.c_str(), str.size())
@@ -103,6 +101,8 @@ inline std::string hex32ToString(std::uint32_t hex)
 #define TracyZoneNamed(var, name)          std::ignore = #var; std::ignore = name
 #define TracyZoneText(n, l)                std::ignore = n; std::ignore = l
 #define TracyZoneScopedC(c)                std::ignore = c
+#define TracyZoneScopedNC(n, c)            std::ignore = n; std::ignore = c
+#define TracyZoneScopedS(depth)            std::ignore = depth
 #define TracyZoneString(str)               std::ignore = str
 #define TracyZoneCString(cstr)             std::ignore = cstr
 #define TracyZoneIString(istr)             std::ignore = istr
@@ -116,7 +116,9 @@ inline std::string hex32ToString(std::uint32_t hex)
 #define TracyMessageStr(str)               std::ignore = str
 #define TracySetThreadName(str)            std::ignore = str
 #define TracyLockable(m, n)                m n
+#define TracySharedLockable(m, n)          m n
 #define LockableBase(type)                 type
+#define SharedLockableBase(type)           type
 #define LockMark(m)                        std::ignore = m
 #endif
 // clang-format on

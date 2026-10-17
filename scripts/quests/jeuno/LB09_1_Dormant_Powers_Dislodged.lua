@@ -31,9 +31,7 @@ local itemWantedTable =
 
 quest.reward =
 {
-    fame     = 50,
-    fameArea = xi.fameArea.JEUNO,
-    keyItem  = xi.ki.SOUL_GEM,
+    keyItem  = xi.keyItem.SOUL_GEM,
 }
 
 quest.sections =
@@ -52,7 +50,7 @@ quest.sections =
             {
                 onTrigger = function(player, npc)
                     local playerLevel     = player:getMainLvl()
-                    local limitBreaker    = player:hasKeyItem(xi.ki.LIMIT_BREAKER) and 1 or 2
+                    local limitBreaker    = player:hasKeyItem(xi.keyItem.LIMIT_BREAKER) and 1 or 2
                     local lastQuestNumber = 0
                     local lastQuestStage  = 0
                     local option          = quest:getVar(player, 'Option') -- Has rejected signing the contract?
@@ -134,7 +132,7 @@ quest.sections =
                     if quest:getVar(player, 'Prog') == 1 then
                         return quest:progressEvent(10192, playerLevel, 0, 0, 2) -- Timing Minigame starting event.
                     else
-                        local limitBreaker    = player:hasKeyItem(xi.ki.LIMIT_BREAKER) and 1 or 2
+                        local limitBreaker    = player:hasKeyItem(xi.keyItem.LIMIT_BREAKER) and 1 or 2
                         local lastQuestNumber = 4
                         local lastQuestStage  = 1
                         local itemChosen      = quest:getVar(player, 'itemWanted')

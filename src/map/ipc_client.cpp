@@ -32,11 +32,13 @@
 #include "conquest_system.h"
 #include "linkshell.h"
 #include "map_networking.h"
+#include "monstrosity.h"
 #include "party.h"
 #include "status_effect_container.h"
 #include "unitychat.h"
 
 #include "entities/char_entity.h"
+#include "entities/mob_entity.h"
 
 #include "lua/luautils.h"
 
@@ -45,6 +47,7 @@
 #include "packets/s2c/0x053_systemmes.h"
 #include "packets/s2c/0x0cc_linkshell_message.h"
 #include "packets/s2c/0x0dc_group_solicit_req.h"
+#include "packets/s2c/0x11d_partyreq.h"
 
 #include "gmcall_container.h"
 #include "items/item_linkshell.h"
@@ -297,7 +300,7 @@ void IPCClient::handleMessage_ChatMessageParty(const IPP& ipp, const ipc::ChatMe
     });
     if (PParty)
     {
-        PParty->PushPacket(message.senderId, 0, std::make_unique<GP_SERV_COMMAND_CHAT_STD>(message.senderName, message.zoneId, message.messageType, message.message, message.gmLevel));
+        PParty->PushPacket(message.senderId, xi::ZoneId::Unknown, std::make_unique<GP_SERV_COMMAND_CHAT_STD>(message.senderName, message.zoneId, message.messageType, message.message, message.gmLevel));
     }
     // clang-format on
 }
@@ -332,7 +335,7 @@ void IPCClient::handleMessage_ChatMessageAlliance(const IPP& ipp, const ipc::Cha
     {
         for (const auto& currentParty : PAlliance->partyList)
         {
-            currentParty->PushPacket(message.senderId, 0, std::make_unique<GP_SERV_COMMAND_CHAT_STD>(message.senderName, message.zoneId, message.messageType, message.message, message.gmLevel));
+            currentParty->PushPacket(message.senderId, xi::ZoneId::Unknown, std::make_unique<GP_SERV_COMMAND_CHAT_STD>(message.senderName, message.zoneId, message.messageType, message.message, message.gmLevel));
         }
     }
     // clang-format on
@@ -446,7 +449,8 @@ void IPCClient::handleMessage_PartyInvite(const IPP& ipp, const ipc::PartyInvite
         // make sure invitee isn't dead or in jail, they aren't a party member and don't already have an invite pending, and your party is not full
         if (PInvitee->isDead() ||
             jailutils::InPrison(PInvitee) ||
-            PInvitee->InvitePending.id != 0 ||
+            PInvitee->InvitePending.entity.UniqueNo != 0 ||
+            !monstrosity::CanParty(PInvitee) ||
             (PInvitee->PParty && message.inviteType == PartyKind::Party) ||
             (message.inviteType == PartyKind::Alliance && (!PInvitee->PParty || PInvitee->PParty->GetLeader() != PInvitee || (PInvitee->PParty && PInvitee->PParty->m_PAlliance))))
         {
@@ -488,8 +492,9 @@ void IPCClient::handleMessage_PartyInvite(const IPP& ipp, const ipc::PartyInvite
             return;
         }
 
-        PInvitee->InvitePending.id     = message.inviterId;
-        PInvitee->InvitePending.targid = message.inviterTargId;
+        PInvitee->InvitePending.entity.UniqueNo = message.inviterId;
+        PInvitee->InvitePending.entity.ActIndex = message.inviterTargId;
+        PInvitee->InvitePending.kind            = message.inviteType;
 
         PInvitee->pushPacket(std::make_unique<GP_SERV_COMMAND_GROUP_SOLICIT_REQ>(message.inviterId, message.inviterTargId, message.inviterName, message.inviteType));
     }
@@ -505,6 +510,14 @@ void IPCClient::handleMessage_PartyInviteResponse(const IPP& ipp, const ipc::Par
         if (message.inviteAnswer == 0)
         {
             PInviter->pushPacket<GP_SERV_COMMAND_MESSAGE>(PInviter, 0, 0, MsgStd::InvitationDeclined);
+        }
+        else if (!monstrosity::CanParty(PInviter))
+        {
+            // The inviter became a Monipulator while the invite was pending.
+            message::send(ipc::MessageStandard{
+                .recipientId = message.inviteeId,
+                .message     = MsgStd::CannotBeProcessed,
+            });
         }
         else
         {
@@ -524,7 +537,8 @@ void IPCClient::handleMessage_PartyInviteResponse(const IPP& ipp, const ipc::Par
                                                             "allianceid = (SELECT allianceid FROM accounts_parties where "
                                                             "charid = ?) GROUP BY partyid",
                                                             message.inviterId);
-                        if (rset2 && rset2->rowsCount() > 0 && rset2->rowsCount() < 3)
+
+                        if (rset2 && rset2->rowsCount() > 0 && rset2->rowsCount() < 3 && PInviter->PParty->m_PAlliance->getMainParty() == PInviter->PParty && !PInviter->PParty->HasTrusts())
                         {
                             PInviter->PParty->m_PAlliance->addParty(message.inviteeId);
                         }
@@ -536,7 +550,14 @@ void IPCClient::handleMessage_PartyInviteResponse(const IPP& ipp, const ipc::Par
                             });
                         }
                     }
-                    else if (PInviter->PParty)
+                    else if (PInviter->PParty->HasTrusts())
+                    {
+                        message::send(ipc::MessageStandard{
+                            .recipientId = message.inviteeId,
+                            .message     = MsgStd::TrustCannotJoinAlliance,
+                        });
+                    }
+                    else
                     {
                         // make new alliance
                         CAlliance* PAlliance = new CAlliance(PInviter);
@@ -568,6 +589,22 @@ void IPCClient::handleMessage_PartyInviteResponse(const IPP& ipp, const ipc::Par
                 }
             }
         }
+    }
+}
+
+void IPCClient::handleMessage_PartyRequest(const IPP& ipp, const ipc::PartyRequest& message)
+{
+    TracyZoneScoped;
+
+    if (CCharEntity* PRecipient = zoneutils::GetChar(message.recipientId))
+    {
+        uint16 targid = 0;
+        if (PRecipient->getZone() == message.requesterZoneId)
+        {
+            targid = message.requesterTargId;
+        }
+
+        PRecipient->pushPacket<GP_SERV_COMMAND_PARTYREQ>(message.requesterId, targid, message.requesterName, message.requesterRace, static_cast<GP_SERV_COMMAND_PARTYREQ_STATUS>(message.kind));
     }
 }
 
@@ -731,7 +768,7 @@ void IPCClient::handleMessage_LinkshellRemove(const IPP& ipp, const ipc::Linkshe
 
     if (PChar && PChar->PLinkshell1 && PChar->PLinkshell1->getID() == message.linkshellId)
     {
-        CItemLinkshell* targetLS = (CItemLinkshell*)PChar->getEquip(SLOT_LINK1);
+        CItemLinkshell* targetLS = PChar->getLinkshell(SLOT_LINK1);
         if (targetLS && (message.requesterRank == LSTYPE_LINKSHELL || (message.requesterRank == LSTYPE_PEARLSACK && targetLS->GetLSType() == LSTYPE_LINKPEARL)))
         {
             PChar->PLinkshell1->RemoveMemberByName(message.victimName, message.requesterRank);
@@ -739,7 +776,7 @@ void IPCClient::handleMessage_LinkshellRemove(const IPP& ipp, const ipc::Linkshe
     }
     else if (PChar && PChar->PLinkshell2 && PChar->PLinkshell2->getID() == message.linkshellId)
     {
-        CItemLinkshell* targetLS = (CItemLinkshell*)PChar->getEquip(SLOT_LINK2);
+        CItemLinkshell* targetLS = PChar->getLinkshell(SLOT_LINK2);
         if (targetLS && (message.requesterRank == LSTYPE_LINKSHELL || (message.requesterRank == LSTYPE_PEARLSACK && targetLS->GetLSType() == LSTYPE_LINKPEARL)))
         {
             PChar->PLinkshell2->RemoveMemberByName(message.victimName, message.requesterRank);
@@ -753,7 +790,7 @@ void IPCClient::handleMessage_LinkshellSetMessage(const IPP& ipp, const ipc::Lin
 
     if (CLinkshell* PLinkshell = linkshell::GetLinkshell(message.linkshellId))
     {
-        PLinkshell->PushPacket(0, std::make_unique<GP_SERV_COMMAND_LINKSHELL_MESSAGE>(message.poster, message.message, message.linkshellName, message.postTime, LinkshellSlot::LS1));
+        PLinkshell->PushPacket(0, std::make_unique<GP_SERV_COMMAND_LINKSHELL_MESSAGE>(message.poster, message.message, message.linkshellName, message.postTime, LinkshellSlot::LS1, PLinkshell->getPostRights(), GP_SERV_COMMAND_LINKSHELL_MESSAGE::MessageOp::Post));
     }
 }
 
@@ -848,19 +885,12 @@ void IPCClient::handleMessage_EntityInformationRequest(const IPP& ipp, const ipc
         float y = 0.0f;
         float z = 0.0f;
 
-        if ((message.entityType & TYPE_MOB) && !isSpawned)
+        if (const auto* PMob = dynamic_cast<CMobEntity*>(PEntity); PMob && (message.entityType & TYPE_MOB) && !isSpawned)
         {
-            // If entity not spawned, go to default location as listed in database
-            const auto rset = db::preparedStmt("SELECT pos_x, pos_y, pos_z FROM mob_spawn_points WHERE mobid = ?", PEntity->id);
-            if (rset && rset->rowsCount())
-            {
-                while (rset->next())
-                {
-                    x = rset->get<float>("pos_x");
-                    y = rset->get<float>("pos_y");
-                    z = rset->get<float>("pos_z");
-                }
-            }
+            // Not spawned, so it has no live position: report where it spawns instead.
+            x = PMob->m_SpawnPoint.x;
+            y = PMob->m_SpawnPoint.y;
+            z = PMob->m_SpawnPoint.z;
         }
         else
         {
@@ -872,7 +902,8 @@ void IPCClient::handleMessage_EntityInformationRequest(const IPP& ipp, const ipc
 
         const bool shouldWarp = message.warp && isSpawned;
 
-        const auto moghouseId = PEntity->objtype == TYPE_PC ? static_cast<CCharEntity*>(PEntity)->m_moghouseID : 0;
+        const auto* PChar      = dynamic_cast<const CCharEntity*>(PEntity);
+        const auto  moghouseId = PChar ? PChar->m_moghouseID : 0;
 
         message::send(ipc::EntityInformationResponse{
             .requesterId = message.requesterId,

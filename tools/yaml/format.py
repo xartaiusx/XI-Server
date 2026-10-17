@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Format data YAML: ruamel round-trip to normalize structure (2-space indent,
-single quotes, flow spacing, drop null keys), then a text pass to align
+single quotes, flow spacing), then a text pass to align
 value/comment columns per contiguous block.
 
 Usage: python3 tools/yaml/format.py [paths...] [--check]
@@ -15,10 +15,14 @@ Requires ruamel.yaml and pyyaml (tools/requirements.txt); CI runs --check.
 
 import difflib
 import os
+import re
 import sys
 from collections import namedtuple
+from concurrent.futures import ProcessPoolExecutor
 from io import StringIO
 from pathlib import Path
+
+NUMBER = re.compile(r"-?\d+(\.\d+)?$")
 
 REEXEC_GUARD = "LSB_FORMAT_YAML_REEXEC"
 
@@ -77,17 +81,9 @@ class FormatError(Exception):
     """A file could not be safely formatted; reported per-file, never fatal."""
 
 
-def drop_null_keys(node):
-    """Recursively delete null-valued mapping keys in place; sequence items are
-    left alone (dropping them would shift indices)."""
-    if isinstance(node, dict):
-        for key in [k for k, v in node.items() if v is None]:
-            del node[key]
-        for value in node.values():
-            drop_null_keys(value)
-    elif isinstance(node, list):
-        for value in node:
-            drop_null_keys(value)
+def represent_none(dumper, _data):
+    """Emit `null` spelled out; a bare key is not read back as a deletion."""
+    return dumper.represent_scalar("tag:yaml.org,2002:null", "null")
 
 
 def normalize(text):
@@ -95,8 +91,8 @@ def normalize(text):
     ruamel.indent(mapping=2, sequence=4, offset=2)
     ruamel.width = 4096  # never wrap
     ruamel.preserve_quotes = False  # normalize quote style
+    ruamel.representer.add_representer(type(None), represent_none)
     data = ruamel.load(text)
-    drop_null_keys(data)
     buf = StringIO()
     ruamel.dump(data, buf)
     return buf.getvalue()
@@ -143,6 +139,39 @@ def parse_kv(line):
     return KV(keycol, has_dash, key, value, comment)
 
 
+def flow_cells(value):
+    """Ordered (key, value) pairs of a flat flow mapping, or None if it is anything else."""
+    if not (value.startswith("{") and value.endswith("}")):
+        return None
+    body = value[1:-1].strip()
+    if not body or any(ch in body for ch in "{}[]'\"#"):
+        return None
+    cells = []
+    for part in body.split(", "):
+        key, sep, cell = part.partition(": ")
+        if not sep or not key or not cell or ":" in key:
+            return None
+        cells.append((key, cell))
+    return cells
+
+
+def align_flow(values):
+    """Pad a run of flow mappings that share a key set so their cells line up."""
+    rows = [flow_cells(value) for value in values]
+    if len(rows) < 2 or not all(rows):
+        return None
+    if len({tuple(key for key, _ in row) for row in rows}) != 1:
+        return None
+
+    widths = [max(len(row[column][1]) for row in rows) for column in range(len(rows[0]))]
+
+    padded = []
+    for row in rows:
+        cells = [f"{key}: " + cell.rjust(width) for (key, cell), width in zip(row, widths)]
+        padded.append("{" + ", ".join(cells) + "}")
+    return padded
+
+
 def align(text):
     out = []
     run = []  # a run of KVs sharing a keycol, aligned together
@@ -151,8 +180,13 @@ def align(text):
         if not run:
             return
         key_width = max(len(entry.key) for entry in run)
+        flow = align_flow([entry.value for entry in run])
+        if flow:
+            run[:] = [entry._replace(value=value) for entry, value in zip(run, flow)]
         has_comment = any(entry.comment for entry in run)
-        value_width = max(len(entry.value) for entry in run) if has_comment else 0
+        # Align numbers against the right
+        numeric = all(NUMBER.match(entry.value) for entry in run)
+        value_width = max(len(entry.value) for entry in run) if has_comment or numeric else 0
         for entry in run:
             indent = (
                 " " * (entry.keycol - 2) + "- "
@@ -162,7 +196,7 @@ def align(text):
             out_line = (
                     indent
                     + (entry.key + ": ").ljust(key_width + 2)
-                    + entry.value.ljust(value_width)
+                    + (entry.value.rjust(value_width) if numeric else entry.value.ljust(value_width))
             )
             if entry.comment:
                 out_line += " " + entry.comment
@@ -217,8 +251,6 @@ def format_text(text):
         return text  # empty or comment-only
     result = align(normalize(text))
     after = parse_docs(result, "formatting produced invalid YAML")
-    drop_null_keys(before)  # nulls are dropped above; ignore them in the compare
-    drop_null_keys(after)
     if before != after:
         raise FormatError("formatting altered document semantics")
     return result
@@ -245,37 +277,68 @@ def format_stdin():
     return code
 
 
+Result = namedtuple("Result", "path error diff")
+
+
+def format_one(job):
+    """
+    Format one file in a worker: reading, formatting and writing all happen here.
+    """
+    path_text, check = job
+    path = Path(path_text)
+    try:
+        original = path.read_text(encoding="utf-8")
+        result = format_text(original)
+    except FileNotFoundError:
+        return Result(path_text, None, None)  # deleted/renamed in a changed-files list
+    except (OSError, FormatError) as exc:
+        return Result(path_text, str(exc), None)
+
+    if result == original:
+        return Result(path_text, None, None)
+
+    if check:
+        return Result(path_text, None, "".join(difflib.unified_diff(
+            original.splitlines(keepends=True),
+            result.splitlines(keepends=True),
+            fromfile=path_text,
+            tofile=f"{path_text} (formatted)",
+        )))
+
+    try:
+        path.write_text(result, encoding="utf-8", newline="\n")
+    except OSError as exc:
+        return Result(path_text, str(exc), None)
+
+    return Result(path_text, None, "")
+
+
 def main(argv):
     if "--stdin" in argv:
         return format_stdin()
     check = "--check" in argv
     paths = [a for a in argv if a != "--check"] or ["data"]
+    jobs = [(str(path), check) for path in iter_yaml(paths)]
+    if not jobs:
+        return 0
+
+    # Default to half CPUs as workers.
+    workers = min(len(jobs), max(1, (os.cpu_count() or 2) // 2))
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        results = list(pool.map(format_one, jobs))
+
     changed, errors = [], []
-    for path in iter_yaml(paths):
-        try:
-            original = path.read_text(encoding="utf-8")
-            result = format_text(original)
-        except FileNotFoundError:
-            continue  # deleted/renamed in a changed-files list; nothing to format
-        except (OSError, FormatError) as exc:
-            print(f"{path}: {exc} -- skipped", file=sys.stderr)
-            errors.append(path)
-            continue
-        if result == original:
-            continue
-        changed.append(path)
-        if check:
-            sys.stdout.writelines(
-                difflib.unified_diff(
-                    original.splitlines(keepends=True),
-                    result.splitlines(keepends=True),
-                    fromfile=str(path),
-                    tofile=f"{path} (formatted)",
-                )
-            )
-        else:
-            path.write_text(result, encoding="utf-8", newline="\n")
-            print(f"formatted {path}")
+    for result in results:
+        if result.error:
+            print(f"{result.path}: {result.error} -- skipped", file=sys.stderr)
+            errors.append(result.path)
+        elif result.diff is not None:
+            changed.append(result.path)
+            if check:
+                sys.stdout.write(result.diff)
+            else:
+                print(f"formatted {result.path}")
+
     if check and changed:
         print(
             f"\n{len(changed)} file(s) need formatting. Run: python tools/yaml/format.py"

@@ -19,10 +19,11 @@ spellObject.onMagicCastingCheck = function(caster, target, spell)
     return 0
 end
 
-spellObject.onSpellCast = function(caster, target, spell)
-    local params = {}
+spellObject.onSpellCast = function(caster, target, spell, action)
+    local params           = {}
     params.ecosystem       = xi.ecosystem.BEAST
     params.effect          = xi.effect.SILENCE
+
     params.power           = 1
     params.tick            = 0
     params.duration        = 120

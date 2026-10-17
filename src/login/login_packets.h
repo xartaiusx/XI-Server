@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2023 LandSandBoat Dev Teams
@@ -20,6 +20,8 @@
 */
 
 #pragma once
+
+#include <cstdint>
 
 // Source for this entire reference is from atom0s's dump at https://github.com/atom0s/XiPackets
 // Thank you for your service to the community, atom0s!

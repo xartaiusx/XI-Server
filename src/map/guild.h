@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,8 +19,7 @@
 ===========================================================================
 */
 
-#ifndef _GUILD_H
-#define _GUILD_H
+#pragma once
 
 #include "common/cbasetypes.h"
 #include <array>
@@ -57,7 +56,7 @@ public:
     uint8 id() const;
 
     void updateGuildPointsPattern(uint8 pattern);
-    auto addGuildPoints(CCharEntity* PChar, const CItem* PItem) const -> std::pair<uint8, int16>;
+    auto addGuildPoints(CCharEntity* PChar, const CItem* PItem, uint32 tradedQuantity) const -> std::pair<uint8, int16>;
     auto getDailyGPItem(CCharEntity* PChar) const -> std::pair<uint16, uint16>;
 
 private:
@@ -67,5 +66,3 @@ private:
     std::array<uint8, GP_ITEM_RANKS>                 m_GPItemsRank{};
     std::array<std::vector<GPItem_t>, GP_ITEM_RANKS> m_GPItems{};
 };
-
-#endif

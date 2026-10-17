@@ -19,17 +19,18 @@ spellObject.onMagicCastingCheck = function(caster, target, spell)
     return 0
 end
 
-spellObject.onSpellCast = function(caster, target, spell)
+spellObject.onSpellCast = function(caster, target, spell, action)
     local params = {}
-    params.minCure = 14
-    params.divisor0 = 1
-    params.constant0 = -6
+
+    params.minCure         = 14
+    params.divisor0        = 1
+    params.constant0       = -6
     params.powerThreshold1 = 59
-    params.divisor1 = 2
-    params.constant1 = 9
+    params.divisor1        = 2
+    params.constant1       = 9
     params.powerThreshold2 = 99
-    params.divisor2 = 57
-    params.constant2 = 33.125
+    params.divisor2        = 57
+    params.constant2       = 33.125
 
     return xi.spells.blue.useCuringSpell(caster, target, spell, params)
 end

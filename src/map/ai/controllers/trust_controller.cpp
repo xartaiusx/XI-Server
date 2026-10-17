@@ -200,7 +200,7 @@ auto MobThreatensEntity(CMobEntity* PMob, CBattleEntity* PEntity) -> bool
     }
 
     const auto& entry = enmityObject->second;
-    return entry.active && entry.PEnmityOwner && ((entry.CE + entry.VE) > 0 || PMob->GetBattleTargetID() == PEntity->targid);
+    return entry.active && entry.PEnmityOwner && ((entry.CE + entry.VE) > 0 || PMob->battleTarget() == PEntity->entityId());
 }
 
 auto MobThreatensTrustParty(CMobEntity* PMob, CCharEntity* PMaster) -> bool
@@ -760,7 +760,6 @@ void SetTrustResting(CTrustEntity* PTrust, bool enabled, TrustRestStartReason st
 CTrustController::CTrustController(CCharEntity* PChar, CTrustEntity* PTrust)
 : CMobController(PTrust)
 , m_GambitsContainer(std::make_unique<gambits::CGambitsContainer>(PTrust))
-, m_LastTopEnmity(nullptr)
 , m_failedRepositionAttempts(0)
 , m_InTransit(false)
 {
@@ -779,7 +778,6 @@ CTrustController::~CTrustController()
 
     POwner->allegiance = xi::Allegiance::Player;
     POwner->status     = xi::Status::Disappear;
-    m_LastTopEnmity    = nullptr;
 }
 
 void CTrustController::Despawn()
@@ -834,28 +832,28 @@ auto CTrustController::DoCombatTick(timer::time_point tick) -> Task<void>
     CTrustEntity* PTrust             = static_cast<CTrustEntity*>(POwner);
     CCharEntity*  PMaster            = static_cast<CCharEntity*>(POwner->PMaster);
     const bool    fullAllianceActive = trustutils::IsTwillsFullAllianceActive(PMaster);
-    CMobEntity*   PFocusMob          = nullptr;
+    setTarget(POwner->GetBattleTarget());
+    auto* PTarget = target().resolve<CBattleEntity>();
 
     if (fullAllianceActive)
     {
         const auto focus = ResolveTrustFocusTarget(PMaster, PTrust);
         SetTrustFocusVars(PTrust, focus);
-        PFocusMob = focus.PMob;
+        auto* PFocusMob = focus.PMob;
 
         if (PFocusMob)
         {
-            if (PTrust->GetBattleTargetID() != PFocusMob->targid)
+            if (PTrust->battleTarget() != PFocusMob->entityId())
             {
-                PTrust->PAI->Internal_ChangeTarget(PFocusMob->targid);
-                m_LastTopEnmity = nullptr;
+                PTrust->PAI->Internal_ChangeTarget(PFocusMob->entityId());
             }
 
-            PTarget = PFocusMob;
+            setTarget(PFocusMob);
+            PTarget = target().resolve<CBattleEntity>();
         }
         else
         {
             PTrust->PAI->Internal_Disengage();
-            m_LastTopEnmity = nullptr;
             m_CombatEndTime = m_Tick;
             co_return;
         }
@@ -869,25 +867,34 @@ auto CTrustController::DoCombatTick(timer::time_point tick) -> Task<void>
     }
     else
     {
-        CMobEntity* PMob = dynamic_cast<CMobEntity*>(PMaster->GetBattleTarget());
-        PTarget          = POwner->GetBattleTarget();
         SetTrustFocusVars(PTrust, {});
+        CMobEntity* PMob = dynamic_cast<CMobEntity*>(PMaster->GetBattleTarget());
 
         if (!PMaster->PAI->IsEngaged())
         {
             PTrust->PAI->Internal_Disengage();
-            m_LastTopEnmity = nullptr;
             m_CombatEndTime = m_Tick;
         }
 
-        if (PMob && PTrust->GetBattleTargetID() != PMaster->GetBattleTargetID())
+        if (PMaster && PMob && PTrust->battleTarget() != PMaster->battleTarget())
         {
-            const auto* enmityList = PMob->PEnmityContainer->GetEnmityList();
-            if (const auto entry = enmityList->find(PMaster->id);
-                entry != enmityList->end() && entry->second.active && (entry->second.CE + entry->second.VE) > 0)
+            auto  masterID   = PMaster->id;
+            auto* enmityList = PMob->PEnmityContainer->GetEnmityList();
+            bool  hasEnmity  = false;
+
+            if (auto it = enmityList->find(masterID); it != enmityList->end())
             {
-                PTrust->PAI->Internal_ChangeTarget(PMaster->GetBattleTargetID());
-                m_LastTopEnmity = nullptr;
+                const EnmityObject_t& entry = it->second;
+                // Keep the upstream active, positive-enmity gate for retail parties.
+                if (entry.active && (entry.CE + entry.VE) > 0)
+                {
+                    hasEnmity = true;
+                }
+            }
+
+            if (hasEnmity)
+            {
+                PTrust->PAI->Internal_ChangeTarget(PMaster->battleTarget());
             }
         }
     }
@@ -941,7 +948,7 @@ auto CTrustController::DoCombatTick(timer::time_point tick) -> Task<void>
                         if (currentDistanceToTarget > RoamDistance)
                         {
                             if (currentDistanceToTarget < RoamDistance * 3.0f &&
-                                PTrust->PAI->PathFind->PathAround(PTarget->loc.p, RoamDistance, PATHFLAG_RUN | PATHFLAG_WALLHACK))
+                                PTrust->PAI->PathFind->PathAround(PTarget->loc.p, RoamDistance, PATHFLAG_RUN))
                             {
                                 PTrust->PAI->PathFind->FollowPath(m_Tick);
                             }
@@ -1000,13 +1007,14 @@ auto CTrustController::DoNonCombatTick(const timer::time_point tick) -> Task<voi
     {
         const auto focus = ResolveTrustFocusTarget(PMaster, PTrust);
         SetTrustFocusVars(PTrust, focus);
-        PTarget = focus.PMob ? static_cast<CBattleEntity*>(focus.PMob) : PMaster->GetBattleTarget();
+        setTarget(focus.PMob ? static_cast<CBattleEntity*>(focus.PMob) : PMaster->GetBattleTarget());
     }
     else
     {
         SetTrustFocusVars(PTrust, {});
-        PTarget = PMaster->GetBattleTarget();
+        setTarget(PMaster->GetBattleTarget());
     }
+    auto* PTarget = target().resolve<CBattleEntity>();
 
     // Non-combat trust follow order:
     // - first trust follows master
@@ -1035,19 +1043,12 @@ auto CTrustController::DoNonCombatTick(const timer::time_point tick) -> Task<voi
             distance(POtherTrust->loc.p, PTrust->loc.p) < 1.0f &&
             !PTrust->PAI->PathFind->IsFollowingPath())
         {
-            auto diff_angle = worldAngle(PTrust->loc.p, POtherTrust->loc.p) + 64;
-            auto amount     = (currentPartyPos % 2) ? 1.0f : -1.0f;
-
-            position_t new_pos = {
-                PTrust->loc.p.x - (cosf(rotationToRadian(diff_angle)) * amount),
-                POtherTrust->loc.p.y,
-                PTrust->loc.p.z + (sinf(rotationToRadian(diff_angle)) * amount),
-                0,
-                0,
-            };
+            // Sidestep the trust we are stacked on, with odd/even party slots taking opposite sides.
+            const float amount  = (currentPartyPos % 2) ? 1.0f : -1.0f;
+            const auto  new_pos = sidestepPosition(PTrust->loc.p, POtherTrust->loc.p, amount);
 
             if (PTrust->PAI->PathFind->ValidPosition(new_pos) &&
-                PTrust->PAI->PathFind->PathAround(new_pos, desiredFollowDistance, PATHFLAG_RUN | PATHFLAG_WALLHACK))
+                PTrust->PAI->PathFind->PathTo(new_pos, PATHFLAG_RUN))
             {
                 PTrust->PAI->PathFind->FollowPath(m_Tick);
             }
@@ -1062,7 +1063,7 @@ auto CTrustController::DoNonCombatTick(const timer::time_point tick) -> Task<voi
     else if (currentDistance > desiredFollowDistance)
     {
         if (currentDistance < desiredFollowDistance * 3.0f &&
-            PTrust->PAI->PathFind->PathAround(PFollowTarget->loc.p, desiredFollowDistance, PATHFLAG_RUN | PATHFLAG_WALLHACK))
+            PTrust->PAI->PathFind->PathAround(PFollowTarget->loc.p, desiredFollowDistance, PATHFLAG_RUN))
         {
             PTrust->PAI->PathFind->FollowPath(m_Tick);
         }
@@ -1105,6 +1106,8 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
     bool       trustCurrentlyResting = casterResting && IsTrustResting(PTrust);
 
     SetTrustFocusVars(PTrust, focus);
+    setTarget(focus.PMob ? static_cast<CBattleEntity*>(focus.PMob) : PMaster->GetBattleTarget());
+    auto* PTarget = target().resolve<CBattleEntity>();
 
     if (PDefensiveTarget)
     {
@@ -1221,7 +1224,12 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
     if (currentDistance < declumpDistance)
     {
         // Too close to follow target - push away to maintain formation spacing
-        if (PFollowTarget && POwner->PAI->PathFind->PathAround(PFollowTarget->loc.p, followTarget + 0.5f, PATHFLAG_RUN | PATHFLAG_WALLHACK))
+        position_t awayFromTarget = PFollowTarget->loc.p;
+        awayFromTarget.rotation   = worldAngle(PFollowTarget->loc.p, POwner->loc.p);
+        const auto spacedPos      = nearPosition(awayFromTarget, followTarget + 0.5f, 0.0f);
+
+        if (POwner->PAI->PathFind->ValidPosition(spacedPos) &&
+            POwner->PAI->PathFind->PathTo(spacedPos, PATHFLAG_RUN))
         {
             POwner->PAI->PathFind->FollowPath(m_Tick);
         }
@@ -1237,7 +1245,7 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
         else
         {
             // Path or step closer to follow target
-            if (currentDistance < RoamDistance * 3.0f && POwner->PAI->PathFind->PathAround(PFollowTarget->loc.p, followTarget, PATHFLAG_RUN | PATHFLAG_WALLHACK))
+            if (currentDistance < RoamDistance * 3.0f && POwner->PAI->PathFind->PathAround(PFollowTarget->loc.p, followTarget, PATHFLAG_RUN))
             {
                 POwner->PAI->PathFind->FollowPath(m_Tick);
             }
@@ -1385,28 +1393,20 @@ void CTrustController::Declump(const CCharEntity* PMaster, const CBattleEntity* 
     const uint8 currentPartyPos = GetPartyPosition();
     for (const auto* POtherTrust : PMaster->PTrusts)
     {
-        if (POtherTrust != POwner && !POtherTrust->PAI->PathFind->IsFollowingPath() && distance(POtherTrust->loc.p, POwner->loc.p) < 1.5f)
+        if (POtherTrust == POwner || POtherTrust->PAI->PathFind->IsFollowingPath() || distance(POtherTrust->loc.p, POwner->loc.p) >= 1.5f)
         {
-            const auto diffAngle  = worldAngle(POwner->loc.p, PTarget->loc.p) + 64;
-            const auto moveAmount = xirand::GetRandomNumber(0.0f, 1.5f) * ((currentPartyPos % 2) ? 1.0f : -1.0f);
-
-            // clang-format off
-            const position_t newPos =
-            {
-                POwner->loc.p.x - (cosf(rotationToRadian(diffAngle)) * moveAmount),
-                PTarget->loc.p.y,
-                POwner->loc.p.z + (sinf(rotationToRadian(diffAngle)) * moveAmount),
-                0,
-                0,
-            };
-            // clang-format on
-
-            if (POwner->PAI->PathFind->ValidPosition(newPos))
-            {
-                POwner->PAI->PathFind->PathTo(newPos, PATHFLAG_RUN | PATHFLAG_WALLHACK);
-            }
-            break;
+            continue;
         }
+
+        // Sidestep relative to the shared target so trusts spread around the enemy rather than away from each other.
+        const float moveAmount = xirand::GetRandomNumber(0.0f, 1.5f) * ((currentPartyPos % 2) ? 1.0f : -1.0f);
+        const auto  newPos     = sidestepPosition(POwner->loc.p, PTarget->loc.p, moveAmount);
+
+        if (POwner->PAI->PathFind->ValidPosition(newPos))
+        {
+            POwner->PAI->PathFind->PathTo(newPos, PATHFLAG_RUN);
+        }
+        break;
     }
 }
 
@@ -1464,7 +1464,7 @@ void CTrustController::PathOutToDistance(const CBattleEntity* PTarget, const flo
     // Get somewhat close to the target destination
     if (distance(POwner->loc.p, target_position) > 2.0f && m_failedRepositionAttempts < 3)
     {
-        POwner->PAI->PathFind->PathTo(target_position, PATHFLAG_RUN | PATHFLAG_WALLHACK);
+        POwner->PAI->PathFind->PathTo(target_position, PATHFLAG_RUN);
     }
     else
     {
@@ -1502,7 +1502,7 @@ auto CTrustController::RangedAttack(const EntityId target) -> bool
 
     if (m_Tick - m_LastRangedAttackTime > rangedDelay && !m_InTransit)
     {
-        FaceTarget(PTarget->entityId());
+        FaceTarget(target);
         if (POwner->PAI->CanChangeState() && POwner->PAI->Internal_RangedAttack(target))
         {
             m_LastRangedAttackTime = m_Tick;
@@ -1564,7 +1564,7 @@ auto CTrustController::Cast(const EntityId target, SpellID spellid) -> bool
             if (MState)
             {
                 const auto MSpell       = MState->GetSpell();
-                const auto MTarget      = MState->GetTarget();
+                const auto MTarget      = MState->target().resolve();
                 const auto MSpellFamily = MSpell->getSpellFamily();
                 const auto MSpellID     = MSpell->getID();
 

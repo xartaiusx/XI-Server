@@ -13,7 +13,7 @@ local quest = Quest:new(xi.questLog.SANDORIA, xi.quest.id.sandoria.THE_PICKPOCKE
 
 quest.reward =
 {
-    fame = 30,
+    fame = 20,
     fameArea = xi.fameArea.SANDORIA,
     item = xi.item.LIGHT_AXE,
     itemParams = { fromTrade = true },
@@ -135,7 +135,7 @@ quest.sections =
                 onTrigger = quest:event(547),
 
                 onTrade = function(player, npc, trade)
-                    if npcUtil.tradeHas(trade, xi.item.GILT_GLASSES) then
+                    if npcUtil.tradeMatches(trade, { { xi.item.GILT_GLASSES, 1 } }) then
                         return quest:progressEvent(550)
                     else
                         return quest:event(551)
@@ -181,7 +181,7 @@ quest.sections =
 
                 [550] = function(player, csid, option, npc)
                     if quest:complete(player) then
-                        player:confirmTrade()
+                        player:tradeComplete()
                     end
                 end,
             },
@@ -200,9 +200,11 @@ quest.sections =
                 end,
 
                 onTrade = function(player, npc, trade)
-                    if npcUtil.tradeHas(trade, xi.item.EAGLE_BUTTON) then
+                    if npcUtil.tradeMatches(trade, { { xi.item.EAGLE_BUTTON, 1 } }) then
                         return quest:progressEvent(121)
                     end
+
+                    return quest:event(122)
                 end,
             },
 
@@ -210,7 +212,7 @@ quest.sections =
             {
                 [121] = function(player, csid, option, npc)
                     if npcUtil.giveItem(player, xi.item.GILT_GLASSES, { fromTrade = true }) then
-                        player:confirmTrade()
+                        player:tradeComplete()
                     end
                 end,
             },

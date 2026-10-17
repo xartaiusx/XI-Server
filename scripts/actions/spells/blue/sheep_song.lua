@@ -20,8 +20,8 @@ spellObject.onMagicCastingCheck = function(caster, target, spell)
     return 0
 end
 
-spellObject.onSpellCast = function(caster, target, spell)
-    local params = {}
+spellObject.onSpellCast = function(caster, target, spell, action)
+    local params           = {}
     params.ecosystem       = xi.ecosystem.BEAST
     params.effect          = xi.effect.SLEEP_I
     params.power           = 1

@@ -39,6 +39,7 @@ REVIEWABLE_SOURCE_SUFFIXES = {
     ".sh",
 }
 LUA_SOURCE_ROOTS = ("modules/", "scripts/")
+NATIVE_SOURCE_SUFFIXES = {".cpp", ".h"}
 REQUIRED_NATIVE_PROOF_GATES = [
     "xipivot",
     "jasmint",
@@ -459,8 +460,10 @@ def check_staged_sensitive(repo: Path) -> list[str]:
         path = line[3:] if len(line) > 3 else line
         lower = path.lower().replace("\\", "/")
         suffix = Path(lower).suffix
-        is_reviewable_source = suffix in REVIEWABLE_SOURCE_SUFFIXES or (
-            suffix == ".lua" and lower.startswith(LUA_SOURCE_ROOTS)
+        is_reviewable_source = (
+            suffix in REVIEWABLE_SOURCE_SUFFIXES
+            or (suffix == ".lua" and lower.startswith(LUA_SOURCE_ROOTS))
+            or (suffix in NATIVE_SOURCE_SUFFIXES and lower.startswith("src/"))
         )
         if (
             any(pattern in lower for pattern in SENSITIVE_PATTERNS)

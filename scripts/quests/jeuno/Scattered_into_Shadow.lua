@@ -15,16 +15,14 @@ local quest = Quest:new(xi.questLog.JEUNO, xi.quest.id.jeuno.SCATTERED_INTO_SHAD
 
 quest.reward =
 {
-    fame     = 30,
-    fameArea = xi.fameArea.JEUNO,
     item     = xi.item.BEAST_GAITERS,
 }
 
 local function beginQuest(player)
     quest:begin(player)
-    player:addKeyItem(xi.ki.AQUAFLORA1)
-    player:addKeyItem(xi.ki.AQUAFLORA2)
-    player:addKeyItem(xi.ki.AQUAFLORA3)
+    player:addKeyItem(xi.keyItem.AQUAFLORA1)
+    player:addKeyItem(xi.keyItem.AQUAFLORA2)
+    player:addKeyItem(xi.keyItem.AQUAFLORA3)
 end
 
 quest.sections =
@@ -55,14 +53,14 @@ quest.sections =
                 [143] = function(player, csid, option, npc)
                     if option == 1 then
                         beginQuest(player)
-                        player:messageSpecial(upperJeunoID.text.YOU_ARE_GIVEN_THREE_SPRIGS, xi.ki.AQUAFLORA1)
+                        player:messageSpecial(upperJeunoID.text.YOU_ARE_GIVEN_THREE_SPRIGS, xi.keyItem.AQUAFLORA1)
                     end
                 end,
 
                 [141] = function(player, csid, option, npc)
                     if option == 1 then
                         beginQuest(player)
-                        player:messageSpecial(upperJeunoID.text.YOU_ARE_GIVEN_THREE_SPRIGS, xi.ki.AQUAFLORA1)
+                        player:messageSpecial(upperJeunoID.text.YOU_ARE_GIVEN_THREE_SPRIGS, xi.keyItem.AQUAFLORA1)
                     else
                         quest:setVar(player, 'Prog', 1)
                     end
@@ -85,21 +83,21 @@ quest.sections =
 
                     if
                         offset == 0 and
-                        player:hasKeyItem(xi.ki.AQUAFLORA2)
+                        player:hasKeyItem(xi.keyItem.AQUAFLORA2)
                     then
                         return quest:progressEvent(20)
                     elseif offset == 1 then
                         if quest:getVar(player, 'Prog') == 2 then
                             return quest:progressEvent(18)
                         elseif
-                            player:hasKeyItem(xi.ki.AQUAFLORA3) and
+                            player:hasKeyItem(xi.keyItem.AQUAFLORA3) and
                             npcUtil.popFromQM(player, npc, feiyinID.mob.DABOTZS_GHOST, { claim = true, hide = 0 })
                         then
                             return quest:noAction()
                         end
                     elseif
                         offset == 2 and
-                        player:hasKeyItem(xi.ki.AQUAFLORA1)
+                        player:hasKeyItem(xi.keyItem.AQUAFLORA1)
                     then
                         return quest:progressEvent(21)
                     end
@@ -109,7 +107,7 @@ quest.sections =
             ['Dabotzs_Ghost'] =
             {
                 onMobDeath = function(mob, player, optParams)
-                    if player:hasKeyItem(xi.ki.AQUAFLORA3) then
+                    if player:hasKeyItem(xi.keyItem.AQUAFLORA3) then
                         quest:setVar(player, 'Prog', 2)
                     end
                 end,
@@ -118,18 +116,18 @@ quest.sections =
             onEventFinish =
             {
                 [18] = function(player, csid, option, npc)
-                    player:delKeyItem(xi.ki.AQUAFLORA3)
+                    player:delKeyItem(xi.keyItem.AQUAFLORA3)
                     quest:setVar(player, 'Prog', 3)
                     quest:setVarBit(player, 'Stage', 2)
                 end,
 
                 [20] = function(player, csid, option, npc)
-                    player:delKeyItem(xi.ki.AQUAFLORA2)
+                    player:delKeyItem(xi.keyItem.AQUAFLORA2)
                     quest:setVarBit(player, 'Stage', 1)
                 end,
 
                 [21] = function(player, csid, option, npc)
-                    player:delKeyItem(xi.ki.AQUAFLORA1)
+                    player:delKeyItem(xi.keyItem.AQUAFLORA1)
                     quest:setVarBit(player, 'Stage', 0)
                 end,
             },
@@ -146,8 +144,20 @@ quest.sections =
                     then
                         player:tradeComplete()
                         quest:setVar(player, 'Prog', 5)
-                        npc:setStatus(xi.status.DISAPPEAR)
-                        npc:updateNPCHideTime(900) -- Tebhi disappears for 15min
+
+                        -- Tebhi stops and faces the player when traded, then fades away.
+                        npc:clearPath(true)
+                        npc:facePlayer(player, false)
+                        npc:setLocalVar('respawnTime', GetSystemTime() + 180)
+                        npc:timer(2000, function(npcArg)
+                            npcArg:entityAnimationPacket(xi.animationString.STATUS_DISAPPEAR)
+                        end)
+
+                        npc:timer(4000, function(npcArg)
+                            npcArg:setStatus(xi.status.CUTSCENE_ONLY)
+                            npcArg:continuePath()
+                        end)
+
                         return quest:messageSpecial(castleOzID.text.TEBHI_ACCEPTS, xi.item.BEAST_COLLAR)
                     end
                 end,
@@ -167,6 +177,46 @@ quest.sections =
                     end
                 end,
             },
+
+            onZoneIn = function(player, prevZone)
+                -- Tebhi only spawns if a player on this part of the quest zones in.
+                if quest:getVar(player, 'Prog') ~= 4 then
+                    return
+                end
+
+                local tebhi = GetNPCByID(castleOzID.npc.TEBHI)
+
+                if not tebhi then
+                    return
+                end
+
+                -- Attach a listener to each player to ensure Tebhi reappears if multiple people are on the quest.
+                -- Listener cleans up when player zones out or progresses past this step.
+                player:addListener('TICK', 'TEBHI_RESPAWN', function(playerArg)
+                    -- Not in the zone anymore, or not on this step - clean up listener and return.
+                    if
+                        playerArg:getZoneID() ~= xi.zone.CASTLE_OZTROJA or
+                        quest:getVar(playerArg, 'Prog') ~= 4
+                    then
+                        playerArg:removeListener('TEBHI_RESPAWN')
+                        return
+                    end
+
+                    -- Tebhi is already up, return.
+                    if tebhi:getStatus() == xi.status.NORMAL then
+                        return
+                    end
+
+                    -- Not time to respawn Tebhi, return.
+                    if GetSystemTime() < tebhi:getLocalVar('respawnTime') then
+                        return
+                    end
+
+                    -- If we make it here, spawn Tebhi.
+                    tebhi:setStatus(xi.status.NORMAL)
+                    tebhi:entityAnimationPacket(xi.animationString.STATUS_VISIBLE)
+                end)
+            end,
         },
 
         [xi.zone.UPPER_JEUNO] =
@@ -175,9 +225,9 @@ quest.sections =
             {
                 onTrigger = function(player, npc)
                     if
-                        player:hasKeyItem(xi.ki.AQUAFLORA1) or
-                        player:hasKeyItem(xi.ki.AQUAFLORA2) or
-                        player:hasKeyItem(xi.ki.AQUAFLORA3)
+                        player:hasKeyItem(xi.keyItem.AQUAFLORA1) or
+                        player:hasKeyItem(xi.keyItem.AQUAFLORA2) or
+                        player:hasKeyItem(xi.keyItem.AQUAFLORA3)
                     then
                         return quest:event(142)
                     elseif quest:getVar(player, 'Prog') == 3 then
@@ -202,7 +252,11 @@ quest.sections =
             onEventFinish =
             {
                 [135] = function(player, csid, option, npc)
-                    quest:complete(player)
+                    if quest:complete(player) then
+                        player:addFame(xi.fameArea.SANDORIA, 7)
+                        player:addFame(xi.fameArea.BASTOK, 7)
+                        player:addFame(xi.fameArea.WINDURST, 7)
+                    end
                 end,
 
                 [144] = function(player, csid, option, npc)

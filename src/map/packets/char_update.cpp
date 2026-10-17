@@ -23,10 +23,13 @@
 
 #include "char_update.h"
 
+#include "data/enums/zone_misc.h"
 #include "entities/char_entity.h"
 #include "items/item_linkshell.h"
+#include "monstrosity.h"
 #include "status_effect_container.h"
 #include "utils/mountutils.h"
+#include "zone.h"
 
 namespace
 {
@@ -296,7 +299,7 @@ void CCharUpdatePacket::updateWith(CCharEntity* PChar, ENTITYUPDATE type, uint8 
         // Only known to be used by Noble Chocobo at this time.
         packet->CustomProperties[1] = CustomProperties[1];
 
-        auto* linkshell = reinterpret_cast<CItemLinkshell*>(PChar->getEquip(SLOT_LINK1));
+        auto* linkshell = PChar->getLinkshell(SLOT_LINK1);
 
         packet->Flags1.CliPosInitFlag  = 0; // Unused
         packet->Flags1.GraphSize       = PChar->look.size;
@@ -316,7 +319,7 @@ void CCharUpdatePacket::updateWith(CCharEntity* PChar, ENTITYUPDATE type, uint8 
         packet->Flags1.TurnFlag        = 0; // I do not believe we currently use this. // TOOD: get the lerp values from retail somehow.
         packet->Flags1.BazaarFlag      = PChar->hasBazaar();
 
-        if (linkshell && linkshell->isType(ITEM_LINKSHELL))
+        if (linkshell)
         {
             const Exdata::lscolor_t LSColor = linkshell->GetLSColor();
 
@@ -335,16 +338,28 @@ void CCharUpdatePacket::updateWith(CCharEntity* PChar, ENTITYUPDATE type, uint8 
         packet->Flags2.AutoPartyFlag = false; // Not implemented.
 
         packet->Flags3.TrustFlag        = 0;
-        packet->Flags3.LfgMasterFlag    = 0; // Not implemented. This is LFP while job mastered when seeking a master party. (job master star next to inv icon)
+        packet->Flags3.LfgMasterFlag    = PChar->playerConfig.RecruitFlg; // Accepting party requests icon.
         packet->Flags3.PetNewFlag       = 0;
         packet->Flags3.MotStopFlag      = PChar->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Terror);
         packet->Flags3.CliPriorityFlag  = PChar->priorityRender;
         packet->Flags3.PetFlag          = 0;
         packet->Flags3.BallistaTeam     = static_cast<uint8_t>(PChar->allegiance); // Also used during Ballista with slightly different values.
-        packet->Flags3.MonStat          = 0;                                       // Some monstrosity flag. // TODO: verify if we already use this.
+        packet->Flags3.MonStat          = 0;                                       // Retail sends 0 here even for Monstrosity players.
         packet->Flags3.SilenceFlag      = PChar->m_isGMHidden || PChar->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Sneak);
         packet->Flags3.NewCharacterFlag = !PChar->playerConfig.NewAdventurerOffFlg;
         packet->Flags3.MentorFlag       = PChar->playerConfig.MentorFlg;
+
+        // Retail puts a gladiator on team 0 in the Belligerency zones, against the Monipulators' team 1.
+        if (monstrosity::IsGladiatorInBelligerency(PChar))
+        {
+            packet->Flags3.BallistaTeam = 0x08;
+        }
+
+        // Sword & Shield icon only shows outside of the Feretory
+        if (PChar->m_PMonstrosity != nullptr && PChar->m_PMonstrosity->Belligerency && PChar->loc.zone->GetID() != xi::ZoneId::Feretory)
+        {
+            packet->Flags3.BallistaTeam |= 0x08;
+        }
 
         packet->Flags5.GeoIndiSize    = 1;
         packet->Flags5.GeoIndiFlag    = 0;
@@ -392,17 +407,12 @@ void CCharUpdatePacket::updateWith(CCharEntity* PChar, ENTITYUPDATE type, uint8 
         {
             // NOTE: Changing this 0x8000 to 0xC000 will hide the species name.
             //     : This looks to be a quirk of the client and not intended.
-            packet->MonstrosityFlags   = 0x8000 | PChar->m_PMonstrosity->Species;
+            packet->MonstrosityFlags   = 0x8000 | monstrosity::GetDisplaySpecies(PChar);
             packet->MonstrosityNameId1 = PChar->m_PMonstrosity->NamePrefix1;
             packet->MonstrosityNameId2 = PChar->m_PMonstrosity->NamePrefix2;
 
             packet->GrapIDTbl[0] = PChar->m_PMonstrosity->Look;
             packet->GrapIDTbl[8] = 0xFFFF;
-            // Sword & Shield icon only shows outside of the Feretory
-            if (PChar->m_PMonstrosity->Belligerency && PChar->loc.zone->GetID() != ZONE_FERETORY)
-            {
-                packet->Flags3.BallistaTeam |= 0x08; // 0x18?
-            }
         }
 
         packet->size = roundUpToNearestFour(model_size) / 4;

@@ -1,13 +1,14 @@
-/************************************************************************
- * Auction House Announcements
- *
- * This will send a message to the seller of an item when it is bought,
- * informing them that their item sold, to who, and for how much.
- * It will only send this message if the seller is online.
- ************************************************************************/
+//
+// Auction House Announcements
+//
+//   This will send a message to the seller of an item when it is bought,
+//   informing them that their item sold, to who, and for how much.
+//   It will only send this message if the seller is online.
+//
 
 #include "common/database.h"
 
+#include "map/entities/char_entity.h"
 #include "map/ipc_client.h"
 #include "map/map_session.h"
 #include "map/packets/basic.h"
@@ -46,7 +47,7 @@ class AHAnnouncementModule : public CPPModule
         const uint16 itemid   = packet->Param.Bid.ItemNo;
         const uint8  quantity = packet->Param.Bid.ItemStacks;
 
-        CItem* PItem = itemutils::GetItemPointer(itemid);
+        const auto* PItem = xi::items::lookup(itemid);
         if (!PItem)
         {
             return false;

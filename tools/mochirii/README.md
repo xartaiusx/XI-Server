@@ -66,11 +66,21 @@ and installed into `Windower\addons\MochiriiScreenshotQA`.
 
 Use the desktop shortcuts or their linked tracked wrappers for every Mochirii
 server transition. `Start-MochiriiServer.ps1` succeeds only when MariaDB plus all
-four XI units are active, disabled for autostart, have positive main PIDs, and
-listen on ports `3306`, `54001`, `54002`, `54003`, `55030`, and `55031`.
+five XI units (`xi_profile`, `xi_connect`, `xi_search`, `xi_world`, and `xi_map`)
+are active, disabled for autostart, have positive main PIDs, and listen on ports
+`3306`, `51220`, `51240`, `54001`, `54002`, `54003`, `55030`, and `55031`.
 `Stop-MochiriiServer.ps1` performs the full desktop stop and succeeds only when
-all five units are inactive, disabled, have PID 0, and none of those ports are
+all six units are inactive, disabled, have PID 0, and none of those ports are
 listening. Both wrappers fail closed if the WSL status assertion fails.
+
+Deploy the tracked `mochirii-xi-profile.service` template with the existing XI
+units before using this lifecycle. Startup requires existing, nonempty
+`profile.cert` and `profile.key` links from the canonical checkout into
+`C:\Github Repo's\FFXI\FFXI Creds`; it never prepares credential material.
+The profile unit also requires both links and mounts their targets read-only.
+An unprepared profile unit or credential link fails startup and rolls back a
+partial service start. Keep the official client version compatible with the
+merged upstream; these controls do not bypass client version checks.
 
 The WSL status helper exposes the same explicit gates:
 

@@ -5,6 +5,8 @@
 -- This version of it is from a player's avatar. The sleep is broken by most damage sources except other DoTs
 --
 -- see mobskills/nightmare.lua for full explanation
+-- Note: Ability range was increased in Sept. 6, 2016 update:
+-- https://wiki.ffo.jp/html/35741.html
 -----------------------------------
 ---@type TAbilityPet
 local abilityObject = {}
@@ -14,7 +16,7 @@ abilityObject.onAbilityCheck = function(player, target, ability)
 end
 
 abilityObject.onPetAbility = function(target, pet, petskill, summoner, action)
-    xi.job_utils.summoner.onUseBloodPact(target, petskill, summoner, action)
+    xi.job_utils.summoner.onUseBloodPact(target, pet, petskill, summoner, action)
 
     -- Check nullification.
     if
@@ -28,8 +30,15 @@ abilityObject.onPetAbility = function(target, pet, petskill, summoner, action)
     end
 
     -- Check resistance.
-    local bonusMacc  = xi.summon.getSummoningSkillOverCap(pet)
-    local resistRate = xi.combat.magicHitRate.calculateResistRate(pet, target, 0, 0, 0, xi.element.DARK, xi.mod.INT, xi.effect.SLEEP_I, bonusMacc)
+    local params =
+    {
+        effectId       = xi.effect.SLEEP_I,
+        magicalElement = xi.element.DARK,
+        bonusMacc      = xi.summon.getSummoningSkillOverCap(pet),
+        actorStat      = xi.mod.INT,
+    }
+
+    local resistRate = xi.combat.magicHitRate.calculateResistRate(pet, target, params)
     if resistRate < 0.5 then
         petskill:setMsg(xi.msg.basic.JA_MISS_2) -- resist message
         return xi.effect.SLEEP_I

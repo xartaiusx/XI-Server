@@ -15,8 +15,4 @@ entity.onTrigger = function(player, npc)
     player:startEvent(260, 50)
 end
 
-entity.onEventFinish = function(player, csid, option, npc)
-    xi.appraisal.appraisalOnEventFinish(player, csid, option, 50, 261, npc)
-end
-
 return entity

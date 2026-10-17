@@ -188,7 +188,13 @@ end
 
 -- Calculate potency.
 xi.spells.enfeebling.calculatePotency = function(caster, target, spellId, spellEffect, skillType, statUsed)
-    local potency    = pTable[spellId][column.BASE_POTENCY]
+    local potency = pTable[spellId][column.BASE_POTENCY]
+
+    -- Ninjutsu debuffs have fixed potency per tier and are not affected by dINT or enfeebling potency gear.
+    if skillType == xi.skill.NINJUTSU then
+        return potency
+    end
+
     local statDiff   = caster:getStat(statUsed) - target:getStat(statUsed)
     local skillLevel = caster:getSkillLevel(skillType)
 
@@ -324,6 +330,11 @@ xi.spells.enfeebling.calculateDuration = function(caster, target, spellId, spell
         duration = math.randomInt(13, 60)
     end
 
+    -- Seems to be anywhere from 2 - 8 seconds with float precision.
+    if spellEffect == xi.effect.STUN then
+        duration = math.randomFloat(2, 8)
+    end
+
     -- Additions to base duration.
     if
         spellEffect == xi.effect.BURN or
@@ -413,11 +424,24 @@ xi.spells.enfeebling.useEnfeeblingSpell = function(caster, target, spell)
     ------------------------------
     -- STEP 2: Calculate resist tiers.
     ------------------------------
-    local spellGroup = spell:getSpellGroup()
-    local statUsed   = pTable[spellId][column.STAT_USED]
-    local message    = pTable[spellId][column.MESSAGE_OFFSET]
-    local bonusMacc  = pTable[spellId][column.BONUS_MACC]
-    local resistRate = xi.combat.magicHitRate.calculateResistRate(caster, target, spellGroup, skillType, 0, spellElement, statUsed, spellEffect, bonusMacc)
+    local spellGroup     = spell:getSpellGroup()
+    local statUsed       = pTable[spellId][column.STAT_USED]
+    local message        = pTable[spellId][column.MESSAGE_OFFSET]
+    local bonusMacc      = pTable[spellId][column.BONUS_MACC]
+    local magicBurstTier = xi.combat.magicBurst.getMagicBurstTier(target, spellElement)
+
+    local maccParams =
+    {
+        effectId       = spellEffect,
+        magicalElement = spellElement,
+        magicBurstTier = magicBurstTier,
+        actorStat      = statUsed,
+        skillType      = skillType,
+        spellGroup     = spellGroup,
+        bonusMacc      = bonusMacc,
+    }
+
+    local resistRate = xi.combat.magicHitRate.calculateResistRate(caster, target, maccParams)
 
     if spellEffect ~= xi.effect.NONE then
         -- Stymie
@@ -492,8 +516,6 @@ xi.spells.enfeebling.useEnfeeblingSpell = function(caster, target, spell)
     ------------------------------
     if target:addStatusEffect(spellEffect, { power = potency, duration = duration, origin = caster, tick = tick, subPower = subpotency, tier = tier }) then
         -- Add "Magic Burst!" message
-        local magicBurstTier = xi.combat.magicBurst.getMagicBurstTier(target, spellElement)
-
         if magicBurstTier > 0 then
             spell:setMsg(xi.msg.basic.MAGIC_BURST_ENFEEB_IS - message * 3)
             caster:triggerRoeEvent(xi.roeTrigger.MAGIC_BURST)

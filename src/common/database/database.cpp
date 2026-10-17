@@ -26,6 +26,9 @@
 #include <common/logging.h>
 #include <common/macros.h>
 #include <common/utils.h>
+#include <common/xi.h>
+
+#include <common/types/fn.h>
 
 #include <common/types/hash_map.h>
 
@@ -231,7 +234,7 @@ auto db::checkCharset() -> void
         {
             const auto charsetSetting   = rset->get<std::string>(0);
             const auto collationSetting = rset->get<std::string>(1);
-            if (!starts_with(charsetSetting, "utf8") || !starts_with(collationSetting, "utf8"))
+            if (!charsetSetting.starts_with("utf8") || !collationSetting.starts_with("utf8"))
             {
                 foundError = true;
 
@@ -358,32 +361,39 @@ auto db::transaction(const Fn<void() const>& transactionFn) -> bool
 {
     TracyZoneScoped;
 
-    const bool wasAutoCommitOn = db::getAutoCommit();
-
-    if (db::setAutoCommit(false) && db::transactionStart())
+    if (!db::transactionStart())
     {
-        try
-        {
-            transactionFn();
-            db::transactionCommit();
-        }
-        catch (const std::exception& e)
-        {
-            ShowCritical("Transaction failed: Rolling back!");
-            ShowCritical("Transaction failed: %s", e.what());
-
-            db::transactionRollback();
-            db::setAutoCommit(wasAutoCommitOn);
-            return false;
-        }
-    }
-    else
-    {
-        db::setAutoCommit(wasAutoCommitOn);
         return false;
     }
 
-    db::setAutoCommit(wasAutoCommitOn);
+    // covers COMMIT/ROLLBACK too
+    db::getDatabase().setInTransaction(true);
+    const auto transactionScope = xi::finally<Fn<void()>>(
+        []() -> void
+        {
+            db::getDatabase().setInTransaction(false);
+        });
+
+    try
+    {
+        transactionFn();
+    }
+    catch (const std::exception& e)
+    {
+        ShowCriticalFmt("Transaction failed, rolling back: {}", e.what());
+
+        db::transactionRollback();
+        return false;
+    }
+
+    if (!db::transactionCommit())
+    {
+        ShowCritical("Transaction failed: COMMIT failed, rolling back!");
+
+        db::transactionRollback();
+        return false;
+    }
+
     return true;
 }
 
@@ -404,4 +414,31 @@ auto db::getTableColumnNames(const std::string& tableName) -> std::vector<std::s
     }
 
     return {};
+}
+
+auto db::clearStatementCache() -> void
+{
+    getDatabase().clearStatementCache();
+}
+
+auto db::checkStatementUsage() -> void
+{
+    const auto rset = db::preparedStmt("SELECT CAST(VARIABLE_VALUE AS UNSIGNED) AS used, @@max_prepared_stmt_count AS max_count "
+                                       "FROM information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME = 'PREPARED_STMT_COUNT'");
+    if (!rset || !rset->next())
+    {
+        ShowWarning("Could not read the server's prepared statement usage");
+        return;
+    }
+
+    const auto used     = rset->get<uint64>("used");
+    const auto maxCount = rset->get<uint64>("max_count");
+
+    ShowInfoFmt("Prepared statements in use on the database server: {} of {}", used, maxCount);
+
+    if (used * 4 >= maxCount * 3)
+    {
+        ShowWarningFmt("Prepared statements are at {} of {}, purging this process's statement caches", used, maxCount);
+        getDatabase().purgeStatementCaches();
+    }
 }

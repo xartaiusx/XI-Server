@@ -10,7 +10,7 @@ local quest = Quest:new(xi.questLog.BASTOK, xi.quest.id.bastok.HEARTS_OF_MYTHRIL
 
 quest.reward =
 {
-    fame     = 80,
+    fame     = 20,
     fameArea = xi.fameArea.BASTOK,
     item     = xi.item.SITABAKI,
     title    = xi.title.PURSUER_OF_THE_PAST,
@@ -31,7 +31,7 @@ quest.sections =
             {
                 [41] = function(player, csid, option, npc)
                     if option == 0 then
-                        npcUtil.giveKeyItem(player, xi.ki.BOUQUET_FOR_THE_PIONEERS)
+                        npcUtil.giveKeyItem(player, xi.keyItem.BOUQUET_FOR_THE_PIONEERS)
                         quest:begin(player)
                     end
                 end,
@@ -70,7 +70,7 @@ quest.sections =
             ['Monument'] =
             {
                 onTrigger = function(player, npc)
-                    if player:hasKeyItem(xi.ki.BOUQUET_FOR_THE_PIONEERS) then
+                    if player:hasKeyItem(xi.keyItem.BOUQUET_FOR_THE_PIONEERS) then
                         return quest:progressEvent(11)
                     end
                 end,
@@ -81,7 +81,7 @@ quest.sections =
                 [11] = function(player, csid, option, npc)
                     if option == 0 then
                         quest:setVar(player, 'Prog', 1)
-                        player:delKeyItem(xi.ki.BOUQUET_FOR_THE_PIONEERS)
+                        player:delKeyItem(xi.keyItem.BOUQUET_FOR_THE_PIONEERS)
                     end
                 end,
             },

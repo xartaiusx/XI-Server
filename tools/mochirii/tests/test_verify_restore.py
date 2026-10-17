@@ -28,6 +28,19 @@ class VerifyRestoreTests(unittest.TestCase):
 
         self.assertEqual(issues, [])
 
+    def test_sensitive_word_in_native_source_name_is_not_an_artifact(self) -> None:
+        with patch.object(
+            verify,
+            "run_git",
+            return_value=[
+                "A  src/map/data/yaml/enum_token.h",
+                " M src/common/token_parser.cpp",
+            ],
+        ):
+            issues = verify.check_staged_sensitive(Path("."))
+
+        self.assertEqual(issues, [])
+
     def test_non_source_sensitive_artifacts_still_fail_closed(self) -> None:
         with patch.object(
             verify,
@@ -36,6 +49,11 @@ class VerifyRestoreTests(unittest.TestCase):
                 "?? runtime/database-password.cnf",
                 "A  runtime/mochirii-token.txt",
                 "?? restore/private/mochirii-secret.lua",
+                "?? runtime/private-token.h",
+                "?? src/map/data/yaml/enum_token.h.dump",
+                "?? src/common/private-token.key",
+                "?? runtime/api-secret.bin",
+                "?? restore/private/secret.zip",
             ],
         ):
             issues = verify.check_staged_sensitive(Path("."))
@@ -46,6 +64,11 @@ class VerifyRestoreTests(unittest.TestCase):
                 "review sensitive-looking changed path before commit: runtime/database-password.cnf",
                 "review sensitive-looking changed path before commit: runtime/mochirii-token.txt",
                 "review sensitive-looking changed path before commit: restore/private/mochirii-secret.lua",
+                "review sensitive-looking changed path before commit: runtime/private-token.h",
+                "review sensitive-looking changed path before commit: src/map/data/yaml/enum_token.h.dump",
+                "review sensitive-looking changed path before commit: src/common/private-token.key",
+                "review sensitive-looking changed path before commit: runtime/api-secret.bin",
+                "review sensitive-looking changed path before commit: restore/private/secret.zip",
             ],
         )
 

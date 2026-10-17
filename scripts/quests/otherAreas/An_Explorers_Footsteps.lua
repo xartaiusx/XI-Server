@@ -66,7 +66,7 @@ local function abelardCorrectTrade(player, csid, option)
     if csid == 47 then
         player:setCharVar('[EF]MonumentBitmask', 0)
         player:setCharVar('[EF]MonumentCount', 0)
-        npcUtil.giveKeyItem(player, xi.ki.MAP_OF_THE_CRAWLERS_NEST)
+        npcUtil.giveKeyItem(player, xi.keyItem.MAP_OF_THE_CRAWLERS_NEST)
         quest:complete(player)
 
     -- Continue quest.
@@ -97,7 +97,8 @@ quest.sections =
 {
     {
         check = function(player, status, vars)
-            return status == xi.questStatus.QUEST_AVAILABLE
+            return status == xi.questStatus.QUEST_AVAILABLE and
+                player:getMainLvl() >= 10 -- Level requirement added in the March 8, 2007 update: https://www.playonline.com/pcd/update/ff11us/20070308c2bbd1/detail.html
         end,
 
         [xi.zone.SELBINA] =

@@ -5,7 +5,10 @@
 local zoneObject = {}
 
 zoneObject.onInitialize = function(zone)
-    xi.chocobo.initZone(zone)
+    zone:registerCuboidTriggerArea(1, -112, -1, 80, -97.8, 0, 94)    -- Marble Bridge Eatery, main
+    zone:registerCuboidTriggerArea(2, -97.8, -1, 82, -96.9, 0, 86.5) -- Marble Bridge Eatery, nook
+
+    xi.rentalChocobo.initZone(zone)
 end
 
 zoneObject.onZoneIn = function(player, prevZone)
@@ -13,7 +16,7 @@ zoneObject.onZoneIn = function(player, prevZone)
 end
 
 zoneObject.onConquestUpdate = function(zone, updatetype, influence, owner, ranking, isConquestAlliance)
-    xi.conquest.onConquestUpdate(zone, updatetype, influence, owner, ranking, isConquestAlliance)
+    xi.conquest.onNonRegionConquestUpdate(zone, updatetype, ranking, isConquestAlliance)
 end
 
 zoneObject.onTriggerAreaEnter = function(player, triggerArea)

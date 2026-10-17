@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -23,10 +23,19 @@
 
 #include "state.h"
 
+// Circumstances of a death, decided by whatever caused it and carried for as long as the death lasts.
+struct DeathParams
+{
+    bool losesExp{ true };
+    bool mijin{ false }; // Mijin Gakure: no weakness, half HP back on raise
+};
+
 class CDeathState : public CState
 {
 public:
-    CDeathState(CBattleEntity* PEntity, timer::duration death_time);
+    CDeathState(xi::Badge<CState>, CBattleEntity* PEntity, timer::duration death_time, DeathParams params = {});
+
+    auto init() -> StateErrorOr<void> override;
 
     auto Update(timer::time_point tick) -> bool override;
     void Cleanup(timer::time_point tick) override;
@@ -36,11 +45,16 @@ public:
     void allowSendRaise();
     void acceptRaise();
 
+    auto params() const -> const DeathParams&;
+
 private:
+    // Shadows CState::m_PEntity
     CBattleEntity* const m_PEntity;
-    timer::duration      m_deathTime;
-    bool                 m_raiseSent{ false };
-    bool                 m_raiseAccepted{ false };
-    timer::time_point    m_raiseTime;
-    timer::time_point    m_raiseAcceptedTime;
+
+    DeathParams       params_;
+    timer::duration   m_deathTime;
+    bool              m_raiseSent{ false };
+    bool              m_raiseAccepted{ false };
+    timer::time_point m_raiseTime;
+    timer::time_point m_raiseAcceptedTime;
 };

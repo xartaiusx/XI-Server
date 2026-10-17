@@ -25,6 +25,14 @@ The project name and server identity are Mochirii. Public-facing documentation s
 
 ## Development Focus
 
+The recorded upstream snapshot is pinned in
+`restore/manifests/upstream-base.manifest.json`. The October 2026 source uses
+C++23, includes `xi_profile`, and requires the client version recorded in
+`settings/default/login.lua`. Update acceptance includes a fresh build and
+isolated database migration tests; an upstream source sync does not establish
+in-game compatibility. Preserve the installed client and production database
+until their separate runtime checks pass.
+
 Mochirii currently tracks three active workstreams:
 
 - Client and mod-stack stability through Windower, GearSwap, XIVHotbar, XivParty, and verified visual DAT layers.

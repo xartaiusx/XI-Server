@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,6 +19,7 @@
 ===========================================================================
 */
 
+#include <algorithm>
 #include <atomic>
 #include <filesystem>
 #include <thread>
@@ -259,21 +260,14 @@ void CInstance::CheckTime(timer::time_point tick)
     }
     if (m_lastTimeCheck + checkFrequency <= tick && !Failed())
     {
-        luautils::OnInstanceTimeUpdate(GetZone(), this, static_cast<uint32>(timer::count_milliseconds(GetElapsedTime(tick))));
+        luautils::OnInstanceTimeUpdate(GetZone(), this, static_cast<uint32>(timer::count_seconds(GetElapsedTime(tick))));
         m_lastTimeCheck = tick;
     }
 }
 
 bool CInstance::CharRegistered(CCharEntity* PChar)
 {
-    for (auto id : m_registeredChars)
-    {
-        if (PChar->id == id)
-        {
-            return true;
-        }
-    }
-    return false;
+    return std::ranges::contains(m_registeredChars, PChar->id);
 }
 
 void CInstance::ClearEntities()

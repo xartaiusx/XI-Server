@@ -88,37 +88,6 @@ describe('SynthTransaction', function()
             string.format('expected %d remaining, got %d', stackQty - 1, player:getItemCount(ingredient)))
     end)
 
-    it('NO_LOSS recipe fail preserves ingredient', function()
-        -- Recipe 3049: Light Crystal + Broken Lu Shang's -> Lu Shang's. Wood 70, NO_LOSS.
-        local lightCrystal = xi.item.LIGHT_CRYSTAL
-        local brokenRod    = xi.item.BROKEN_LU_SHANGS_FISHING_ROD
-        local luShangs     = xi.item.LU_SHANGS_FISHING_ROD
-
-        player:setSkillLevel(xi.skill.WOODWORKING, 550)
-
-        local sawFail = false
-        for i = 1, 20 do
-            player:addItem(lightCrystal)
-            player:addItem(brokenRod)
-            player.actions:craft(lightCrystal, { brokenRod })
-            xi.test.world:skipTime(17)
-            xi.test.world:skipTime(15)
-
-            player.assert.no:hasItem(lightCrystal)
-
-            if player:hasItem(luShangs) then
-                assert(not player:hasItem(brokenRod), 'success should consume ingredient')
-                player:delContainerItems(xi.inv.INVENTORY)
-            else
-                assert(player:hasItem(brokenRod), 'NO_LOSS fail must preserve ingredient')
-                sawFail = true
-                break
-            end
-        end
-
-        assert(sawFail, 'expected at least one fail in 20 attempts at min skill')
-    end)
-
     it('bad recipe leaves items Free and unconsumed', function()
         player:addItem(crystal)
         player:addItem(xi.item.CHUNK_OF_IRON_ORE)
@@ -153,6 +122,59 @@ describe('SynthTransaction', function()
 
         local inMogSafe = player:findItem(ingredient, xi.inventoryLocation.MOGSAFE)
         assert(not inMogSafe, 'ingredient must not have moved to mog safe')
+    end)
+
+    local function leaveOneFreeSlot()
+        player:addItem(crystal, 2)
+        player:addItem(ingredient)
+        player:changeContainerSize(xi.inventoryLocation.INVENTORY, 1 - player:getFreeSlotsCount())
+    end
+
+    it('inventory has one less free slot while crafting', function()
+        leaveOneFreeSlot()
+
+        player.actions:craft(crystal, { ingredient })
+
+        assert(player:getFreeSlotsCount() == 0, 'free slots: ' .. player:getFreeSlotsCount())
+
+        player:addItem(xi.item.CHUNK_OF_IRON_ORE)
+        player.assert.no:hasItem(xi.item.CHUNK_OF_IRON_ORE)
+
+        xi.test.world:skipTime(17)
+        xi.test.world:skipTime(15)
+
+        player:delContainerItems(xi.inv.INVENTORY)
+        assert(player:getFreeSlotsCount() == player:getContainerSize(xi.inventoryLocation.INVENTORY))
+    end)
+
+    it('cannot buy from a bazaar while crafting', function()
+        local seller = xi.test.world:spawnPlayer({ zone = xi.zone.SOUTHERN_SAN_DORIA })
+        player:setPos(seller:getXPos(), seller:getYPos(), seller:getZPos())
+
+        seller:addItem(xi.item.CHUNK_OF_IRON_ORE)
+        local slot = seller:findItem(xi.item.CHUNK_OF_IRON_ORE):getSlotID()
+        seller.actions:bazaarPrice(slot, 100)
+
+        leaveOneFreeSlot()
+        player:addGil(1000)
+
+        player.actions:craft(crystal, { ingredient })
+        player.actions:bazaarOpen(seller)
+        player.actions:bazaarBuy(slot, 1)
+
+        player.assert.no:hasItem(xi.item.CHUNK_OF_IRON_ORE)
+        seller.assert:hasItem(xi.item.CHUNK_OF_IRON_ORE)
+    end)
+
+    it('cannot synth with a full inventory', function()
+        player:addItem(crystal)
+        player:addItem(ingredient)
+        player:changeContainerSize(xi.inventoryLocation.INVENTORY, -player:getFreeSlotsCount())
+
+        player.actions:craft(crystal, { ingredient })
+
+        player.assert:hasItem(ingredient)
+        assert(player:findItem(crystal):state() == xi.itemState.FREE)
     end)
 
     it('zoning mid-synth consumes claimed ingredients', function()

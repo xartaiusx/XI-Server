@@ -1,7 +1,6 @@
 -----------------------------------
 -- Zone: Buburimu_Peninsula (118)
 -----------------------------------
-local ID = zones[xi.zone.BUBURIMU_PENINSULA]
 require('scripts/missions/amk/helpers')
 -----------------------------------
 ---@type TZone
@@ -36,6 +35,7 @@ end
 
 zoneObject.afterZoneIn = function(player)
     xi.chocoboGame.handleMessage(player)
+    xi.monstrosity.applyBelligerencyCap(player)
 end
 
 zoneObject.onConquestUpdate = function(zone, updatetype, influence, owner, ranking, isConquestAlliance)
@@ -45,29 +45,14 @@ end
 zoneObject.onTriggerAreaEnter = function(player, triggerArea)
 end
 
-zoneObject.onGameHour = function(zone)
-    local hour = VanadielHour()
-    local nmBackoo = GetMobByID(ID.mob.BACKOO)
-
-    if nmBackoo then
-        if hour == 6 then -- backoo time-of-day pop condition open
-            DisallowRespawn(ID.mob.BACKOO, false)
-            if nmBackoo:getRespawnTime() == 0 then
-                nmBackoo:setRespawnTime(1)
-            end
-        elseif hour == 16 then -- backoo despawns
-            DisallowRespawn(ID.mob.BACKOO, true)
-            if nmBackoo:isSpawned() then
-                nmBackoo:spawn(1)
-            end
-        end
-    end
-end
-
 zoneObject.onEventUpdate = function(player, csid, option, npc)
 end
 
 zoneObject.onEventFinish = function(player, csid, option, npc)
+end
+
+zoneObject.onZoneOut = function(player)
+    xi.helm.onZoneOut(player)
 end
 
 return zoneObject

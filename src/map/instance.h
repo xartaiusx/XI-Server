@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,8 +19,7 @@
 ===========================================================================
 */
 
-#ifndef _CINSTANCE_H
-#define _CINSTANCE_H
+#pragma once
 
 #include "zone_entities.h"
 
@@ -117,5 +116,3 @@ private:
 
     HashMap<std::string, uint64_t> localVars_;
 };
-
-#endif

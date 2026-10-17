@@ -3,7 +3,7 @@
 -----------------------------------
 -- Log ID: 3, Quest ID: 72
 -- Nevela       : !pos -60.114 0 81.125 244
--- Wobke        : !pos 29.028 -0.126 -111.626 234
+-- Wobke        : !pos 29.028 0.874 -111.626 234
 -- Outpost Gate : !pos 473.566 23.421 413.134 109
 -- qm           : !pos -39.370 -11.093 307.285 105
 -----------------------------------
@@ -14,8 +14,6 @@ local quest = Quest:new(xi.questLog.JEUNO, xi.quest.id.jeuno.A_CHOCOBOS_TALE)
 
 quest.reward =
 {
-    fame     = 30,
-    fameArea = xi.fameArea.JEUNO,
     gil      = 5200,
     title    = xi.title.CHOCOBO_LOVE_GURU,
 }
@@ -89,7 +87,10 @@ quest.sections =
             {
                 [10017] = function(player, csid, option, npc)
                     if quest:complete(player) then
-                        player:delKeyItem(xi.ki.SILVER_COMETS_COLLAR)
+                        player:addFame(xi.fameArea.SANDORIA, 7)
+                        player:addFame(xi.fameArea.BASTOK, 7)
+                        player:addFame(xi.fameArea.WINDURST, 7)
+                        player:delKeyItem(xi.keyItem.SILVER_COMETS_COLLAR)
                     end
                 end,
             },
@@ -172,7 +173,7 @@ quest.sections =
                         if quest:getLocalVar(player, 'nmDefeated') == 1 then
                             quest:setVar(player, 'Prog', 5)
 
-                            return quest:keyItem(xi.ki.SILVER_COMETS_COLLAR)
+                            return quest:keyItem(xi.keyItem.SILVER_COMETS_COLLAR)
                         else
                             for nmId = batalliaID.mob.BADSHAH_OFFSET, batalliaID.mob.BADSHAH_OFFSET + 4 do
                                 SpawnMob(nmId):updateClaim(player)

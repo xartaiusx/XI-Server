@@ -23,7 +23,10 @@
 
 #include <common/cbasetypes.h>
 
+#include "data/datasets/zones/settings/dataset.h"
+#include "data/enums/zone.h"
 #include "data/enums/zone_misc.h"
+#include "data/loader.h"
 #include <common/database.h>
 #include <common/ipp.h>
 #include <common/logging.h>
@@ -39,15 +42,15 @@ class ZoneSettings final
 private:
     struct ZoneSettingsEntry final
     {
-        uint16 zoneid{};
-        IPP    ipp{};
-        uint32 misc{};
+        xi::ZoneId zoneid{};
+        IPP        ipp{};
+        uint32     misc{};
     };
 
 public:
     ZoneSettings()
     {
-        const auto rset = db::preparedStmt("SELECT zoneid, zoneip, zoneport, misc FROM zone_settings");
+        const auto rset = db::preparedStmt("SELECT zoneid, zoneip, zoneport FROM zone_settings");
         if (!rset)
         {
             ShowCriticalFmt("Error loading zone settings from DB");
@@ -65,9 +68,13 @@ public:
             const uint64 port = rset->get<uint64>("zoneport");
 
             ZoneSettingsEntry zone_settings{};
-            zone_settings.zoneid = rset->get<uint16>("zoneid");
+            zone_settings.zoneid = rset->get<xi::ZoneId>("zoneid");
             zone_settings.ipp    = IPP(ip, port);
-            zone_settings.misc   = rset->get<uint32>("misc");
+            const auto settings  = xi::data::loadZoneFile<xi::data::datasets::zones::settings::Dataset>(zone_settings.zoneid);
+            if (settings)
+            {
+                zone_settings.misc = static_cast<uint32>(settings->Misc);
+            }
 
             mapEndpointSet.insert(zone_settings.ipp);
 
@@ -91,8 +98,8 @@ public:
 
     // TODO: Properly encapsulate this
     // private:
-    HashMap<uint16, ZoneSettingsEntry> zoneSettingsMap_;
-    std::vector<IPP>                   mapEndpoints_;
-    std::vector<IPP>                   yellMapEndpoints_;
-    std::vector<IPP>                   assistMapEndpoints_;
+    HashMap<xi::ZoneId, ZoneSettingsEntry> zoneSettingsMap_;
+    std::vector<IPP>                       mapEndpoints_;
+    std::vector<IPP>                       yellMapEndpoints_;
+    std::vector<IPP>                       assistMapEndpoints_;
 };

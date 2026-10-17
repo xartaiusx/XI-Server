@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2022 LandSandBoat Dev Team
@@ -25,42 +25,44 @@
 #include "action/interrupts.h"
 #include "ai/ai_container.h"
 #include "enmity_container.h"
+#include "entities/char_entity.h"
 #include "entities/pet_entity.h"
 #include "enums/four_cc.h"
+#include "enums/msg_basic.h"
 #include "packets/s2c/0x028_battle2.h"
 #include "petskill.h"
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
 #include "utils/petutils.h"
+#include "zone.h"
 
-CPetSkillState::CPetSkillState(CPetEntity* PEntity, const EntityId& target, uint16 wsid)
+CPetSkillState::CPetSkillState(xi::Badge<CState>, CPetEntity* PEntity, const EntityId& target, uint16 wsid)
 : CState(PEntity, target)
 , m_PEntity(PEntity)
+, m_wsid(wsid)
 , m_spentTP(0)
 {
-    auto* skill = battleutils::GetPetSkill(wsid);
+    // Capture constructor arguments into members and nothing else. All other logic goes into init().
+}
+
+auto CPetSkillState::init() -> StateErrorOr<void>
+{
+    auto* skill = battleutils::GetPetSkill(m_wsid);
     if (!skill)
     {
-        throw CStateInitException(nullptr);
+        return RefuseSilently();
     }
 
     if (m_PEntity->StatusEffectContainer->HasStatusEffect({ xi::StatusEffect::Amnesia, xi::StatusEffect::Impairment }))
     {
-        throw CStateInitException(nullptr);
+        return RefuseSilently();
     }
 
-    const auto* PTarget = m_PEntity->IsValidTarget(target, skill->getValidTargets(), m_errorMsg);
+    const auto* PTarget = m_PEntity->IsValidTarget(target(), skill->getValidTargets(), m_errorMsg);
 
     if (!PTarget || this->HasErrorMsg())
     {
-        if (this->HasErrorMsg())
-        {
-            throw CStateInitException(m_errorMsg->copy());
-        }
-        else
-        {
-            throw CStateInitException(std::make_unique<CBasicPacket>());
-        }
+        return refuseWithErrorMsg();
     }
 
     m_PSkill = std::make_unique<CPetSkill>(*skill);
@@ -69,7 +71,7 @@ CPetSkillState::CPetSkillState(CPetEntity* PEntity, const EntityId& target, uint
 
     auto targetID = PTarget->id;
 
-    if (m_PEntity->objtype != TYPE_PC && settings::get<bool>("map.HIDE_READIES_TARGET"))
+    if (settings::get<bool>("map.HIDE_READIES_TARGET"))
     {
         targetID = m_PEntity->id;
     }
@@ -97,13 +99,15 @@ CPetSkillState::CPetSkillState(CPetEntity* PEntity, const EntityId& target, uint
 
         // Wyverns immediately emit a skill interrupt packet.
         // This looks like a hack but is retail accurate.
-        if (PEntity->petID() == PETID_WYVERN && PEntity->getMod(xi::Mod::WYVERN_SHOW_READYING) == 0)
+        if (m_PEntity->petID() == PETID_WYVERN && m_PEntity->getMod(xi::Mod::WYVERN_SHOW_READYING) == 0)
         {
-            ActionInterrupts::WyvernSkillReady(PEntity);
+            ActionInterrupts::WyvernSkillReady(m_PEntity);
         }
     }
     m_PEntity->PAI->EventHandler.triggerListener("WEAPONSKILL_STATE_ENTER", m_PEntity, m_PSkill->getID());
     SpendCost();
+
+    return Success();
 }
 
 auto CPetSkillState::GetPetSkill() const -> CPetSkill*
@@ -127,6 +131,12 @@ auto CPetSkillState::Update(const timer::time_point tick) -> bool
 
     if (m_PEntity && m_PEntity->isAlive() && (tick > GetEntryTime() + m_castTime && !IsCompleted()))
     {
+        // Check for stun/sleep/hysteria/etc at the moment of skill completion - Cleanup handles the interrupt
+        if (m_PEntity->StatusEffectContainer->HasPreventActionEffect() || m_PEntity->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Hysteria))
+        {
+            return true;
+        }
+
         action_t action{};
         m_PEntity->OnPetSkillFinished(*this, action);
         // Only send packet if action was populated (e.g. interrupts return early)
@@ -147,7 +157,7 @@ auto CPetSkillState::Update(const timer::time_point tick) -> bool
 
     if (IsCompleted() && tick > m_finishTime)
     {
-        auto* PTarget = GetTarget();
+        auto* PTarget = target().resolve();
         if (m_skillSuccess && PTarget && PTarget->objtype == TYPE_MOB && PTarget != m_PEntity && m_PEntity->allegiance != PTarget->allegiance)
         {
             // This generates enmity for the master when using a pet skill, excluding Automatons.
@@ -156,16 +166,15 @@ auto CPetSkillState::Update(const timer::time_point tick) -> bool
             static_cast<CMobEntity*>(PTarget)->PEnmityContainer->UpdateEnmity(m_PEntity, 0, 0, withMaster);
         }
 
-        if (m_PEntity->objtype == TYPE_PET && m_PEntity->PMaster && m_PEntity->PMaster->objtype == TYPE_PC && (m_PSkill->isBloodPactRage() || m_PSkill->isBloodPactWard()))
+        if (auto* PSummoner = dynamic_cast<CCharEntity*>(m_PEntity->PMaster); m_PEntity->objtype == TYPE_PET && PSummoner && (m_PSkill->isBloodPactRage() || m_PSkill->isBloodPactWard()))
         {
-            CCharEntity* PSummoner = dynamic_cast<CCharEntity*>(m_PEntity->PMaster);
-            if (PSummoner && PSummoner->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::AvatarsFavor))
+            if (PSummoner->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::AvatarsFavor))
             {
                 auto power = PSummoner->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::AvatarsFavor)->GetPower();
                 // Retail: Power is gained for BP use
                 auto levelGained = m_PSkill->isBloodPactRage() ? 3 : 2;
                 power += levelGained;
-                PSummoner->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::AvatarsFavor)->SetPower(power > 11 ? power : 11);
+                PSummoner->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::AvatarsFavor)->SetPower(std::max<uint16>(power, 11));
             }
 
             if (PTarget && m_PEntity->getPetType() == PET_TYPE::AVATAR && (m_PEntity->petID() != PETID_ALEXANDER && m_PEntity->petID() != PETID_ATOMOS))

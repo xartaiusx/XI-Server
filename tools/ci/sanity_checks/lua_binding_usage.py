@@ -33,6 +33,11 @@ def main():
 
     function_names.append("skip_to_next")
 
+    # Module framework methods, defined in modules/module_utils.lua
+    function_names.append("addOverride")
+    function_names.append("addOverrideByEra")
+    function_names.append("setEnabled")
+
     # Add exceptions for interaction, battle frameworks, and other user Lua types
     function_names.append("new")
     function_names.append("event")
@@ -41,6 +46,7 @@ def main():
     function_names.append("cutscene")
     function_names.append("optionalCutscene")
     function_names.append("progressEvent")
+    function_names.append("priorityEvent")
     function_names.append("progressCutscene")
     function_names.append("progressOptionalCutscene")
     function_names.append("importantOnce")
@@ -116,6 +122,7 @@ def main():
     function_names.append("getStatusEffectBySource")
     function_names.append("afterInstanceRegister")
     function_names.append("onInstanceCreated")
+    function_names.append("onInstanceTimeUpdate")
     function_names.append("onAssaultFail")
     function_names.append("onInstanceProgressUpdate")
     function_names.append("onInstanceComplete")

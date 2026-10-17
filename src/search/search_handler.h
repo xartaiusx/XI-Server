@@ -21,7 +21,6 @@
 
 #pragma once
 
-#include <asio/ts/buffer.hpp>
 #include <asio/ts/internet.hpp>
 #include <common/logging.h>
 #include <deque>
@@ -37,6 +36,7 @@
 enum TCPREQUESTTYPE
 {
     TCP_SEARCH_ALL        = 0x00,
+    TCP_ID_LIST           = 0x01,
     TCP_GROUP_LIST        = 0x02,
     TCP_SEARCH            = 0x03,
     TCP_AH_HISTORY_SINGLE = 0x05,
@@ -56,25 +56,27 @@ public:
 private:
     void read_func(uint16_t length);
 
-    uint16_t getNumSessionsInUse(const std::string& ipAddressStr);
-    void     addToUsedIPAddresses(const std::string& ipAddressStr);
-    void     removeFromUsedIPAddresses(const std::string& ipAddressStr);
+    auto getNumSessionsInUse(const std::string& ipAddressStr) const -> uint16_t;
+    void addToUsedIPAddresses(const std::string& ipAddressStr) const;
+    void removeFromUsedIPAddresses(const std::string& ipAddressStr) const;
 
-    bool validatePacket(uint16_t length);
+    auto validatePacket(uint16_t length) -> bool;
     void decrypt(uint16_t length);
     void encrypt(uint16_t length);
 
-    void HandleSearchRequest();
+    void HandleSearchRequest(uint16_t length);
+    void HandleIdListRequest(uint16_t length);
     void HandleGroupListRequest();
     void HandleSearchComment();
     void HandleAuctionHouseRequest();
     void HandleAuctionHouseHistory();
 
-    auto _HandleSearchRequest() -> search_req;
+    auto _HandleSearchRequest(uint16_t length) -> SearchRequest;
+    void SendPlayersList(const SearchRequest& sr);
 
     Scheduler&               scheduler_;
     blowfish_t               blowfish_;
-    std::deque<searchPacket> searchPackets_;
+    std::deque<SearchPacket> searchPackets_;
 
     std::string             ipAddress_;
     asio::ip::tcp::socket   socket_;

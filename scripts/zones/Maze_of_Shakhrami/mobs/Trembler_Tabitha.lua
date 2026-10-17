@@ -2,20 +2,8 @@
 -- Area: Maze of Shakhrami
 --   NM: Trembler Tabitha
 -----------------------------------
-local ID = zones[xi.zone.MAZE_OF_SHAKHRAMI]
------------------------------------
 ---@type TMobEntity
 local entity = {}
-
-entity.spawnPoints =
-{
-    { x = -103.800, y =  0.300, z = -96.700 }
-}
-
-entity.phList =
-{
-    [ID.mob.TREMBLER_TABITHA - 2] = ID.mob.TREMBLER_TABITHA, -- Confirmed on retail
-}
 
 entity.onMobDeath = function(mob, player, optParams)
     xi.hunts.checkHunt(mob, player, 293)

@@ -117,9 +117,24 @@ mission.sections =
                     local missionStatus = player:getMissionStatus(mission.areaId)
 
                     if missionStatus == 0 then
-                        return mission:progressEvent(456, 0, xi.ki.SOUTHWESTERN_STAR_CHARM)
+                        return mission:progressEvent(456, 0, xi.keyItem.SOUTHWESTERN_STAR_CHARM)
+                    elseif missionStatus == 1 or missionStatus == 2 then
+                        return mission:event(457)
                     elseif missionStatus == 3 then
-                        return mission:progressEvent(457)
+                        return mission:event(459)
+                    end
+                end,
+            },
+
+            ['Kuroido-Moido'] =
+            {
+                onTrigger = function(player, npc)
+                    local missionStatus = player:getMissionStatus(mission.areaId)
+
+                    if missionStatus == 1 or missionStatus == 2 then
+                        return mission:event(458)
+                    elseif missionStatus == 3 then
+                        return mission:event(460)
                     end
                 end,
             },
@@ -128,7 +143,7 @@ mission.sections =
             {
                 [456] = function(player, csid, option, npc)
                     player:setMissionStatus(mission.areaId, 1)
-                    npcUtil.giveKeyItem(player, xi.ki.SOUTHWESTERN_STAR_CHARM)
+                    npcUtil.giveKeyItem(player, xi.keyItem.SOUTHWESTERN_STAR_CHARM)
                 end,
             },
         },
@@ -143,13 +158,16 @@ mission.sections =
                     if not areJacksSpawned() then
                         if missionStatus == 1 then
                             for mobId = outerHorutotoID.mob.FULL_MOON_FOUNTAIN_OFFSET, outerHorutotoID.mob.FULL_MOON_FOUNTAIN_OFFSET + 3 do
-                                SpawnMob(mobId)
+                                SpawnMob(mobId):updateClaim(player)
                             end
 
                             return mission:messageSpecial(outerHorutotoID.text.GUARDIAN_BLOCKING_WAY)
                         elseif missionStatus == 2 then
+                            player:messageSpecial(outerHorutotoID.text.STAR_CHARM_DISAPPEARS, xi.zone.OUTER_HORUTOTO_RUINS, xi.keyItem.SOUTHWESTERN_STAR_CHARM)
                             return mission:progressEvent(68)
                         end
+                    else
+                        return mission:messageSpecial(outerHorutotoID.text.DOOR_WONT_OPEN_STAR_CHARM, xi.zone.OUTER_HORUTOTO_RUINS, xi.keyItem.SOUTHWESTERN_STAR_CHARM)
                     end
                 end,
             },
@@ -178,7 +196,7 @@ mission.sections =
             {
                 [68] = function(player, csid, option, npc)
                     player:setMissionStatus(mission.areaId, 3)
-                    player:delKeyItem(xi.ki.SOUTHWESTERN_STAR_CHARM)
+                    player:delKeyItem(xi.keyItem.SOUTHWESTERN_STAR_CHARM)
                 end,
             },
         },

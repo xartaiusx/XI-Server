@@ -3,9 +3,7 @@
 --  Mob: Gigas Bonecutter
 -- Note: PH for Enkelados
 -----------------------------------
-mixins = { require('scripts/mixins/families/gigas_bst') }
------------------------------------
-local ID = zones[xi.zone.UPPER_DELKFUTTS_TOWER]
+mixins = { require('scripts/mixins/pet_resummon') }
 -----------------------------------
 ---@type TMobEntity
 local entity = {}
@@ -16,10 +14,6 @@ end
 
 entity.onMobDeath = function(mob, player, optParams)
     xi.regime.checkRegime(player, mob, 785, 1, xi.regime.type.GROUNDS)
-end
-
-entity.onMobDespawn = function(mob)
-    xi.mob.phOnDespawn(mob, ID.mob.ENKELADOS[1], 5, 1) -- no cooldown
 end
 
 return entity

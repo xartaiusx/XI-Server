@@ -25,6 +25,9 @@
 #include "ai/ai_container.h"
 #include "ai/helpers/action_queue.h"
 #include "entities/char_entity.h"
+#include "lua/luautils.h"
+#include "map_session.h"
+#include "packets/c2s/validation.h"
 #include "packets/s2c/0x01c_item_max.h"
 #include "packets/s2c/0x04f_equip_clear.h"
 #include "packets/s2c/0x050_equip_list.h"
@@ -77,10 +80,10 @@ void GP_CLI_COMMAND_LOGIN::process(MapSession* PSession, CCharEntity* PChar) con
 
         PSession->shuttingDown = 0;
 
-        const uint16 destination = PChar->loc.destination;
-        CZone*       destZone    = zoneutils::GetZone(destination);
+        const auto destination = PChar->loc.destination;
+        CZone*     destZone    = zoneutils::GetZone(destination);
 
-        if (destination >= MAX_ZONEID || destZone == nullptr)
+        if (static_cast<uint16>(destination) >= MAX_ZONEID || destZone == nullptr)
         {
             // TODO: work out how to drop player in moghouse that exits them to the zone they were in before this happened, like we used to.
             ShowWarning("GP_CLI_COMMAND_LOGIN: player tried to enter zone that was invalid or out of range");
@@ -95,7 +98,32 @@ void GP_CLI_COMMAND_LOGIN::process(MapSession* PSession, CCharEntity* PChar) con
             return;
         }
 
+        // Host closed or left while the visitor was zoning in
+        if (PChar->inMogHouse(xi::MogHouse::Visiting) && PChar->getCharVar("mh-visit-npc") != 0)
+        {
+            const auto* PHost = zoneutils::GetChar(PChar->m_moghouseID);
+            if (PHost == nullptr || PHost->getZone() != destination || !PHost->moghouse().isOpen() || !PHost->inMogHouse(xi::MogHouse::Own))
+            {
+                PChar->m_moghouseID = 0;
+                PChar->loc.p        = {};
+            }
+        }
+
         destZone->IncreaseZoneCounter(PChar);
+
+        if (PChar->loc.zone == nullptr)
+        {
+            ShowErrorFmt("GP_CLI_COMMAND_LOGIN: {} was not placed in zone {}", PChar->getName(), destination);
+            return;
+        }
+
+        if (auto* PHost = PChar->moghouse().host(); PHost != nullptr && PHost != PChar)
+        {
+            PHost->moghouse().addVisitor(PChar);
+        }
+
+        luautils::OnZoneIn(PChar);
+        luautils::OnGameIn(PChar, PChar->arrivedByZoning);
 
         // Current zone could either be current zone or destination
         CZone* currentZone = zoneutils::GetZone(PChar->getZone());
@@ -113,10 +141,13 @@ void GP_CLI_COMMAND_LOGIN::process(MapSession* PSession, CCharEntity* PChar) con
 
         if (PChar->inMogHouse())
         {
+            charutils::updateMannequins(PChar);
+        }
+
+        if (PChar->inMogHouse(xi::MogHouse::Own))
+        {
             PChar->m_charHistory.mhEntrances++;
 
-            // TODO: Does this even work with Mog House sharing?
-            charutils::updateMannequins(PChar);
             gardenutils::UpdateGardening(PChar, SendPacket::No);
         }
     }

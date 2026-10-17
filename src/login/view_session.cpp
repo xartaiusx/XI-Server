@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2023 LandSandBoat Dev Teams
@@ -23,13 +23,66 @@
 
 #include "data_session.h"
 
-#include <common/lua.h>
 #include <common/md52.h>
 #include <common/settings.h>
 #include <common/utils.h>
 
 #include "login_packets.h"
 #include "otp_helpers.h"
+
+namespace
+{
+
+// the client steps its key counter once for each of these lobby requests it sends
+auto stepsKeyOnRequest(const uint8 command) -> bool
+{
+    switch (command)
+    {
+        case 0x07:
+        case 0x14:
+        case 0x1F:
+        case 0x21:
+        case 0x22:
+        case 0x24:
+        case 0x28:
+        case 0x2B:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// and once for each of these lobby replies it gets
+auto stepsKeyOnReply(const uint8 command) -> bool
+{
+    switch (command)
+    {
+        case 0x03:
+        case 0x0B:
+        case 0x20:
+        case 0x23:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// an error reply only steps it when it answers one of these requests
+auto stepsKeyOnError(const uint8 request) -> bool
+{
+    switch (request)
+    {
+        case 0x22:
+        case 0x24:
+        case 0x28:
+        case 0x2B:
+            return true;
+        default:
+            return false;
+    }
+}
+
+} // namespace
 
 void view_session::read_func()
 {
@@ -48,6 +101,12 @@ void view_session::read_func()
         session.view_session = std::make_shared<view_session>(std::forward<asio::ssl::stream<asio::ip::tcp::socket>>(socket_), dealerChannel_);
     }
     session.view_session->sessionHash = sessionHash;
+
+    session.keyRequest = code;
+    if (stepsKeyOnRequest(code))
+    {
+        ++session.keyCounter;
+    }
 
     DebugSockets(fmt::format("view code: {}", code));
 
@@ -154,14 +213,18 @@ void view_session::read_func()
                              session.accountID,
                              charID,
                              session.accountID);
-
-            // Increment key after delete
-            session.incrementKeyValue += 4;
         }
         break;
         case 0x21: // 33: Registering character name onto the lobby server
         {
             lpkt_chr_info_sub2 charInfo = {};
+
+            if (loginHelpers::characterCreationError(session.accountID, session.requestedNewCharacterName))
+            {
+                socket_.lowest_layer().close();
+                return;
+            }
+
             // creating new char
             if (loginHelpers::createCharacter(session, buffer_.data(), charInfo) == -1)
             {
@@ -174,8 +237,8 @@ void view_session::read_func()
                 data->addCharIntoCharInfo(charInfo);
             }
 
-            session.justCreatedNewChar = true;
             ShowInfo(fmt::format("char <{}> was successfully created on account {}", session.requestedNewCharacterName, session.accountID));
+            session.requestedNewCharacterName.clear();
 
             std::memset(buffer_.data(), 0, 0x20);
 
@@ -198,31 +261,14 @@ void view_session::read_func()
         break;
         case 0x22: // 34: Checking name and Gold World Pass
         {
-            // block creation of character if in maintenance mode or generally disabled
-            const auto maintMode               = settings::get<uint8>("login.MAINT_MODE");
-            const auto enableCharacterCreation = settings::get<bool>("login.CHARACTER_CREATION");
-            if (maintMode > 0 || !enableCharacterCreation)
-            {
-                loginHelpers::generateErrorMessage(buffer_.data(), loginErrors::errorCode::FAILED_TO_REGISTER_WITH_THE_NAME_SERVER);
-                do_write(0x24);
-                return;
-            }
-            else
             {
                 // creating new char
                 char CharName[PacketNameLength] = {};
                 std::memcpy(CharName, buffer_.data() + 32, PacketNameLength - 1);
 
-                const std::string nameStr           = CharName;
-                const auto        invalidNameReason = loginHelpers::validateCharacterName(nameStr);
-
-                if (invalidNameReason.has_value())
+                if (const auto error = loginHelpers::characterCreationError(session.accountID, CharName))
                 {
-                    ShowWarning(fmt::format("new character name error <{}>: {}", nameStr, *invalidNameReason));
-
-                    // Send error code:
-                    // The character name you entered is unavailable. Please choose another name.
-                    loginHelpers::generateErrorMessage(buffer_.data(), loginErrors::errorCode::CHARACTER_NAME_UNAVAILABLE);
+                    loginHelpers::generateErrorMessage(buffer_.data(), *error);
                     do_write(0x24);
                     return;
                 }
@@ -312,10 +358,7 @@ void view_session::read_func()
             // 1. Set the requested char ID as if it was a regular login
             session.requestedCharacterID = charid;
 
-            // 2. Advance the key accounting for this exchange
-            session.incrementKeyValue += 4;
-
-            // 3. Rename the character in the stored struct
+            // 2. Rename the character in the stored struct
             if (auto data = dynamic_cast<data_session*>(session.data_session.get()))
             {
                 data->renameCharInCharInfo(charid, newName);
@@ -323,7 +366,7 @@ void view_session::read_func()
 
             ShowInfoFmt("charid {} renamed to <{}> on account {}", charid, newName, session.accountID);
 
-            // 4. Acknowledge successful exchange, let client proceed.
+            // 3. Acknowledge successful exchange, let client proceed.
             std::memset(buffer_.data(), 0, 0x20);
             buffer_.data()[0] = 0x20; // size
 
@@ -491,6 +534,29 @@ void view_session::read_func()
         }
         break;
     }
+}
+
+void view_session::do_write(const std::size_t length)
+{
+    auto& sessions = loginHelpers::getAuthenticatedSessions();
+    if (const auto byAddress = sessions.find(ipAddress); byAddress != sessions.end())
+    {
+        if (const auto it = byAddress->second.find(sessionHash); it != byAddress->second.end())
+        {
+            const auto command = ref<uint8>(buffer_.data(), 8);
+            if (command == 0x05)
+            {
+                // the client starts over from the key in every 0x05, then steps once for the reply itself
+                it->second.keyCounter = ref<uint32>(buffer_.data(), 0x1C) + 1;
+            }
+            else if (stepsKeyOnReply(command) || (command == 0x04 && stepsKeyOnError(it->second.keyRequest)))
+            {
+                ++it->second.keyCounter;
+            }
+        }
+    }
+
+    handler_session::do_write(length);
 }
 
 void view_session::handle_error(std::error_code ec, std::shared_ptr<handler_session> self)

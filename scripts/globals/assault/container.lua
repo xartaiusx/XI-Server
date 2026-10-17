@@ -12,11 +12,13 @@ xi.assault.contentsByZone = xi.assault.contentsByZone or {}
 ---@field assaultID                integer
 ---@field instanceID               integer
 ---@field zoneID                   integer
+---@field suggestedLevel           integer
 ---@field loot                     table
 ---@field releasePos               table
 ---@field requiredProgress         integer?
 ---@field afterInstanceRegister    function
 ---@field onInstanceCreated        function
+---@field onInstanceTimeUpdate     function
 ---@field onInstanceProgressUpdate function
 ---@field onInstanceComplete       function
 ---@field onAssaultFail            function
@@ -39,7 +41,7 @@ end
 --  - requiredOrders:   (required) Key item orders needed to enter the assault
 --  - zoneID:           (required) ID of the zone
 --  - assaultArea:      (required) Area used for assault point currency
---  - suggestedLevel:   (required) Minimum level to enter; affects points rewarded
+--  - suggestedLevel:   (required) Recommended level; determines unappraised item eligibility
 --  - entranceParams:   (required) Table of zone-in event parameters
 --      - instanceID:   instanceID of the assault
 --      - entryEvent:   { csid, ... } args unpacked into player:startEvent() at the Runic Portal
@@ -62,6 +64,7 @@ end
 -- Call InstanceAssault.methodName(self, ...) within an override to utilize the default behavior of the functions.
 --  - function content:afterInstanceRegister(player)
 --  - function content:onInstanceCreated(instance)
+--  - function content:onInstanceTimeUpdate(instance, elapsed)
 --  - function content:onInstanceProgressUpdate(instance, progress)
 --  - function content:onEventUpdate(player, csid, option, npc)
 --  - function content:onEventFinish(player, csid, option, npc)
@@ -103,6 +106,10 @@ end
 
 function InstanceAssault:onInstanceCreated(instance)
     xi.assault.onInstanceSetup(instance, self)
+end
+
+function InstanceAssault:onInstanceTimeUpdate(instance, elapsed)
+    xi.instance.updateInstanceTime(instance, elapsed, zones[self.zoneID].text)
 end
 
 function InstanceAssault:onInstanceProgressUpdate(instance, progress)
@@ -152,7 +159,7 @@ function InstanceAssault:register()
     -- Registry and entry requirements
     instanceObject.registryRequirements = function(player)
         return xi.assault.checkRequirements(player, content) and
-            player:hasKeyItem(xi.ki.ASSAULT_ARMBAND)
+            player:hasKeyItem(xi.keyItem.ASSAULT_ARMBAND)
     end
 
     instanceObject.entryRequirements = function(player)
@@ -173,7 +180,7 @@ function InstanceAssault:register()
     end
 
     instanceObject.onInstanceTimeUpdate = function(instance, elapsed)
-        xi.instance.updateInstanceTime(instance, elapsed, zones[content.zoneID].text)
+        content:onInstanceTimeUpdate(instance, elapsed)
     end
 
     instanceObject.onInstanceFailure = function(instance)
@@ -208,7 +215,7 @@ xi.assault.checkRequirements = function(player, content)
         player:getCurrentAssault() == content.assaultID and
         player:getCharVar('assaultEntered') == 0 and
         player:getCharVar('AssaultFailed') == 0 and
-        player:getMainLvl() >= content.suggestedLevel
+        player:getMainLvl() >= 50
 end
 
 xi.assault.hasOrders = function(player)
@@ -229,13 +236,18 @@ end
 xi.assault.onRunicTrigger = function(player, npc, zone)
     local chosenAssault
     for _, eligibleAssault in ipairs(xi.assault.contentsByZone[zone] or {}) do
-        if
-            xi.assault.checkRequirements(player, eligibleAssault) and
-            player:hasKeyItem(xi.ki.ASSAULT_ARMBAND)
-        then
+        if xi.assault.checkRequirements(player, eligibleAssault) then
             chosenAssault = eligibleAssault
             break
         end
+    end
+
+    if
+        chosenAssault ~= nil and
+        not player:hasKeyItem(xi.keyItem.ASSAULT_ARMBAND)
+    then
+        player:messageSpecial(zones[player:getZoneID()].text.MISSING_KEY_ITEM, xi.keyItem.ASSAULT_ARMBAND)
+        return
     end
 
     if chosenAssault == nil then
@@ -296,7 +308,7 @@ xi.assault.onInstanceCreatedCallback = function(player, instance, content)
     instance:setLevelCap(player:getLocalVar('AssaultCap'))
     player:setLocalVar('AssaultCap', 0)
     player:setCharVar('Assault_Armband', 1)
-    player:delKeyItem(xi.ki.ASSAULT_ARMBAND)
+    player:delKeyItem(xi.keyItem.ASSAULT_ARMBAND)
 
     if content then
         xi.instance.onInstanceCreatedCallback(player, instance, content.entranceParams)
@@ -347,12 +359,22 @@ xi.assault.afterInstanceRegistration = function(player, content)
     local ID        = zones[content.zoneID]
 
     player:setCharVar('assaultEntered', assaultID)
+
+    -- Players are awarded 100 Assault points for this area upon entering. This is credited immediately without any message.
+    local pointsArea = xi.assault.missionToArea[assaultID]
+    if pointsArea then
+        player:addAssaultPoint(pointsArea, 100)
+    end
+
     player:messageSpecial(ID.text.ASSAULT_START_OFFSET + assaultID, assaultID)
-    player:messageSpecial(ID.text.TIME_TO_COMPLETE, instance:getTimeLimit())
+    player:messageSpecial(ID.text.TIME_TO_COMPLETE, instance:getTimeLimit() / 60)
 
     local areaData = xi.assault.areaData[content.assaultArea]
     if areaData and areaData.firefly then
-        player:addTempItem(areaData.firefly)
+        -- Only add firefly if there's no entry event that will give it to prevent double items in inv.
+        if not content.entranceParams or not content.entranceParams.entryEvent then
+            player:addTempItem(areaData.firefly)
+        end
     end
 end
 
@@ -386,24 +408,12 @@ xi.assault.onInstanceFailure = function(instance)
     local chars     = instance:getChars()
     local mobs      = instance:getMobs()
     local zoneID    = instance:getZone():getID()
-    local _, player = next(chars)
-    if not player then
-        return
-    end
-
-    local assaultID = player:getCurrentAssault()
-    local area      = xi.assault.missionToArea[assaultID]
 
     for _, entity in pairs(mobs) do
         DespawnMob(entity:getID(), instance)
     end
 
     for _, entity in pairs(chars) do
-        if area then
-            entity:addAssaultPoint(area, 100)
-            entity:messageSpecial(zones[zoneID].text.ASSAULT_POINTS_OBTAINED, 100)
-        end
-
         entity:messageSpecial(zones[zoneID].text.MISSION_FAILED, 10, 10)
         entity:setCharVar('assaultEntered', 0)
         entity:setCharVar('AssaultFailed', 1)
@@ -448,8 +458,11 @@ local function awardCompletionPoints(player, instance)
             end
 
             if pointsArea then
-                member:addAssaultPoint(pointsArea, math.floor(points))
-                member:messageSpecial(zoneText.ASSAULT_POINTS_OBTAINED, math.floor(points))
+                local assaultPointsEarned = math.floor(points)
+
+                -- Players earn the displayed points, minus the 100 points already awarded on entry.
+                member:addAssaultPoint(pointsArea, math.max(assaultPointsEarned - 100, 0))
+                member:messageSpecial(zoneText.ASSAULT_POINTS_OBTAINED, assaultPointsEarned)
             end
 
             member:setVar('AssaultPromotion', member:getCharVar('AssaultPromotion') + promotionBonus)

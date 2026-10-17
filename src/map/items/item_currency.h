@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,8 +19,7 @@
 ===========================================================================
 */
 
-#ifndef _CITEMCURRENCY_H
-#define _CITEMCURRENCY_H
+#pragma once
 
 #include "common/cbasetypes.h"
 
@@ -36,5 +35,3 @@ public:
 
 private:
 };
-
-#endif

@@ -22,15 +22,17 @@
 #include "0x02a_talknumwork.h"
 
 #include "entities/base_entity.h"
+#include "entities/char_entity.h"
 
 GP_SERV_COMMAND_TALKNUMWORK::GP_SERV_COMMAND_TALKNUMWORK(
-    const CBaseEntity* PEntity,
-    uint16             messageID,
-    const uint32       param0,
-    const uint32       param1,
-    const uint32       param2,
-    const uint32       param3,
-    const bool         ShowName)
+    const CBaseEntity*         PEntity,
+    uint16                     messageID,
+    const uint32               param0,
+    const uint32               param1,
+    const uint32               param2,
+    const uint32               param3,
+    const bool                 ShowName,
+    const std::optional<uint8> type)
 {
     auto& packet = this->data();
 
@@ -40,17 +42,23 @@ GP_SERV_COMMAND_TALKNUMWORK::GP_SERV_COMMAND_TALKNUMWORK(
     packet.num[2]   = param2;
     packet.num[3]   = param3;
     packet.ActIndex = PEntity->targid;
-    packet.Type     = 0;
+    packet.Type     = type.value_or(0);
     packet.Flag     = 0;
 
     if (ShowName)
     {
         std::memcpy(packet.String, PEntity->getName().c_str(), std::min<size_t>(PEntity->getName().size(), sizeof(packet.String) - 1));
     }
-    else if (PEntity->objtype == TYPE_PC)
+    else if (dynamic_cast<const CCharEntity*>(PEntity) != nullptr)
     {
         messageID += 0x8000;
     }
 
     packet.MesNum = messageID;
+
+    // Keep the old packet size when no type is given.
+    if (type.has_value() && !ShowName)
+    {
+        this->setSize(0x20);
+    }
 }

@@ -9,7 +9,7 @@ $stateDir = Join-Path $RuntimeRoot 'server-control'
 $keeperPidFile = Join-Path $stateDir 'mochirii-wsl-keeper.pid'
 $startScript = '/home/xartyzx/projects/FFXI-Runtime/server-control/start-mochirii-wsl.sh'
 $statusScript = '/home/xartyzx/projects/FFXI-Runtime/server-control/status-mochirii-wsl.sh'
-$ports = @(3306, 54001, 54002, 54003, 55030, 55031)
+$ports = @(3306, 51220, 51240, 54001, 54002, 54003, 55030, 55031)
 
 New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
 

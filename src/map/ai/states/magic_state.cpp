@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -30,8 +30,11 @@
 #include "data/enums/mob_mod.h"
 #include "enmity_container.h"
 #include "entities/battle_entity.h"
+#include "entities/char_entity.h"
 #include "entities/mob_entity.h"
+#include "entities/pet_entity.h"
 #include "entities/trust_entity.h"
+#include "enums/msg_basic.h"
 #include "job_points.h"
 #include "lua/luautils.h"
 #include "packets/s2c/0x028_battle2.h"
@@ -42,11 +45,25 @@
 #include "utils/trustutils.h"
 #include "utils/zoneutils.h"
 
-CMagicState::CMagicState(CBattleEntity* PEntity, const EntityId& target, SpellID spellid, uint8 flags)
+namespace
+{
+
+// distance a player has to cover before a cast counts them as having moved
+constexpr float movementThreshold = 0.3f;
+
+} // namespace
+
+CMagicState::CMagicState(xi::Badge<CState>, CBattleEntity* PEntity, const EntityId& target, SpellID spellid, uint8 flags)
 : CState(PEntity, target)
 , m_PEntity(PEntity)
+, m_spellId(spellid)
 , m_PSpell(nullptr)
 , m_flags(flags)
+{
+    // Capture constructor arguments into members and nothing else. All other logic goes into init().
+}
+
+auto CMagicState::init() -> StateErrorOr<void>
 {
     if (const auto* PMob = dynamic_cast<CMobEntity*>(m_PEntity))
     {
@@ -56,51 +73,42 @@ CMagicState::CMagicState(CBattleEntity* PEntity, const EntityId& target, SpellID
         }
     }
 
-    auto* PSpell = spell::GetSpell(spellid);
+    auto* PSpell = spell::GetSpell(m_spellId);
     if (PSpell == nullptr)
     {
-        throw CStateInitException(std::make_unique<GP_SERV_COMMAND_BATTLE_MESSAGE>(m_PEntity, m_PEntity, static_cast<uint16>(spellid), 0, MsgBasic::CannotCastSpell));
+        return Error{ std::make_unique<GP_SERV_COMMAND_BATTLE_MESSAGE>(m_PEntity, m_PEntity, static_cast<uint16>(m_spellId), 0, MsgBasic::CannotCastSpell) };
     }
 
     m_PSpell = PSpell->clone();
 
-    auto* PTarget = m_PEntity->IsValidTarget(target, m_PSpell->getValidTarget(), m_errorMsg);
+    auto* PTarget = m_PEntity->IsValidTarget(target(), m_PSpell->getValidTarget(), m_errorMsg);
     if (!PTarget || this->HasErrorMsg())
     {
-        if (this->HasErrorMsg())
-        {
-            throw CStateInitException(m_errorMsg->copy());
-        }
-        else
-        {
-            throw CStateInitException(std::make_unique<CBasicPacket>());
-        }
+        return refuseWithErrorMsg();
     }
 
     if (!CanCastSpell(PTarget, false))
     {
-        if (HasErrorMsg())
-        {
-            throw CStateInitException(m_errorMsg->copy());
-        }
-        else
-        {
-            throw CStateInitException(std::make_unique<CBasicPacket>());
-        }
+        return refuseWithErrorMsg();
     }
 
     auto errorMsg = luautils::OnMagicCastingCheck(m_PEntity, PTarget, GetSpell());
     if (errorMsg)
     {
-        throw CStateInitException(std::make_unique<GP_SERV_COMMAND_BATTLE_MESSAGE>(m_PEntity, PTarget, static_cast<uint16>(m_PSpell->getID()), 0, errorMsg == 1 ? MsgBasic::CannotCastSpell : static_cast<MsgBasic>(errorMsg)));
+        return Error{ std::make_unique<GP_SERV_COMMAND_BATTLE_MESSAGE>(m_PEntity, PTarget, static_cast<uint16>(m_PSpell->getID()), 0, errorMsg == 1 ? MsgBasic::CannotCastSpell : static_cast<MsgBasic>(errorMsg)) };
     }
 
     m_castTime = battleutils::CalculateSpellCastTime(m_PEntity, this);
     m_startPos = m_PEntity->loc.p;
 
+    if (const auto* PChar = dynamic_cast<CCharEntity*>(m_PEntity))
+    {
+        m_startedMoving = PChar->m_lastMoveDistance > movementThreshold;
+    }
+
     auto targetID = PTarget->id;
 
-    if (m_PEntity->objtype != TYPE_PC && settings::get<bool>("map.HIDE_READIES_TARGET"))
+    if (dynamic_cast<const CCharEntity*>(m_PEntity) == nullptr && settings::get<bool>("map.HIDE_READIES_TARGET"))
     {
         targetID = m_PEntity->id;
     }
@@ -116,7 +124,7 @@ CMagicState::CMagicState(CBattleEntity* PEntity, const EntityId& target, SpellID
                 .results = {
                     {
                         .param     = static_cast<int32_t>(m_PSpell->getID()),
-                        .messageID = PEntity->objtype != TYPE_PC ? MsgBasic::StartsCastingSelf : MsgBasic::StartsCastingTarget,
+                        .messageID = dynamic_cast<const CCharEntity*>(m_PEntity) == nullptr ? MsgBasic::StartsCastingSelf : MsgBasic::StartsCastingTarget,
                     },
                 },
             },
@@ -139,13 +147,18 @@ CMagicState::CMagicState(CBattleEntity* PEntity, const EntityId& target, SpellID
 
     trustutils::LogTrustActionPacket(m_PEntity, action, PTarget, "magic_state_start");
     m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
+
+    return Success();
 }
 
 auto CMagicState::Update(timer::time_point tick) -> bool
 {
     action_t   action;
-    auto*      PTarget = m_PEntity->IsValidTarget(GetTargetID(), m_PSpell->getValidTarget(), m_errorMsg);
+    auto*      PTarget = m_PEntity->IsValidTarget(target(), m_PSpell->getValidTarget(), m_errorMsg);
     const auto msg     = MsgBasic::IsInterrupted;
+
+    // mobs, pets and trusts only print the interrupted message when a hit or status interrupted them
+    const bool quiet = dynamic_cast<const CCharEntity*>(m_PEntity) == nullptr;
 
     auto isTargetValid = [&]()
     {
@@ -187,7 +200,7 @@ auto CMagicState::Update(timer::time_point tick) -> bool
             }
 
             // guessed, but cancels correctly.
-            m_PEntity->OnCastInterrupted(*this, action, msg, false);
+            m_PEntity->OnCastInterrupted(*this, action, msg, quiet);
             trustutils::LogTrustActionPacket(m_PEntity, action, PTarget, "magic_state_invalid_target");
             m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
 
@@ -217,19 +230,13 @@ auto CMagicState::Update(timer::time_point tick) -> bool
 
         if (!targetStillValid || !CanCastSpell(PTarget, true) || HasMoved())
         {
-            m_PEntity->OnCastInterrupted(*this, action, msg, false);
+            m_PEntity->OnCastInterrupted(*this, action, msg, quiet);
 
             Complete();
             return false;
         }
-        else if (PTarget->objtype == TYPE_PC)
+        else if (auto* PChar = dynamic_cast<CCharEntity*>(PTarget))
         {
-            CCharEntity* PChar = dynamic_cast<CCharEntity*>(PTarget);
-            if (!PChar)
-            {
-                return false;
-            }
-
             if (PChar->m_Locked)
             {
                 m_PEntity->OnCastInterrupted(*this, action, msg, true);
@@ -281,6 +288,13 @@ auto CMagicState::Update(timer::time_point tick) -> bool
         if (battleutils::IsParalyzed(m_PEntity))
         {
             ActionInterrupts::MagicParalyzed(m_PEntity, m_PSpell.get(), PTarget);
+
+            // If Paralyzed entity is a mob, reset their magic cooldown.
+            if (auto* mobController = dynamic_cast<CMobController*>(m_PEntity->PAI->GetController()))
+            {
+                mobController->OnCastStopped(*this, action);
+            }
+
             Complete();
             return false;
         }
@@ -288,6 +302,13 @@ auto CMagicState::Update(timer::time_point tick) -> bool
         if (battleutils::IsIntimidated(m_PEntity, PTarget))
         {
             ActionInterrupts::MagicIntimidated(m_PEntity, m_PSpell.get(), PTarget);
+
+            // If Intimidated entity is a mob, reset their magic cooldown.
+            if (auto* mobController = dynamic_cast<CMobController*>(m_PEntity->PAI->GetController()))
+            {
+                mobController->OnCastStopped(*this, action);
+            }
+
             Complete();
             return false;
         }
@@ -334,9 +355,8 @@ auto CMagicState::Update(timer::time_point tick) -> bool
     }
     else if (IsCompleted() && tick > GetEntryTime() + m_castTime + m_PSpell->getAnimationTime())
     {
-        if (m_PEntity->objtype == TYPE_PC)
+        if (auto* PChar = dynamic_cast<CCharEntity*>(m_PEntity))
         {
-            CCharEntity* PChar = static_cast<CCharEntity*>(m_PEntity);
             PChar->m_charHistory.spellsCast++;
         }
         m_PEntity->PAI->EventHandler.triggerListener("MAGIC_STATE_EXIT", m_PEntity, m_PSpell.get());
@@ -349,8 +369,9 @@ void CMagicState::Cleanup(timer::time_point tick)
 {
     if (!IsCompleted())
     {
-        action_t action{};
-        m_PEntity->OnCastInterrupted(*this, action, MsgBasic::IsInterrupted, false);
+        action_t   action{};
+        const bool quiet = dynamic_cast<const CCharEntity*>(m_PEntity) == nullptr;
+        m_PEntity->OnCastInterrupted(*this, action, MsgBasic::IsInterrupted, quiet);
     }
 }
 
@@ -424,7 +445,7 @@ auto CMagicState::CanCastSpell(CBattleEntity* PTarget, bool isEndOfCast) -> bool
         return false;
     }
 
-    if (m_PEntity->objtype == TYPE_PC)
+    if (dynamic_cast<const CCharEntity*>(m_PEntity) != nullptr)
     {
         float spellRange = m_PSpell->getRange() + PTarget->modelHitboxSize + m_PEntity->modelHitboxSize;
 
@@ -451,7 +472,7 @@ auto CMagicState::CanCastSpell(CBattleEntity* PTarget, bool isEndOfCast) -> bool
         }
     }
 
-    if (!isEndOfCast && m_PEntity->objtype == TYPE_PC && m_PEntity->loc.zone->CanUseMisc(xi::ZoneMisc::LosPlayerBlock) && !m_PEntity->CanSeeTarget(PTarget))
+    if (!isEndOfCast && dynamic_cast<const CCharEntity*>(m_PEntity) != nullptr && m_PEntity->loc.zone->CanUseMisc(xi::ZoneMisc::LosPlayerBlock) && !m_PEntity->CanSeeTarget(PTarget))
     {
         m_errorMsg = std::make_unique<GP_SERV_COMMAND_BATTLE_MESSAGE>(m_PEntity, PTarget, static_cast<uint16>(m_PSpell->getID()), 0, MsgBasic::CannotPerformAction);
         return false;
@@ -464,7 +485,7 @@ auto CMagicState::HasCost() -> bool
 {
     if (m_PSpell->getSpellGroup() == SPELLGROUP_NINJUTSU)
     {
-        if (m_PEntity->objtype == TYPE_PC && !(m_flags & MAGICFLAGS_IGNORE_TOOLS) && !battleutils::HasNinjaTool(m_PEntity, GetSpell(), false))
+        if (dynamic_cast<const CCharEntity*>(m_PEntity) != nullptr && !(m_flags & MAGICFLAGS_IGNORE_TOOLS) && !battleutils::HasNinjaTool(m_PEntity, GetSpell(), false))
         {
             m_errorMsg = std::make_unique<GP_SERV_COMMAND_BATTLE_MESSAGE>(m_PEntity, m_PEntity, static_cast<uint16>(m_PSpell->getID()), 0, MsgBasic::NoNinjaTools);
             return false;
@@ -498,10 +519,8 @@ void CMagicState::SpendCost()
         int16 cost = battleutils::CalculateSpellCost(m_PEntity, GetSpell());
 
         // RDM Job Point: Quick Magic Effect
-        if (IsInstantCast() && m_PEntity->objtype == TYPE_PC)
+        if (auto* PChar = dynamic_cast<CCharEntity*>(m_PEntity); IsInstantCast() && PChar)
         {
-            CCharEntity* PChar = static_cast<CCharEntity*>(m_PEntity);
-
             cost = (int16)(cost * (1.0f - (float)((PChar->PJobPoints->GetJobPointValue(JP_QUICK_MAGIC_EFFECT) * 2) / 100)));
         }
 
@@ -646,14 +665,19 @@ void CMagicState::ApplyEnmity(CBattleEntity* PTarget, int ce, int ve) const
 auto CMagicState::HasMoved() const -> bool
 {
     // non-players can't get interrupted via movement due to edge case shenanigans seen from SE
-    if (m_PEntity->objtype != TYPE_PC)
+    if (dynamic_cast<const CCharEntity*>(m_PEntity) == nullptr)
     {
         return false;
     }
 
+    if (m_startedMoving)
+    {
+        return true;
+    }
+
     float charDistance = distance(m_startPos, m_PEntity->loc.p, true);
 
-    return charDistance > 0.3;
+    return charDistance > movementThreshold;
 }
 
 void CMagicState::TryInterrupt(CBattleEntity* PAttacker)

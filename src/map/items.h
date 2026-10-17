@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2025 LandSandBoat Dev Teams
@@ -20,6 +20,8 @@
 */
 
 #pragma once
+
+#include "common/cbasetypes.h"
 
 // Only add items as utilized in core. There is no need to maintain a complete list
 // here.
@@ -74,6 +76,7 @@ enum ITEMID : uint16
     EVOLITH                        = 2783,
     KINDREDS_CREST                 = 2955,
     HIGH_KINDREDS_CREST            = 2956,
+    SACRED_KINDREDS_CREST          = 2957,
     MOKUJIN                        = 2970,
     INOSHISHINOFUDA                = 2971,
     SHIKANOFUDA                    = 2972,
@@ -134,6 +137,14 @@ enum ITEMID : uint16
     FURUSUMI                       = 8804,
     WOODWORKING_SET_25             = 9412,
     COOKING_SET_95                 = 9483,
+    ORANGE_RACING_SILKS            = 11321,
+    BLACK_RACING_SILKS             = 11322,
+    PURPLE_RACING_SILKS            = 11323,
+    SKY_BLUE_RACING_SILKS          = 11324,
+    BLUE_RACING_SILKS              = 11325,
+    RED_RACING_SILKS               = 11326,
+    WHITE_RACING_SILKS             = 11327,
+    GREEN_RACING_SILKS             = 11328,
     DREAM_BELL                     = 18863,
     DREAM_BELL_P1                  = 18864,
     LADY_BELL                      = 18868,

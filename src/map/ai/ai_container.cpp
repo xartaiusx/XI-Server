@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -27,6 +27,8 @@
 #include "entities/base_entity.h"
 #include "entities/battle_entity.h"
 #include "entities/char_entity.h"
+#include "entities/pet_entity.h"
+#include "lua/luautils.h"
 #include "states/ability_state.h"
 #include "states/attack_state.h"
 #include "states/death_state.h"
@@ -79,11 +81,11 @@ auto CAIContainer::Engage(const EntityId& target) const -> bool
     return false;
 }
 
-auto CAIContainer::ChangeTarget(const uint16 targid) const -> bool
+auto CAIContainer::ChangeTarget(const EntityId& target) const -> bool
 {
     if (Controller)
     {
-        return Controller->ChangeTarget(targid);
+        return Controller->ChangeTarget(target);
     }
     return false;
 }
@@ -193,7 +195,7 @@ auto CAIContainer::Internal_Engage(EntityId target) -> bool
     {
         if (entity->battleTarget() != target)
         {
-            ChangeTarget(target.targid);
+            ChangeTarget(target);
             return true;
         }
         return false;
@@ -237,19 +239,19 @@ auto CAIContainer::Internal_Cast(EntityId target, SpellID spellid) -> bool
     return false;
 }
 
-auto CAIContainer::Internal_ChangeTarget(const uint16 targetid) const -> bool
+auto CAIContainer::Internal_ChangeTarget(const EntityId& target) const -> bool
 {
     auto* entity = dynamic_cast<CBattleEntity*>(PEntity);
     if (entity)
     {
-        if (IsEngaged() || targetid == 0)
+        if (IsEngaged() || !target.isSet())
         {
-            entity->setBattleTarget(EntityId(entity->GetEntity(targetid)));
+            entity->setBattleTarget(target);
             return true;
         }
         else
         {
-            return Engage(EntityId(entity->GetEntity(targetid)));
+            return Engage(target);
         }
     }
     return false;
@@ -281,7 +283,7 @@ auto CAIContainer::Internal_WeaponSkill(const EntityId& target, uint16 wsid) -> 
     return false;
 }
 
-auto CAIContainer::Internal_MobSkill(const EntityId& target, uint16 wsid, Maybe<timer::duration> castTimeOverride) -> bool
+auto CAIContainer::Internal_MobSkill(const EntityId& target, uint16 wsid, Maybe<timer::duration> castTimeOverride, Maybe<uint16> tpCostOverride) -> bool
 {
     auto* entity = dynamic_cast<CBattleEntity*>(PEntity);
     if (entity)
@@ -291,7 +293,7 @@ auto CAIContainer::Internal_MobSkill(const EntityId& target, uint16 wsid, Maybe<
             return false;
         }
 
-        return ChangeState<CMobSkillState>(entity, target, wsid, castTimeOverride);
+        return ChangeState<CMobSkillState>(entity, target, wsid, castTimeOverride, tpCostOverride);
     }
     return false;
 }
@@ -341,12 +343,12 @@ auto CAIContainer::Internal_RangedAttack(const EntityId& target) -> bool
     return false;
 }
 
-auto CAIContainer::Internal_Die(timer::duration deathTime) -> bool
+auto CAIContainer::Internal_Die(timer::duration deathTime, DeathParams params) -> bool
 {
     auto* entity = dynamic_cast<CBattleEntity*>(PEntity);
     if (entity)
     {
-        return ChangeState<CDeathState>(entity, deathTime);
+        return ChangeState<CDeathState>(entity, deathTime, params);
     }
     return false;
 }
@@ -371,27 +373,55 @@ auto CAIContainer::GetCurrentState() const -> CState*
     return m_currentState.get();
 }
 
-void CAIContainer::enterState(std::unique_ptr<CState> next)
+auto CAIContainer::enterState(std::unique_ptr<CState> next) -> bool
 {
+    // init() decides whether the entity may enter the state. If it refuses, drop the new
+    // state and keep the current one.
+    if (auto result = next->init(); !result)
+    {
+        PEntity->HandleErrorMessage(result.error());
+        return false;
+    }
+
     // Suspend the state we're leaving beneath the new one, which becomes current.
     if (m_currentState)
     {
         m_stateStack.push(std::move(m_currentState));
     }
     m_currentState = std::move(next);
+
+    return true;
 }
 
 void CAIContainer::resumeNextState()
 {
     // The current state is finished; resume the one suspended beneath it, or go idle.
-    if (m_stateStack.empty())
-    {
-        m_currentState.reset();
-    }
-    else
+    retire(std::move(m_currentState));
+
+    if (!m_stateStack.empty())
     {
         m_currentState = std::move(m_stateStack.top());
         m_stateStack.pop();
+    }
+}
+
+void CAIContainer::finishCurrentState(const timer::time_point tick)
+{
+    auto finished = std::move(m_currentState);
+    resumeNextState();
+
+    if (finished)
+    {
+        finished->Cleanup(tick);
+        retire(std::move(finished));
+    }
+}
+
+void CAIContainer::retire(std::unique_ptr<CState> state)
+{
+    if (state)
+    {
+        m_retiredStates.push_back(std::move(state));
     }
 }
 
@@ -402,7 +432,7 @@ auto CAIContainer::CanChangeState() const -> bool
 
 auto CAIContainer::CanFollowPath() const -> bool
 {
-    return PathFind && (!GetCurrentState() || GetCurrentState()->CanChangeState());
+    return PathFind && (!GetCurrentState() || (GetCurrentState()->CanChangeState() && GetCurrentState()->CanFollowPath()));
 }
 
 void CAIContainer::SetController(std::unique_ptr<CController> controller)
@@ -427,22 +457,34 @@ void CAIContainer::Reset()
         Controller->Reset();
     }
 
-    m_currentState.reset();
+    retire(std::move(m_currentState));
     while (!m_stateStack.empty())
     {
+        retire(std::move(m_stateStack.top()));
         m_stateStack.pop();
+    }
+
+    // drop the queues too, or an action from the previous life fires on the next spawn.
+    ClearActionQueue();
+    ClearTimerQueue();
+
+    // no Cleanup ran, so clear the engaged flags by hand. Internal_Engage skips anything that still looks engaged, leaving it with nothing to swing with.
+    if (auto* battle = dynamic_cast<CBattleEntity*>(PEntity); battle && battle->animation == xi::Animation::Attack)
+    {
+        battle->animation = xi::Animation::None;
+        battle->setBattleTarget(std::nullopt);
+        battle->updatemask |= UPDATE_HP;
     }
 }
 
 auto CAIContainer::Tick(const timer::time_point tick) -> Task<void>
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CAIContainer::Tick");
 
     m_PrevTick = m_Tick;
     m_Tick     = tick;
 
-    // TODO: timestamp in the event?
-    EventHandler.triggerListener("TICK", PEntity);
+    EventHandler.triggerListener("TICK", PEntity, std::chrono::duration_cast<std::chrono::milliseconds>(m_Tick - m_PrevTick).count());
 
     co_await PEntity->Tick(tick);
 
@@ -450,8 +492,7 @@ auto CAIContainer::Tick(const timer::time_point tick) -> Task<void>
     ActionQueue.checkAction(tick);
 
     // check pathfinding only if there is no controller to do it
-    bool isPathingPaused = PEntity->GetLocalVar("pauseNPCPathing");
-    if (!Controller && CanFollowPath() && !isPathingPaused)
+    if (!Controller && CanFollowPath() && PEntity->GetLocalVar("pauseNPCPathing") == 0)
     {
         PathFind->FollowPath(tick);
         if (PathFind->OnPoint())
@@ -467,10 +508,19 @@ auto CAIContainer::Tick(const timer::time_point tick) -> Task<void>
     }
 
     //
-    // The current state is held in m_currentState (not on the stack) while it runs, so a
-    // re-entrant change can't free the object we're executing in. Entering a state only
-    // suspends the current one beneath it, never frees it.
+    // The current state is held in m_currentState (not on the stack) while it runs, and finished states sit in m_retiredStates until the end of the tick.
+    // A re-entrant change can suspend or retire the state we are executing in, but never free it.
     //
+
+    // magic and mobskill states resolve their own interrupt at their finish.
+    const auto shouldGoInactive = [&]() -> bool
+    {
+        auto* battle = dynamic_cast<CBattleEntity*>(PEntity);
+
+        return battle && battle->isAlive() && !IsCurrentState<CInactiveState>() &&
+               !IsCurrentState<CMagicState>() && !IsCurrentState<CMobSkillState>() &&
+               battle->StatusEffectContainer->HasPreventActionEffect(true);
+    };
 
     // The guard is a backstop against
     // a state that completes and re-enters itself every iteration (the stack is capped at
@@ -487,34 +537,34 @@ auto CAIContainer::Tick(const timer::time_point tick) -> Task<void>
 
         CState* running = m_currentState.get();
 
-        if (running->DoUpdate(tick))
+        if (!running->DoUpdate(tick)) // Not finished: leave it current and stop.
         {
-            // A state can enter a successor during its own update (e.g. petskill
-            // re-engages), which becomes current. Only retire the state we actually ran.
-            if (running == m_currentState.get())
-            {
-                running->Cleanup(tick);
-                resumeNextState();
-            }
+            break;
         }
-        else // Not finished: leave it current and stop.
+
+        // A state can enter a successor during its own update (e.g. petskill
+        // re-engages), which becomes current. Only retire the state we actually ran.
+        if (running == m_currentState.get())
+        {
+            finishCurrentState(tick);
+        }
+
+        // the resumed state must not act under a prevent-action effect.
+        if (shouldGoInactive())
         {
             break;
         }
     }
 
-    // Magic and mobskill states decide their own interrupt at their finish (mid-action
-    // prevent-action effects don't cancel them on retail), so we never force them inactive
-    // from here. Once such a state ends, this poll parks the entity inactive.
-    if (auto* battle = dynamic_cast<CBattleEntity*>(PEntity);
-        battle && battle->isAlive() && !IsCurrentState<CInactiveState>() &&
-        !IsCurrentState<CMagicState>() && !IsCurrentState<CMobSkillState>() &&
-        battle->StatusEffectContainer->HasPreventActionEffect())
+    if (shouldGoInactive())
     {
         Inactive(0ms, false);
     }
 
     PEntity->PostTick();
+
+    // nothing is executing now, so the states retired this tick can go.
+    m_retiredStates.clear();
 
     co_return;
 }
@@ -528,17 +578,16 @@ void CAIContainer::ClearStateStack()
 {
     while (m_currentState)
     {
-        m_currentState->Cleanup(timer::now());
-        resumeNextState();
+        finishCurrentState(timer::now());
     }
 }
 
 void CAIContainer::InterruptStates()
 {
-    while (m_currentState && m_currentState->CanInterrupt())
+    // a state running its own Update is left alone - tearing it out would free it under its own frame. whatever wanted the interrupt stacks above it instead.
+    while (m_currentState && !m_currentState->isExecuting() && m_currentState->CanInterrupt())
     {
-        m_currentState->Cleanup(timer::now());
-        resumeNextState();
+        finishCurrentState(timer::now());
     }
 }
 
@@ -632,8 +681,7 @@ void CAIContainer::CheckCompletedStates()
 {
     while (m_currentState && m_currentState->IsCompleted())
     {
-        m_currentState->Cleanup(timer::now());
-        resumeNextState();
+        finishCurrentState(timer::now());
     }
 }
 

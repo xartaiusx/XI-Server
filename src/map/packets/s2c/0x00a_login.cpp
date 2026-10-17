@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2025 LandSandBoat Dev Teams
@@ -24,6 +24,7 @@
 #include "entities/char_entity.h"
 #include "instance.h"
 #include "status_effect_container.h"
+#include "transports/ship_handler.h"
 #include "utils/zoneutils.h"
 
 namespace
@@ -31,7 +32,7 @@ namespace
 
 // Returns the Model ID of the mog house to be used
 // This is not the same as the actual Zone ID!
-// (These used to be entries in the ZONEID enum, but that was wrong, knowing what we know now)
+// (These used to be entries in the xi::ZoneId enum, but that was wrong, knowing what we know now)
 auto GetMogHouseModelID(const CCharEntity* PChar) -> uint16
 {
     // Shift right 7 places, mask the bottom two bits.
@@ -153,9 +154,9 @@ GP_SERV_COMMAND_LOGIN::GP_SERV_COMMAND_LOGIN(CCharEntity* PChar, const EventInfo
     // TODO: Previous weather
     packet.WeatherNumber = static_cast<uint16>(PChar->loc.zone->weather().current());
     packet.WeatherTime   = PChar->loc.zone->weather().changeTime();
-    packet.ZoneNo        = PChar->getZone();
+    packet.ZoneNo        = static_cast<uint16>(PChar->getZone());
     packet.ZoneSubNo     = PChar->PInstance ? PChar->PInstance->overlayId() : 0;
-    packet.MapNumber     = PChar->getZone();
+    packet.MapNumber     = static_cast<uint16>(PChar->getZone());
     packet.SubMapNumber  = PChar->loc.boundary;
     packet.PlayTime      = static_cast<uint32>(timer::count_seconds(PChar->GetPlayTime()));
     packet.MyRoomExitBit = GetMogHouseLeavingFlag(PChar);
@@ -163,6 +164,18 @@ GP_SERV_COMMAND_LOGIN::GP_SERV_COMMAND_LOGIN(CCharEntity* PChar, const EventInfo
     packet.GameTime      = earth_time::vanadiel_timestamp(currentTime);
     packet.DeadCounter   = static_cast<uint32>(60 * deadRemaining);
     packet.Ex            = 0x01;
+
+    // The client animates the scenery along the voyage zone's path from these.
+    if (const auto* voyage = ShipHandler::getInstance()->voyageAt(PChar->loc.zone, packet.GameTime))
+    {
+        packet.ShipStart = voyage->departedAt(packet.GameTime);
+        packet.ShipEnd   = static_cast<uint16_t>(voyage->duration());
+
+        if (voyage->reverse)
+        {
+            packet.PosHead.flags3 |= 0x04000000; // ShipStartMode
+        }
+    }
 
     const look_t* look  = PChar->getStyleLocked() ? &PChar->mainlook : &PChar->look;
     packet.GrapIDTbl[0] = look->face | look->race << 8;
@@ -184,8 +197,8 @@ GP_SERV_COMMAND_LOGIN::GP_SERV_COMMAND_LOGIN(CCharEntity* PChar, const EventInfo
     const auto csid = currentEvent->eventId;
     if (csid != -1)
     {
-        packet.EventNo   = PChar->currentEvent->textTable == -1 ? PChar->getZone() : PChar->currentEvent->textTable;
-        packet.EventNum  = PChar->getZone();
+        packet.EventNo   = PChar->currentEvent->textTable == -1 ? static_cast<uint16>(PChar->getZone()) : PChar->currentEvent->textTable;
+        packet.EventNum  = static_cast<uint16>(PChar->getZone());
         packet.EventPara = currentEvent->eventId;
         packet.EventMode = currentEvent->eventFlags & 0xFFFF;
 
@@ -197,13 +210,19 @@ GP_SERV_COMMAND_LOGIN::GP_SERV_COMMAND_LOGIN(CCharEntity* PChar, const EventInfo
     {
         packet.LoginState = SAVE_LOGIN_STATE::SAVE_LOGIN_STATE_MYROOM;
 
-        if (PChar->profile.mhflag & 0x0040) // On MH2F
+        const auto* POwner = PChar->moghouse().host();
+        if (POwner == nullptr)
+        {
+            POwner = PChar;
+        }
+
+        if (POwner->profile.mhflag & 0x0040) // On MH2F
         {
             // Ensure full exit menu appears
             packet.MyroomSubMapNumber = 0x02;
         }
 
-        packet.MyroomMapNumber = GetMogHouseModelID(PChar);
+        packet.MyroomMapNumber = GetMogHouseModelID(POwner);
     }
     else
     {
@@ -227,12 +246,12 @@ GP_SERV_COMMAND_LOGIN::GP_SERV_COMMAND_LOGIN(CCharEntity* PChar, const EventInfo
     std::memcpy(&packet.Dancer.bp_base, &PChar->stats, 14);
     std::memcpy(&packet.ConfData, &PChar->playerConfig, sizeof(SAVE_CONF_PKT));
 
-    if (PChar->GetMJob() == xi::Job::MON)
+    if (PChar->GetMJob() == xi::Job::MON && PChar->m_PMonstrosity == nullptr)
     {
-        monstrosity::ReadMonstrosityData(PChar);
+        PChar->m_PMonstrosity = monstrosity::LoadMonstrosityData(PChar->id);
     }
 
-    if (PChar->loc.zone->GetID() == ZONE_FERETORY)
+    if (PChar->loc.zone->GetID() == xi::ZoneId::Feretory)
     {
         // This disables the zone model, but also disables abilities etc.
         packet.LoginState      = SAVE_LOGIN_STATE::SAVE_LOGIN_STATE_MYROOM;

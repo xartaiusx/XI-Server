@@ -127,6 +127,7 @@ if [[ $COMPILER == clang* || $ENABLE_CLANG_TIDY == ON ]]; then
         clang$LLVM_VERSION \
         clang$LLVM_VERSION-extra-tools \
         compiler-rt \
+        lld$LLVM_VERSION \
         llvm$LLVM_VERSION
     apk cache clean
 fi
@@ -150,18 +151,28 @@ ARG TRACY_ENABLE=OFF
 ARG PCH_ENABLE=ON
 ARG WARNINGS_AS_ERRORS=TRUE
 
+# A toolchain or base image bump must change this id, or the new compiler reuses old objects.
+# BASE_TAG is a pre-FROM global, so it needs re-declaring to be in scope here.
+ARG BASE_TAG
+ARG BUILD_CACHE_ID=$BASE_TAG-$COMPILER$LLVM_VERSION-$CMAKE_BUILD_TYPE-tracy$TRACY_ENABLE-pch$PCH_ENABLE
+
 ENV CCACHE_DIR=/xiadmin/.ccache
-RUN --mount=type=cache,target=/xiadmin/build,uid=$UID,gid=$GID,id=build-alpine-$COMPILER-$CMAKE_BUILD_TYPE-tracy$TRACY_ENABLE-pch$PCH_ENABLE \
-    --mount=type=cache,target=/xiadmin/.ccache,uid=$UID,gid=$GID,id=ccache-alpine-$COMPILER-$CMAKE_BUILD_TYPE-tracy$TRACY_ENABLE-pch$PCH_ENABLE \
+ENV CCACHE_MAXSIZE=2G
+# mtime+size is the default, and a same-size toolchain swap defeats it.
+ENV CCACHE_COMPILERCHECK=content
+# Without this ccache reports every PCH compilation as uncacheable.
+ENV CCACHE_SLOPPINESS=pch_defines,time_macros
+RUN --mount=type=cache,target=/xiadmin/build,uid=$UID,gid=$GID,id=build-alpine-$BUILD_CACHE_ID \
+    --mount=type=cache,target=/xiadmin/.ccache,uid=$UID,gid=$GID,id=ccache-alpine-$BUILD_CACHE_ID \
     --mount=type=bind,source=.git,target=/server/.git \
     --mount=type=bind,source=sql,target=/server/sql <<EOF
 set -eo pipefail
-cp -p /xiadmin/build/version.cpp /server/src/common/ 2> /dev/null || true
 cp -p /xiadmin/build/xi_* /server/ 2> /dev/null || true
 
 if [[ $COMPILER == clang* || $ENABLE_CLANG_TIDY == ON ]]; then
     export CC=/usr/bin/clang-$LLVM_VERSION
     export CXX=/usr/bin/clang++-$LLVM_VERSION
+    export LDFLAGS="-fuse-ld=lld"
 fi
 
 cmake -G Ninja -S /server -B /xiadmin/build --fresh \
@@ -176,7 +187,6 @@ cmake --build /xiadmin/build -j$(nproc) | tee build.log
 ccache -s
 
 cp -p /server/xi_* /xiadmin/build/
-cp -p /server/src/common/version.cpp /xiadmin/build/
 mv xi_map_tracy xi_map 2> /dev/null || true
 EOF
 

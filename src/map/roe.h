@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2020 Topaz Dev Teams | Author: Kreidos | github.com/kreidos
@@ -22,11 +22,13 @@
 #pragma once
 
 #include <array>
+#include <string>
 #include <variant>
 #include <vector>
 
 #include "ai/helpers/event_handler.h"
 #include "common/cbasetypes.h"
+#include "entities/mob_entity.h"
 
 class CItemContainer;
 

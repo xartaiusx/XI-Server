@@ -12,7 +12,7 @@ local zoneObject = {}
 
 zoneObject.onInitialize = function(zone)
     zone:registerCuboidTriggerArea(1, 23, 0, -43, 44, 7, -39) -- Inside Tenshodo HQ. TODO: Find out if this is used other than in ZM 17 (not anymore). Remove if not.
-    xi.chocobo.initZone(zone)
+    xi.rentalChocobo.initZone(zone)
 end
 
 zoneObject.onZoneIn = function(player, prevZone)
@@ -24,8 +24,8 @@ zoneObject.onZoneIn = function(player, prevZone)
         (month == 12 and day >= 5) or
         (month == 1 and day <= 5)
     then
-        player:changeMusic(0, 239)
-        player:changeMusic(1, 239)
+        player:changeMusic(xi.musicSlot.ZONE_DAY, 239)
+        player:changeMusic(xi.musicSlot.ZONE_NIGHT, 239)
         -- No need for an 'else' to change it back outside these dates as a re-zone will handle that.
     end
 
@@ -33,7 +33,7 @@ zoneObject.onZoneIn = function(player, prevZone)
 end
 
 zoneObject.onConquestUpdate = function(zone, updatetype, influence, owner, ranking, isConquestAlliance)
-    xi.conquest.onConquestUpdate(zone, updatetype, influence, owner, ranking, isConquestAlliance)
+    xi.conquest.onNonRegionConquestUpdate(zone, updatetype, ranking, isConquestAlliance)
 end
 
 zoneObject.onTriggerAreaEnter = function(player, triggerArea)

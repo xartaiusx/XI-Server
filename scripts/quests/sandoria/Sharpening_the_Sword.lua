@@ -14,7 +14,9 @@ local quest = Quest:new(xi.questLog.SANDORIA, xi.quest.id.sandoria.SHARPENING_TH
 
 quest.reward =
 {
-    item = xi.item.HONOR_SWORD,
+    fame     = 20,
+    fameArea = xi.fameArea.SANDORIA,
+    item     = xi.item.HONOR_SWORD,
 }
 
 quest.sections =
@@ -62,7 +64,7 @@ quest.sections =
     {
         check = function(player, status, vars)
             return status == xi.questStatus.QUEST_ACCEPTED and
-                not player:hasKeyItem(xi.ki.ORDELLE_WHETSTONE)
+                not player:hasKeyItem(xi.keyItem.ORDELLE_WHETSTONE)
         end,
 
         [xi.zone.NORTHERN_SAN_DORIA] =
@@ -83,11 +85,11 @@ quest.sections =
                     local hasKilled = quest:getLocalVar(player, 'Stage')
                     if hasKilled == 1 then
                         quest:setLocalVar(player, 'Stage', 0)
-                        return quest:keyItem(xi.ki.ORDELLE_WHETSTONE)
+                        return quest:keyItem(xi.keyItem.ORDELLE_WHETSTONE)
                     elseif npcUtil.popFromQM(player, npc, cavesID.mob.POLEVIK, { hide = 0 }) then
                         return quest:noAction()
                     else
-                        player:messageSpecial(cavesID.text.DRY_WIND + 1, xi.ki.ORDELLE_WHETSTONE)
+                        player:messageSpecial(cavesID.text.DRY_WIND + 1, xi.keyItem.ORDELLE_WHETSTONE)
                         return quest:messageSpecial(cavesID.text.DRY_WIND)
                     end
                 end,
@@ -104,7 +106,7 @@ quest.sections =
     {
         check = function(player, status, vars)
             return status == xi.questStatus.QUEST_ACCEPTED and
-                player:hasKeyItem(xi.ki.ORDELLE_WHETSTONE)
+                player:hasKeyItem(xi.keyItem.ORDELLE_WHETSTONE)
         end,
 
         [xi.zone.SOUTHERN_SAN_DORIA] =
@@ -120,7 +122,7 @@ quest.sections =
             {
                 [44] = function(player, csid, option, npc)
                     if quest:complete(player) then
-                        player:delKeyItem(xi.ki.ORDELLE_WHETSTONE)
+                        player:delKeyItem(xi.keyItem.ORDELLE_WHETSTONE)
                     end
                 end,
             },

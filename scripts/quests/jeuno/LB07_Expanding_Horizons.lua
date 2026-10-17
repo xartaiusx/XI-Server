@@ -11,8 +11,6 @@ local quest = Quest:new(xi.questLog.JEUNO, xi.quest.id.jeuno.EXPANDING_HORIZONS)
 
 quest.reward =
 {
-    fame     = 50,
-    fameArea = xi.fameArea.JEUNO,
 }
 
 quest.sections =
@@ -31,7 +29,7 @@ quest.sections =
             {
                 onTrigger = function(player, npc)
                     local playerLevel     = player:getMainLvl()
-                    local limitBreaker    = player:hasKeyItem(xi.ki.LIMIT_BREAKER) and 1 or 2
+                    local limitBreaker    = player:hasKeyItem(xi.keyItem.LIMIT_BREAKER) and 1 or 2
                     local lastQuestNumber = 0
                     local lastQuestStage  = 0
                     if
@@ -82,7 +80,7 @@ quest.sections =
 
                 onTrigger = function(player, npc)
                     local playerLevel     = player:getMainLvl()
-                    local limitBreaker    = player:hasKeyItem(xi.ki.LIMIT_BREAKER) and 1 or 2
+                    local limitBreaker    = player:hasKeyItem(xi.keyItem.LIMIT_BREAKER) and 1 or 2
                     local lastQuestNumber = 2
                     local lastQuestStage  = 1
 

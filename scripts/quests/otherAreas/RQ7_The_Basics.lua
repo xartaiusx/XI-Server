@@ -13,7 +13,7 @@ local quest = Quest:new(xi.questLog.OTHER_AREAS, xi.quest.id.otherAreas.THE_BASI
 
 quest.reward =
 {
-    fame     = 120,
+    fame     = 60,
     fameArea = xi.fameArea.WINDURST,
     item     = xi.item.TEA_SET,
     title    = xi.title.FIVE_STAR_PURVEYOR,
@@ -51,7 +51,7 @@ quest.sections =
                 [94] = function(player, csid, option, npc)
                     if option == 85 then -- Accept quest option.
                         player:setCharVar('Quest[4][5]DayCompleted', 0)  -- Delete previous quest (The clue) variables.
-                        npcUtil.giveKeyItem(player, xi.ki.MHAURAN_COUSCOUS) -- Give Key Item to player.
+                        npcUtil.giveKeyItem(player, xi.keyItem.MHAURAN_COUSCOUS) -- Give Key Item to player.
                         quest:begin(player)
                     end
                 end,
@@ -126,8 +126,8 @@ quest.sections =
             {
                 [106] = function(player, csid, option, npc)
                     npcUtil.giveItem(player, xi.item.BAKED_POPOTO)
-                    player:delKeyItem(xi.ki.MHAURAN_COUSCOUS)
-                    player:messageSpecial(selbinaID.text.KEYITEM_OBTAINED + 1, xi.ki.MHAURAN_COUSCOUS)
+                    player:delKeyItem(xi.keyItem.MHAURAN_COUSCOUS)
+                    player:messageSpecial(selbinaID.text.KEYITEM_OBTAINED + 1, xi.keyItem.MHAURAN_COUSCOUS)
                     quest:setVar(player, 'Prog', 1)
                 end,
             },

@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2025 LandSandBoat Dev Teams
@@ -38,6 +38,7 @@
 #include "ai/controllers/trust_controller.h"
 
 #include "packets/s2c/0x038_schedulor.h"
+#include "zone.h"
 
 #include <algorithm>
 
@@ -193,20 +194,16 @@ std::string CGambitsContainer::AddGambit(const Gambit_t& gambit)
 
 void CGambitsContainer::RemoveGambit(const std::string& id)
 {
-    gambits.erase(
-        std::remove_if(
-            gambits.begin(),
-            gambits.end(),
-            [&id](const Gambit_t& gambit)
-            {
-                return gambit.identifier == id;
-            }),
-        gambits.end());
+    std::erase_if(gambits,
+                  [&id](const Gambit_t& gambit)
+                  {
+                      return gambit.identifier == id;
+                  });
 
     const auto prefix = fmt::format("{}:", id);
     std::erase_if(m_timerConditionLastTrigger, [&](const auto& kv)
                   {
-                      return kv.first.rfind(prefix, 0) == 0;
+                      return kv.first.starts_with(prefix);
                   });
 }
 
@@ -337,7 +334,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                 static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* PMember)
                 {
                     if (isValidMember(target, PMember) &&
-                        melee_jobs.find(PMember->GetMJob()) != melee_jobs.end())
+                        melee_jobs.contains(PMember->GetMJob()))
                     {
                         potentialTargets.push_back(PMember);
                     }
@@ -363,7 +360,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                 static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* PMember)
                 {
                     if (isValidMember(target, PMember) &&
-                        caster_jobs.find(PMember->GetMJob()) != caster_jobs.end())
+                        caster_jobs.contains(PMember->GetMJob()))
                     {
                         potentialTargets.push_back(PMember);
                     }
@@ -1542,7 +1539,7 @@ auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const G
                 if (triggerTarget->PAI->IsCurrentState<CMagicState>())
                 {
                     auto spellElement  = static_cast<CMagicState*>(triggerTarget->PAI->GetCurrentState())->GetSpell()->getElement();
-                    auto targetID      = static_cast<CMagicState*>(triggerTarget->PAI->GetCurrentState())->GetTarget()->id;
+                    auto targetID      = static_cast<CMagicState*>(triggerTarget->PAI->GetCurrentState())->target().resolve()->id;
                     bool isElementalMA = spellElement >= ELEMENT_FIRE && spellElement <= ELEMENT_WATER;
                     if (targetID == POwner->id && isElementalMA)
                     {
@@ -1642,7 +1639,7 @@ auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const G
                                 continue;
                             }
 
-                            const bool targetingMaster        = (PZoneMob->GetBattleTargetID() == PMaster->targid);
+                            const bool targetingMaster        = (PZoneMob->battleTarget() == PMaster);
                             const bool isMastersCurrentTarget = (PZoneMob->id == PMob->id);
                             const bool hostile                = (PZoneMob->allegiance != PMaster->allegiance);
 
@@ -1931,7 +1928,7 @@ bool CGambitsContainer::TryTrustSkill()
                 if (maybeDaybreakActive)
                 {
                     // Only trigger No Quarter if the last skill used was ACTUALLY a Daybreak opener
-                    if (daybreak_ws.count(lastSkillUsed))
+                    if (daybreak_ws.contains(lastSkillUsed))
                     {
                         for (const auto& tskill : tp_skills)
                         {
@@ -1948,7 +1945,7 @@ bool CGambitsContainer::TryTrustSkill()
                     {
                         for (const auto& tskill : tp_skills)
                         {
-                            if (daybreak_ws.count(tskill.skill_id))
+                            if (daybreak_ws.contains(tskill.skill_id))
                             {
                                 candidates.push_back(tskill);
                             }
@@ -1960,7 +1957,7 @@ bool CGambitsContainer::TryTrustSkill()
                     // Normal state: use standard rotation
                     for (const auto& tskill : tp_skills)
                     {
-                        if (regular_ws.count(tskill.skill_id))
+                        if (regular_ws.contains(tskill.skill_id))
                         {
                             candidates.push_back(tskill);
                         }

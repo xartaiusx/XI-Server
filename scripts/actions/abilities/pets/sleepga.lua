@@ -1,5 +1,8 @@
 -----------------------------------
 -- Sleepga
+-- Family: Avatar (Shiva)
+-- Note: Ability range was increased in Sept. 6, 2016 update:
+-- https://wiki.ffo.jp/html/35741.html
 -----------------------------------
 ---@type TAbilityPet
 local abilityObject = {}
@@ -9,45 +12,30 @@ abilityObject.onAbilityCheck = function(player, target, ability)
 end
 
 abilityObject.onPetAbility = function(target, pet, petskill, summoner, action)
-    xi.job_utils.summoner.onUseBloodPact(target, petskill, summoner, action)
+    xi.job_utils.summoner.onUseBloodPact(target, pet, petskill, summoner, action)
 
-    -- Check nullification.
-    if
-        xi.data.statusEffect.isTargetImmune(target, xi.effect.SLEEP_I, xi.element.DARK) or
-        xi.data.statusEffect.isTargetResistant(pet, target, xi.effect.SLEEP_I) or
-        xi.data.statusEffect.isEffectNullified(target, xi.effect.SLEEP_I, 0) or
-        target:hasStatusEffect(xi.effect.SLEEP_I)
-    then
-        if target:getID() == action:getPrimaryTargetID() then
-            petskill:setMsg(xi.msg.basic.JA_NO_EFFECT_2)
-        else
-            petskill:setMsg(xi.msg.basic.NO_EFFECT)
-        end
+    local duration = 90
 
-        return xi.effect.SLEEP_I
-    end
+    local effectTable =
+    {
+        -- Does not overwrite Sleep I or Sleep II.
+        -- Does not overwrite self.
+        [1] = { effectId = xi.effect.SLEEP_I, power = 1, origin = pet, duration = duration, tier = 1, magicalElement = xi.element.DARK, bonusMacc = xi.summon.getSummoningSkillOverCap(pet) },
+    }
 
-    -- Check resist.
-    local bonus    = xi.summon.getSummoningSkillOverCap(pet)
-    local resist   = xi.combat.magicHitRate.calculateResistRate(pet, target, 0, 0, 0, xi.element.DARK, xi.mod.INT, xi.effect.SLEEP_I, bonus)
-    if resist < 0.5 then
-        petskill:setMsg(xi.msg.basic.JA_MISS_2) -- resist message
-        return xi.effect.SLEEP_I
-    end
+    local messageParams =
+    {
+        messageBypass          = false,
+        messageCantGain        = xi.msg.basic.JA_NO_EFFECT,
+        messageIsImmune        = xi.msg.basic.JA_MISS,
+        messageIsTraitResisted = xi.msg.basic.JA_MISS,
+        messageIsIncompatible  = xi.msg.basic.JA_MISS,
+        messageIsResisted      = xi.msg.basic.JA_MISS,
+        messageIsNotSuccessful = xi.msg.basic.JA_MISS,
+        messageIsSuccessful    = xi.msg.basic.JA_ENFEEB_IS,
+    }
 
-    -- Apply.
-    local duration = math.floor(90 * resist)
-
-    target:addStatusEffect(xi.effect.SLEEP_I, { power = 1, duration = duration, origin = pet })
-    if target:getID() == action:getPrimaryTargetID() then
-        petskill:setMsg(xi.msg.basic.JA_RECEIVES_EFFECT_2)
-    else
-        petskill:setMsg(xi.msg.basic.JA_RECEIVES_EFFECT)
-    end
-
-    target:updateEnmity(pet)
-
-    return xi.effect.SLEEP_I
+    return xi.combat.action.executeMobskillStatusEffect(pet, target, petskill, effectTable, messageParams)
 end
 
 return abilityObject

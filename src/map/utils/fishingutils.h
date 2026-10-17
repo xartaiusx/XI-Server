@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -21,9 +21,11 @@
 
 #pragma once
 
+#include "data/enums/zone.h"
+
 #include "common/cbasetypes.h"
-#include "enums/key_items.h"
-#include "items/item_fish.h"
+#include "data/enums/key_item.h"
+#include "items/item.h"
 
 #include <map>
 
@@ -154,7 +156,7 @@ struct fish_t
     uint8                maxhook;         // maximum that can be hooked (with sabiki rig)
     uint16               rarity;          // [0-1000] : 0 = not rare, 1 = rarest, 1000 = most common
     uint16               baitPower;       // how strong players current lure attracts fish
-    KeyItem              reqKeyItem;      // required key item
+    xi::KeyItem          reqKeyItem;      // required key item
     std::vector<uint16>* reqFish;         // list of required catches
     bool                 quest_only;      // is fish/item quest override only
     bool                 contest;         // is a fish ranking contest fish
@@ -183,7 +185,7 @@ struct fish_t
     , maxhook(0)
     , rarity(0)
     , baitPower(0)
-    , reqKeyItem(KeyItem::NONE)
+    , reqKeyItem(xi::KeyItem::None)
     , reqFish(nullptr)
     , quest_only(false)
     , contest(false)
@@ -282,7 +284,7 @@ struct fishmob_t
     uint16      reqBaitId;  // required bait
     uint16      altBaitId;  // alternative required bait
     uint16      reqKeyItem; // required key item
-    uint16      zoneId;     // mob zoneId
+    xi::ZoneId  zoneId;     // mob zoneId
     uint16      minLength;  // mob min length
     uint16      maxLength;  // mob max length
     uint8       ranking;
@@ -305,7 +307,7 @@ struct fishmob_t
     , reqBaitId(0)
     , altBaitId(0)
     , reqKeyItem(0)
-    , zoneId(0)
+    , zoneId(xi::ZoneId::Unknown)
     , minLength(0)
     , maxLength(0)
     , ranking(0)
@@ -363,7 +365,7 @@ struct boundarydata_t
 
 struct fishingarea_t
 {
-    uint32        zoneId;     // Zone ID
+    xi::ZoneId    zoneId;     // Zone ID
     uint32        areaId;     // Area ID
     std::string   areaName;   // Area Name
     uint8         areatype;   // What type of bounds checking is done
@@ -375,7 +377,7 @@ struct fishingarea_t
     uint8         difficulty; // Difficulty of area to fish in
 
     fishingarea_t()
-    : zoneId(0)
+    : zoneId(xi::ZoneId::Unknown)
     , areaId(0)
     , areatype(0)
     , areaBounds(nullptr)
@@ -914,7 +916,7 @@ using CancelOnMobLoadFailBait = xi::Flag<struct CancelOnMobLoadFailBaitTag>;
 using Lost                    = xi::Flag<struct LostTag>;
 
 // Catch Pools
-void ReduceFishPool(uint16 zoneId, uint8 areaId, uint16 fishId);
+void ReduceFishPool(xi::ZoneId zoneId, uint8 areaId, uint16 fishId);
 void RestockFishingAreas();
 void CreateFishingPools();
 
@@ -941,17 +943,17 @@ big_fish_stats_t    CalculateBigFishStats(uint16 minLength, uint16 maxLength);
 fishmob_modifiers_t CalculateMobModifiers(fishmob_t* mob);
 
 // Data Access
-fishing_gear_t            GetFishingGear(CCharEntity* PChar);
-bool                      IsLiveBait(bait_t* bait);
-uint8                     GetFishingSkill(CCharEntity* PChar);
-uint8                     GetBaitPower(bait_t* bait, fish_t* fish);
-std::map<fish_t*, uint16> GetFishPool(uint16 zoneID, uint8 areaID, uint16 BaitID);
-std::vector<fish_t*>      GetItemPool(uint16 zoneID, uint8 areaID);
-std::vector<fishmob_t*>   GetMobPool(uint16 zoneId);
-std::vector<uint32>       GetChestPool(uint16 zoneId);
-uint16                    GetMessageOffset(uint16 ZoneID);
-auto                      IsFish(const CItem* fish) -> bool;
-auto                      GetFish(uint32 fishId) -> fish_t*;
+fishing_gear_t GetFishingGear(CCharEntity* PChar);
+bool           IsLiveBait(bait_t* bait);
+uint8          GetFishingSkill(CCharEntity* PChar);
+uint8          GetBaitPower(bait_t* bait, fish_t* fish);
+auto           GetFishPool(xi::ZoneId zoneID, uint8 areaID, uint16 BaitID) -> std::map<fish_t*, uint16>;
+auto           GetItemPool(xi::ZoneId zoneID, uint8 areaID) -> std::vector<fish_t*>;
+auto           GetMobPool(xi::ZoneId zoneId) -> std::vector<fishmob_t*>;
+auto           GetChestPool(xi::ZoneId zoneId) -> std::vector<uint32>;
+auto           GetMessageOffset(xi::ZoneId ZoneID) -> uint16;
+auto           IsFish(const CItem* fish) -> bool;
+auto           GetFish(uint32 fishId) -> fish_t*;
 
 // Fishing Areas
 bool           onSegment(areavector_t p, areavector_t q, areavector_t r);
@@ -987,7 +989,7 @@ uint8            UnhookMob(CCharEntity* PChar, Lost lost);
 fishresponse_t*  FishingCheck(CCharEntity* PChar, uint8 fishingSkill, rod_t* rod, bait_t* bait, fishingarea_t* area);
 catchresponse_t* ReelCheck(CCharEntity* PChar, fishresponse_t* response, rod_t* rod);
 void             FishingAction(CCharEntity* PChar, GP_CLI_COMMAND_FISHING_2_MODE mode, uint32 para, uint32 para2);
-auto             GetFish(uint16 itemid) -> std::unique_ptr<CItemFish>;
+auto             GetFish(uint16 itemid) -> std::unique_ptr<CItem>;
 
 // Initialization
 void LoadFishingMessages();

@@ -9,7 +9,7 @@ local mobskillObject = {}
 
 mobskillObject.onMobSkillCheck = function(target, mob, skill)
     -- Ranged attack only used when target is out of range
-    if mob:checkDistance(target) > 2 then
+    if mob:checkDistance(target) > mob:getMeleeRange(target) then
         return 0
     else
         return 1
@@ -19,7 +19,7 @@ end
 mobskillObject.onMobWeaponSkill = function(mob, target, skill, action)
     local params = {}
 
-    params.baseDamage     = mob:getWeaponDmg()
+    params.baseDamage     = mob:getRangedDmg()
     params.numHits        = 1
     params.fTP            = { 3.0, 3.0, 3.0 }
     params.attackType     = xi.attackType.RANGED

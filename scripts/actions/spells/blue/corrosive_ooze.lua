@@ -19,27 +19,30 @@ spellObject.onMagicCastingCheck = function(caster, target, spell)
     return 0
 end
 
-spellObject.onSpellCast = function(caster, target, spell)
-    local params = {}
-    params.ecosystem = xi.ecosystem.AMORPH
+spellObject.onSpellCast = function(caster, target, spell, action)
+    local params      = xi.spells.blue.getDefaultParams(caster)
+    params.ecosystem  = xi.ecosystem.AMORPH
     params.attackType = xi.attackType.MAGICAL
     params.damageType = xi.damageType.WATER
-    params.attribute = xi.mod.INT
-    params.skillType = xi.skill.BLUE_MAGIC
-    params.multiplier = 2.125
-    params.azureBonus = 0.5
-    params.tMultiplier = 2.0
-    params.duppercap = 69
-    params.str_wsc = 0.0
-    params.dex_wsc = 0.0
-    params.vit_wsc = 0.0
-    params.agi_wsc = 0.0
+
+    params.dStat           = xi.mod.INT
+    params.ftp0            = 2.125
+    params.azureBonus      = 0.5
+    params.dStatMultiplier = 2.0
+    params.baseDamageCap   = 69
+
     params.int_wsc = 0.2
-    params.mnd_wsc = 0.0
-    params.chr_wsc = 0.0
 
     local damage = xi.spells.blue.useMagicalSpell(caster, target, spell, params)
-    local resist = xi.combat.magicHitRate.calculateResistRate(caster, target, spell:getSpellGroup(), xi.skill.BLUE_MAGIC, 0, spell:getElement(), xi.mod.INT, 0, 0)
+    local maccParams =
+    {
+        magicalElement = spell:getElement(),
+        actorStat      = xi.mod.INT,
+        skillType      = xi.skill.BLUE_MAGIC,
+        spellGroup     = spell:getSpellGroup(),
+    }
+
+    local resist = xi.combat.magicHitRate.calculateResistRate(caster, target, maccParams)
 
     if resist >= 0.5 then
         target:addStatusEffect(xi.effect.DEFENSE_DOWN, { power = 5, duration = 90 * resist, origin = caster })

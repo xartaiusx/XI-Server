@@ -25,6 +25,7 @@
 #include "map/entities/char_entity.h"
 #include "map/item_container.h"
 #include "map/items/item.h"
+#include "map/linkshell.h"
 #include "map/lua/lua_base_entity.h"
 #include "map/lua/sol_bindings.h"
 #include "map/utils/charutils.h"
@@ -84,7 +85,7 @@ void CLuaClientEntityPair::tick()
  *  Notes   : Will error if player is in an event during zoning
  ************************************************************************/
 
-void CLuaClientEntityPair::gotoZone(ZONEID zoneId, sol::optional<sol::table> pos)
+void CLuaClientEntityPair::gotoZone(xi::ZoneId zoneId, sol::optional<sol::table> pos)
 {
     doGotoZone(zoneId, std::move(pos), false);
 }
@@ -96,7 +97,7 @@ void CLuaClientEntityPair::gotoZone(ZONEID zoneId, sol::optional<sol::table> pos
  *  Notes   : Errors if the player is in an event.
  ************************************************************************/
 
-void CLuaClientEntityPair::gotoMogHouse(ZONEID zoneId)
+void CLuaClientEntityPair::gotoMogHouse(xi::ZoneId zoneId)
 {
     doGotoZone(zoneId, sol::nullopt, true);
 }
@@ -130,7 +131,7 @@ void CLuaClientEntityPair::simulateZoneOutLifecycle(bool logout)
     PChar->status = previousStatus;
 }
 
-void CLuaClientEntityPair::doGotoZone(ZONEID zoneId, sol::optional<sol::table> pos, bool mogHouse)
+void CLuaClientEntityPair::doGotoZone(xi::ZoneId zoneId, sol::optional<sol::table> pos, bool mogHouse)
 {
     // Check if player is in an event
     if (testChar_->entity()->isInEvent())
@@ -190,6 +191,30 @@ void CLuaClientEntityPair::doGotoZone(ZONEID zoneId, sol::optional<sol::table> p
 auto CLuaClientEntityPair::isPendingZone() const -> bool
 {
     return testChar_->entity()->requestedZoneChange;
+}
+
+/************************************************************************
+ *  Function: getSearchMessage()
+ *  Purpose : Returns the search comment the server currently holds for the player
+ *  Example : assert(player:getSearchMessage() == 'LFP')
+ ************************************************************************/
+
+auto CLuaClientEntityPair::getSearchMessage() const -> std::string
+{
+    return testChar_->entity()->search.message;
+}
+
+/************************************************************************
+ *  Function: getLinkshellId()
+ *  Purpose : Returns the linkshell id in slot 1 or 2, 0 if none
+ *  Example : assert(player:getLinkshellId(1) ~= 0)
+ ************************************************************************/
+
+auto CLuaClientEntityPair::getLinkshellId(const uint8 lsNum) const -> uint32
+{
+    const auto* PChar      = testChar_->entity();
+    const auto* PLinkshell = lsNum == 2 ? PChar->PLinkshell2 : PChar->PLinkshell1;
+    return PLinkshell ? PLinkshell->getID() : 0;
 }
 
 /************************************************************************
@@ -394,6 +419,8 @@ void CLuaClientEntityPair::Register()
     SOL_REGISTER("gotoMogHouse", CLuaClientEntityPair::gotoMogHouse);
     SOL_REGISTER("simulateZoneOutLifecycle", CLuaClientEntityPair::simulateZoneOutLifecycle);
     SOL_REGISTER("isPendingZone", CLuaClientEntityPair::isPendingZone);
+    SOL_REGISTER("getSearchMessage", CLuaClientEntityPair::getSearchMessage);
+    SOL_REGISTER("getLinkshellId", CLuaClientEntityPair::getLinkshellId);
     SOL_REGISTER("getItemInvSlot", CLuaClientEntityPair::getItemInvSlot);
     SOL_REGISTER("claimAndKillMob", CLuaClientEntityPair::claimAndKillMob);
     SOL_REGISTER("claimAndKillMobs", CLuaClientEntityPair::claimAndKillMobs);

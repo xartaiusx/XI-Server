@@ -10,7 +10,7 @@ zoneObject.onInitialize = function(zone)
     xi.server.setExplorerMoogles(ID.npc.EXPLORER_MOOGLE)
 
     xi.events.harvestFestival.applyHalloweenNpcCostumes(zone:getID())
-    xi.chocobo.initZone(zone)
+    xi.rentalChocobo.initZone(zone)
     xi.chocoboGame.clearRecord(zone)
 end
 
@@ -19,7 +19,7 @@ zoneObject.onZoneIn = function(player, prevZone)
 end
 
 zoneObject.onConquestUpdate = function(zone, updatetype, influence, owner, ranking, isConquestAlliance)
-    xi.conquest.onConquestUpdate(zone, updatetype, influence, owner, ranking, isConquestAlliance)
+    xi.conquest.onNonRegionConquestUpdate(zone, updatetype, ranking, isConquestAlliance)
 end
 
 zoneObject.onTriggerAreaEnter = function(player, triggerArea)

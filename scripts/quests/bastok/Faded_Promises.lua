@@ -12,8 +12,8 @@ local quest = Quest:new(xi.questLog.BASTOK, xi.quest.id.bastok.FADED_PROMISES)
 
 quest.reward =
 {
-    fame     = 10,
-    fameArea = xi.fameArea.BASTOK,
+    fame     = 20,
+    fameArea = xi.fameArea.NORG,
     item     = xi.item.FUKURO,
     title    = xi.title.ASSASSIN_REJECT,
 }
@@ -25,7 +25,7 @@ quest.sections =
             return status == xi.questStatus.QUEST_AVAILABLE and
                 player:getMainJob() == xi.job.NIN and
                 player:getMainLvl() >= 20 and
-                player:getFameLevel(xi.fameArea.BASTOK) >= 4
+                player:getFameLevel(xi.fameArea.NORG) >= 4
         end,
 
         [xi.zone.METALWORKS] =
@@ -85,7 +85,7 @@ quest.sections =
 
                 [805] = function(player, csid, option, npc)
                     if quest:complete(player) then
-                        player:delKeyItem(xi.ki.DIARY_OF_MUKUNDA)
+                        player:delKeyItem(xi.keyItem.DIARY_OF_MUKUNDA)
                     end
                 end,
             },
@@ -113,7 +113,7 @@ quest.sections =
             ['Kagetora'] =
             {
                 onTrigger = function(player, npc)
-                    if player:hasKeyItem(xi.ki.DIARY_OF_MUKUNDA) then
+                    if player:hasKeyItem(xi.keyItem.DIARY_OF_MUKUNDA) then
                         return quest:progressEvent(296)
                     end
                 end,

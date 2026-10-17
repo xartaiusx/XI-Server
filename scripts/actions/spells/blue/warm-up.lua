@@ -20,8 +20,8 @@ spellObject.onMagicCastingCheck = function(caster, target, spell)
     return 0
 end
 
-spellObject.onSpellCast = function(caster, target, spell)
-    local duration = xi.spells.blue.calculateDurationWithDiffusion(caster, 180)
+spellObject.onSpellCast = function(caster, target, spell, action)
+    local duration     = xi.spells.blue.calculateDurationWithDiffusion(caster, 180)
     local returnEffect = xi.effect.ACCURACY_BOOST
 
     local actionOne = target:addStatusEffect(xi.effect.ACCURACY_BOOST, { power = 10, duration = duration, origin = caster })

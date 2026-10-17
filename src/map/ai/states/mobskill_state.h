@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -29,7 +29,9 @@ class CBattleEntity;
 class CMobSkillState : public CState
 {
 public:
-    CMobSkillState(CBattleEntity* PEntity, const EntityId& target, uint16 wsid, Maybe<timer::duration> castTimeOverride);
+    CMobSkillState(xi::Badge<CState>, CBattleEntity* PEntity, const EntityId& target, uint16 wsid, Maybe<timer::duration> castTimeOverride, Maybe<uint16> tpCostOverride = std::nullopt);
+
+    auto init() -> StateErrorOr<void> override;
 
     auto GetSkill() const -> CMobSkill*;
     auto GetSpentTP() const -> int16;
@@ -44,12 +46,17 @@ protected:
     void SpendCost();
 
 private:
-    CBattleEntity* const       m_PEntity;
-    std::unique_ptr<CMobSkill> m_PSkill;
-    timer::time_point          m_finishTime;
-    timer::duration            m_castTime{};
-    int16                      m_spentTP;
-    bool                       m_skillSuccess{ false };
+    // Shadows CState::m_PEntity
+    CBattleEntity* const m_PEntity;
+
+    const uint16                 m_wsid;
+    const Maybe<timer::duration> m_castTimeOverride;
+    const Maybe<uint16>          m_tpCostOverride;
+    std::unique_ptr<CMobSkill>   m_PSkill;
+    timer::time_point            m_finishTime;
+    timer::duration              m_castTime{};
+    int16                        m_spentTP;
+    bool                         m_skillSuccess{ false };
 
     void reduceTpOnInterrupt() const;
 };

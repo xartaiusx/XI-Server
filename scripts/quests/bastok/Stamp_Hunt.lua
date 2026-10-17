@@ -16,7 +16,7 @@ local quest = Quest:new(xi.questLog.BASTOK, xi.quest.id.bastok.STAMP_HUNT)
 
 quest.reward =
 {
-    fame = 50,
+    fame = 20,
     fameArea = xi.fameArea.BASTOK,
     item = xi.item.LEATHER_GORGET,
     title = xi.title.STAMPEDER,
@@ -43,7 +43,7 @@ quest.sections =
             onEventFinish =
             {
                 [225] = function(player, csid, option, npc)
-                    if npcUtil.giveKeyItem(player, xi.ki.STAMP_SHEET) then
+                    if npcUtil.giveKeyItem(player, xi.keyItem.STAMP_SHEET) then
                         quest:begin(player)
                     end
                 end,
@@ -79,7 +79,7 @@ quest.sections =
             {
                 [226] = function(player, csid, option, npc)
                     if quest:complete(player) then
-                        player:delKeyItem(xi.ki.STAMP_SHEET)
+                        player:delKeyItem(xi.keyItem.STAMP_SHEET)
                     end
                 end,
 

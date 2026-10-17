@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2025 LandSandBoat Dev Teams
@@ -22,12 +22,14 @@
 #include "map_session_container.h"
 
 #include "map_session.h"
+#include "persist_batch.h"
 #include "status_effect_container.h"
 
 #include "entities/char_entity.h"
 
 #include "utils/charutils.h"
 #include "utils/petutils.h"
+#include "zone.h"
 
 MapSessionContainer::MapSessionContainer(Scheduler& scheduler)
 : scheduler_(scheduler)
@@ -39,20 +41,6 @@ auto MapSessionContainer::createSession(IPP ipp) -> MapSession*
     TracyZoneScoped;
 
     ShowDebugFmt("Creating session for {}", ipp.getIPString());
-
-    const auto rset = db::preparedStmt("SELECT charid FROM accounts_sessions WHERE client_addr = ? LIMIT 1", ipp.getIP());
-    if (!rset)
-    {
-        ShowError("SQL query failed in MapSessionContainer::createSession!");
-        return nullptr;
-    }
-
-    if (rset->rowsCount() == 0)
-    {
-        // This is noisy and not really necessary
-        DebugSocketsFmt("recv_parse: Invalid login attempt from {}", ipp.getIPString());
-        return nullptr;
-    }
 
     auto map_session_data = std::make_unique<MapSession>();
 
@@ -89,11 +77,26 @@ auto MapSessionContainer::createPendingSession(uint32 charId) -> MapSession*
     return pending_sessions_[charId].get();
 }
 
+void MapSessionContainer::moveSession(MapSession* map_session_data, const IPP ipp)
+{
+    TracyZoneScoped;
+
+    auto node = sessions_.extract(map_session_data->client_ipp);
+    if (node.empty())
+    {
+        return;
+    }
+
+    node.key()                   = ipp;
+    map_session_data->client_ipp = ipp;
+    sessions_.insert(std::move(node));
+}
+
 auto MapSessionContainer::getSessionByIPP(IPP ipp) -> MapSession*
 {
     TracyZoneScoped;
 
-    if (sessions_.find(ipp) != sessions_.end())
+    if (sessions_.contains(ipp))
     {
         return sessions_[ipp].get();
     }
@@ -107,7 +110,7 @@ auto MapSessionContainer::getSessionByIPP(uint64 ipp) -> MapSession*
 
     auto ippObj = IPP(ipp);
 
-    if (sessions_.find(ippObj) != sessions_.end())
+    if (sessions_.contains(ippObj))
     {
         return sessions_[ippObj].get();
     }
@@ -124,30 +127,26 @@ auto MapSessionContainer::getSessionByChar(CCharEntity* PChar) -> MapSession*
         return nullptr;
     }
 
-    for (const auto& [_, session] : sessions_)
-    {
-        if (session->PChar->id == PChar->id)
-        {
-            return session.get();
-        }
-    }
+    const auto it = std::ranges::find_if(sessions_,
+                                         [&](const auto& entry)
+                                         {
+                                             return entry.second->PChar->id == PChar->id;
+                                         });
 
-    return nullptr;
+    return it != sessions_.end() ? it->second.get() : nullptr;
 }
 
 auto MapSessionContainer::getSessionByCharId(uint32 charId) -> MapSession*
 {
     TracyZoneScoped;
 
-    for (const auto& [_, session] : sessions_)
-    {
-        if (session->charID == charId)
-        {
-            return session.get();
-        }
-    }
+    const auto it = std::ranges::find_if(sessions_,
+                                         [&](const auto& entry)
+                                         {
+                                             return entry.second->charID == charId;
+                                         });
 
-    return nullptr;
+    return it != sessions_.end() ? it->second.get() : nullptr;
 }
 
 auto MapSessionContainer::getPendingSessionByCharId(uint32 charId) -> MapSession*
@@ -166,30 +165,26 @@ auto MapSessionContainer::getSessionByAccountId(uint32 accountId) -> MapSession*
 {
     TracyZoneScoped;
 
-    for (const auto& [_, session] : sessions_)
-    {
-        if (session->accountID == accountId)
-        {
-            return session.get();
-        }
-    }
+    const auto it = std::ranges::find_if(sessions_,
+                                         [&](const auto& entry)
+                                         {
+                                             return entry.second->accountID == accountId;
+                                         });
 
-    return nullptr;
+    return it != sessions_.end() ? it->second.get() : nullptr;
 }
 
 auto MapSessionContainer::getSessionByCharName(const std::string& name) -> MapSession*
 {
     TracyZoneScoped;
 
-    for (const auto& [_, session] : sessions_)
-    {
-        if (session->PChar && session->PChar->name == name)
-        {
-            return session.get();
-        }
-    }
+    const auto it = std::ranges::find_if(sessions_,
+                                         [&](const auto& entry)
+                                         {
+                                             return entry.second->PChar && entry.second->PChar->name == name;
+                                         });
 
-    return nullptr;
+    return it != sessions_.end() ? it->second.get() : nullptr;
 }
 
 void MapSessionContainer::cleanupSessions(IPP mapIPP)
@@ -248,7 +243,8 @@ void MapSessionContainer::cleanupSessions(IPP mapIPP)
                     // Player session is attached to this map process and has stopped responding.
                     if (!otherMap)
                     {
-                        map_session_data->PChar->StatusEffectContainer->SaveStatusEffects(true);
+                        persist::flush(PChar, IsLogout::Yes);
+
                         db::preparedStmt("DELETE FROM accounts_sessions WHERE charid = ?", map_session_data->charID);
 
                         // Save position if d/c or logout/shutdown
@@ -274,7 +270,7 @@ void MapSessionContainer::cleanupSessions(IPP mapIPP)
                 }
                 else
                 {
-                    ShowWarning("map_cleanup: WITHOUT CHAR timed out, session closed on this process");
+                    ShowWarningFmt("map_cleanup: session {} (charid {}) timed out without a character, closing", map_session_data->client_ipp.toString(), map_session_data->charID);
                     if (!otherMap)
                     {
                         db::preparedStmt("DELETE FROM accounts_sessions WHERE charid = ?", map_session_data->charID);
@@ -312,7 +308,7 @@ void MapSessionContainer::cleanupSessions(IPP mapIPP)
 
             if (now > map_session_data->last_update + std::chrono::seconds(timeoutSetting))
             {
-                ShowDebugFmt("Clearing map server pending session for pending char ID: '{}'", map_session_data->charID);
+                ShowWarningFmt("map_cleanup: pending session for charid {} expired, client did not connect", map_session_data->charID);
 
                 db::preparedStmt("DELETE FROM accounts_sessions WHERE charid = ?", map_session_data->charID);
 
@@ -321,6 +317,27 @@ void MapSessionContainer::cleanupSessions(IPP mapIPP)
 
             return false; // Keep
         });
+}
+
+void MapSessionContainer::shutdown()
+{
+    TracyZoneScoped;
+
+    while (!sessions_.empty())
+    {
+        destroySession(sessions_.begin()->second.get());
+    }
+
+    for (auto& [charId, session] : pending_sessions_)
+    {
+        if (session->PChar && session->PChar->loc.zone)
+        {
+            session->PChar->loc.zone->DecreaseZoneCounter(session->PChar.get());
+        }
+
+        session->PChar.reset();
+    }
+    pending_sessions_.clear();
 }
 
 void MapSessionContainer::destroySession(IPP ipp)

@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,19 +19,17 @@
 ===========================================================================
 */
 
-#ifndef _MOBENTITY_H
-#define _MOBENTITY_H
+#pragma once
 
 #include "battle_entity.h"
 
 #include <array>
 
+#include <common/types/flat_hash_map.h>
 #include <common/types/hash_map.h>
 #include <common/types/maybe.h>
 
 #include "data/enums/behavior.h"
-#include "data/enums/claim_type.h"
-#include "data/enums/detects.h"
 #include "data/enums/mob_mod.h"
 #include "data/enums/mob_type.h"
 #include "data/enums/roam_flag.h"
@@ -43,6 +41,7 @@ enum class MsgBasic : uint16_t;
 class CMobSpellContainer;
 class CMobSpellList;
 class CEnmityContainer;
+class RoamRegion;
 class SpawnSlot;
 
 // Per-mob spawn window in Vana'diel hours; the mob spawns only within [spawnHour, despawnHour) (wraps past midnight).
@@ -60,6 +59,8 @@ enum SPECIALFLAG
 
 class CMobSkillState;
 
+struct DropList_t;
+
 class CMobEntity : public CBattleEntity
 {
 public:
@@ -69,8 +70,14 @@ public:
     auto getEntityFlags() const -> xi::EntityFlags;   // Returns the current value in m_flags
     void setEntityFlags(xi::EntityFlags EntityFlags); // Change the current value in m_flags
 
-    bool IsFarFromHome();      // check if mob is too far from spawn
-    bool CanBeNeutral() const; // check if mob can have killing pause
+    bool IsFarFromHome(); // check if mob is too far from spawn
+
+    auto DistanceFromHome() const -> float;                      // how far it strayed: outside its roam region, or from its spawn point when it has none
+    auto GetRoamAnchor() const -> position_t;                    // the point roaming is measured from
+    void setRoamRegions(std::vector<const RoamRegion*> regions); // one is picked on every spawn and its edge is the roam limit, so m_maxRoamDistance drops to 0
+    auto roamRegion() const -> const RoamRegion*;                // the region picked for this life, null for a point spawner
+    auto dropList() const -> const DropList_t*;
+    void setPatrolRoute(std::vector<position_t> route); // walked as a loop from every spawn
 
     bool shouldUseTPMove(uint16 tpThreshold); // return true to use a TP move, checked on on 400ms tick interval
 
@@ -97,7 +104,7 @@ public:
     bool CanDropGil();    // mob has gil to drop
     bool CanStealGil();   // can steal gil from mob
     void ResetGilPurse(); // reset total gil held
-    auto GetEligibleSeals() -> std::vector<uint16>;
+    auto GetEligibleSeals() const -> std::vector<uint16>;
     auto GetEligibleGeodes() const -> std::vector<uint16>;
 
     void setMobMod(xi::MobMod type, int16 value);
@@ -117,7 +124,6 @@ public:
 
     void         PostTick() override;
     float        GetRoamDistance();
-    float        GetRoamRate();
     virtual bool ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags) override;
 
     virtual void HandleErrorMessage(std::unique_ptr<CBasicPacket>&) override
@@ -153,7 +159,8 @@ public:
     timer::duration m_RespawnTime;  // respawn time
     timer::duration m_DropItemTime; // time until monster death animation
 
-    uint32 m_DropID; // dropid of items to be dropped. dropid in Database (mob_droplist)
+    uint32            m_DropID;     // global drop list from SQL. To be deprecated
+    const DropList_t* m_DropList{}; // shared by every spawn of one template, null when the template has no loot
 
     uint8  m_minLevel; // lowest possible level of the mob
     uint8  m_maxLevel; // highest possible level of the mob
@@ -235,12 +242,13 @@ protected:
 
 private:
     timer::time_point                     m_DespawnTimer{ timer::time_point::min() }; // Despawn Timer to despawn mob after set duration
-    HashMap<xi::MobMod, int16>            m_mobModStat;
-    HashMap<xi::MobMod, int16>            m_mobModStatSave;
+    FlatHashMap<xi::MobMod, int16>        m_mobModStat;
+    FlatHashMap<xi::MobMod, int16>        m_mobModStatSave;
     HashMap<uint16, std::array<float, 3>> m_fTPModifierOverrides;
     static constexpr float                roam_home_distance{ 60.f };
     SpawnSlot*                            spawnSlot = nullptr;
     Maybe<SpawnWindow>                    spawnWindow_;
+    std::vector<const RoamRegion*>        roamRegions_;           // areas it may spawn in, owned by the zone
+    const RoamRegion*                     roamRegion_{ nullptr }; // the one picked for this life
+    std::vector<position_t>               patrolRoute_;           // waypoints it loops while roaming, empty for a free roamer
 };
-
-#endif

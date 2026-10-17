@@ -5,13 +5,7 @@
 -----------------------------------
 require('modules/module_utils')
 -----------------------------------
-local moduleName = 'soa_tp_gain'
-
-if xi.module.isContentEnabled('SOA') then
-    return { name = moduleName }
-end
-
-local m = Module:new(moduleName)
+local m = Module:new('soa_tp_gain', xi.pre(xi.expansion.SOA))
 
 -- all entities will use the this formula
 -- gainee is unused, in the normal code we need to pull objtype but not here
@@ -21,7 +15,7 @@ m:addOverride('xi.combat.tp.calculateTPReturn', function(gainee, delay)
     if delay > 530 then
         tpReturn = 145 + (delay - 530) * 35 / 470
     elseif delay > 480 then
-        tpReturn = 130 + (delay - 480) * 15 / 30
+        tpReturn = 130 + (delay - 480) * 15 / 50
     elseif delay > 450 then
         tpReturn = 115 + (delay - 450) * 15 / 30
     elseif delay > 180 then
@@ -32,5 +26,3 @@ m:addOverride('xi.combat.tp.calculateTPReturn', function(gainee, delay)
 
     return math.floor(tpReturn)
 end)
-
-return m

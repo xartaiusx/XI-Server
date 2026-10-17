@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,6 +19,7 @@
 ===========================================================================
 */
 
+#include <algorithm>
 #include <cstring>
 
 #include "battlefield.h"
@@ -159,26 +160,22 @@ CBattlefield* CBattlefieldHandler::GetBattlefield(CBaseEntity* PEntity, bool che
 {
     auto* entity = dynamic_cast<CBattleEntity*>(PEntity);
 
-    if (checkRegistered && entity && entity->objtype == TYPE_PC)
+    if (auto* PChar = dynamic_cast<CCharEntity*>(entity); checkRegistered && PChar)
     {
-        for (auto& [area, battlefield] : m_Battlefields)
-        {
-            if (battlefield->IsRegistered(static_cast<CCharEntity*>(entity)))
-            {
-                return battlefield.get();
-            }
-        }
-        return nullptr;
+        const auto it = std::ranges::find_if(m_Battlefields,
+                                             [&](const auto& entry)
+                                             {
+                                                 return entry.second->IsRegistered(PChar) && entry.second->HasClearance(PChar);
+                                             });
+        return it != m_Battlefields.end() ? it->second.get() : nullptr;
     }
 
-    for (auto& [area, battlefield] : m_Battlefields)
-    {
-        if (battlefield->GetEntity(entity))
-        {
-            return battlefield.get();
-        }
-    }
-    return nullptr;
+    const auto it = std::ranges::find_if(m_Battlefields,
+                                         [&](const auto& entry)
+                                         {
+                                             return entry.second->GetEntity(entity);
+                                         });
+    return it != m_Battlefields.end() ? it->second.get() : nullptr;
 }
 
 CBattlefield* CBattlefieldHandler::GetBattlefieldByArea(uint8 area) const
@@ -189,14 +186,34 @@ CBattlefield* CBattlefieldHandler::GetBattlefieldByArea(uint8 area) const
 
 CBattlefield* CBattlefieldHandler::GetBattlefieldByInitiator(uint32 charID)
 {
+    const auto it = std::ranges::find_if(m_Battlefields,
+                                         [&](const auto& entry)
+                                         {
+                                             return entry.second->GetInitiator().id == charID;
+                                         });
+    return it != m_Battlefields.end() ? it->second.get() : nullptr;
+}
+
+CBattlefield* CBattlefieldHandler::GetRegisteredBattlefield(CCharEntity* PChar)
+{
+    const auto it = std::ranges::find_if(m_Battlefields,
+                                         [&](const auto& entry)
+                                         {
+                                             return entry.second->IsRegistered(PChar);
+                                         });
+    return it != m_Battlefields.end() ? it->second.get() : nullptr;
+}
+
+// A registration the clearance effect does not name is left over from an earlier party
+void CBattlefieldHandler::RemoveOtherRegistrations(CCharEntity* PChar, const CBattlefield* PKeep)
+{
     for (auto& [area, battlefield] : m_Battlefields)
     {
-        if (battlefield->GetInitiator().id == charID)
+        if (battlefield.get() != PKeep)
         {
-            return battlefield.get();
+            battlefield->RemoveRegistration(PChar);
         }
     }
-    return nullptr;
 }
 
 uint8 CBattlefieldHandler::RegisterBattlefield(CCharEntity* PChar, const BattlefieldRegistration& registration)
@@ -209,12 +226,13 @@ uint8 CBattlefieldHandler::RegisterBattlefield(CCharEntity* PChar, const Battlef
     // attempt to add to an existing battlefield
     auto* PBattlefield = GetBattlefield(PChar, true);
 
-    // Could not find this character registered, try find by id and initiator
+    // Could not find this character registered, try find by id and initiator. This is how party
+    // members get registered, after the initiator copied their clearance effect onto them.
     if (!PBattlefield)
     {
         for (const auto& [area, battlefield] : m_Battlefields)
         {
-            if (battlefield->GetInitiator().id == registration.initiator && battlefield->GetID() == registration.id)
+            if (battlefield->GetInitiator().id == registration.initiator && battlefield->GetID() == registration.id && battlefield->HasClearance(PChar))
             {
                 PBattlefield = battlefield.get();
                 break;
@@ -229,18 +247,30 @@ uint8 CBattlefieldHandler::RegisterBattlefield(CCharEntity* PChar, const Battlef
                 // Do not allow them to attain a new registration
                 return BATTLEFIELD_RETURN_CODE_REQS_NOT_MET;
             }
-            // ...but they did have the flag to enter an existing one
+            // ...but they opened the menu with clearance that the fight then took away. Retail answers
+            // WAIT for the other arenas and LOCKED for the party's own.
             if (PChar->GetLocalVar("[BCNM]EnterExisting") == 1)
             {
-                // Reset the flag, and do not allow them to attain a new registration
+                auto* PLocked = GetRegisteredBattlefield(PChar);
+                if (PLocked && registration.area != PLocked->GetArea())
+                {
+                    return BATTLEFIELD_RETURN_CODE_WAIT;
+                }
+
                 PChar->SetLocalVar("[BCNM]EnterExisting", 0);
+                if (PLocked)
+                {
+                    return BATTLEFIELD_RETURN_CODE_LOCKED;
+                }
                 return BATTLEFIELD_RETURN_CODE_REQS_NOT_MET;
             }
         }
     }
-    // If they have a Registered Battlefield -AND- they have the Battlefield Status Effect
-    if (PBattlefield && PChar->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Battlefield))
+    // Registered battlefields are only found through the Battlefield Status Effect that names them
+    if (PBattlefield)
     {
+        RemoveOtherRegistrations(PChar, PBattlefield);
+
         // Reset their progress var to 0 and proceed to attempt to enter them into the BCNM
         PChar->SetLocalVar("[BCNM]EnterExisting", 0);
         if (!PBattlefield->CheckInProgress())
@@ -260,6 +290,8 @@ uint8 CBattlefieldHandler::RegisterBattlefield(CCharEntity* PChar, const Battlef
             return BATTLEFIELD_RETURN_CODE_LOCKED;
         }
     }
+
+    RemoveOtherRegistrations(PChar, nullptr);
     return LoadBattlefield(PChar, registration);
 }
 
@@ -271,14 +303,11 @@ bool CBattlefieldHandler::RemoveFromBattlefield(CBaseEntity* PEntity, CBattlefie
 
 bool CBattlefieldHandler::IsRegistered(CCharEntity* PChar)
 {
-    for (const auto& [area, battlefield] : m_Battlefields)
-    {
-        if (battlefield->IsRegistered(PChar))
-        {
-            return true;
-        }
-    }
-    return false;
+    return std::ranges::any_of(m_Battlefields,
+                               [&](const auto& entry)
+                               {
+                                   return entry.second->IsRegistered(PChar);
+                               });
 }
 
 bool CBattlefieldHandler::ReachedMaxCapacity(int battlefieldId) const
@@ -306,4 +335,21 @@ void CBattlefieldHandler::addOrphanedPlayer(CCharEntity* PChar)
 {
     auto orphan = std::make_pair(PChar->id, timer::now() + 5s);
     m_orphanedPlayers.emplace_back(orphan);
+}
+
+void CBattlefieldHandler::RestoreClearance(CCharEntity* PChar)
+{
+    if (PChar->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Battlefield))
+    {
+        return;
+    }
+
+    for (auto& [area, battlefield] : m_Battlefields)
+    {
+        if (battlefield->IsRegistered(PChar) && !battlefield->CheckInProgress())
+        {
+            battlefield->GrantClearance(PChar);
+            return;
+        }
+    }
 }

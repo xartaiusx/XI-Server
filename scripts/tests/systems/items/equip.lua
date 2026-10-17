@@ -67,6 +67,50 @@ describe('Equipment', function()
         assert(player:getEquippedItem(xi.slot.SUB) == nil)
     end)
 
+    it('swapping the main weapon keeps a dual-wield offhand', function()
+        player = xi.test.world:spawnPlayer({ job = xi.job.NIN, level = 75, zone = xi.zone.SOUTHERN_SAN_DORIA })
+        player:addItem(xi.item.KUNAI)
+        player:addItem(xi.item.WAKIZASHI)
+        player:addItem(xi.item.BRONZE_KNIFE)
+        player:equipItem(xi.item.KUNAI, nil, xi.slot.MAIN)
+        player:equipItem(xi.item.BRONZE_KNIFE, nil, xi.slot.SUB)
+        assert(player:getEquippedItem(xi.slot.SUB), 'offhand not equipped')
+
+        player:equipItem(xi.item.WAKIZASHI, nil, xi.slot.MAIN) -- one-handed -> one-handed swap
+
+        assert(player:getEquippedItem(xi.slot.MAIN):getID() == xi.item.WAKIZASHI, 'main did not swap')
+        assert(player:getEquippedItem(xi.slot.SUB), 'offhand wrongly removed on a main swap')
+        assert(player:getEquippedItem(xi.slot.SUB):getID() == xi.item.BRONZE_KNIFE, 'offhand changed')
+    end)
+
+    it('switching from a two-handed weapon with a grip to a one-handed weapon drops the grip', function()
+        player:addItem(xi.item.GREATSWORD)
+        player:addItem(xi.item.POLE_GRIP)
+        player:addItem(xi.item.BRONZE_SWORD)
+        player:equipItem(xi.item.GREATSWORD, nil, xi.slot.MAIN)
+        player:equipItem(xi.item.POLE_GRIP, nil, xi.slot.SUB)
+        assert(player:getEquippedItem(xi.slot.SUB):getID() == xi.item.POLE_GRIP, 'grip not equipped')
+
+        player:equipItem(xi.item.BRONZE_SWORD, nil, xi.slot.MAIN) -- two-handed -> one-handed
+
+        assert(player:getEquippedItem(xi.slot.MAIN):getID() == xi.item.BRONZE_SWORD, 'main did not swap')
+        assert(player:getEquippedItem(xi.slot.SUB) == nil, 'grip should drop on a one-handed main')
+    end)
+
+    it('unequipping the main weapon entirely drops the dual-wield offhand', function()
+        player = xi.test.world:spawnPlayer({ job = xi.job.NIN, level = 75, zone = xi.zone.SOUTHERN_SAN_DORIA })
+        player:addItem(xi.item.KUNAI)
+        player:addItem(xi.item.BRONZE_KNIFE)
+        player:equipItem(xi.item.KUNAI, nil, xi.slot.MAIN)
+        player:equipItem(xi.item.BRONZE_KNIFE, nil, xi.slot.SUB)
+        assert(player:getEquippedItem(xi.slot.SUB), 'offhand not equipped')
+
+        player.actions:equipSet({ { index = 0, kind = xi.slot.MAIN, container = xi.inv.INVENTORY } })
+
+        assert(player:getEquippedItem(xi.slot.MAIN) == nil, 'main still equipped')
+        assert(player:getEquippedItem(xi.slot.SUB) == nil, 'offhand should drop when the main is removed entirely')
+    end)
+
     it('equipping the same item again is a no-op', function()
         player:addItem(xi.item.BRONZE_SWORD)
         player:equipItem(xi.item.BRONZE_SWORD, nil, xi.slot.MAIN)
@@ -85,6 +129,30 @@ describe('Equipment', function()
         player:changeJob(xi.job.BLM)
 
         assert(player:getEquippedItem(xi.slot.MAIN) == nil)
+    end)
+
+    it('changing job back re-equips gear from the last inventory slot', function()
+        player:gotoMogHouse(xi.zone.WINDURST_WOODS)
+        if player:isInEvent() then
+            player.events:finish()
+        end
+
+        while player:getFreeSlotsCount() > 1 do
+            player:addItem(xi.item.BRONZE_CAP)
+        end
+
+        player:addItem(xi.item.BRONZE_SWORD)
+        player:equipItem(xi.item.BRONZE_SWORD, nil, xi.slot.MAIN)
+        assert(player:getEquippedItem(xi.slot.MAIN))
+
+        player.actions:changeJob(xi.job.WHM)
+        assert(player:getEquippedItem(xi.slot.MAIN) == nil)
+
+        player.actions:changeJob(xi.job.WAR)
+
+        local weapon = player:getEquippedItem(xi.slot.MAIN)
+        assert(weapon, 'main hand not re-equipped')
+        assert(weapon:getID() == xi.item.BRONZE_SWORD)
     end)
 
     it('equipped ammo stack decrements on use', function()

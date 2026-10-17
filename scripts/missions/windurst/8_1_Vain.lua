@@ -72,35 +72,107 @@ mission.sections =
             return currentMission == mission.missionId
         end,
 
+        [xi.zone.PORT_WINDURST] =
+        {
+            ['Janshura-Rashura'] = mission:event(479),
+
+            ['Nine_of_Clubs'] = mission:event(480),
+
+            ['Puo_Rhen'] = mission:event(482),
+
+            ['Ten_of_Clubs'] = mission:event(481),
+        },
+
+        [xi.zone.WINDURST_WALLS] =
+        {
+            ['Chawo_Shipeynyo'] = mission:event(374),
+
+            ['Keo-Koruo'] = mission:event(373),
+
+            ['Pakke-Pokke'] = mission:event(372),
+
+            ['Zokima-Rokima'] = mission:event(371),
+        },
+
         [xi.zone.WINDURST_WATERS] =
         {
+            ['Dagoza-Beruza'] = mission:event(749),
+
+            ['Fuepepe'] =
+            {
+                onTrigger = function(player, npc)
+                    if player:getMissionStatus(mission.areaId) >= 1 then
+                        return mission:event(755)
+                    end
+                end,
+            },
+
+            ['Mimomo'] = mission:event(757),
+
+            ['Mokyokyo'] = mission:event(748),
+
             ['Moreno-Toeno'] =
             {
                 onTrigger = function(player, npc)
                     local missionStatus = player:getMissionStatus(mission.areaId)
 
                     if missionStatus == 0 then
-                        return mission:progressEvent(752, 0, xi.ki.STAR_SEEKER)
+                        return mission:progressEvent(752, 0, xi.keyItem.AURASTERY_RING)
                     elseif missionStatus <= 3 then
-                        return mission:progressEvent(753)
+                        return mission:event(753)
                     elseif missionStatus == 4 then
                         return mission:progressEvent(758)
                     end
                 end,
             },
 
+            ['Panna-Donna'] = mission:event(750),
+
+            ['Pechiru-Mashiru'] =
+            {
+                onTrigger = function(player, npc)
+                    if player:getMissionStatus(mission.areaId) >= 1 then
+                        return mission:event(754)
+                    end
+                end,
+            },
+
+            ['Tauwawa'] =
+            {
+                onTrigger = function(player, npc)
+                    if player:getMissionStatus(mission.areaId) >= 1 then
+                        return mission:event(756)
+                    end
+                end,
+            },
+
+            ['Ten_of_Hearts'] = mission:event(751),
+
             onEventFinish =
             {
                 [752] = function(player, csid, option, npc)
                     player:setMissionStatus(mission.areaId, 1)
-                    npcUtil.giveKeyItem(player, xi.ki.STAR_SEEKER)
+                    npcUtil.giveKeyItem(player, xi.keyItem.STAR_SEEKER)
                     player:addTitle(xi.title.FUGITIVE_MINISTER_BOUNTY_HUNTER)
                 end,
 
                 [758] = function(player, csid, option, npc)
-                    mission:complete(player)
+                    if mission:complete(player) then
+                        player:delKeyItem(xi.keyItem.MAGIC_DRAINED_STAR_SEEKER)
+                    end
                 end,
             },
+        },
+
+        [xi.zone.WINDURST_WOODS] =
+        {
+            ['Miiri-Wohri'] = mission:event(580),
+
+            ['Rakoh_Buuma'] = mission:event(579),
+
+            ['Sola_Jaab'] = mission:event(581, 0, 2), -- TODO: Param 3 may differ. Unconfirmed.
+
+            ['Tih_Pikeh'] = mission:event(582),
         },
 
         [xi.zone.BATALLIA_DOWNS] =
@@ -170,9 +242,9 @@ mission.sections =
                     if
                         npcUtil.tradeMatches(trade, { { xi.item.CURSE_WAND, 1 } }) and
                         player:getMissionStatus(mission.areaId) == 3 and
-                        player:hasKeyItem(xi.ki.MAGIC_DRAINED_STAR_SEEKER)
+                        player:hasKeyItem(xi.keyItem.MAGIC_DRAINED_STAR_SEEKER)
                     then
-                        return mission:progressEvent(120)
+                        return mission:progressCutscene(120)
                     end
                 end,
 
@@ -180,15 +252,15 @@ mission.sections =
                     local missionStatus = player:getMissionStatus(mission.areaId)
 
                     if missionStatus >= 2 then
-                        if player:hasKeyItem(xi.ki.STAR_SEEKER) then
-                            return mission:progressEvent(118, 0, xi.item.CURSE_WAND, xi.ki.STAR_SEEKER)
+                        if player:hasKeyItem(xi.keyItem.STAR_SEEKER) then
+                            return mission:progressCutscene(118, 0, xi.item.CURSE_WAND, xi.keyItem.STAR_SEEKER)
                         elseif
-                            player:hasKeyItem(xi.ki.MAGIC_DRAINED_STAR_SEEKER) and
+                            player:hasKeyItem(xi.keyItem.MAGIC_DRAINED_STAR_SEEKER) and
                             missionStatus == 4
                         then
-                            return mission:progressEvent(121)
+                            return mission:event(121)
                         else
-                            return mission:progressEvent(119, 0, xi.item.CURSE_WAND)
+                            return mission:event(119, 0, xi.item.CURSE_WAND, xi.keyItem.STAR_SEEKER)
                         end
                     end
                 end,
@@ -197,8 +269,8 @@ mission.sections =
             onEventFinish =
             {
                 [118] = function(player, csid, option, npc)
-                    player:delKeyItem(xi.ki.STAR_SEEKER)
-                    npcUtil.giveKeyItem(player, xi.ki.MAGIC_DRAINED_STAR_SEEKER)
+                    player:delKeyItem(xi.keyItem.STAR_SEEKER)
+                    npcUtil.giveKeyItem(player, xi.keyItem.MAGIC_DRAINED_STAR_SEEKER)
                     player:setMissionStatus(mission.areaId, 3)
                 end,
 
@@ -378,8 +450,8 @@ mission.sections =
             ['QuHau_Spring'] =
             {
                 onTrigger = function(player, npc)
-                    if player:getMissionStatus(mission.areaId) >= 1 then
-                        return mission:progressEvent(2)
+                    if player:getMissionStatus(mission.areaId) == 1 then
+                        return mission:progressCutscene(2)
                     end
                 end,
             },

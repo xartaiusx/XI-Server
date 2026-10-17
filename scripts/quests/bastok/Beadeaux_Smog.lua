@@ -10,7 +10,7 @@ local quest = Quest:new(xi.questLog.BASTOK, xi.quest.id.bastok.BEADEAUX_SMOG)
 
 quest.reward =
 {
-    fame = 30,
+    fame = 40,
     fameArea = xi.fameArea.BASTOK,
     title = xi.title.BEADEAUX_SURVEYOR,
 }
@@ -49,7 +49,7 @@ quest.sections =
             ['qm1'] =
             {
                 onTrigger = function(player, npc)
-                    return quest:keyItem(xi.ki.CORRUPTED_DIRT)
+                    return quest:keyItem(xi.keyItem.CORRUPTED_DIRT)
                 end,
             },
         },

@@ -29,7 +29,7 @@ zoneObject.onZoneIn = function(player, prevZone)
     end
 
     if
-        not player:hasKeyItem(xi.ki.VIAL_OF_SHROUDED_SAND) and
+        not player:hasKeyItem(xi.keyItem.VIAL_OF_SHROUDED_SAND) and
         player:getRank(player:getNation()) >= 6 and
         player:getMainLvl() >= xi.settings.main.DYNA_LEVEL_MIN and
         not utils.mask.getBit(dynamisMask, 0)
@@ -48,6 +48,10 @@ zoneObject.onZoneIn = function(player, prevZone)
     end
 
     return cs
+end
+
+zoneObject.afterZoneIn = function(player)
+    xi.monstrosity.applyBelligerencyCap(player)
 end
 
 zoneObject.onConquestUpdate = function(zone, updatetype, influence, owner, ranking, isConquestAlliance)

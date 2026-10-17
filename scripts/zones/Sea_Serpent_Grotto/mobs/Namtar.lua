@@ -2,21 +2,8 @@
 -- Area: Sea Serpent Grotto
 --   NM: Namtar
 -----------------------------------
-local ID = zones[xi.zone.SEA_SERPENT_GROTTO]
------------------------------------
 ---@type TMobEntity
 local entity = {}
-
-entity.spawnPoints =
-{
-    { x = -148.457, y =  9.171, z =  175.332 }
-}
-
-entity.phList =
-{
-    [ID.mob.NAMTAR - 6] = ID.mob.NAMTAR, -- Confirmed on retail
-    [ID.mob.NAMTAR - 1] = ID.mob.NAMTAR, -- Confirmed on retail
-}
 
 entity.onMobInitialize = function(mob)
     mob:addImmunity(xi.immunity.LIGHT_SLEEP)

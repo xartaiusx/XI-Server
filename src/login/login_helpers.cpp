@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2023 LandSandBoat Dev Teams
@@ -21,14 +21,26 @@
 
 #include "login_helpers.h"
 
+#include "common/settings.h"
+#include "login_errors.h"
+
 #include "common/md52.h"
 #include <common/lua.h>
 
 #include <common/types/hash_map.h>
 
+#include "common/enum_traits.h"
+#include "data/datasets/zones/mobs/dataset.h"
+#include "data/datasets/zones/npcs/dataset.h"
+#include "data/datasets/zones/settings/dataset.h"
+#include "data/enums/zone.h"
+#include "data/enums/zone_type.h"
+#include "data/loader.h"
+
+#include <algorithm>
 #include <array>
-#include <cstring>
 #include <fstream>
+#include <unordered_set>
 
 namespace loginHelpers
 {
@@ -158,6 +170,77 @@ auto isVulgarName(const std::string& name) -> bool
     return false;
 }
 
+auto comparableName(const std::string_view name) -> std::string
+{
+    std::string comparable;
+    comparable.reserve(name.size());
+    for (auto ch : name)
+    {
+        if (ch == '-' || ch == '_')
+        {
+            continue;
+        }
+
+        if (ch >= 'a' && ch <= 'z')
+        {
+            ch -= ('a' - 'A');
+        }
+
+        comparable.push_back(ch);
+    }
+
+    return comparable;
+}
+
+// Every name the client can see on an npc or a mob, read once.
+// Zone entities come from the zone files.
+// Trusts, pets and instance-only entities are still rows in the SQL tables.
+auto entityNames() -> const std::unordered_set<std::string>&
+{
+    static const auto names = []
+    {
+        std::unordered_set<std::string> collected;
+
+        const auto poolNames = db::preparedStmt("SELECT packet_name FROM mob_pools WHERE packet_name != ''");
+        FOR_DB_MULTIPLE_RESULTS(poolNames)
+        {
+            collected.emplace(comparableName(poolNames->get<std::string>("packet_name")));
+        }
+
+        const auto npcNames = db::preparedStmt("SELECT polutils_name FROM npc_list WHERE polutils_name != ''");
+        FOR_DB_MULTIPLE_RESULTS(npcNames)
+        {
+            collected.emplace(comparableName(npcNames->get<std::string>("polutils_name")));
+        }
+
+        for (const auto& [key, zoneId] : xi::data::EnumTraits<xi::ZoneId>::kEntries)
+        {
+            if (const auto npcs = xi::data::loadZoneFile<xi::data::datasets::zones::npcs::Dataset>(zoneId))
+            {
+                for (const auto& npc : *npcs)
+                {
+                    if (!npc.DisplayName.empty())
+                    {
+                        collected.emplace(comparableName(npc.DisplayName));
+                    }
+                }
+            }
+
+            if (const auto mobs = xi::data::loadZoneFile<xi::data::datasets::zones::mobs::Dataset>(zoneId))
+            {
+                for (const auto& [templateName, mobTemplate] : mobs->Templates)
+                {
+                    collected.emplace(comparableName(mobTemplate.DisplayName));
+                }
+            }
+        }
+
+        return collected;
+    }();
+
+    return names;
+}
+
 } // namespace
 
 Maybe<std::string> validateCharacterName(const std::string& name)
@@ -192,21 +275,7 @@ Maybe<std::string> validateCharacterName(const std::string& name)
     // (optional) Check if the name is in use by NPC or Mob entities
     if (settings::get<bool>("login.DISABLE_MOB_NPC_CHAR_NAMES"))
     {
-        const auto query =
-            "SELECT polutils_name AS `name` FROM npc_list "
-            "WHERE REPLACE(REPLACE(UPPER(polutils_name), '-', ''), '_', '') "
-            "LIKE REPLACE(REPLACE(UPPER(?), '-', ''), '_', '') "
-            "UNION "
-            "SELECT packet_name AS `name` FROM mob_pools "
-            "WHERE REPLACE(REPLACE(UPPER(packet_name), '-', ''), '_', '') "
-            "LIKE REPLACE(REPLACE(UPPER(?), '-', ''), '_', '')";
-
-        const auto rset1 = db::preparedStmt(query, name, name);
-        if (!rset1)
-        {
-            return "Internal entity name query failed";
-        }
-        else if (rset1->rowsCount() != 0)
+        if (entityNames().contains(comparableName(name)))
         {
             return "Name already in use.";
         }
@@ -221,7 +290,7 @@ Maybe<std::string> validateCharacterName(const std::string& name)
         for (const auto& entry : badWordsList)
         {
             const auto badWord = to_upper(entry.second.as<std::string>());
-            if (potentialName.find(badWord) != std::string::npos)
+            if (potentialName.contains(badWord))
             {
                 return fmt::format("Name matched with bad words list <{}>.", badWord);
             }
@@ -237,12 +306,78 @@ Maybe<std::string> validateCharacterName(const std::string& name)
     return std::nullopt;
 }
 
+auto characterCreationError(const uint32 accountID, const std::string& name) -> Maybe<uint16>
+{
+    if (settings::get<uint8>("login.MAINT_MODE") > 0 || !settings::get<bool>("login.CHARACTER_CREATION"))
+    {
+        return loginErrors::errorCode::FAILED_TO_REGISTER_WITH_THE_NAME_SERVER;
+    }
+
+    if (const auto invalidNameReason = validateCharacterName(name))
+    {
+        ShowWarning(fmt::format("new character name error <{}>: {}", name, *invalidNameReason));
+        return loginErrors::errorCode::CHARACTER_NAME_UNAVAILABLE;
+    }
+
+    const auto rset = db::preparedStmt("SELECT content_ids, (SELECT COUNT(*) FROM chars WHERE accid = accounts.id) AS chars FROM accounts WHERE id = ?", accountID);
+    if (!rset || !rset->rowsCount() || !rset->next() || rset->get<uint32>("chars") >= rset->get<uint32>("content_ids"))
+    {
+        return loginErrors::errorCode::FAILED_TO_REGISTER_WITH_THE_NAME_SERVER;
+    }
+
+    return std::nullopt;
+}
+
 // [ip_addr][session_hash] = session
 HashMap<std::string, std::map<std::string, session_t>> authenticatedSessions_;
 
 HashMap<std::string, std::map<std::string, session_t>>& getAuthenticatedSessions()
 {
     return authenticatedSessions_;
+}
+
+namespace
+{
+
+constexpr auto LOGIN_FAILURE_WINDOW = std::chrono::seconds(60);
+constexpr auto LOGIN_FAILURE_LIMIT  = 5;
+
+HashMap<std::string, std::pair<uint8, timer::time_point>> loginFailures_;
+
+} // namespace
+
+auto isLoginLockedOut(const std::string& ipAddr) -> bool
+{
+    const auto it = loginFailures_.find(ipAddr);
+    if (it == loginFailures_.end())
+    {
+        return false;
+    }
+
+    if (timer::now() > it->second.second + LOGIN_FAILURE_WINDOW)
+    {
+        loginFailures_.erase(it);
+        return false;
+    }
+
+    return it->second.first >= LOGIN_FAILURE_LIMIT;
+}
+
+void recordLoginFailure(const std::string& ipAddr)
+{
+    auto& [count, last] = loginFailures_[ipAddr];
+    if (timer::now() > last + LOGIN_FAILURE_WINDOW)
+    {
+        count = 0;
+    }
+
+    ++count;
+    last = timer::now();
+}
+
+void clearLoginFailures(const std::string& ipAddr)
+{
+    loginFailures_.erase(ipAddr);
 }
 
 bool isStringMalformed(const std::string& str, std::size_t max_length)
@@ -255,10 +390,7 @@ bool isStringMalformed(const std::string& str, std::size_t max_length)
     const bool isEmpty   = str.empty();
     const bool isTooLong = str.size() > max_length;
 
-    const bool hasInvalidChar = std::any_of(
-        str.cbegin(),
-        str.cend(),
-        unprintableChar);
+    const bool hasInvalidChar = std::ranges::any_of(str, unprintableChar);
 
     return isEmpty || isTooLong || hasInvalidChar;
 }
@@ -268,7 +400,38 @@ session_t& get_authenticated_session(const std::string& ipAddr, const std::strin
     return authenticatedSessions_[ipAddr][sessionHash]; // NOTE: Will construct if doesn't exist
 }
 
-auto isZoneAtPlayerCap(uint16 zoneId, bool isGM) -> bool
+auto instancedZones() -> const std::unordered_set<xi::ZoneId>&
+{
+    static const auto zones = []
+    {
+        std::unordered_set<xi::ZoneId> instanced;
+        for (const auto& [name, zoneId] : xi::data::EnumTraits<xi::ZoneId>::kEntries)
+        {
+            const auto settings = xi::data::loadZoneFile<xi::data::datasets::zones::settings::Dataset>(zoneId);
+            if (settings && (settings->Type & xi::ZoneType::Instanced) != xi::ZoneType::Unknown)
+            {
+                instanced.insert(zoneId);
+            }
+        }
+
+        return instanced;
+    }();
+
+    return zones;
+}
+
+void loadZoneLookups()
+{
+    instancedZones();
+
+    // The name set is the expensive one, and only this setting reads it.
+    if (settings::get<bool>("login.DISABLE_MOB_NPC_CHAR_NAMES"))
+    {
+        entityNames();
+    }
+}
+
+auto isZoneAtPlayerCap(const xi::ZoneId zoneId, const bool isGM) -> bool
 {
     const auto cap = settings::get<uint16>("map.ZONE_PLAYER_CAP");
     if (cap == 0)
@@ -279,23 +442,19 @@ auto isZoneAtPlayerCap(uint16 zoneId, bool isGM) -> bool
     const auto reserved  = settings::get<uint16>("map.ZONE_PLAYER_GM_RESERVED");
     const auto threshold = isGM ? cap : static_cast<uint16>(cap > reserved ? cap - reserved : 0);
 
+    if (instancedZones().contains(zoneId))
+    {
+        return false;
+    }
+
     const auto rset = db::preparedStmt(
-        "SELECT z.zonetype, "
-        "  (SELECT COUNT(*) FROM accounts_sessions s "
-        "    JOIN chars c ON c.charid = s.charid "
-        "    WHERE c.pos_zone = ?) AS pop "
-        "FROM zone_settings z WHERE z.zoneid = ? LIMIT 1",
-        zoneId,
+        "SELECT COUNT(*) AS pop FROM accounts_sessions s "
+        "JOIN chars c ON c.charid = s.charid "
+        "WHERE c.pos_zone = ?",
         zoneId);
 
     FOR_DB_SINGLE_RESULT(rset)
     {
-        constexpr uint16 zoneTypeInstanced = 0x100;
-        if (rset->get<uint16>("zonetype") & zoneTypeInstanced)
-        {
-            return false;
-        }
-
         return rset->get<uint32>("pop") >= threshold;
     }
 
@@ -468,7 +627,7 @@ int32 createCharacter(session_t& session, uint8* buf, lpkt_chr_info_sub2& charIn
 {
     char_mini createchar{};
 
-    std::memcpy(createchar.m_name, session.requestedNewCharacterName.c_str(), 16);
+    session.requestedNewCharacterName.copy(reinterpret_cast<char*>(createchar.m_name), sizeof(createchar.m_name) - 1);
 
     const auto charName = asStringFromUntrustedSource(createchar.m_name);
 
@@ -515,9 +674,9 @@ int32 createCharacter(session_t& session, uint8* buf, lpkt_chr_info_sub2& charIn
         return -1;
     }
 
-    std::vector<uint32> bastokStartingZones   = { 0xEA, 0xEB, 0xEC };
-    std::vector<uint32> sandoriaStartingZones = { 0xE6, 0xE7, 0xE8 };
-    std::vector<uint32> windurstStartingZones = { 0xEE, 0xF0, 0xF1 };
+    const std::vector<xi::ZoneId> bastokStartingZones   = { xi::ZoneId::BastokMines, xi::ZoneId::BastokMarkets, xi::ZoneId::PortBastok };
+    const std::vector<xi::ZoneId> sandoriaStartingZones = { xi::ZoneId::SouthernSanDoria, xi::ZoneId::NorthernSanDoria, xi::ZoneId::PortSanDoria };
+    const std::vector<xi::ZoneId> windurstStartingZones = { xi::ZoneId::WindurstWaters, xi::ZoneId::PortWindurst, xi::ZoneId::WindurstWoods };
 
     switch (createchar.m_nation)
     {
@@ -579,7 +738,7 @@ int32 createCharacter(session_t& session, uint8* buf, lpkt_chr_info_sub2& charIn
 std::string getHashFromPacket(const std::string& ip_str, uint8* data)
 {
     auto hash = asStringFromUntrustedSource(data + 12, 16);
-    if (authenticatedSessions_[ip_str].find(hash) == authenticatedSessions_[ip_str].end())
+    if (!authenticatedSessions_[ip_str].contains(hash))
     {
         return "";
     }

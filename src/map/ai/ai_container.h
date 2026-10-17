@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -23,6 +23,7 @@
 
 #include <memory>
 #include <stack>
+#include <vector>
 
 #include "ai/controllers/controller.h"
 #include "entities/base_entity.h"
@@ -30,6 +31,7 @@
 #include "helpers/event_handler.h"
 #include "helpers/pathfind.h"
 #include "helpers/targetfind.h"
+#include "states/death_state.h"
 #include "states/state.h"
 
 class CBaseEntity;
@@ -50,7 +52,7 @@ public:
 
     auto Cast(const EntityId& target, SpellID spellid) const -> bool;
     auto Engage(const EntityId& target) const -> bool;
-    auto ChangeTarget(uint16 targid) const -> bool;
+    auto ChangeTarget(const EntityId& target) const -> bool;
     auto Disengage() const -> bool;
     auto WeaponSkill(const EntityId& target, uint16 wsid) const -> bool;
     auto MobSkill(const EntityId& target, uint16 wsid, Maybe<timer::duration> castTimeOverride) const -> bool;
@@ -68,14 +70,14 @@ public:
 
     auto Internal_Engage(EntityId target) -> bool;
     auto Internal_Cast(EntityId target, SpellID spellid) -> bool;
-    auto Internal_ChangeTarget(uint16 targetid) const -> bool;
+    auto Internal_ChangeTarget(const EntityId& target) const -> bool;
     auto Internal_Disengage() const -> bool;
     auto Internal_WeaponSkill(const EntityId& target, uint16 wsid) -> bool;
-    auto Internal_MobSkill(const EntityId& target, uint16 wsid, Maybe<timer::duration> castTimeOverride) -> bool;
+    auto Internal_MobSkill(const EntityId& target, uint16 wsid, Maybe<timer::duration> castTimeOverride, Maybe<uint16> tpCostOverride = std::nullopt) -> bool;
     auto Internal_PetSkill(const EntityId& target, uint16 abilityid) -> bool;
     auto Internal_Ability(const EntityId& target, uint16 abilityid) -> bool;
     auto Internal_RangedAttack(const EntityId& target) -> bool;
-    auto Internal_Die(timer::duration) -> bool;
+    auto Internal_Die(timer::duration, DeathParams params = {}) -> bool;
     auto Internal_UseItem(const EntityId& target, uint8 loc, uint8 slotid) -> bool;
     auto Internal_Despawn(bool instantDespawn = false) -> bool;
     auto Internal_Synth(xi::SkillType synthSkill) -> bool;
@@ -146,11 +148,18 @@ protected:
     auto ForceChangeState(Args&&... args) -> bool;
 
 private:
-    // Suspend the current state (if any) beneath `next`, then make `next` current.
-    void enterState(std::unique_ptr<CState> next);
+    // Initialize `next`. If it accepts, suspend the current state beneath it and make
+    // `next` current. Returns true if the entity entered the state.
+    auto enterState(std::unique_ptr<CState> next) -> bool;
 
     // Finish with the current state and resume the one suspended beneath it (or go idle).
     void resumeNextState();
+
+    // swap in the state beneath before Cleanup, so anything Cleanup enters stacks on the resumed state instead of being popped right back off.
+    void finishCurrentState(timer::time_point tick);
+
+    // park a finished state until the end of the tick; its Update/Cleanup frame may still be live further up the call stack.
+    void retire(std::unique_ptr<CState> state);
 
     auto stateCount() const -> size_t;
 
@@ -159,6 +168,9 @@ private:
     // holds the states suspended beneath it.
     std::unique_ptr<CState>             m_currentState;
     std::stack<std::unique_ptr<CState>> m_stateStack;
+
+    // retired states, freed at the end of Tick().
+    std::vector<std::unique_ptr<CState>> m_retiredStates;
 
     CAIActionQueue ActionQueue;
 };
@@ -196,18 +208,8 @@ auto CAIContainer::ChangeState(Args&&... args) -> bool
 
     if (CanChangeState())
     {
-        try
-        {
-            CheckCompletedStates();
-
-            // Construct first: if it throws, the current state is left untouched.
-            enterState(std::make_unique<T>(std::forward<Args>(args)...));
-            return true;
-        }
-        catch (CStateInitException& e)
-        {
-            PEntity->HandleErrorMessage(e.packet);
-        }
+        CheckCompletedStates();
+        return enterState(CState::make<T>(std::forward<Args>(args)...));
     }
 
     return false;
@@ -222,18 +224,6 @@ auto CAIContainer::ForceChangeState(Args&&... args) -> bool
         return false;
     }
 
-    try
-    {
-        CheckCompletedStates();
-
-        // Construct first: if it throws, the current state is left untouched.
-        enterState(std::make_unique<T>(std::forward<Args>(args)...));
-        return true;
-    }
-    catch (CStateInitException& e)
-    {
-        PEntity->HandleErrorMessage(e.packet);
-    }
-
-    return false;
+    CheckCompletedStates();
+    return enterState(CState::make<T>(std::forward<Args>(args)...));
 }

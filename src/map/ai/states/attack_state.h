@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -26,7 +26,9 @@
 class CAttackState : public CState
 {
 public:
-    CAttackState(CBattleEntity* PEntity, const EntityId& target);
+    CAttackState(xi::Badge<CState>, CBattleEntity* PEntity, const EntityId& target);
+
+    auto init() -> StateErrorOr<void> override;
 
     auto Update(timer::time_point tick) -> bool override;
     void Cleanup(timer::time_point tick) override;
@@ -34,14 +36,17 @@ public:
     auto CanFollowPath() -> bool override;
     auto CanInterrupt() -> bool override;
     void ResetAttackTimer();
+    auto EngageLockout() const -> timer::duration;
 
 protected:
-    void UpdateTarget(uint16 = 0) override;
-    void UpdateTarget(CBaseEntity* target) override;
+    void UpdateTarget(const EntityId& target = {}) override;
     auto CanAttack(CBattleEntity* PTarget) -> bool;
     auto AttackReady() const -> bool;
 
 private:
+    // Shadows CState::m_PEntity
     CBattleEntity* const m_PEntity;
-    timer::duration      m_attackTime{ 2s };
+
+    timer::duration m_attackTime;
+    timer::duration m_swingDelay{};
 };

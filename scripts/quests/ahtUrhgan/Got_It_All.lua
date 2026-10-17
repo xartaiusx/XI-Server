@@ -58,10 +58,7 @@ quest.sections =
                     elseif progress == 6 then
                         return quest:progressEvent(527)
                     elseif progress == 7 then
-                        if
-                            not player:needToZone() and
-                            quest:getVar(player, 'Stage') < GetSystemTime()
-                        then
+                        if not player:needToZone() then
                             return quest:progressEvent(528)
                         else
                             return quest:event(539)
@@ -92,7 +89,10 @@ quest.sections =
                 onTrigger = function(player, npc)
                     local progress = quest:getVar(player, 'Prog')
 
-                    if progress == 2 then
+                    if
+                        progress == 2 or
+                        progress == 3
+                    then
                         return quest:progressEvent(523)
                     elseif progress == 5 then
                         return quest:event(538)
@@ -126,7 +126,7 @@ quest.sections =
                 end,
 
                 [524] = function(player, csid, option, npc)
-                    if npcUtil.giveKeyItem(player, xi.ki.VIAL_OF_LUMINOUS_WATER) then
+                    if npcUtil.giveKeyItem(player, xi.keyItem.VIAL_OF_LUMINOUS_WATER) then
                         quest:setVar(player, 'Prog', 4)
                     end
                 end,
@@ -134,18 +134,16 @@ quest.sections =
                 [525] = function(player, csid, option, npc)
                     if option == 0 then
                         quest:setVar(player, 'Prog', 5)
-                        player:delKeyItem(xi.ki.VIAL_OF_LUMINOUS_WATER)
+                        player:delKeyItem(xi.keyItem.VIAL_OF_LUMINOUS_WATER)
                     end
                 end,
 
                 [526] = function(player, csid, option, npc)
                     quest:setVar(player, 'Prog', 6)
-                    player:setPos(60, 0, -71, 38)
                 end,
 
                 [527] = function(player, csid, option, npc)
                     quest:setVar(player, 'Prog', 7)
-                    quest:setVar(player, 'Stage', JstMidnight())
                     player:needToZone(true)
                 end,
 
@@ -167,7 +165,9 @@ quest.sections =
             ['Ekhu_Pesshyadha'] =
             {
                 onTrigger = function(player, npc)
-                    return quest:event(531)
+                    if player:getQuestStatus(xi.questLog.AHT_URHGAN, xi.quest.id.ahtUrhgan.THREE_MEN_AND_A_CLOSET) ~= xi.questStatus.QUEST_COMPLETED then
+                        return quest:event(531)
+                    end
                 end,
             },
         },

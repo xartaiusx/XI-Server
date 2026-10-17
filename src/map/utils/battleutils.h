@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -107,6 +107,8 @@ void LoadSkillTable();
 void LoadWeaponSkillsList();
 void LoadMobSkillsList();
 void LoadPetSkillsList();
+
+[[nodiscard]] auto GetEcosystemStrongAgainst(xi::Ecosystem ecosystem) -> xi::Ecosystem;
 
 uint8 CheckMultiHits(CBattleEntity* PEntity, CItemWeapon* PWeapon);
 
@@ -258,9 +260,9 @@ timer::duration CalculateSpellRecastTime(CBattleEntity*, CSpell*);
 bool            CanAffordSpell(CBattleEntity* PEntity, CSpell* PSpell, uint8 flags = 0);
 int16           CalculateWeaponSkillTP(CBattleEntity*, CWeaponSkill*, int16);
 bool            RemoveAmmo(CCharEntity*, int quantity = 1);
-int32           GetMeritValue(CBattleEntity*, MERIT_TYPE);
+int32           GetMeritValue(CBattleEntity*, xi::Merit);
 
-int32 GetScaledItemModifier(CBattleEntity*, CItemEquipment*, xi::Mod);
+int32 GetScaledItemModifier(CBattleEntity*, CItemEquipment*, xi::Mod, bool isDelevel = false);
 auto  GetSpikesDamageType(ActionReactKind spikesType) -> xi::DamageType;
 auto  GetEnspellDamageType(ENSPELL enspellType) -> xi::DamageType;
 auto  GetRuneEnhancementDamageType(xi::StatusEffect runeEffect) -> xi::DamageType;

@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -35,11 +35,22 @@ static constexpr timer::duration TIME_TO_SEND_RERAISE_MENU = 8s;
 
 }
 
-CDeathState::CDeathState(CBattleEntity* PEntity, timer::duration death_time)
+CDeathState::CDeathState(xi::Badge<CState>, CBattleEntity* PEntity, timer::duration death_time, DeathParams params)
 : CState(PEntity, PEntity->entityId())
 , m_PEntity(PEntity)
+, params_(params)
 , m_deathTime(death_time)
 , m_raiseTime(GetEntryTime() + TIME_TO_SEND_RERAISE_MENU)
+{
+    // Capture constructor arguments into members and nothing else. All other logic goes into init().
+}
+
+auto CDeathState::params() const -> const DeathParams&
+{
+    return params_;
+}
+
+auto CDeathState::init() -> StateErrorOr<void>
 {
     m_PEntity->StatusEffectContainer->DelStatusEffectsByFlag(xi::StatusEffectFlag::Death, EffectNotice::Silent);
 
@@ -49,11 +60,13 @@ CDeathState::CDeathState(CBattleEntity* PEntity, timer::duration death_time)
     {
         m_PEntity->PAI->PathFind->Clear();
     }
+
+    return Success();
 }
 
 auto CDeathState::Update(const timer::time_point tick) -> bool
 {
-    if (m_PEntity->objtype != TYPE_PC)
+    if (auto* PChar = dynamic_cast<CCharEntity*>(m_PEntity); !PChar)
     {
         if (IsCompleted() || !m_PEntity->isDead())
         {
@@ -78,8 +91,7 @@ auto CDeathState::Update(const timer::time_point tick) -> bool
     }
     else
     {
-        auto*      PChar = static_cast<CCharEntity*>(m_PEntity);
-        const auto time  = GetEntryTime() + m_deathTime - std::chrono::seconds(m_PEntity->getMod(xi::Mod::DESPAWN_TIME_REDUCTION));
+        const auto time = GetEntryTime() + m_deathTime - std::chrono::seconds(m_PEntity->getMod(xi::Mod::DESPAWN_TIME_REDUCTION));
 
         // exit state after 2 seconds on raise
         if (m_raiseAccepted && IsCompleted() && tick > m_raiseAcceptedTime + 2s)

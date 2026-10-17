@@ -1,5 +1,5 @@
 -----------------------------------
--- Yomi Okuri
+-- Yomi Okuri (SAM AF2)
 -----------------------------------
 -- Log ID: 5, Quest ID: 141
 -- Jaucribaix      : !pos 91 -7 -8 252
@@ -15,7 +15,7 @@ local quest = Quest:new(xi.questLog.OUTLANDS, xi.quest.id.outlands.YOMI_OKURI)
 
 quest.reward =
 {
-    fame = 40,
+    fame = 20,
     fameArea = xi.fameArea.NORG,
     item = xi.item.MYOCHIN_SUNE_ATE,
 }
@@ -35,7 +35,14 @@ quest.sections =
             ['Jaucribaix'] =
             {
                 onTrigger = function(player, npc)
-                    return quest:progressEvent(quest:getMustZone(player) and 142 or 146)
+                    if
+                        quest:getMustZone(player) or
+                        GetSystemTime() < quest:getVar(player, 'Timer')
+                    then
+                        return quest:event(142)
+                    end
+
+                    return quest:progressEvent(146)
                 end,
             },
 
@@ -56,97 +63,19 @@ quest.sections =
             return status == xi.questStatus.QUEST_ACCEPTED
         end,
 
-        [xi.zone.NORG] =
-        {
-            ['Jaucribaix'] =
-            {
-                onTrigger = function(player, npc)
-                    local questProgress = quest:getVar(player, 'Prog')
-
-                    if questProgress <= 3 then
-                        return quest:progressEvent(player:hasKeyItem(xi.ki.YOMOTSU_FEATHER) and 152 or 147)
-                    elseif questProgress == 4 then
-                        return quest:progressEvent(player:needToZone() and 153 or 154)
-                    elseif player:hasKeyItem(xi.ki.YOMOTSU_HIRASAKA) then
-                        return quest:progressEvent(155)
-                    elseif player:hasKeyItem(xi.ki.FADED_YOMOTSU_HIRASAKA) then
-                        return quest:progressEvent(156)
-                    end
-                end,
-            },
-
-            ['Washu'] =
-            {
-                onTrade = function(player, npc, trade)
-                    if
-                        quest:getVar(player, 'Stage') == 0 and
-                        not player:hasKeyItem(xi.ki.WASHUS_TASTY_WURST) and
-                        not player:hasKeyItem(xi.ki.YOMOTSU_FEATHER) and
-                        npcUtil.tradeHasExactly(trade, { xi.item.HECTEYES_EYE, xi.item.BASTORE_SARDINE_1, xi.item.SLICE_OF_GIANT_SHEEP_MEAT, xi.item.FROST_TURNIP })
-                    then
-                        return quest:progressEvent(150)
-                    end
-                end,
-
-                onTrigger = function(player, npc)
-                    if quest:getVar(player, 'Prog') == 1 then
-                        return quest:progressEvent(148)
-                    elseif player:hasKeyItem(xi.ki.WASHUS_TASTY_WURST) then
-                        return quest:progressEvent(151)
-                    elseif
-                        quest:getVar(player, 'Stage') == 0 and
-                        not player:hasKeyItem(xi.ki.WASHUS_TASTY_WURST)
-                    then
-                        return quest:progressEvent(149)
-                    end
-                end,
-            },
-
-            onEventFinish =
-            {
-                [148] = function(player, csid, option, npc)
-                    quest:setVar(player, 'Prog', 2)
-                end,
-
-                [150] = function(player, csid, option, npc)
-                    player:confirmTrade()
-                    npcUtil.giveKeyItem(player, xi.ki.WASHUS_TASTY_WURST)
-                    quest:setVar(player, 'Prog', 3)
-                end,
-
-                [152] = function(player, csid, option, npc)
-                    player:delKeyItem(xi.ki.YOMOTSU_FEATHER)
-                    quest:setVar(player, 'Prog', 4)
-                    quest:setMustZone(player)
-                end,
-
-                [154] = function(player, csid, option, npc)
-                    npcUtil.giveKeyItem(player, xi.ki.YOMOTSU_HIRASAKA)
-                    quest:setVar(player, 'Prog', 5)
-                end,
-
-                [156] = function(player, csid, option, npc)
-                    if quest:complete(player) then
-                        player:delKeyItem(xi.ki.FADED_YOMOTSU_HIRASAKA)
-                        player:setLocalVar('Quest[5][142]mustZone', 1)
-                    end
-                end,
-            },
-        },
-
         [xi.zone.LABYRINTH_OF_ONZOZO] =
         {
             ['qm2'] =
             {
                 onTrigger = function(player, npc)
                     if
-                        player:hasKeyItem(xi.ki.WASHUS_TASTY_WURST) and
+                        player:hasKeyItem(xi.keyItem.WASHUS_TASTY_WURST) and
                         not GetMobByID(onzozoID.mob.UBUME):isSpawned()
                     then
                         return quest:progressEvent(0)
                     elseif
                         quest:getVar(player, 'Stage') == 1 and
-                        not player:hasKeyItem(xi.ki.YOMOTSU_FEATHER)
+                        not player:hasKeyItem(xi.keyItem.YOMOTSU_FEATHER)
                     then
                         return quest:progressEvent(1)
                     end
@@ -166,13 +95,104 @@ quest.sections =
             {
                 [0] = function(player, csid, option, npc)
                     if option == 1 then
-                        player:delKeyItem(xi.ki.WASHUS_TASTY_WURST)
+                        player:delKeyItem(xi.keyItem.WASHUS_TASTY_WURST)
                         SpawnMob(onzozoID.mob.UBUME):updateClaim(player)
                     end
                 end,
 
                 [1] = function(player, csid, option, npc)
-                    npcUtil.giveKeyItem(player, xi.ki.YOMOTSU_FEATHER)
+                    npcUtil.giveKeyItem(player, xi.keyItem.YOMOTSU_FEATHER)
+                end,
+            },
+        },
+
+        [xi.zone.NORG] =
+        {
+            ['Jaucribaix'] =
+            {
+                onTrigger = function(player, npc)
+                    local questProgress = quest:getVar(player, 'Prog')
+
+                    if questProgress <= 3 then
+                        if not player:hasKeyItem(xi.keyItem.YOMOTSU_FEATHER) then
+                            return quest:event(147)
+                        end
+
+                        return quest:progressEvent(152)
+                    elseif questProgress == 4 then
+                        if
+                            quest:getMustZone(player) or
+                            GetSystemTime() < quest:getVar(player, 'Wait')
+                        then
+                            return quest:event(153)
+                        end
+
+                        return quest:progressEvent(154)
+                    elseif player:hasKeyItem(xi.keyItem.YOMOTSU_HIRASAKA) then
+                        return quest:event(155)
+                    elseif player:hasKeyItem(xi.keyItem.FADED_YOMOTSU_HIRASAKA) then
+                        return quest:progressEvent(156)
+                    end
+                end,
+            },
+
+            ['Washu'] =
+            {
+                onTrade = function(player, npc, trade)
+                    if
+                        quest:getVar(player, 'Stage') == 0 and
+                        not player:hasKeyItem(xi.keyItem.WASHUS_TASTY_WURST) and
+                        not player:hasKeyItem(xi.keyItem.YOMOTSU_FEATHER) and
+                        npcUtil.tradeMatches(trade, { { xi.item.HECTEYES_EYE, 1 }, { xi.item.BASTORE_SARDINE_1, 1 }, { xi.item.SLICE_OF_GIANT_SHEEP_MEAT, 1 }, { xi.item.FROST_TURNIP, 1 } })
+                    then
+                        return quest:progressEvent(150)
+                    end
+                end,
+
+                onTrigger = function(player, npc)
+                    if quest:getVar(player, 'Prog') == 1 then
+                        return quest:progressEvent(148)
+                    elseif player:hasKeyItem(xi.keyItem.WASHUS_TASTY_WURST) then
+                        return quest:event(151)
+                    elseif
+                        quest:getVar(player, 'Stage') == 0 and
+                        not player:hasKeyItem(xi.keyItem.WASHUS_TASTY_WURST)
+                    then
+                        return quest:event(149)
+                    end
+                end,
+            },
+
+            onEventFinish =
+            {
+                [148] = function(player, csid, option, npc)
+                    quest:setVar(player, 'Prog', 2)
+                end,
+
+                [150] = function(player, csid, option, npc)
+                    player:tradeComplete()
+                    npcUtil.giveKeyItem(player, xi.keyItem.WASHUS_TASTY_WURST)
+                    quest:setVar(player, 'Prog', 3)
+                end,
+
+                [152] = function(player, csid, option, npc)
+                    player:delKeyItem(xi.keyItem.YOMOTSU_FEATHER)
+                    quest:setVar(player, 'Prog', 4)
+                    quest:setMustZone(player)
+                    quest:setVar(player, 'Wait', GetSystemTime() + 60) -- 1 minute wait time
+                end,
+
+                [154] = function(player, csid, option, npc)
+                    npcUtil.giveKeyItem(player, xi.keyItem.YOMOTSU_HIRASAKA)
+                    quest:setVar(player, 'Prog', 5)
+                end,
+
+                [156] = function(player, csid, option, npc)
+                    if quest:complete(player) then
+                        player:delKeyItem(xi.keyItem.FADED_YOMOTSU_HIRASAKA)
+                        xi.quest.setMustZone(player, xi.questLog.OUTLANDS, xi.quest.id.outlands.A_THIEF_IN_NORG)
+                        xi.quest.setVar(player, xi.questLog.OUTLANDS, xi.quest.id.outlands.A_THIEF_IN_NORG, 'Timer', GetSystemTime() + 60) -- 1 minute wait time
+                    end
                 end,
             },
         },
@@ -183,7 +203,7 @@ quest.sections =
             {
                 onMobDeath = function(mob, player, optParams)
                     if
-                        player:hasKeyItem(xi.ki.YOMOTSU_HIRASAKA) and
+                        player:hasKeyItem(xi.keyItem.YOMOTSU_HIRASAKA) and
                         (GetMobByID(valkurmID.mob.ONRYO):isDead() or not GetMobByID(valkurmID.mob.ONRYO):isSpawned())
                     then
                         quest:setLocalVar(player, 'valkurmNM', 1)
@@ -195,7 +215,7 @@ quest.sections =
             {
                 onMobDeath = function(mob, player, optParams)
                     if
-                        player:hasKeyItem(xi.ki.YOMOTSU_HIRASAKA) and
+                        player:hasKeyItem(xi.keyItem.YOMOTSU_HIRASAKA) and
                         (GetMobByID(valkurmID.mob.DOMAN):isDead() or not GetMobByID(valkurmID.mob.DOMAN):isSpawned())
                     then
                         quest:setLocalVar(player, 'valkurmNM', 1)
@@ -211,7 +231,7 @@ quest.sections =
                     local onryoMob     = GetMobByID(valkurmID.mob.ONRYO)
 
                     if
-                        player:hasKeyItem(xi.ki.YOMOTSU_HIRASAKA) and
+                        player:hasKeyItem(xi.keyItem.YOMOTSU_HIRASAKA) and
                         quest:getLocalVar(player, 'valkurmNM') == 0 and
                         (vanadielHour >= 18 or vanadielHour < 5)
                     then
@@ -227,7 +247,7 @@ quest.sections =
                         end
                     elseif
                         quest:getLocalVar(player, 'valkurmNM') == 1 and
-                        player:hasKeyItem(xi.ki.YOMOTSU_HIRASAKA)
+                        player:hasKeyItem(xi.keyItem.YOMOTSU_HIRASAKA)
                     then
                         return quest:progressEvent(11)
                     end
@@ -239,7 +259,7 @@ quest.sections =
                 [10] = function(player, csid, option, npc)
                     if option == 1 then
                         if player:checkDistance(npc) > 2 then
-                            player:messageSpecial(valkurmID.text.MUST_BE_CLOSER, xi.ki.YOMOTSU_HIRASAKA)
+                            player:messageSpecial(valkurmID.text.MUST_BE_CLOSER, xi.keyItem.YOMOTSU_HIRASAKA)
                         elseif
                             not GetMobByID(valkurmID.mob.ONRYO):isSpawned() and
                             not GetMobByID(valkurmID.mob.DOMAN):isSpawned()
@@ -253,8 +273,8 @@ quest.sections =
 
                 [11] = function(player, csid, option, npc)
                     if option == 0 then
-                        player:delKeyItem(xi.ki.YOMOTSU_HIRASAKA)
-                        npcUtil.giveKeyItem(player, xi.ki.FADED_YOMOTSU_HIRASAKA)
+                        player:delKeyItem(xi.keyItem.YOMOTSU_HIRASAKA)
+                        npcUtil.giveKeyItem(player, xi.keyItem.FADED_YOMOTSU_HIRASAKA)
                     end
                 end,
             },

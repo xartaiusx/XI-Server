@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -29,7 +29,7 @@
 class CZoneInstance : public CZone
 {
 public:
-    CZoneInstance(Scheduler& scheduler, MapConfig config, ZONEID ZoneID, REGION_TYPE RegionID, CONTINENT_TYPE ContinentID, uint8 levelRestriction);
+    CZoneInstance(Scheduler& scheduler, MapConfig config, xi::ZoneId ZoneID, REGION_TYPE RegionID, CONTINENT_TYPE ContinentID, uint8 levelRestriction, const std::optional<xi::data::ZoneSettings>& settings);
     ~CZoneInstance() override;
 
     DISALLOW_COPY_AND_MOVE(CZoneInstance);
@@ -62,7 +62,8 @@ public:
 
     virtual void FindPartyForMob(CBaseEntity* PEntity) override; // looking for a party for the monster
 
-    virtual void TransportDepart(uint16 boundary, uint16 prevZoneId, uint16 transportId) override; // ship/boat is leaving, passengers need to be collected
+    virtual void TransportDepart(uint16 boundary, xi::ZoneId prevZoneId, std::string_view transport) override; // ship/boat is leaving, passengers need to be collected
+    virtual void DisembarkAll() override;                                                                      // the voyage zone is between runs, put whoever is still aboard ashore
 
     virtual void PushPacket(CBaseEntity*, GLOBAL_MESSAGE_TYPE, const std::unique_ptr<CBasicPacket>&) override; // send a global package within the zone
 

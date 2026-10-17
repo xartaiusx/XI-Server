@@ -2,6 +2,8 @@
 -- func: trustparty
 -- desc: Inspect and repair active Trust retail parity profiles.
 -----------------------------------
+require('modules/module_utils')
+-----------------------------------
 ---@type TCommand
 local commandObj = {}
 
@@ -246,4 +248,4 @@ commandObj.onTrigger = function(player, action, target)
     printLine(player, '!trustparty combattest [same-zone mobId]')
 end
 
-return commandObj
+xi.module.registerCommand('trustparty', commandObj)

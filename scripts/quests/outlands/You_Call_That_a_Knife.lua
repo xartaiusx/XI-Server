@@ -15,7 +15,7 @@ local quest = Quest:new(xi.questLog.OUTLANDS, xi.quest.id.outlands.YOU_CALL_THAT
 
 quest.reward =
 {
-    fame     = 75,
+    fame     = 60,
     fameArea = xi.fameArea.WINDURST,
     gil      = 7200,
     title    = xi.title.YA_DONE_GOOD
@@ -81,7 +81,7 @@ quest.sections =
     {
         check = function(player, status, vars)
             return status == xi.questStatus.QUEST_ACCEPTED and
-                not player:hasKeyItem(xi.ki.NONBERRYS_KNIFE)
+                not player:hasKeyItem(xi.keyItem.NONBERRYS_KNIFE)
         end,
 
         [xi.zone.KAZHAM] =
@@ -126,7 +126,7 @@ quest.sections =
             {
                 [27] = function(player, csid, option, npc)
                     player:confirmTrade()
-                    npcUtil.giveKeyItem(player, xi.ki.NONBERRYS_KNIFE)
+                    npcUtil.giveKeyItem(player, xi.keyItem.NONBERRYS_KNIFE)
                 end,
 
                 [28] = function(player, csid, option, npc)
@@ -151,7 +151,7 @@ quest.sections =
     {
         check = function(player, status, vars)
             return status == xi.questStatus.QUEST_ACCEPTED and
-                player:hasKeyItem(xi.ki.NONBERRYS_KNIFE)
+                player:hasKeyItem(xi.keyItem.NONBERRYS_KNIFE)
         end,
 
         [xi.zone.KAZHAM] =
@@ -164,7 +164,7 @@ quest.sections =
             {
                 [133] = function(player, csid, option, npc)
                     if quest:complete(player) then
-                        player:delKeyItem(xi.ki.NONBERRYS_KNIFE)
+                        player:delKeyItem(xi.keyItem.NONBERRYS_KNIFE)
                         quest:setMustZone(player)
                     end
                 end

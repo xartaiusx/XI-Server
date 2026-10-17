@@ -14,19 +14,19 @@ quest.reward =
 
 local keyItems =
 {
-    xi.ki.ELECTROCELL,
-    xi.ki.ELECTROPOT,
-    xi.ki.ELECTROLOCOMOTIVE,
+    xi.keyItem.ELECTROCELL,
+    xi.keyItem.ELECTROPOT,
+    xi.keyItem.ELECTROLOCOMOTIVE,
 }
 
-local hasQuestKeyItem = function(player)
-    for _, v in pairs(keyItems) do
-        if player:hasKeyItem(v) then
-            return true
+local function getQuestKeyItem(player)
+    for _, keyItem in ipairs(keyItems) do
+        if player:hasKeyItem(keyItem) then
+            return keyItem
         end
     end
 
-    return false
+    return xi.keyItem.NONE
 end
 
 quest.sections =
@@ -49,7 +49,7 @@ quest.sections =
             onEventFinish =
             {
                 [4] = function(player, csid, option, npc)
-                    npcUtil.giveKeyItem(player, xi.ki.DKHAAYAS_RESEARCH_JOURNAL)
+                    npcUtil.giveKeyItem(player, xi.keyItem.DKHAAYAS_RESEARCH_JOURNAL)
                     quest:begin(player)
                 end,
             },
@@ -67,20 +67,32 @@ quest.sections =
             ['Dkhaaya'] =
             {
                 onTrigger = function(player, npc)
-                    if hasQuestKeyItem(player) then
-                        return quest:progressEvent(6)
+                    local questKeyItem = getQuestKeyItem(player)
+
+                    if questKeyItem > 0 then
+                        return quest:progressEvent(6, { [0] = questKeyItem })
                     else
                         return quest:event(5)
                     end
                 end
             },
 
+            onEventUpdate =
+            {
+                [6] = function(player, csid, option, npc)
+                    if option == 1 then
+                        player:updateEvent(keyItems[quest:getVar(player, 'Prog')])
+                    end
+                end,
+            },
+
             onEventFinish =
             {
                 [6] = function(player, csid, option, npc)
-                    player:delKeyItem(keyItems[quest:getVar(player, 'Prog')])
+                    local cellKeyItem = keyItems[quest:getVar(player, 'Prog')]
+
                     if quest:complete(player) then
-                        player:delKeyItem(xi.ki.DKHAAYAS_RESEARCH_JOURNAL)
+                        player:delKeyItem(cellKeyItem)
                     end
                 end,
             },
@@ -93,10 +105,10 @@ quest.sections =
                 onTrade = function(player, npc, trade)
                     if
                         not player:hasItem(xi.item.OLDUUM_RING) and
-                        not hasQuestKeyItem(player) and
-                        npcUtil.tradeHasExactly(trade, xi.item.PICKAXE)
+                        getQuestKeyItem(player) == xi.keyItem.NONE and
+                        npcUtil.tradeMatches(trade, { { xi.item.PICKAXE, 1 } })
                     then
-                        if math.randomInt(1, 10) > 5 then
+                        if math.randomInt(1, 100) <= 50 then
                             quest:setVar(player, 'Prog', math.randomInt(1, 3))
 
                             return quest:progressEvent(0, { [0] = keyItems[quest:getVar(player, 'Prog')] })
@@ -110,14 +122,14 @@ quest.sections =
 
             onEventFinish =
             {
-                [0] = function(player, npc, trade)
+                [0] = function(player, csid, option, npc)
                     if player:getLocalVar('mineFail') == 1 then
                         player:setLocalVar('mineFail', 0)
-                        player:confirmTrade()
                     else
                         player:addKeyItem(keyItems[quest:getVar(player, 'Prog')])
-                        player:confirmTrade()
                     end
+
+                    player:tradeComplete()
                 end,
             },
         },
@@ -134,62 +146,73 @@ quest.sections =
             ['Dkhaaya'] =
             {
                 onTrigger = function(player, npc)
-                    if hasQuestKeyItem(player) then
-                        return quest:progressEvent(8)
-                    elseif
+                    if
                         player:hasItem(xi.item.OLDUUM_RING) or
-                        player:hasItem(xi.item.LIGHTNING_BAND)
+                        player:hasItem(xi.item.LIGHTNING_BAND) or
+                        quest:getVar(player, 'Wait') > GetSystemTime()
                     then
-                        return quest:event(7)
-                    else
-                        local newRingCS = player:getLocalVar('RingCS')
-                        player:setLocalVar('RingCS', newRingCS + 1)
-                        if newRingCS > 1 then
-                            newRingCS = 1
+                        return quest:progressEvent(7)
+                    end
+
+                    if quest:getVar(player, 'Reissue') == 1 then
+                        local questKeyItem = getQuestKeyItem(player)
+
+                        if questKeyItem > 0 then
+                            return quest:progressEvent(8, { [0] = questKeyItem })
                         end
 
-                        return quest:event(7, { [7] = newRingCS + 1 })
+                        return quest:progressEvent(7, { [7] = 2 })
                     end
+
+                    return quest:progressEvent(7, { [7] = 1 })
                 end,
             },
 
-            onEventFinish =
+            onEventUpdate =
             {
                 [8] = function(player, csid, option, npc)
-                    npcUtil.giveItem(player, xi.item.LIGHTNING_BAND)
-                    player:delKeyItem(keyItems[quest:getVar(player, 'Prog')])
-                    quest:setVar(player, 'Prog', 0)
-                end,
-            },
-        },
-
-        [xi.zone.WAJAOM_WOODLANDS] =
-        {
-            ['Leypoint'] =
-            {
-                onTrigger = function(player, npc)
-                    if player:hasItem(xi.item.LIGHTNING_BAND) then
-                        return quest:messageSpecial(zones[player:getZoneID()].text.LEYPOINT + 1, xi.item.LIGHTNING_BAND)
-                    end
-                end,
-
-                onTrade = function(player, npc, trade)
-                    if npcUtil.tradeHasExactly(trade, xi.item.LIGHTNING_BAND) then
-                        if player:getFreeSlotsCount() == 0 then
-                            return quest:messageSpecial(zones[player:getZoneID()].text.ITEM_CANNOT_BE_OBTAINED)
-                        else
-                            return quest:progressEvent(2)
-                        end
+                    if option == 1 then
+                        player:updateEvent(keyItems[quest:getVar(player, 'Prog')])
                     end
                 end,
             },
 
             onEventFinish =
             {
-                [2] = function(player, csid, option, npc)
-                    if npcUtil.giveItem(player, xi.item.OLDUUM_RING) then
-                        player:confirmTrade()
+                [7] = function(player, csid, option, npc)
+                    if
+                        option ~= 99 or
+                        player:hasItem(xi.item.OLDUUM_RING) or
+                        player:hasItem(xi.item.LIGHTNING_BAND) or
+                        getQuestKeyItem(player) > 0 or
+                        quest:getVar(player, 'Wait') > GetSystemTime()
+                    then
+                        return
                     end
+
+                    quest:setVar(player, 'Reissue', 1)
+                end,
+
+                [8] = function(player, csid, option, npc)
+                    local questKeyItem = getQuestKeyItem(player)
+
+                    if
+                        questKeyItem == xi.keyItem.NONE or
+                        player:hasItem(xi.item.OLDUUM_RING) or
+                        player:hasItem(xi.item.LIGHTNING_BAND) or
+                        quest:getVar(player, 'Reissue') ~= 1 or
+                        quest:getVar(player, 'Wait') > GetSystemTime()
+                    then
+                        return
+                    end
+
+                    if not npcUtil.giveItem(player, xi.item.LIGHTNING_BAND) then
+                        return
+                    end
+
+                    player:delKeyItem(questKeyItem)
+                    quest:setVar(player, 'Prog', 0)
+                    quest:setVar(player, 'Reissue', 0)
                 end,
             },
         },
@@ -200,11 +223,14 @@ quest.sections =
             {
                 onTrade = function(player, npc, trade)
                     if
+                        quest:getVar(player, 'Reissue') == 1 and
+                        quest:getVar(player, 'Wait') <= GetSystemTime() and
                         not player:hasItem(xi.item.OLDUUM_RING) and
-                        not hasQuestKeyItem(player) and
-                        npcUtil.tradeHasExactly(trade, xi.item.PICKAXE)
+                        not player:hasItem(xi.item.LIGHTNING_BAND) and
+                        getQuestKeyItem(player) == xi.keyItem.NONE and
+                        npcUtil.tradeMatches(trade, { { xi.item.PICKAXE, 1 } })
                     then
-                        if math.randomInt(1, 10) > 5 then
+                        if math.randomInt(1, 100) <= 50 then
                             quest:setVar(player, 'Prog', math.randomInt(1, 3))
 
                             return quest:progressEvent(0, { [0] = keyItems[quest:getVar(player, 'Prog')] })
@@ -218,31 +244,54 @@ quest.sections =
 
             onEventFinish =
             {
-                [0] = function(player, npc, trade)
+                [0] = function(player, csid, option, npc)
                     if player:getLocalVar('mineFail') == 1 then
                         player:setLocalVar('mineFail', 0)
-                        player:confirmTrade()
                     else
                         player:addKeyItem(keyItems[quest:getVar(player, 'Prog')])
-                        player:confirmTrade()
                     end
+
+                    player:tradeComplete()
                 end,
             },
         },
-    },
 
-    -- Section: Quest accepted or completed
-    {
-        check = function(player, status, vars)
-            return status >= xi.questStatus.QUEST_AVAILABLE
-        end,
-
-        [xi.zone.AYDEEWA_SUBTERRANE] =
+        [xi.zone.WAJAOM_WOODLANDS] =
         {
-            ['Excavation_Site'] =
+            ['Leypoint'] =
             {
+                onTrade = function(player, npc, trade)
+                    if
+                        not player:hasItem(xi.item.OLDUUM_RING) and
+                        npcUtil.tradeMatches(trade, { { xi.item.LIGHTNING_BAND, 1 } })
+                    then
+                        if player:getFreeSlotsCount() == 0 then
+                            return quest:messageSpecial(
+                                zones[player:getZoneID()].text.ITEM_CANNOT_BE_OBTAINED,
+                                xi.item.OLDUUM_RING)
+                        else
+                            return quest:progressEvent(2)
+                        end
+                    end
+                end,
+
                 onTrigger = function(player, npc)
-                    return quest:message(zones[player:getZoneID()].text.NOTHING_HAPPENS)
+                    if player:hasItem(xi.item.LIGHTNING_BAND) then
+                        return quest:messageSpecial(zones[player:getZoneID()].text.LEYPOINT + 1, xi.item.LIGHTNING_BAND)
+                    end
+                end,
+            },
+
+            onEventFinish =
+            {
+                [2] = function(player, csid, option, npc)
+                    if
+                        not player:hasItem(xi.item.OLDUUM_RING) and
+                        npcUtil.giveItem(player, xi.item.OLDUUM_RING)
+                    then
+                        player:tradeComplete()
+                        quest:setVar(player, 'Wait', GetSystemTime() + 60) -- 1 minute
+                    end
                 end,
             },
         },

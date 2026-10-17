@@ -1,0 +1,30 @@
+[Unit]
+Description=Mochirii XI Profile Server
+Requires=mariadb.service
+After=mariadb.service network-online.target
+
+[Service]
+Type=simple
+User=xartyzx
+Group=xartyzx
+WorkingDirectory=/home/xartyzx/projects/FFXI/XI-Server
+ExecStartPre=/usr/bin/test -L /home/xartyzx/projects/FFXI/XI-Server/profile.cert
+ExecStartPre=/usr/bin/test -L /home/xartyzx/projects/FFXI/XI-Server/profile.key
+ExecStartPre=/usr/bin/test -s /home/xartyzx/projects/FFXI/XI-Server/profile.cert
+ExecStartPre=/usr/bin/test -s /home/xartyzx/projects/FFXI/XI-Server/profile.key
+ExecStart=/home/xartyzx/projects/FFXI/XI-Server/xi_profile --log log/profile-server.log
+Restart=on-failure
+RestartSec=3
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadOnlyPaths=/home/xartyzx/projects/FFXI/XI-Server/profile.cert /home/xartyzx/projects/FFXI/XI-Server/profile.key
+
+[Install]
+WantedBy=multi-user.target

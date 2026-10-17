@@ -4,20 +4,8 @@
 -----------------------------------
 mixins = { require('scripts/mixins/job_special') }
 -----------------------------------
-local ID = zones[xi.zone.QUICKSAND_CAVES]
------------------------------------
 ---@type TMobEntity
 local entity = {}
-
-entity.spawnPoints =
-{
-    { x = -582.000, y = -0.500, z = -412.000 }
-}
-
-entity.phList =
-{
-    [ID.mob.ANTICAN_TRIBUNUS -3] = ID.mob.ANTICAN_TRIBUNUS, -- Confirmed on retail
-}
 
 entity.onMobInitialize = function(mob)
     mob:setMobMod(xi.mobMod.GIL_MIN, 3000)

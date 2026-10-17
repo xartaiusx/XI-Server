@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -22,10 +22,8 @@
 #pragma once
 
 #include <common/cbasetypes.h>
-#include <common/logging.h>
 #include <common/scheduler.h>
 
-#include <list>
 #include <string>
 
 //

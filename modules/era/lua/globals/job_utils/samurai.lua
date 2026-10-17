@@ -3,14 +3,7 @@
 -----------------------------------
 require('modules/module_utils')
 -----------------------------------
-local moduleName = 'era_job_utils_samurai'
-
--- If Abyssea or later is enabled, no changes.
-if xi.module.isContentEnabled('ABYSSEA') then
-    return { name = moduleName }
-end
-
-local m = Module:new(moduleName)
+local m = Module:new('era_job_utils_samurai', xi.pre(xi.expansion.ABYSSEA))
 
 -- Warding Circle: Revert duration from 3 minutes to 1 minute
 -- Source: https://www.bg-wiki.com/ffxi/Version_Update_(02/13/2012)
@@ -30,6 +23,7 @@ m:addOverride('xi.job_utils.samurai.useWardingCircle', function(player, target, 
 end)
 
 -- Blade Bash: Apply merit recast reduction, remove extra plague duration from merits
+-- TODO: find a patch note or source for this change
 m:addOverride('xi.job_utils.samurai.useBladeBash', function(player, target, ability, action)
     local recastReduction = player:getMerit(xi.merit.BLADE_BASH) - 150
     action:setRecast(action:getRecast() - recastReduction)
@@ -48,7 +42,15 @@ m:addOverride('xi.job_utils.samurai.useBladeBash', function(player, target, abil
         not xi.data.statusEffect.isTargetResistant(player, target, xi.effect.STUN) and
         not xi.data.statusEffect.isEffectNullified(target, xi.effect.STUN, 0)
     then
-        local resistanceRate = xi.combat.magicHitRate.calculateResistRate(player, target, 0, 0, xi.skillRank.A_PLUS, xi.element.THUNDER, xi.mod.INT, xi.effect.STUN, 0)
+        local maccParams =
+        {
+            effectId       = xi.effect.STUN,
+            magicalElement = xi.element.THUNDER,
+            skillRank      = xi.skillRank.A_PLUS,
+            actorStat      = xi.mod.INT,
+        }
+
+        local resistanceRate = xi.combat.magicHitRate.calculateResistRate(player, target, maccParams)
         if xi.data.statusEffect.isResistRateSuccessfull(xi.effect.STUN, resistanceRate, 0) then
             target:addStatusEffect(xi.effect.STUN, { power = 1, duration = 6 * resistanceRate, origin = player })
         end
@@ -60,7 +62,15 @@ m:addOverride('xi.job_utils.samurai.useBladeBash', function(player, target, abil
         not xi.data.statusEffect.isTargetResistant(player, target, xi.effect.PLAGUE) and
         not xi.data.statusEffect.isEffectNullified(target, xi.effect.PLAGUE, 0)
     then
-        local resistanceRate = xi.combat.magicHitRate.calculateResistRate(player, target, 0, 0, xi.skillRank.A_PLUS, xi.element.FIRE, xi.mod.INT, xi.effect.PLAGUE, 0)
+        local maccParams =
+        {
+            effectId       = xi.effect.PLAGUE,
+            magicalElement = xi.element.FIRE,
+            skillRank      = xi.skillRank.A_PLUS,
+            actorStat      = xi.mod.INT,
+        }
+
+        local resistanceRate = xi.combat.magicHitRate.calculateResistRate(player, target, maccParams)
         if xi.data.statusEffect.isResistRateSuccessfull(xi.effect.PLAGUE, resistanceRate, 0) then
             target:addStatusEffect(xi.effect.PLAGUE, { power = 5, duration = 15 * resistanceRate, origin = player })
         end
@@ -87,6 +97,7 @@ m:addOverride('xi.job_utils.samurai.useBladeBash', function(player, target, abil
 end)
 
 -- Shikikoyo: Apply merit recast reduction, remove extra TP sharing from merits
+-- TODO: find a patch note or source for this change
 m:addOverride('xi.job_utils.samurai.useShikikoyo', function(player, target, ability, action)
     local recastReduction = player:getMerit(xi.merit.SHIKIKOYO) - 150
     action:setRecast(action:getRecast() - recastReduction)
@@ -101,6 +112,7 @@ m:addOverride('xi.job_utils.samurai.useShikikoyo', function(player, target, abil
 end)
 
 -- Hasso: Remove Zanshin bonus
+-- TODO: find a patch note or source for this change
 m:addOverride('xi.effects.hasso.onEffectGain', function(target, effect)
     effect:addMod(xi.mod.TWOHAND_STR, effect:getPower())
     effect:addMod(xi.mod.TWOHAND_HASTE_ABILITY, 1000)
@@ -108,10 +120,9 @@ m:addOverride('xi.effects.hasso.onEffectGain', function(target, effect)
 end)
 
 -- Seigan: Remove Zanshin-based counter bonus
+-- TODO: find a patch note or source for this change
 m:addOverride('xi.effects.seigan.onEffectGain', function(target, effect)
     local jpValue = target:getJobPointLevel(xi.jp.SEIGAN_EFFECT)
 
     effect:addMod(xi.mod.DEF, jpValue * 3)
 end)
-
-return m

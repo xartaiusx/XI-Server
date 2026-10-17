@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2025 LandSandBoat Dev Teams
@@ -50,9 +50,9 @@ const HashMap<MsgBasic, MsgBasic> aoeVariants = {
     { MsgBasic::UsesSkillRecoversMP, MsgBasic::TargetRecoversMP },
     { MsgBasic::UsesRecoversHP, MsgBasic::TargetRecoversHP2 },
     { MsgBasic::SkillRecoversHP, MsgBasic::TargetRecoversHPSimple },
-    { MsgBasic::UsesSkillRecoversHPAreaOfEffect, MsgBasic::TargetRecoversHPSimple },
+    { MsgBasic::UsesSkillRecoversHPAreaOfEffect, MsgBasic::TargetRecoversHP },
     { MsgBasic::UsesItemRecoversHPAreaOfEffect, MsgBasic::TargetRecoversHPSimple },
-    { MsgBasic::UsesItemRecoversHPAreaOfEffect2, MsgBasic::TargetRecoversHPSimple },
+    { MsgBasic::UsesItemRecoversHPAreaOfEffect2, MsgBasic::TargetRecoversHP2 },
     { MsgBasic::UsesButMisses, MsgBasic::TargetEvades },
     { MsgBasic::AbilityMisses, MsgBasic::TargetEvades },
     { MsgBasic::UsesAbilityDispel, MsgBasic::TargetEffectDisappears },

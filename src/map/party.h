@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -22,6 +22,9 @@
 #pragma once
 
 #include "common/cbasetypes.h"
+
+#include "data/enums/zone.h"
+
 #include "packets/s2c/0x009_message.h"
 
 #include <vector>
@@ -49,6 +52,7 @@ enum PARTYFLAG : uint16
     ALLIANCE_LEADER = 0x0008,
     PARTY_QM        = 0x0010,
     PARTY_SYNC      = 0x0100,
+    PARTY_MOGHOUSE  = 0x0200, // Mog House open to the party/alliance
 };
 
 DECLARE_FORMAT_AS_UNDERLYING(PARTYFLAG);
@@ -68,7 +72,7 @@ public:
 
     uint32 GetPartyID() const;
     uint16 GetMemberFlags(CBattleEntity* PEntity);
-    uint8  MemberCount(uint16 ZoneID);
+    auto   MemberCount(xi::ZoneId ZoneID) -> uint8;
 
     CBattleEntity* GetLeader();
     CBattleEntity* GetSyncTarget();
@@ -98,10 +102,12 @@ public:
 
     timer::time_point GetTimeLastMemberJoined();
     bool              HasTrusts();
+    void              MarkFormedByTrusts();
+    bool              IsFormedByTrusts() const;
 
     std::size_t GetMemberCountAcrossAllProcesses();
 
-    void PushPacket(uint32 senderID, uint16 ZoneID, const std::unique_ptr<CBasicPacket>& packet); // Send a packet to all group members, with the exception of PPartyMember
+    void PushPacket(uint32 senderID, xi::ZoneId ZoneID, const std::unique_ptr<CBasicPacket>& packet); // Send a packet to all group members, with the exception of PPartyMember
     void PushEffectsPacket();
     void EffectsChanged();
 
@@ -122,6 +128,7 @@ private:
     CBattleEntity* m_PQuarterMaster; // the assigned Quartermaster
 
     bool m_EffectsChanged;
+    bool m_FormedByTrusts{ false };
 
     void                     SetLeader(const std::string& MemberName);        // set party leader
     void                     SetQuarterMaster(const std::string& MemberName); // set Quartermaster

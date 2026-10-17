@@ -20,31 +20,27 @@ spellObject.onMagicCastingCheck = function(caster, target, spell)
 end
 
 -- Need to implement Automatic crit
-spellObject.onSpellCast = function(caster, target, spell)
-    local params = {}
-    params.ecosystem = xi.ecosystem.ARCANA
-    params.tpmod = xi.spells.blue.tpMod.ATTACK
-    params.attackType = xi.attackType.PHYSICAL
-    params.damageType = xi.damageType.HAND_TO_HAND
-    params.scattr = xi.skillchainType.FRAGMENTATION
-    params.scattr2 = xi.skillchainType.TRANSFIXION
-    params.numhits = 1
-    params.multiplier = 2.5 -- Using https://wiki.ffo.jp/html/24367.html over bg-wiki for this
-    params.tp150 = 3.5
-    params.tp300 = 4.0
-    params.azuretp = 4.0 -- This is a guess as blue gartr doesn't have this info
-    params.duppercap = 75
-    params.str_wsc = 0.5
-    params.dex_wsc = 0.0
-    params.vit_wsc = 0.0
-    params.agi_wsc = 0.0
-    params.int_wsc = 0.0
-    params.mnd_wsc = 0.0
-    params.chr_wsc = 0.0
-    params.bonusacc = -100
-    params.critchance = 100 -- TODO: this should cap to 100%
+spellObject.onSpellCast = function(caster, target, spell, action)
+    local params           = xi.spells.blue.getDefaultParams(caster)
+    params.ecosystem       = xi.ecosystem.ARCANA
+    params.tpModifier      = xi.spells.blue.tpMod.ATTACK
+    params.attackType      = xi.attackType.PHYSICAL
+    params.damageType      = xi.damageType.HAND_TO_HAND
+    params.skillchainType  = xi.skillchainType.FRAGMENTATION
+    params.skillchainType2 = xi.skillchainType.TRANSFIXION
 
-    return xi.spells.blue.usePhysicalSpell(caster, target, spell, params)
+    params.numHits       = 1
+    params.ftp0          = 2.5 -- Using https://wiki.ffo.jp/html/24367.html over bg-wiki for this
+    params.ftp1500       = 3.5
+    params.ftp3000       = 4.0
+    params.ftpAzure      = 4.0 -- This is a guess as blue gartr doesn't have this info
+    params.baseDamageCap = 75
+    params.bonusAcc      = -100
+    params.critChance    = 100 -- TODO: this should cap to 100%
+
+    params.str_wsc = 0.5
+
+    return xi.spells.blue.usePhysicalSpell(caster, target, spell, params, action)
 end
 
 return spellObject

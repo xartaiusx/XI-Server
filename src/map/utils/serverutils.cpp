@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -29,7 +29,6 @@
 
 #include <chrono>
 #include <iostream>
-#include <time.h>
 #include <unordered_set>
 
 #include "utils/serverutils.h"
