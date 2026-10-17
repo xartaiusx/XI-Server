@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <type_traits>
 
 namespace
 {
@@ -49,6 +50,11 @@ public:
         std::filesystem::remove(directory_ / "cert-target", ec);
         std::filesystem::remove(directory_, ec);
     }
+
+    CertificateFixture(const CertificateFixture&)            = delete;
+    CertificateFixture& operator=(const CertificateFixture&) = delete;
+    CertificateFixture(CertificateFixture&&)                 = delete;
+    CertificateFixture& operator=(CertificateFixture&&)      = delete;
 
     auto name() const -> std::string
     {
@@ -87,6 +93,11 @@ public:
 private:
     std::filesystem::path directory_;
 };
+
+static_assert(!std::is_copy_constructible_v<CertificateFixture>);
+static_assert(!std::is_copy_assignable_v<CertificateFixture>);
+static_assert(!std::is_move_constructible_v<CertificateFixture>);
+static_assert(!std::is_move_assignable_v<CertificateFixture>);
 
 } // namespace
 
