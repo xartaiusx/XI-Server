@@ -79,7 +79,7 @@ when referring to the game.
   certificate/key links must resolve into the canonical credential root before
   startup. Never generate or replace existing credential material implicitly.
   Every start must satisfy `status-mochirii-wsl.sh --expect-running-manual`;
-  every full stop must satisfy `--expect-stopped-disabled`. MariaDB and all four
+  every full stop must satisfy `--expect-stopped-disabled`. MariaDB and all five
   XI units must remain `enabled=disabled` even while active. The developer stop
   path that leaves MariaDB running must satisfy
   `--expect-xi-stopped-db-running-manual`.
