@@ -46,8 +46,8 @@ class CPPModule
 {
 public:
     CPPModule()
-    : lua(::lua)
     {
+        // Registration runs during static initialization; Lua is resolved only by runtime hooks.
         moduleutils::RegisterCPPModule(this);
     }
 
@@ -74,9 +74,6 @@ public:
     {
         return new T();
     };
-
-protected:
-    sol::state& lua;
 };
 
 #define REGISTER_CPP_MODULE(className) \
