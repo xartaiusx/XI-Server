@@ -18,10 +18,8 @@ def needs_to_run(cur):
 
 def migrate(cur, db):
     try:
-        cur.execute(
-            "ALTER TABLE char_points \
-                ADD COLUMN `alter_ego_points` smallint(5) unsigned NOT NULL DEFAULT 0;"
-        )
+        cur.execute("ALTER TABLE char_points \
+                ADD COLUMN `alter_ego_points` smallint(5) unsigned NOT NULL DEFAULT 0;")
         db.commit()
     except mariadb.Error as err:
         print("Something went wrong: {}".format(err))
