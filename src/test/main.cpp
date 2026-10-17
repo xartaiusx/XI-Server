@@ -29,6 +29,11 @@
 #include <iostream>
 #include <memory>
 
+// Bridge OpenSSL DLL file operations to the executable's Windows CRT.
+#ifdef _WIN32
+#include <ms/applink.c>
+#endif
+
 int main(int argc, char** argv)
 {
     TracySetThreadName("Test Thread");
