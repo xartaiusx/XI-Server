@@ -235,7 +235,6 @@ void TestChar::setEntity(std::unique_ptr<CCharEntity> entity) const
         session_->charID          = entity->id;
         session_->PChar           = std::move(entity);
         session_->PChar->PSession = session();
-        session_->PChar->status   = xi::Status::Normal;
         if (!entityNameOverride_.empty())
         {
             // Test-only policy identity: keep the database row's generated
