@@ -6,7 +6,7 @@ local zoneObject = {}
 
 zoneObject.onInitialize = function(zone)
     xi.helm.initZone(zone, xi.helmType.HARVESTING)
-    xi.darkRider.addHoofprints(zone)
+    xi.darkRider.onZoneInitialize()
 end
 
 zoneObject.onZoneIn = function(player, prevZone)
@@ -34,10 +34,6 @@ end
 
 zoneObject.onGameHour = function(zone)
     xi.darkRider.onGameHour(zone)
-
-    if VanadielHour() == 0 then
-        xi.darkRider.addHoofprints(zone)
-    end
 end
 
 zoneObject.onEventUpdate = function(player, csid, option, npc)
@@ -47,6 +43,10 @@ zoneObject.onEventFinish = function(player, csid, option, npc)
     if csid == 108 then
         player:setPos(0, 0, 0, 0, 66)
     end
+end
+
+zoneObject.onZoneOut = function(player)
+    xi.helm.onZoneOut(player)
 end
 
 return zoneObject

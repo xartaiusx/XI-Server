@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2025 LandSandBoat Dev Teams
@@ -21,6 +21,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 // Valid MessageIDs for both standard and SYSTEM type messages
 // Found in ROM/27/76.dat or 1-27-76.xml if using mass extractor
 enum class MsgStd : uint16_t
@@ -37,6 +39,7 @@ enum class MsgStd : uint16_t
     NotPartyLeader               = 21,  // You are not the party leader.
     UnclaimedTreasureWillBeLost  = 22,  // Caution: All unclaimed treasure will be lost if you join a party.
     CannotInvite                 = 23,  // You cannot invite that person at this time.
+    CannotTradeWithTarget        = 28,  // You cannot trade with that target.
     UnableToPerformInMoghouse    = 32,  // Unable to perform action in Mog House.
     PersonIsAway                 = 33,  // That person is currently away and cannot respond.
     PersonIsUsingPOL             = 34,  // That person is currently using the PlayOnline Viewer and can only be reached by sending a "knock message" from the Search menu.
@@ -50,6 +53,7 @@ enum class MsgStd : uint16_t
     PollProposalParty            = 101, // Player Name's proposal to the party (cast vote with command: "/vote ?"):
     PollProposalLinkshell        = 102, // Player Name's proposal to the linkshell group (cast vote with command: "/vote ?"):
     PollProposalSystem           = 103, // Player Name's proposal to everyone (cast vote with command: "/vote ?"):
+    TradeCanceled                = 107, // Trade canceled. Either your or your target's inventory is full, or an error occurred during the transaction.
     LinkshellEquipBeforeUsing    = 108, // Equip a linkshell, pearlsack, or linkpearl before using that command.
     LinkshellKicked              = 109, // You have been kicked out of the linkshell group.
     LinkshellNoLongerExists      = 110, // That linkshell group no longer exists. This item is unusable.
@@ -93,10 +97,11 @@ enum class MsgStd : uint16_t
     CannotPerformNoPetra         = 210, // You cannot perform that action without a Petra.
     LostYourPetras               = 211, // You lost your Petras.
     GateBreachDisengaged         = 212, // Gate Breach status has been disengaged.
+    RecoveryInSeconds            = 213, // Recovery in 0 seconds.
     ReturningToBattle            = 214, // Returning to battle.
     ReturningToCamp              = 215, // Returning to camp.
-    CannotPerformInConflict      = 216, // This action cannot be performed while participating in Conflict.
-    CannotPerformPreparingBattle = 216, // This action cannot be performed while preparing for battle.
+    CannotPerformInConflict      = 216, // That action cannot be performed while participating in Conflict.
+    CannotPerformPreparingBattle = 217, // That action cannot be performed while preparing for battle.
     ChevronsEarned               = 219, // Chevrons earned: Gold: 0 Mythril: 0 Silver: 0 Bronze: 0 Job: 0
     ItemEx                       = 220, // You cannot possess more than one of that item.
     BlockaidActivated            = 221, // Blockaid activated. Magical assistance, trades, party invites etc. from non-party/alliance characters will be blocked. This effect will continue until changing areas, or executing the "/blockaid off" command.

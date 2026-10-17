@@ -9,9 +9,9 @@ local quest = Quest:new(xi.questLog.WINDURST, xi.quest.id.windurst.A_SMUDGE_ON_O
 
 quest.reward =
 {
-    keyItem  = xi.ki.MAP_OF_FEIYIN,
+    keyItem  = xi.keyItem.MAP_OF_FEIYIN,
     fameArea = xi.fameArea.WINDURST,
-    fame     = 120,
+    fame     = 40,
     gil      = 5000,
     exp      = 2000,
 }

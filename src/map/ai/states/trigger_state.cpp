@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -23,17 +23,18 @@
 
 #include "entities/char_entity.h"
 
-CTriggerState::CTriggerState(CBaseEntity* PEntity, const EntityId& target, const bool door)
+CTriggerState::CTriggerState(xi::Badge<CState>, CBaseEntity* PEntity, const EntityId& target, const bool door)
 : CState(PEntity, target)
 , door(door)
 {
+    // Capture constructor arguments into members and nothing else. All other logic goes into init().
 }
 
 auto CTriggerState::Update(const timer::time_point tick) -> bool
 {
     if (!IsCompleted())
     {
-        const auto* PChar = dynamic_cast<CCharEntity*>(GetTarget());
+        const auto* PChar = target().resolve<CCharEntity>();
         if (PChar && door && m_PEntity->animation == xi::Animation::CloseDoor)
         {
             close                = true;

@@ -231,8 +231,8 @@ INSERT INTO `traits` VALUES (18,'dual wield',19,80,4,259,30,'ABYSSEA',0);
 INSERT INTO `traits` VALUES (19,'treasure hunter',6,15,1,303,1,NULL,0);
 INSERT INTO `traits` VALUES (20,'gilfinder',6,5,1,897,1,NULL,0);
 INSERT INTO `traits` VALUES (20,'gilfinder',6,90,2,897,2,NULL,0); -- https://wiki.ffo.jp/html/1677.html
-INSERT INTO `traits` VALUES (21,'alertness',11,5,1,0,0,NULL,0);
-INSERT INTO `traits` VALUES (22,'stealth',13,5,1,358,3,NULL,0);
+INSERT INTO `traits` VALUES (21,'alertness',11,5,1,0,0,NULL,0);   -- Alertness is not known to do anything observable.
+INSERT INTO `traits` VALUES (22,'stealth',13,5,1,0,0,NULL,0);     -- Stealth is not known to do anything observable.
 INSERT INTO `traits` VALUES (23,'martial arts',2,1,1,173,80,NULL,0);
 INSERT INTO `traits` VALUES (23,'martial arts',2,16,2,173,100,NULL,0);
 INSERT INTO `traits` VALUES (23,'martial arts',2,31,3,173,120,NULL,0);
@@ -599,10 +599,10 @@ INSERT INTO `traits` VALUES (110,'mag. burst bonus',4,97,5,274,13,'ABYSSEA',0);
 INSERT INTO `traits` VALUES (110,'mag. burst bonus',5,85,1,274,5,'ABYSSEA',0);
 INSERT INTO `traits` VALUES (110,'mag. burst bonus',5,95,2,274,7,'ABYSSEA',0);
 INSERT INTO `traits` VALUES (110,'mag. burst bonus',13,80,1,274,5,'ABYSSEA',0);
-INSERT INTO `traits` VALUES (110,'mag. burst bonus',13,90,2,487,7,'ABYSSEA',0);
-INSERT INTO `traits` VALUES (110,'mag. burst bonus',20,79,1,487,5,'ABYSSEA',0);
-INSERT INTO `traits` VALUES (110,'mag. burst bonus',20,89,2,487,7,'ABYSSEA',0);
-INSERT INTO `traits` VALUES (110,'mag. burst bonus',20,99,3,487,9,'ABYSSEA',0);
+INSERT INTO `traits` VALUES (110,'mag. burst bonus',13,90,2,274,7,'ABYSSEA',0);
+INSERT INTO `traits` VALUES (110,'mag. burst bonus',20,79,1,274,5,'ABYSSEA',0);
+INSERT INTO `traits` VALUES (110,'mag. burst bonus',20,89,2,274,7,'ABYSSEA',0);
+INSERT INTO `traits` VALUES (110,'mag. burst bonus',20,99,3,274,9,'ABYSSEA',0);
 INSERT INTO `traits` VALUES (111,'divine benison',3,50,1,910,10,'ABYSSEA',0);
 INSERT INTO `traits` VALUES (111,'divine benison',3,60,2,910,20,'ABYSSEA',0);
 INSERT INTO `traits` VALUES (111,'divine benison',3,70,3,910,30,'ABYSSEA',0);

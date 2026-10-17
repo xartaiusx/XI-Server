@@ -12,7 +12,7 @@ local content = BattlefieldMission:new({
     isMission     = true,
     allowTrusts   = true,
     maxPlayers    = 6,
-    levelCap      = 75,
+    levelCap      = xi.settings.main.MAX_LEVEL,
     timeLimit     = utils.minutes(30),
     index         = 1,
     entryNpc      = '_0w0',
@@ -22,8 +22,15 @@ local content = BattlefieldMission:new({
     requiredVar   = 'Mission[6][748]Status',
     requiredValue = 1,
 
-    title = xi.title.THE_CHEBUKKIS_WORST_NIGHTMARE,
+    title = xi.title.UNQUENCHABLE_LIGHT,
 })
+
+-- Both titles are granted here. Unquenchable Light is the one left displayed.
+function content:onEventFinishWin(player, csid, option, npc)
+    player:addTitle(xi.title.THE_CHEBUKKIS_WORST_NIGHTMARE)
+
+    BattlefieldMission.onEventFinishWin(self, player, csid, option, npc)
+end
 
 function content:onBattlefieldLoss(player, battlefield)
     player:messageSpecial(sealionsDenID.text.COSMIC_ELUCIDATION)

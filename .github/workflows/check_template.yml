@@ -2,66 +2,31 @@ name: Check Template
 
 on:
   pull_request_target:
-    types: [ opened ]
+    types: [opened, edited, reopened]
     branches:
       - main
   issues:
-    types: [ opened ]
+    types: [opened, edited]
+
+permissions:
+  contents: read
 
 jobs:
   Check_Checkboxes:
     name: Check Checkboxes
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
-      pull-requests: read
     steps:
-    - name: Comment on unchecked boxes in template
-      uses: actions/github-script@v9
-      with:
-        script: |
-          function count_instances(string, word)
-          {
-              return string.split(word).length - 1;
-          }
-
-          const event_type     = "${{ github.event_name }}"
-          var   checkbox_total = 3
-          var   body_text      = ""
-          var   type_name      = ""
-
-          if (event_type === "pull_request_target")
-          {
-              body_text      = context.payload.pull_request.body
-              type_name      = "PR"
-              checkbox_total = 4
-          }
-          else // issue
-          {
-              body_text = context.payload.issue.body
-              type_name = "report"
-          }
-
-          // Remove block comments
-          body_text = body_text.replaceAll(/<!--.*-->/g, "")
-
-          console.log(`github.event_name: ${event_type}`)
-          console.log(`body_text: ${body_text}`)
-          console.log(`type_name: ${type_name}`)
-
-          // Count the filled in checkboxes, comparing checkbox_count to checkbox_total
-          const checkbox_count = count_instances(body_text, "[x]")
-          if (checkbox_count < checkbox_total)
-          {
-              console.log(`Found ${checkbox_count} completed checkboxes. Leaving a reminder comment.`)
-              const result = await github.rest.issues.createComment({
-                  issue_number: context.issue.number,
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  body: `✨ Hello and thanks for the ${type_name}! ✨\n\n🤖: This is a friendly automated reminder that the maintainers won't look at your ${type_name} until you've properly completed all of the checkboxes in the pre-filled template.`
-               })
-          }
-          else
-          {
-              console.log(`Found ${checkbox_count} completed checkboxes. All is well.`)
-          }
+      - name: Validate completed template
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const isPullRequest = context.eventName === 'pull_request_target';
+            const body = (isPullRequest
+              ? context.payload.pull_request.body
+              : context.payload.issue.body) || '';
+            const visibleBody = body.replace(/<!--[\s\S]*?-->/g, '');
+            const expected = isPullRequest ? 4 : 3;
+            const completed = (visibleBody.match(/\[x\]/g) || []).length;
+            if (completed < expected) {
+              core.setFailed(`Complete the template checkboxes: ${completed}/${expected}.`);
+            }

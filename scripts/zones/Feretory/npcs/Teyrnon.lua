@@ -1,16 +1,10 @@
 -----------------------------------
--- Area: Feretory
+-- Area: Feretory (285)
 --  NPC: Teyrnon
--- !pos TODO
------------------------------------
-require('scripts/globals/monstrosity')
+-- !pos -354.000 -3.112 -470.000 285
 -----------------------------------
 ---@type TNpcEntity
 local entity = {}
-
-entity.onTrade = function(player, npc, trade)
-    xi.monstrosity.teyrnonOnTrade(player, npc, trade)
-end
 
 entity.onTrigger = function(player, npc)
     xi.monstrosity.teyrnonOnTrigger(player, npc)

@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,8 +19,7 @@
 ===========================================================================
 */
 
-#ifndef _CITEMUSABLE_H
-#define _CITEMUSABLE_H
+#pragma once
 
 #include "common/cbasetypes.h"
 
@@ -71,5 +70,3 @@ private:
     timer::time_point m_LastUseTime;
     uint16            m_AoE;
 };
-
-#endif

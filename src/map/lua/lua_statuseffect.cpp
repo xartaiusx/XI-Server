@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -23,6 +23,7 @@
 #include "common/timer.h"
 
 #include "lua_statuseffect.h"
+#include "luautils.h"
 #include "status_effect.h"
 
 //======================================================//

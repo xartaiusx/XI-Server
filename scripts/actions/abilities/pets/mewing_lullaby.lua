@@ -1,6 +1,7 @@
 -----------------------------------
 -- Mewing Lullaby
--- aoe light based sleep and lowers mob TP to zero
+-- Family: Avatar (Cait Sith)
+-- Description: AOE light based sleep and lowers mob TP to zero
 -----------------------------------
 ---@type TAbilityPet
 local abilityObject = {}
@@ -10,36 +11,32 @@ abilityObject.onAbilityCheck = function(player, target, ability)
 end
 
 abilityObject.onPetAbility = function(target, pet, petskill, summoner, action)
-    xi.job_utils.summoner.onUseBloodPact(target, petskill, summoner, action)
+    xi.job_utils.summoner.onUseBloodPact(target, pet, petskill, summoner, action)
 
     -- Apply TP reset on target. (Secondary effect. Cannot miss.)
     target:setTP(0)
 
-    -- Check nullification.
-    if
-        xi.data.statusEffect.isTargetImmune(target, xi.effect.SLEEP_I, xi.element.LIGHT) or
-        xi.data.statusEffect.isTargetResistant(pet, target, xi.effect.SLEEP_I) or
-        xi.data.statusEffect.isEffectNullified(target, xi.effect.SLEEP_I, 0) or
-        target:hasStatusEffect(xi.effect.SLEEP_I)
-    then
-        petskill:setMsg(xi.msg.basic.JA_NO_EFFECT_2)
-        return xi.effect.SLEEP_I
-    end
+    local messageParams =
+    {
+        messageBypass          = false,
+        messageCantGain        = xi.msg.basic.JA_NO_EFFECT,
+        messageIsImmune        = xi.msg.basic.JA_MISS,
+        messageIsTraitResisted = xi.msg.basic.JA_MISS,
+        messageIsIncompatible  = xi.msg.basic.JA_MISS,
+        messageIsResisted      = xi.msg.basic.JA_MISS,
+        messageIsNotSuccessful = xi.msg.basic.JA_MISS,
+        messageIsSuccessful    = xi.msg.basic.JA_ENFEEB_IS,
+    }
 
-    -- Check resistance.
-    local bonusMacc  = xi.summon.getSummoningSkillOverCap(pet)
-    local resistRate = xi.combat.magicHitRate.calculateResistRate(pet, target, 0, 0, 0, xi.element.LIGHT, xi.mod.CHR, xi.effect.SLEEP_I, bonusMacc)
-    if resistRate < 0.5 then
-        petskill:setMsg(xi.msg.basic.JA_MISS_2) -- resist message
-        return xi.effect.SLEEP_I
-    end
+    -- Effects table.
+    local effectTable =
+    {
+        -- TODO: Get a capture of retail duration. JPWiki says 30s.
+        -- TODO: See if duration scales after 300 summoning skill.
+        [1] = { effectId = xi.effect.SLEEP_I, power = 1, duration = 30, magicalElement = xi.element.LIGHT, actorStat = xi.mod.CHR, bonusMacc = xi.summon.getSummoningSkillOverCap(pet) },
+    }
 
-    local duration = math.floor(90 * resistRate)
-
-    petskill:setMsg(xi.msg.basic.JA_GAIN_EFFECT)
-    target:addStatusEffect(xi.effect.SLEEP_I, { power = 1, duration = duration, origin = pet })
-
-    return xi.effect.SLEEP_I
+    return xi.combat.action.executeMobskillStatusEffect(pet, target, petskill, effectTable, messageParams)
 end
 
 return abilityObject

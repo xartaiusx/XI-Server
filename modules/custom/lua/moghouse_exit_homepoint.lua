@@ -44,7 +44,7 @@ for _, zoneId in pairs(exitZones) do
 end
 
 local currentJob = function(player)
-    return player:getMainJob() * 100 + player:getSubJob()
+    return player:getMainJob()
 end
 
 m:addOverride('xi.moghouse.onMoghouseZoneEvent', function(player, prevZone)
@@ -88,5 +88,3 @@ for zoneName in pairs(exitZones) do
         super(player, csid, option, npc)
     end)
 end
-
-return m

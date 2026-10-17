@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -22,6 +22,7 @@
 #pragma once
 
 #include "common/cbasetypes.h"
+#include "common/types/maybe.h"
 
 #include "base_entity.h"
 
@@ -48,6 +49,9 @@ public:
     bool alwaysRelevant() const;
     void setAlwaysRelevant(bool alwaysRelevant);
 
+    auto contentDisabled() const -> bool;
+    void setContentDisabled(bool contentDisabled);
+
     //
     // CBaseEntity
     //
@@ -66,6 +70,7 @@ public:
 
     xi::EntityFlags m_flags{};
     uint8           name_prefix{};
+    Maybe<uint32>   door_id; // identity the client reads for a door, elevator or ship; unset falls back to the name
 
 private:
     uint8 widescan_    = 1;
@@ -74,4 +79,7 @@ private:
     // Spawn this NPC in for players at all times, used for port bastok bridge, "moving" objects (elevators / maybe
     // airships), major zone elements like la theine rainbow, altepa gate pillars, etc.
     bool alwaysRelevant_ = false;
+
+    // Content tag is disabled by settings, the NPC is loaded hidden and cannot be interacted with.
+    bool contentDisabled_ = false;
 };

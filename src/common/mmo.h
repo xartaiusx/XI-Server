@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -23,6 +23,9 @@
 
 #include "cbasetypes.h"
 #include "timer.h"
+#include "types/position.h"
+
+#include "data/enums/zone.h"
 #include "xi.h"
 
 #include <array>
@@ -190,7 +193,7 @@ struct look_t
         ranged  = 0;
     }
 
-    look_t(uint16 look[10])
+    look_t(const uint16* look)
     {
         size    = look[0];
         modelid = look[1];
@@ -254,33 +257,6 @@ struct keyitems_table_t
 struct keyitems_t
 {
     std::array<keyitems_table_t, 8> tables; // 8 tables of key items as of December 2025
-};
-
-struct position_t
-{
-    float  x      = 0.0f;
-    float  y      = 0.0f; // Entity height, relative to "sea level"
-    float  z      = 0.0f;
-    uint16 moving = 0; // Something like the travel distance, the number of steps required for correct rendering in the client.
-
-    // The angle of rotation of the entity relative to its position. A maximum rotation value of
-    // 255 is used as the rotation is stored in `uint8`. Use `rotationToRadian()` and
-    // `radianToRotation()` util functions to convert back and forth between the 255-encoded
-    // rotation value and the radian value.
-    uint8 rotation = 0;
-
-    position_t()
-    {
-    }
-
-    position_t(float _x, float _y, float _z, uint16 _moving, uint8 _rotation)
-    : x(_x)
-    , y(_y)
-    , z(_z)
-    , moving(_moving)
-    , rotation(_rotation)
-    {
-    }
 };
 
 struct stats_t
@@ -436,9 +412,9 @@ class char_mini
 public:
     int8 m_name[16];
 
-    uint8  m_mjob;
-    uint16 m_zone;
-    uint8  m_nation;
+    uint8      m_mjob;
+    xi::ZoneId m_zone;
+    uint8      m_nation;
 
     look_t m_look;
 };

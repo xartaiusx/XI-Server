@@ -12,7 +12,7 @@ local entity = {}
 
 entity.onTrigger = function(player, npc)
     local theWonderMagicSet = player:getQuestStatus(xi.questLog.JEUNO, xi.quest.id.jeuno.THE_WONDER_MAGIC_SET)
-    local hasWonderMagicSet = player:hasKeyItem(xi.ki.WONDER_MAGIC_SET)
+    local hasWonderMagicSet = player:hasKeyItem(xi.keyItem.WONDER_MAGIC_SET)
     local theKindCardian    = player:getQuestStatus(xi.questLog.JEUNO, xi.quest.id.jeuno.THE_KIND_CARDIAN)
 
     if
@@ -68,10 +68,12 @@ entity.onEventFinish = function(player, csid, option, npc)
             player:messageSpecial(ID.text.ITEM_CANNOT_BE_OBTAINED, xi.item.MYTHRIL_EARRING)
         else
             player:addTitle(xi.title.FOOLS_ERRAND_RUNNER)
-            player:delKeyItem(xi.ki.WONDER_MAGIC_SET)
+            player:delKeyItem(xi.keyItem.WONDER_MAGIC_SET)
             player:addItem(xi.item.MYTHRIL_EARRING)
             player:messageSpecial(ID.text.ITEM_OBTAINED, xi.item.MYTHRIL_EARRING)
-            player:addFame(xi.fameArea.JEUNO, 30)
+            player:addFame(xi.fameArea.SANDORIA, 13)
+            player:addFame(xi.fameArea.BASTOK, 13)
+            player:addFame(xi.fameArea.WINDURST, 13)
             player:needToZone(true)
             player:completeQuest(xi.questLog.JEUNO, xi.quest.id.jeuno.THE_WONDER_MAGIC_SET)
         end
@@ -82,11 +84,13 @@ entity.onEventFinish = function(player, csid, option, npc)
             player:messageSpecial(ID.text.ITEM_CANNOT_BE_OBTAINED, xi.item.GREEN_CAPE)
         else
             player:addTitle(xi.title.BRINGER_OF_BLISS)
-            player:delKeyItem(xi.ki.TWO_OF_SWORDS)
+            player:delKeyItem(xi.keyItem.TWO_OF_SWORDS)
             player:setCharVar('theKindCardianVar', 0)
             player:addItem(xi.item.GREEN_CAPE)
             player:messageSpecial(ID.text.ITEM_OBTAINED, xi.item.GREEN_CAPE) -- Green Cape
-            player:addFame(xi.fameArea.JEUNO, 30)
+            player:addFame(xi.fameArea.SANDORIA, 13)
+            player:addFame(xi.fameArea.BASTOK, 13)
+            player:addFame(xi.fameArea.WINDURST, 13)
             player:completeQuest(xi.questLog.JEUNO, xi.quest.id.jeuno.THE_KIND_CARDIAN)
         end
     end

@@ -371,12 +371,12 @@ describe('Module: Trust evidence lanes', function()
         assert(ordinary:spawnTrust(xi.magic.spell.ULMIA) ~= nil)
 
         assert(xi.trust.canCast(ordinary, GetSpell(xi.magic.spell.LILISETTE_II)) == -1)
-        ordinary:addKeyItem(xi.ki.RHAPSODY_IN_WHITE)
+        ordinary:addKeyItem(xi.keyItem.RHAPSODY_IN_WHITE)
         assert(xi.trust.canCast(ordinary, GetSpell(xi.magic.spell.LILISETTE_II)) == 0)
         assert(ordinary:spawnTrust(xi.magic.spell.LILISETTE_II) ~= nil)
 
         assert(xi.trust.canCast(ordinary, GetSpell(xi.magic.spell.SHANTOTTO_II)) == -1)
-        ordinary:addKeyItem(xi.ki.RHAPSODY_IN_CRIMSON)
+        ordinary:addKeyItem(xi.keyItem.RHAPSODY_IN_CRIMSON)
         assert(xi.trust.canCast(ordinary, GetSpell(xi.magic.spell.SHANTOTTO_II)) == 0)
         assert(ordinary:spawnTrust(xi.magic.spell.SHANTOTTO_II) ~= nil)
 

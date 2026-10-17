@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -22,10 +22,14 @@
 #include "pet_controller.h"
 
 #include "ai/ai_container.h"
+#include "ai/states/magic_state.h"
 #include "common/utils.h"
+#include "entities/char_entity.h"
 #include "entities/pet_entity.h"
+#include "mob_spell_container.h"
 #include "status_effect_container.h"
 #include "utils/petutils.h"
+#include "zone.h"
 
 namespace
 {
@@ -49,7 +53,7 @@ CPetController::CPetController(CMobEntity* _PPet)
 
 auto CPetController::DoRoamTick(timer::time_point tick) -> Task<void>
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CPetController::DoRoamTick");
 
     if ((PPet->PMaster == nullptr || PPet->PMaster->isDead()) && PPet->isAlive() && PPet->objtype != TYPE_MOB)
     {
@@ -64,7 +68,7 @@ auto CPetController::DoRoamTick(timer::time_point tick) -> Task<void>
     }
 
     const auto isPet        = PPet->objtype == TYPE_PET;
-    const auto isCharmedMob = PPet->objtype == TYPE_MOB && PPet->PMaster && PPet->PMaster->objtype == TYPE_PC;
+    const auto isCharmedMob = PPet->objtype == TYPE_MOB && PPet->PMaster && dynamic_cast<const CCharEntity*>(PPet->PMaster) != nullptr;
 
     if (isPet || isCharmedMob)
     {
@@ -117,8 +121,8 @@ auto CPetController::DoRoamTick(timer::time_point tick) -> Task<void>
     if (!PPet->PAI->PathFind->IsFollowingPath() ||
         distance(PPet->PAI->PathFind->GetDestination(), PPet->PMaster->loc.p) > 2.0f)
     {
-        if (!PPet->PAI->PathFind->PathAround(PPet->PMaster->loc.p, 2.0f, PATHFLAG_RUN | PATHFLAG_WALLHACK) &&
-            !PPet->PAI->PathFind->PathInRange(PPet->PMaster->loc.p, 2.0f, PATHFLAG_RUN | PATHFLAG_WALLHACK))
+        if (!PPet->PAI->PathFind->PathAround(PPet->PMaster->loc.p, 2.0f, PATHFLAG_RUN) &&
+            !PPet->PAI->PathFind->PathInRange(PPet->PMaster->loc.p, 2.0f, PATHFLAG_RUN))
         {
             // If we got here, the pet isn't able to path to master
             // But it cant, so maybe we teleported or dropped down a hole
@@ -172,10 +176,10 @@ auto CPetController::PetIsHealing() const -> bool
 
 auto CPetController::Tick(const timer::time_point tick) -> Task<void>
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CPetController::Tick");
     TracyZoneString(PPet->getName());
 
-    bool isPlayerPet = PPet->objtype == TYPE_PET || (PPet->objtype == TYPE_MOB && PPet->PMaster && PPet->PMaster->objtype == TYPE_PC);
+    bool isPlayerPet = PPet->objtype == TYPE_PET || (PPet->objtype == TYPE_MOB && PPet->PMaster && dynamic_cast<const CCharEntity*>(PPet->PMaster) != nullptr);
 
     // if a player pet then check if a charmed mob or jug pet and if it should despawn
     if (isPlayerPet)
@@ -203,6 +207,7 @@ auto CPetController::Tick(const timer::time_point tick) -> Task<void>
 }
 
 // Light Spirit is the only elemental spirit that is allowed to cast out of combat.
+// Pet workings are unknown so keep the combat cast path how it was
 auto CPetController::DoBuffTick() -> bool
 {
     const auto* PPetEntity = dynamic_cast<CPetEntity*>(PPet);
@@ -211,7 +216,17 @@ auto CPetController::DoBuffTick() -> bool
         return false;
     }
 
-    return CMobController::DoBuffTick();
+    if (PPet->PAI->IsCurrentState<CMagicState>())
+    {
+        return true;
+    }
+
+    if (!IsSpellReady(0, 0) || !PPet->SpellContainer->HasBuffSpells())
+    {
+        return false;
+    }
+
+    return TryCastSpell();
 }
 
 void CPetController::HandleEnmity()
@@ -220,6 +235,8 @@ void CPetController::HandleEnmity()
 
 auto CPetController::TryDeaggro() -> bool
 {
+    auto* PTarget = target().resolve<CBattleEntity>();
+
     if (PTarget == nullptr)
     {
         return true;

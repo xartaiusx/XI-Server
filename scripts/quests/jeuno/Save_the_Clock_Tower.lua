@@ -9,8 +9,6 @@ local quest = Quest:new(xi.questLog.JEUNO, xi.quest.id.jeuno.SAVE_THE_CLOCK_TOWE
 
 quest.reward =
 {
-    fame     = 30,
-    fameArea = xi.fameArea.JEUNO,
     title    = xi.title.CLOCK_TOWER_PRESERVATIONIST,
 }
 
@@ -62,7 +60,7 @@ quest.sections =
             ['Derrick'] =
             {
                 onTrigger = function(player, npc)
-                    local hasAirshipPass = player:hasKeyItem(xi.ki.AIRSHIP_PASS) and 2 or 0
+                    local hasAirshipPass = player:hasKeyItem(xi.keyItem.AIRSHIP_PASS) and 2 or 0
 
                     return quest:progressEvent(230, 8 + hasAirshipPass, 10)
                 end,
@@ -106,7 +104,7 @@ quest.sections =
                 end,
 
                 onTrigger = function(player, npc)
-                    local hasAirshipPass = player:hasKeyItem(xi.ki.AIRSHIP_PASS) and 2 or 0
+                    local hasAirshipPass = player:hasKeyItem(xi.keyItem.AIRSHIP_PASS) and 2 or 0
 
                     return quest:progressEvent(230, 4 + hasAirshipPass, 10)
                 end,
@@ -134,6 +132,9 @@ quest.sections =
 
                 [231] = function(player, csid, option, npc)
                     if quest:complete(player) then
+                        player:addFame(xi.fameArea.SANDORIA, 17)
+                        player:addFame(xi.fameArea.BASTOK, 17)
+                        player:addFame(xi.fameArea.WINDURST, 17)
                         player:confirmTrade()
                     end
                 end,

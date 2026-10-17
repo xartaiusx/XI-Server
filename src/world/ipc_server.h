@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2025 LandSandBoat Dev Teams
@@ -55,7 +55,7 @@ public:
 
     auto getIPPForCharId(uint32 charId) -> Maybe<IPP>;
     auto getIPPForCharName(const std::string& charName) -> Maybe<IPP>;
-    auto getIPPForZoneId(uint16 zoneId) -> Maybe<IPP>;
+    auto getIPPForZoneId(xi::ZoneId zoneId) -> Maybe<IPP>;
     auto getIPPsForParty(uint32 partyId) -> std::vector<IPP>;
     auto getIPPsForAlliance(uint32 allianceId) -> std::vector<IPP>;
     auto getIPPsForLinkshell(uint32 linkshellId) -> std::vector<IPP>;
@@ -70,7 +70,7 @@ public:
 
     void rerouteMessageToCharId(uint32 charId, const auto& message);
     void rerouteMessageToCharName(const std::string& charName, const auto& message);
-    void rerouteMessageToZoneId(uint16 zoneId, const auto& message);
+    void rerouteMessageToZoneId(xi::ZoneId zoneId, const auto& message);
     void rerouteMessageToPartyMembers(uint32 partyId, const auto& message);
     void rerouteMessageToAllianceMembers(uint32 allianceId, const auto& message);
     void rerouteMessageToLinkshellMembers(uint32 linkshellId, const auto& message);
@@ -98,6 +98,7 @@ public:
     void handleMessage_ChatMessageCustom(const IPP& ipp, const ipc::ChatMessageCustom& message);
     void handleMessage_PartyInvite(const IPP& ipp, const ipc::PartyInvite& message);
     void handleMessage_PartyInviteResponse(const IPP& ipp, const ipc::PartyInviteResponse& message);
+    void handleMessage_PartyRequest(const IPP& ipp, const ipc::PartyRequest& message);
     void handleMessage_PartyReload(const IPP& ipp, const ipc::PartyReload& message);
     void handleMessage_PartyDisband(const IPP& ipp, const ipc::PartyDisband& message);
     void handleMessage_AllianceReload(const IPP& ipp, const ipc::AllianceReload& message);

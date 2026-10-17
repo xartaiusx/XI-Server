@@ -8,6 +8,7 @@ local zoneObject = {}
 
 zoneObject.onInitialize = function(zone)
     quests.ffr.initZone(zone) -- register trigger areas 1 through 5
+    zone:registerCuboidTriggerArea(369, 3.9, -5.3, 40.1, 36.1, 0.5, 68.2) -- Jeuno airship boarding area
 end
 
 zoneObject.onZoneIn = function(player, prevZone)
@@ -18,7 +19,7 @@ zoneObject.onZoneIn = function(player, prevZone)
     then
         if prevZone == xi.zone.SAN_DORIA_JEUNO_AIRSHIP then
             player:setPos(-1.000, 0.000, 44.000, 128)
-            return { 702, -1, bit.bor(xi.cutsceneFlag.UNKNOWN_1, xi.cutsceneFlag.NO_PCS) }
+            return { 702, -1, bit.bor(xi.cutsceneFlag.RESET_CAMERA, xi.cutsceneFlag.NO_PCS) }
         end
     end
 
@@ -26,7 +27,7 @@ zoneObject.onZoneIn = function(player, prevZone)
 end
 
 zoneObject.onConquestUpdate = function(zone, updatetype, influence, owner, ranking, isConquestAlliance)
-    xi.conquest.onConquestUpdate(zone, updatetype, influence, owner, ranking, isConquestAlliance)
+    xi.conquest.onNonRegionConquestUpdate(zone, updatetype, ranking, isConquestAlliance)
 end
 
 zoneObject.onTriggerAreaEnter = function(player, triggerArea)
@@ -36,8 +37,13 @@ end
 zoneObject.onTriggerAreaLeave = function(player, triggerArea)
 end
 
-zoneObject.onTransportEvent = function(player, prevZoneId, transportId)
-    player:startEvent(700, { isHidden = true, flags = xi.cutsceneFlag.UNKNOWN_7 })
+zoneObject.onTransportEvent = function(player, prevZoneId, transportName)
+    if not player:hasKeyItem(xi.keyItem.AIRSHIP_PASS) then
+        player:startEvent(701)
+        return
+    end
+
+    player:startEvent(700, { isHidden = true, flags = xi.cutsceneFlag.NO_IDLE_WAIT })
 end
 
 zoneObject.onEventUpdate = function(player, csid, option, npc)

@@ -159,6 +159,7 @@
 #include "packets/c2s/0x11b_mastery_display.h"
 #include "packets/c2s/0x11c_party_request.h"
 #include "packets/c2s/0x11d_jump.h"
+#include "packets/c2s/validation.h"
 #include "utils/moduleutils.h"
 
 namespace
@@ -219,7 +220,7 @@ void ValidatedPacketHandler(MapSession* const PSession, CCharEntity* const PChar
     }
     else
     {
-        ShowWarningFmt("Invalid {} packet from {}: {} ", T::name, PChar->getName(), result.errorString());
+        ShowWarningFmt("Invalid {} packet from {}: {}", T::name, PChar->getName(), result.errorString());
     }
 }
 

@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -21,8 +21,6 @@
 
 #pragma once
 
-#include "pch.h"
-
 #include <common/application.h>
 #include <common/ipp.h>
 #include <common/timer.h>
@@ -44,7 +42,7 @@ class CZone;
 // Exposed globals
 //
 
-extern std::map<uint16, CZone*> g_PZoneList; // Global array of pointers for zones
+extern std::map<xi::ZoneId, CZone*> g_PZoneList; // Global array of pointers for zones
 
 class MapEngine final : public Engine
 {
@@ -68,6 +66,8 @@ public:
     void sessionCleanup() const;
     void garbageCollect() const;
 
+    auto persistSweep() -> Task<void>;
+
     //
     // Commands callbacks
     //
@@ -84,7 +84,7 @@ public:
     auto networking() const -> MapNetworking&;
     auto statistics() const -> MapStatistics&;
     auto scheduler() -> Scheduler&;
-    auto zones() const -> std::map<uint16, CZone*>&; // g_PZoneList
+    auto zones() const -> std::map<xi::ZoneId, CZone*>&; // g_PZoneList
     auto config() const -> MapConfig&;
     // TODO: gameState()
 
@@ -95,9 +95,11 @@ private:
     Maybe<Scheduler::Token> mapCleanupToken_;
     Maybe<Scheduler::Token> mapGarbageCollectToken_;
     Maybe<Scheduler::Token> timeServerToken_;
+    Maybe<Scheduler::Token> transportToken_;
     Maybe<Scheduler::Token> persistVolatileServerVarsToken_;
     Maybe<Scheduler::Token> pumpIPCToken_;
     Maybe<Scheduler::Token> flushStatisticsToken_;
+    Maybe<Scheduler::Token> persistSweepToken_;
 
     std::unique_ptr<MapStatistics> mapStatistics_;
     std::unique_ptr<MapNetworking> networking_;

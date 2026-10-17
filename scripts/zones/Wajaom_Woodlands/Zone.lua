@@ -6,8 +6,8 @@ local zoneObject = {}
 
 zoneObject.onInitialize = function(zone)
     xi.helm.initZone(zone, xi.helmType.HARVESTING)
-    xi.chocobo.initZone(zone)
-    xi.darkRider.addHoofprints(zone)
+    xi.rentalChocobo.initZone(zone)
+    xi.darkRider.onZoneInitialize()
 end
 
 zoneObject.onZoneIn = function(player, prevZone)
@@ -29,16 +29,16 @@ end
 
 zoneObject.onGameHour = function(zone)
     xi.darkRider.onGameHour(zone)
-
-    if VanadielHour() == 0 then
-        xi.darkRider.addHoofprints(zone)
-    end
 end
 
 zoneObject.onEventUpdate = function(player, csid, option, npc)
 end
 
 zoneObject.onEventFinish = function(player, csid, option, npc)
+end
+
+zoneObject.onZoneOut = function(player)
+    xi.helm.onZoneOut(player)
 end
 
 return zoneObject

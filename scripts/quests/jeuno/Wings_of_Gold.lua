@@ -9,8 +9,6 @@ local quest = Quest:new(xi.questLog.JEUNO, xi.quest.id.jeuno.WINGS_OF_GOLD)
 
 quest.reward =
 {
-    fame     = 20,
-    fameArea = xi.fameArea.JEUNO,
     item     = xi.item.BARBAROI_AXE,
 }
 
@@ -93,7 +91,7 @@ quest.sections =
             ['Brutus'] =
             {
                 onTrigger = function(player, npc)
-                    if not player:hasKeyItem(xi.ki.GUIDING_BELL) then
+                    if not player:hasKeyItem(xi.keyItem.GUIDING_BELL) then
                         return quest:event(136)
                     else
                         return quest:progressEvent(138)
@@ -105,7 +103,10 @@ quest.sections =
             {
                 [138] = function(player, csid, option, npc)
                     if quest:complete(player) then
-                        player:delKeyItem(xi.ki.GUIDING_BELL)
+                        player:addFame(xi.fameArea.SANDORIA, 7)
+                        player:addFame(xi.fameArea.BASTOK, 7)
+                        player:addFame(xi.fameArea.WINDURST, 7)
+                        player:delKeyItem(xi.keyItem.GUIDING_BELL)
                     end
                 end,
             },

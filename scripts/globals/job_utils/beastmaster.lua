@@ -85,6 +85,18 @@ local getValidJugPetID = function(player)
     return nil
 end
 
+local function doSic(mob)
+    if mob:getTP() >= 1000 then
+        mob:setLocalVar('sicQueued', 0)
+        mob:useMobAbility()
+    elseif mob:hasSpellList() then
+        mob:setLocalVar('sicQueued', 0)
+        mob:castSpell()
+    else
+        mob:queue(0, doSic)
+    end
+end
+
 xi.job_utils.beastmaster.getCharmChance = function(charmer, target, includeMods)
     if
         not charmer or                                -- Invalid charmer
@@ -275,7 +287,7 @@ xi.job_utils.beastmaster.checkReward = function(player, target, ability)
     then
         return xi.msg.basic.NO_EFFECT_ON_PET, 0
     else
-        local id = player:getEquipID(xi.slot.AMMO)
+        local id = xi.equipment.getUsableEquipID(player, xi.slot.AMMO)
         if
             id >= xi.item.PET_FOOD_ALPHA_BISCUIT and
             id <= xi.item.PET_FOOD_THETA_BISCUIT
@@ -475,7 +487,7 @@ xi.job_utils.beastmaster.useTame = function(player, target, ability)
         return 0
     end
 
-    local resist = xi.combat.magicHitRate.calculateResistRate(player, target, 0, 0, 0, xi.element.NONE, xi.mod.INT, 0, 0)
+    local resist = xi.combat.magicHitRate.calculateResistRate(player, target, { actorStat = xi.mod.INT })
 
     if resist <= 0.25 then
         ability:setMsg(xi.msg.basic.JA_MISS_2)
@@ -513,7 +525,7 @@ end
 
 xi.job_utils.beastmaster.useReward = function(player, target, ability)
     -- 1st need to get the pet food is equipped in the range slot.
-    local rangeObj         = player:getEquipID(xi.slot.AMMO)
+    local rangeObj         = xi.equipment.getUsableEquipID(player, xi.slot.AMMO)
     local minimumHealing   = 0
     local totalHealing     = 0
     local playerMnd        = player:getStat(xi.mod.MND)
@@ -536,7 +548,7 @@ xi.job_utils.beastmaster.useReward = function(player, target, ability)
     end
 
     -- Now calculating the bonus based on gear.
-    switch(player:getEquipID(xi.slot.BODY)):caseof
+    switch(xi.equipment.getUsableEquipID(player, xi.slot.BODY)):caseof
     {
         [xi.item.BEAST_JACKCOAT] = function() -- beast jackcoat
             -- This will remove Paralyze, Poison and Blind from the pet.
@@ -626,17 +638,14 @@ xi.job_utils.beastmaster.useSnarl = function(player, target, ability)
 end
 
 xi.job_utils.beastmaster.useSic = function(player, target, ability)
-    local function doSic(mob)
-        if mob:getTP() >= 1000 then
-            mob:useMobAbility()
-        elseif mob:hasSpellList() then
-            mob:castSpell()
-        else
-            mob:queue(0, doSic)
-        end
+    local pet = player:getPet()
+
+    if pet:getLocalVar('sicQueued') == 1 then
+        return
     end
 
-    player:getPet():queue(0, doSic)
+    pet:setLocalVar('sicQueued', 1)
+    pet:queue(0, doSic)
 end
 
 xi.job_utils.beastmaster.useHeel = function(player, target, ability)
@@ -749,7 +758,15 @@ xi.job_utils.beastmaster.useFeralHowl = function(player, target, ability, action
         ability:setMsg(xi.msg.basic.JA_MISS_2)
     else
         -- modAcc returns 5 per merit level (5, 10, 15, 20, 25), providing 5% accuracy bonus per merit
-        local resistanceRate = xi.combat.magicHitRate.calculateResistRate(player, target, 0, 0, xi.skillRank.B_MINUS, xi.element.DARK, xi.mod.CHR, xi.effect.TERROR, modAcc)
+        local params =
+        {
+            effectId       = xi.effect.TERROR,
+            skillRank      = xi.skillRank.B_MINUS,
+            magicalElement = xi.element.DARK,
+            actorStat      = xi.mod.CHR,
+            bonusMacc      = modAcc,
+        }
+        local resistanceRate = xi.combat.magicHitRate.calculateResistRate(player, target, params)
 
         if xi.data.statusEffect.isResistRateSuccessfull(xi.effect.TERROR, resistanceRate, 0) then
             target:addStatusEffect(xi.effect.TERROR, { power = 1, duration = duration * resistanceRate, origin = player })

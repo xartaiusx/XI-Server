@@ -4,20 +4,8 @@
 -----------------------------------
 mixins = { require('scripts/mixins/job_special') }
 -----------------------------------
-local ID = zones[xi.zone.SEA_SERPENT_GROTTO]
------------------------------------
 ---@type TMobEntity
 local entity = {}
-
-entity.spawnPoints =
-{
-    { x =  16.000, y = -0.500, z =  120.000 }
-}
-
-entity.phList =
-{
-    [ID.mob.WUUR_THE_SANDCOMBER - 3] = ID.mob.WUUR_THE_SANDCOMBER, -- Confirmed on retail
-}
 
 entity.onMobInitialize = function(mob)
     mob:addImmunity(xi.immunity.SILENCE)

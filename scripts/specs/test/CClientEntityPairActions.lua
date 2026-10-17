@@ -40,6 +40,13 @@ end
 function CClientEntityPairActions:useAbility(target, abilityId)
 end
 
+---Use a Monstrosity TP move on a target
+---@param target CBaseEntity Target entity
+---@param datSkillId integer Client-facing DAT skill id (e.g. 343 for Fireball)
+---@return nil
+function CClientEntityPairActions:useMonsterSkill(target, datSkillId)
+end
+
 ---Change the current target
 ---@param target CBaseEntity New target entity
 ---@return nil
@@ -104,6 +111,47 @@ end
 function CClientEntityPairActions:spawnTrustForInvalidGroupState(trustId)
 end
 
+---Leave the current party
+---@return nil
+function CClientEntityPairActions:leaveParty()
+end
+
+---Request to join a player's party
+---@param player CBaseEntity Player to send the request to
+---@return nil
+function CClientEntityPairActions:requestParty(player)
+end
+
+---Withdraw a request to join a player's party
+---@param player CBaseEntity Player the request was sent to
+---@return nil
+function CClientEntityPairActions:cancelPartyRequest(player)
+end
+
+---Toggle the accepting party requests flag
+---@param enabled boolean
+---@return nil
+function CClientEntityPairActions:setAcceptingRequests(enabled)
+end
+
+---Toggle the seeking party flag
+---@param enabled boolean
+---@return nil
+function CClientEntityPairActions:setSeekingParty(enabled)
+end
+
+---Add a player to the blacklist
+---@param player CBaseEntity Player to blacklist
+---@return nil
+function CClientEntityPairActions:blacklistAdd(player)
+end
+
+---Level sync the party to a member (caller must be party leader)
+---@param player CBaseEntity Party member to sync to
+---@return nil
+function CClientEntityPairActions:setLevelSync(player)
+end
+
 ---@class TradeItem
 ---@field itemId xi.item Item ID
 ---@field quantity? integer Quantity (default: 1)
@@ -136,10 +184,12 @@ end
 function CClientEntityPairActions:tradeOffer(tradeIndex, invSlot, itemId, quantity)
 end
 
----Clear a trade slot.
+---Clear a trade slot. The client repeats the item it is clearing, so pass what was staged.
 ---@param tradeIndex integer Trade slot, 0..8
+---@param invSlot integer Inventory slot of the staged item
+---@param itemId xi.item Item ID
 ---@return nil
-function CClientEntityPairActions:tradeClearSlot(tradeIndex)
+function CClientEntityPairActions:tradeClearSlot(tradeIndex, invSlot, itemId)
 end
 
 ---Lock in this side's offer. Trade goes through once both sides lock.
@@ -150,6 +200,39 @@ end
 ---Cancel the trade.
 ---@return nil
 function CClientEntityPairActions:tradeCancel()
+end
+
+---@param invSlot integer
+---@param price integer
+---@return nil
+function CClientEntityPairActions:bazaarPrice(invSlot, price)
+end
+
+---@param seller CClientEntityPair
+---@return nil
+function CClientEntityPairActions:bazaarOpen(seller)
+end
+
+---Set the player's search comment
+---@param message string
+---@param msgType? integer
+---@return nil
+function CClientEntityPairActions:setSearchMessage(message, msgType)
+end
+
+---Send 0x0C4 to equip, unequip or create a linkshell
+---@param invSlot integer
+---@param lsNum integer 1 or 2
+---@param active boolean
+---@param name? string Only used when creating
+---@return nil
+function CClientEntityPairActions:linkshellActive(invSlot, lsNum, active, name)
+end
+
+---@param sellerInvSlot integer
+---@param quantity integer
+---@return nil
+function CClientEntityPairActions:bazaarBuy(sellerInvSlot, quantity)
 end
 
 ---Accept raise prompt
@@ -201,6 +284,13 @@ end
 function CClientEntityPairActions:guildSellList()
 end
 
+---Buy from the currently open shop
+---@param shopSlot integer Index into the shop's item list
+---@param quantity integer Amount to buy
+---@return nil
+function CClientEntityPairActions:shopBuy(shopSlot, quantity)
+end
+
 ---Move an item between containers or split a stack
 ---@param srcContainer xi.inventoryLocation Source container
 ---@param srcSlot integer Source slot index
@@ -247,6 +337,13 @@ end
 function CClientEntityPairActions:equipSet(entries)
 end
 
+---Send a job change packet (requires a mog house or a zone with the mog menu)
+---@param mainJob xi.job Main job, 0 to leave unchanged
+---@param subJob? xi.job Support job, 0 or nil to leave unchanged
+---@return nil
+function CClientEntityPairActions:changeJob(mainJob, subJob)
+end
+
 ---Start a synthesis. Inventory slots are resolved automatically.
 ---@param crystal xi.item Crystal item ID
 ---@param ingredients xi.item[] Ingredient item IDs (1..8)
@@ -260,7 +357,8 @@ end
 ---@param addContainer xi.inventoryLocation Container holding the seed or crystal
 ---@param addSlot integer Seed or crystal slot index
 ---@return nil
-function CClientEntityPairActions:plantAdd(potContainer, potSlot, addContainer, addSlot)
+---@param addItemNo integer? what the packet claims is being planted, defaults to the slot's item
+function CClientEntityPairActions:plantAdd(potContainer, potSlot, addContainer, addSlot, addItemNo)
 end
 
 ---Examine a plant; resets its wilt timer.

@@ -2,6 +2,8 @@
 -- func: twillsaudit
 -- desc: Runs explicit Twills core, parity, content, merit, currency, or gear audits.
 -----------------------------------
+require('modules/module_utils')
+-----------------------------------
 ---@type TCommand
 local commandObj = {}
 
@@ -164,8 +166,8 @@ end
 local function auditMerits(player, target)
     nativeAudit(player, target, 'auditMeritState', 'Merit audit')
 
-    local primer = xi.ki.PRIMER_ON_MARTIAL_TECHNIQUES
-    local treatise = xi.ki.TREATISE_ON_MARTIAL_TECHNIQUES
+    local primer = xi.keyItem.PRIMER_ON_MARTIAL_TECHNIQUES
+    local treatise = xi.keyItem.TREATISE_ON_MARTIAL_TECHNIQUES
     local hasPrimer = primer ~= nil and target:hasKeyItem(primer)
     local hasTreatise = treatise ~= nil and target:hasKeyItem(treatise)
     printLine(player, string.format(
@@ -207,4 +209,4 @@ commandObj.onTrigger = function(player, section, argument)
     end
 end
 
-return commandObj
+xi.module.registerCommand('twillsaudit', commandObj)

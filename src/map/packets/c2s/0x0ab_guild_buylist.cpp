@@ -23,6 +23,7 @@
 
 #include "entities/char_entity.h"
 #include "lua/luautils.h"
+#include "packets/c2s/validation.h"
 #include "packets/s2c/0x083_guild_buylist.h"
 #include "utils/zoneutils.h"
 
@@ -30,12 +31,12 @@ auto GP_CLI_COMMAND_GUILD_BUYLIST::validate(MapSession* PSession, const CCharEnt
 {
     return PacketValidator(PChar)
         .blockedBy({ BlockedState::InEvent })
-        .mustNotEqual(PChar->guildShopNpc_.id, 0, "Character does not have a guild shop");
+        .mustNotEqual(PChar->guildShopNpc_.UniqueNo, 0, "Character does not have a guild shop");
 }
 
 void GP_CLI_COMMAND_GUILD_BUYLIST::process(MapSession* PSession, CCharEntity* PChar) const
 {
-    if (auto* PNpc = zoneutils::GetEntity(PChar->guildShopNpc_.id, TYPE_NPC))
+    if (auto* PNpc = zoneutils::GetEntity(PChar->guildShopNpc_.UniqueNo, TYPE_NPC))
     {
         const auto items = luautils::callGlobal<sol::table>("xi.guildShops.onBuyList", PChar, PNpc);
 

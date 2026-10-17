@@ -11,7 +11,7 @@ abilityObject.onAbilityCheck = function(player, target, ability)
 end
 
 abilityObject.onPetAbility = function(target, pet, petskill, summoner, action)
-    xi.job_utils.summoner.onUseBloodPact(target, petskill, summoner, action)
+    xi.job_utils.summoner.onUseBloodPact(target, pet, petskill, summoner, action)
 
     local params = {}
 
@@ -37,7 +37,7 @@ abilityObject.onPetAbility = function(target, pet, petskill, summoner, action)
 
         local effectTable =
         {
-            [1] = { effectId = xi.effect.SLOW, power = 3000, duration = 120, tier = 8, origin = pet }, -- TODO: Capture Slow tier
+            [1] = { effectId = xi.effect.SLOW, power = 3000, duration = 120, tier = 8 }, -- TODO: Capture Slow tier
         }
 
         xi.combat.action.executeMobskillStatusEffect(pet, target, petskill, effectTable, { messageBypass = true })

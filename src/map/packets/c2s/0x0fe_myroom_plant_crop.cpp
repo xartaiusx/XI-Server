@@ -25,6 +25,8 @@
 #include "entities/char_entity.h"
 #include "enums/msg_std.h"
 #include "items/item_flowerpot.h"
+#include "items/transactions/item_claim.h"
+#include "packets/c2s/validation.h"
 #include "packets/s2c/0x01d_item_same.h"
 #include "packets/s2c/0x020_item_attr.h"
 #include "packets/s2c/0x0fa_myroom_operation.h"
@@ -43,6 +45,7 @@ auto GP_CLI_COMMAND_MYROOM_PLANT_CROP::validate(MapSession* PSession, const CCha
 {
     return PacketValidator(PChar)
         .blockedBy({ BlockedState::InEvent })
+        .isInMogHouse(xi::MogHouse::Own)
         .mustNotEqual(this->MyroomPlantItemNo, 0, "MyroomPlantItemNo must not be 0")
         .oneOf("MyroomPlantCategory", this->MyroomPlantCategory, validPlantCategories);
 }
@@ -70,6 +73,12 @@ void GP_CLI_COMMAND_MYROOM_PLANT_CROP::process(MapSession* PSession, CCharEntity
                                     this->MyroomPlantCategory,
                                     this->MyroomPlantItemIndex));
         }
+        return;
+    }
+
+    if (!PPotItem->isInstalled())
+    {
+        ShowWarningFmt("GP_CLI_COMMAND_MYROOM_PLANT_CROP: {} tried to interact with an uninstalled flowerpot", PChar->getName());
         return;
     }
 
@@ -105,10 +114,22 @@ void GP_CLI_COMMAND_MYROOM_PLANT_CROP::process(MapSession* PSession, CCharEntity
             for (uint8 slot = 0; slot < requiredSlots; ++slot)
             {
                 uint8 quantity = std::min(remainingQuantity, stackSize);
-                if (charutils::AddItem(PChar, LOC_MOGSAFE, resultID, quantity) == ERROR_SLOTID && safe2Unlocked)
+
+                auto transaction = ItemClaimTransaction::start(PChar);
+                if (!transaction)
                 {
-                    charutils::AddItem(PChar, LOC_MOGSAFE2, resultID, quantity);
+                    break;
                 }
+
+                // falls through to the second safe when the first is full
+                const bool stored = transaction->give(LOC_MOGSAFE, resultID, quantity).has_value() ||
+                                    (safe2Unlocked && transaction->give(LOC_MOGSAFE2, resultID, quantity).has_value());
+
+                if (!stored || !transaction->commit())
+                {
+                    ShowErrorFmt("GP_CLI_COMMAND_MYROOM_PLANT_CROP: {} could not receive {} of crop {}", PChar->getName(), quantity, resultID);
+                }
+
                 remainingQuantity -= quantity;
             }
             PChar->pushPacket<GP_SERV_COMMAND_MESSAGE>(resultID, totalQuantity, 134); // Your moogle <quantity> <item> from the plant!

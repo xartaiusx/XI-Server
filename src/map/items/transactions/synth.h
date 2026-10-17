@@ -25,6 +25,7 @@
 #include "common/types/badge.h"
 
 #include "items/craft_state.h"
+#include "items/item_id.h"
 #include "items/transaction.h"
 
 #include <common/types/maybe.h>
@@ -54,9 +55,8 @@ class SynthTransaction : public Transaction
 public:
     struct Slot
     {
-        CItem* item{ nullptr };
+        ItemId claimed{};
         uint16 itemId{ 0 };
-        uint8  invSlot{ 0xFF };
         bool   saved{ false };
     };
 
@@ -66,23 +66,26 @@ public:
     ~SynthTransaction() override;
     DISALLOW_COPY_AND_MOVE(SynthTransaction);
 
-    auto holds(const CItem* item) const -> bool override;
-
     void consumeCrystal();
     void markSaved(uint8 ingredientIdx);
 
     void setResultDelivery(CCraftState::Result result);
 
+    // the inventory shows one less free slot until the result is delivered
+    auto heldSlots(uint8 location) const -> uint8 override;
+
 protected:
     auto doCommit() -> bool override;
     void doRollback() override;
 
+    auto reversible() const -> bool override;
+
 private:
-    auto claim(CItem* item) const -> bool;
-    void releaseAllClaims();
+    auto claimAndLock(CItem* item) -> ItemId;
 
     CCharEntity*               player_{};
     std::array<Slot, MaxSlots> slots_{}; // [0] crystal, [1..8] ingredients
 
     Maybe<CCraftState::Result> pendingResult_;
+    bool                       delivering_{ false };
 };

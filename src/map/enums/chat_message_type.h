@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2025 LandSandBoat Dev Teams
@@ -20,6 +20,8 @@
 */
 
 #pragma once
+
+#include <cstdint>
 
 // TODO: Migrate to enum class
 enum CHAT_MESSAGE_TYPE : uint8_t

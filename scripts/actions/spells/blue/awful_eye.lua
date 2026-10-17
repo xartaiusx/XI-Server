@@ -19,8 +19,9 @@ spellObject.onMagicCastingCheck = function(caster, target, spell)
     return 0
 end
 
-spellObject.onSpellCast = function(caster, target, spell)
-    local params = {}
+spellObject.onSpellCast = function(caster, target, spell, action)
+    local params           = {}
+
     params.ecosystem       = xi.ecosystem.LIZARD
     params.effect          = xi.effect.STR_DOWN
     params.power           = 30

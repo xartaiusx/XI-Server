@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2026 LandSandBoat Dev Teams
@@ -21,6 +21,7 @@
 
 #include "lua/lua_item_puppet.h"
 #include "items/item_puppet.h"
+#include "lua/luautils.h"
 
 CLuaItemPuppet::CLuaItemPuppet(CItemPuppet* PItemPuppet)
 : CLuaItem(PItemPuppet)

@@ -40,11 +40,11 @@ xi.job_utils.corsair.rollData =
     [xi.jobAbility.HUNTERS_ROLL] =
     {
         effect      = xi.effect.HUNTERS_ROLL,
-        powers      = { 10, 13, 15, 40, 18, 20, 25, 5, 27, 30, 50 },
+        powers      = { 10, 13, 15, 40, 18, 20, 25, 5, 28, 30, 50 },
         phantomBase = 5,
         bonus       = 15,
         bonusJob    = xi.job.RNG,
-        bustPower   = 5,
+        bustPower   = 15,
         bustMod     = xi.mod.ACC,
     },
 
@@ -66,7 +66,7 @@ xi.job_utils.corsair.rollData =
         phantomBase = 2,
         bonus       = 8,
         bonusJob    = xi.job.BLU,
-        bustPower   = 5,
+        bustPower   = 8,
         bustMod     = xi.mod.MDEF,
     },
 
@@ -95,7 +95,7 @@ xi.job_utils.corsair.rollData =
     [xi.jobAbility.CHORAL_ROLL] =
     {
         effect      = xi.effect.CHORAL_ROLL,
-        powers      = { 13, 55, 17, 20, 25, 8, 30, 35, 40, 45, 65 },
+        powers      = { 8, 42, 11, 15, 19, 4, 23, 27, 31, 35, 50 },
         phantomBase = 4,
         bonus       = 25,
         bonusJob    = xi.job.BRD,
@@ -132,7 +132,7 @@ xi.job_utils.corsair.rollData =
         phantomBase = 4,
         bonus       = 10,
         bonusJob    = xi.job.SAM,
-        bustPower   = 5,
+        bustPower   = 10,
         bustMod     = xi.mod.STORETP,
     },
 
@@ -194,12 +194,12 @@ xi.job_utils.corsair.rollData =
     [xi.jobAbility.GALLANTS_ROLL] =
     {
         effect      = xi.effect.GALLANTS_ROLL,
-        powers      = { 600, 800, 2400, 900, 1100, 1200, 300, 1500, 1700, 1800, 3000 },
-        phantomBase = 234,
-        bonus       = 500,
+        powers      = { 4, 5, 19, 7, 8, 10, 3, 11, 13, 15, 23 },
+        phantomBase = 2,
+        bonus       = 11,
         bonusJob    = xi.job.PLD,
-        bustPower   = 500,
-        bustMod     = xi.mod.DMG,
+        bustPower   = 11,
+        bustMod     = xi.mod.DEFP,
     },
 
     [xi.jobAbility.WIZARDS_ROLL] =
@@ -227,7 +227,7 @@ xi.job_utils.corsair.rollData =
     [xi.jobAbility.SCHOLARS_ROLL] =
     {
         effect      = xi.effect.SCHOLARS_ROLL,
-        powers      = { 2, 9, 3, 4, 5, 2, 6, 6, 7, 9, 14 },
+        powers      = { 2, 10, 3, 4, 4, 1, 5, 6, 7, 7, 12 },
         phantomBase = 1,
         bonus       = 4,
         bonusJob    = xi.job.SCH,
@@ -548,7 +548,7 @@ local function applyCorsairEffect(caster, target, abilityId, power, subPower)
     -- Upgrading an existing roll: Preserve the existing effect's slot and remaining duration.
     if upgradeEffect then
         target:delStatusEffectSilent(effectId)
-        addDuration = upgradeEffect:getDuration() / 1000
+        addDuration = math.floor(upgradeEffect:getTimeRemaining() / 1000)
         addSlot     = upgradeEffect:getEffectSlot()
 
     -- New roll when there is a free slot: Use the lowest available slot and the full duration.
@@ -769,6 +769,19 @@ xi.job_utils.corsair.applyRoll = function(caster, target, inAbility, total, isDo
     local effectpower = total >= 12 and rollInfo.bustPower or rollInfo.powers[total]    -- Get roll or bust power values
     local enhanceMod  = rollEnhanceMods[abilityId]                                      -- Check for roll enhancement gear mod specific to the rolled ability
     local doBonus     = enhanceMod and math.randomInt(1, 100) <= caster:getMod(enhanceMod) -- Chance to enhance roll based on gear mod
+    local effect      = target:getStatusEffect(rollInfo.effect)
+
+    -- Check to see if the double up or new roll applies to us
+    -- if caster == target, then we will always be able to apply to ourselves
+    -- but otherwise only the originator of the roll can double up or re-apply (such as fold and reroll)
+    if
+        effect and
+        caster:getID() ~= target:getID() and
+        caster:getID() ~= effect:getSourceTypeParam()
+    then
+        currentAbility:setMsg(xi.msg.basic.NO_EFFECT)
+        return 0 -- Packet on retail shows this param is always zero here when it rolls no effect in this situation
+    end
 
     -- Apply roll bonus if matching job or gear mod triggers
     if
@@ -790,9 +803,9 @@ xi.job_utils.corsair.applyRoll = function(caster, target, inAbility, total, isDo
     local actorLevel  = utils.getActiveJobLevel(caster, xi.job.COR)
     local targetLevel = target:getMainLvl()
 
-    -- Level correction.
+    -- Level correction. Fractions are rounded up.
     if actorLevel < targetLevel then
-        effectpower = effectpower * actorLevel / targetLevel
+        effectpower = math.ceil(effectpower * actorLevel / targetLevel)
     end
 
     caster:setLocalVar('corsairApplyingRoll', 1)
@@ -1024,8 +1037,14 @@ xi.job_utils.corsair.useElementalShot = function(actor, target, ability, action)
     target:updateClaim(actor)
 
     -- Calculate resist rate.
-    local bonusAcc = actor:getMerit(xi.merit.QUICK_DRAW_ACCURACY) + actor:getMod(xi.mod.QUICK_DRAW_MACC)
-    local resist   = xi.combat.magicHitRate.calculateResistRate(actor, target, 0, xi.skill.MARKSMANSHIP, 0,  data.element, xi.mod.AGI, 0, bonusAcc)
+    local params =
+    {
+        skillType      = xi.skill.MARKSMANSHIP,
+        magicalElement = data.element,
+        actorStat      = xi.mod.AGI,
+        bonusAcc       = actor:getMerit(xi.merit.QUICK_DRAW_ACCURACY) + actor:getMod(xi.mod.QUICK_DRAW_MACC),
+    }
+    local resist   = xi.combat.magicHitRate.calculateResistRate(actor, target, params)
 
     -- Handle damage.
     local damage = 0
@@ -1036,6 +1055,14 @@ xi.job_utils.corsair.useElementalShot = function(actor, target, ability, action)
     if damage > 0 then
         actor:addTP(xi.combat.tp.getSingleRangedHitTPReturn(actor))
         actor:trySkillUp(xi.skill.MARKSMANSHIP, target:getMainLvl())
+    end
+
+    -- Return early to not boost effects on absorb (probably doesn't happen)
+    -- if message is not set explicitly, a 100% HPP absorb reports the wrong message
+    if damage < 0 then
+        ability:setMsg(xi.msg.basic.JA_RECOVERS_HP)
+
+        return damage
     end
 
     -- Handle effect boost.

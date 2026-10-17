@@ -10,7 +10,7 @@ local quest = Quest:new(xi.questLog.OUTLANDS, xi.quest.id.outlands.THE_SAHAGINS_
 
 quest.reward =
 {
-    fame     = 75,
+    fame     = 40,
     fameArea = xi.fameArea.NORG,
     item     = xi.item.SCROLL_OF_UTSUSEMI_ICHI,
     title    = xi.title.TREASURE_HOUSE_RANSACKER,
@@ -59,8 +59,8 @@ quest.sections =
             ['Laisrean'] =
             {
                 onTrigger = function(player, npc)
-                    if player:hasKeyItem(xi.ki.SEA_SERPENT_STATUE) then
-                        return quest:progressEvent(35, xi.ki.SEA_SERPENT_STATUE)
+                    if player:hasKeyItem(xi.keyItem.SEA_SERPENT_STATUE) then
+                        return quest:progressEvent(35, xi.keyItem.SEA_SERPENT_STATUE)
                     else
                         return quest:event(34)
                     end
@@ -71,7 +71,7 @@ quest.sections =
             {
                 [35] = function(player, csid, option, npc)
                     if quest:complete(player) then
-                        player:delKeyItem(xi.ki.SEA_SERPENT_STATUE)
+                        player:delKeyItem(xi.keyItem.SEA_SERPENT_STATUE)
                     end
                 end,
             },
@@ -82,7 +82,7 @@ quest.sections =
             ['qm2'] =
             {
                 onTrigger = function(player, npc)
-                    if not player:hasKeyItem(xi.ki.SEA_SERPENT_STATUE) then
+                    if not player:hasKeyItem(xi.keyItem.SEA_SERPENT_STATUE) then
                         return quest:progressEvent(1)
                     end
                 end,
@@ -91,7 +91,7 @@ quest.sections =
             onEventFinish =
             {
                 [1] = function(player, csid, option, npc)
-                    npcUtil.giveKeyItem(player, xi.ki.SEA_SERPENT_STATUE)
+                    npcUtil.giveKeyItem(player, xi.keyItem.SEA_SERPENT_STATUE)
                 end,
             },
         },

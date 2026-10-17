@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -33,7 +33,7 @@ auto InPrison(const CCharEntity* PChar) -> bool
 {
     TracyZoneScoped;
 
-    return PChar->m_GMlevel == 0 && PChar->getZone() == ZONE_MORDION_GAOL;
+    return PChar->m_GMlevel == 0 && PChar->getZone() == xi::ZoneId::MordionGaol;
 }
 
 void Add(CCharEntity* PChar)

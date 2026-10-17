@@ -39,6 +39,8 @@
 #include <vector>
 
 #include "battleutils.h"
+#include "charutils.h"
+#include "data/loader.h"
 #include "mobutils.h"
 #include "roe.h"
 #include "zoneutils.h"
@@ -63,6 +65,7 @@
 #include "mobskill.h"
 #include "status_effect_container.h"
 #include "weapon_skill.h"
+#include "zone.h"
 
 //
 // Forward declarations
@@ -862,7 +865,7 @@ auto GetTrustEvidenceSession(
         (*evidenceMode != trustutils::TwillsTrustEvidenceMode::RetailControl &&
          *evidenceMode != trustutils::TwillsTrustEvidenceMode::FullAllianceQualityAssurance) ||
         (!validActionState && !validMarkerState) ||
-        generation == 0 || startedAt == 0 || sessionZone != PMaster->getZone() ||
+        generation == 0 || startedAt == 0 || sessionZone != static_cast<uint32>(PMaster->getZone()) ||
         evidenceSchema != TrustEvidenceSchemaVersion || (!truncationMarkerContext && logTruncated != 0) ||
         !IsFullCommitIdentity(serverCommit))
     {
@@ -1492,8 +1495,8 @@ struct TrustData
 
     uint8 mJob{};
     uint8 sJob{};
-    float HPscale{}; // HP boost percentage
-    float MPscale{}; // MP boost percentage
+    float HPscale{ 1.f };
+    float MPscale{ 1.f };
 
     uint8  cmbSkill{};
     uint16 cmbDmgMult{};
@@ -1841,6 +1844,7 @@ auto trustutils::SpawnTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntit
     if (PMaster->PParty == nullptr)
     {
         PMaster->PParty = new CParty(PMaster);
+        PMaster->PParty->MarkFormedByTrusts();
     }
 
     PMaster->PTrusts.insert(PMaster->PTrusts.end(), PTrust);
@@ -1885,21 +1889,6 @@ void BuildTrustData(uint32 TrustID)
                                        "mob_pools.modelSize, "
                                        "mob_pools.modelHitboxSize, "
                                        "spell_list.spellid, "
-                                       "mob_species_system.ecosystemID, "
-                                       "(mob_species_system.HP / 100) AS HP, "
-                                       "(mob_species_system.MP / 100) AS MP, "
-                                       "mob_species_system.speed, "
-                                       "mob_species_system.STR, "
-                                       "mob_species_system.DEX, "
-                                       "mob_species_system.VIT, "
-                                       "mob_species_system.AGI, "
-                                       "mob_species_system.INT, "
-                                       "mob_species_system.MND, "
-                                       "mob_species_system.CHR, "
-                                       "mob_species_system.DEF, "
-                                       "mob_species_system.ATT, "
-                                       "mob_species_system.ACC, "
-                                       "mob_species_system.EVA, "
                                        "mob_resistances.slash_sdt, mob_resistances.pierce_sdt, "
                                        "mob_resistances.h2h_sdt, mob_resistances.impact_sdt, "
                                        "mob_resistances.magical_sdt, "
@@ -1916,11 +1905,10 @@ void BuildTrustData(uint32 TrustID)
                                        "mob_resistances.poison_res_rank, mob_resistances.light_sleep_res_rank, "
                                        "mob_resistances.dark_sleep_res_rank, mob_resistances.blind_res_rank, "
                                        "mob_resistances.stun_res_rank, mob_resistances.gravity_res_rank "
-                                       "FROM spell_list, mob_pools, mob_species_system, mob_resistances "
+                                       "FROM spell_list, mob_pools, mob_resistances "
                                        "WHERE spell_list.spellid = ? "
                                        "AND (spell_list.spellid + 5000) = mob_pools.poolid "
                                        "AND mob_pools.resist_id = mob_resistances.resist_id "
-                                       "AND mob_pools.speciesid = mob_species_system.speciesID "
                                        "ORDER BY spell_list.spellid",
                                        TrustID);
 
@@ -1957,24 +1945,14 @@ void BuildTrustData(uint32 TrustID)
 
             data->modelSize       = rset->getOrDefault<uint8>("modelSize", 0);
             data->modelHitboxSize = std::max<float>(0.0f, rset->getOrDefault<float>("modelHitboxSize", 0) / 10.f);
-            data->EcoSystem       = rset->get<xi::Ecosystem>("ecosystemID");
-            data->HPscale         = rset->get<float>("HP");
-            data->MPscale         = rset->get<float>("MP");
+            const auto& species   = mobutils::GetSpeciesData(data->m_Species);
+
+            data->EcoSystem = species.Ecosystem;
 
             data->baseSpeed      = 62;
             data->animationSpeed = 50;
 
-            data->strRank = rset->get<uint8>("STR");
-            data->dexRank = rset->get<uint8>("DEX");
-            data->vitRank = rset->get<uint8>("VIT");
-            data->agiRank = rset->get<uint8>("AGI");
-            data->intRank = rset->get<uint8>("INT");
-            data->mndRank = rset->get<uint8>("MND");
-            data->chrRank = rset->get<uint8>("CHR");
-            data->defRank = rset->get<uint8>("DEF");
-            data->attRank = rset->get<uint8>("ATT");
-            data->accRank = rset->get<uint8>("ACC");
-            data->evaRank = rset->get<uint8>("EVA");
+            mobutils::ApplyStatRanks(*data, species.MobAttributes.Stats);
 
             // resistances
             data->slash_sdt  = rset->get<int16>("slash_sdt");
@@ -2031,9 +2009,8 @@ auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*
 
     auto* PTrust = new CTrustEntity(PMaster, trustData->trustID, IsPassiveTrust{ trustData->isPassiveTrust });
 
-    PTrust->loc              = PMaster->loc;
-    PTrust->m_OwnerID.id     = PMaster->id;
-    PTrust->m_OwnerID.targid = PMaster->targid;
+    PTrust->loc       = PMaster->loc;
+    PTrust->m_OwnerID = EntityId(PMaster);
 
     // spawn me randomly around master
     PTrust->loc.p = nearPosition(PMaster->loc.p, CTrustController::SpawnDistance + (PMaster->PTrusts.size() * CTrustController::SpawnDistance), (float)M_PI);
@@ -2192,7 +2169,7 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust)
 
     // HP/MP ========================
     // This is the same system as used in charutils.cpp, but modified
-    // to use parts from mob_species_system instead of hardcoded player
+    // to use parts from data/ecosystems.yaml instead of hardcoded player
     // race tables.
 
     // http://ffxi-stat-calc.sourceforge.net/cgi-bin/ffxistats.cgi?mode=document
@@ -2353,7 +2330,7 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust)
     // Skills =======================
     for (int i = static_cast<int>(xi::SkillType::DivineMagic); i <= static_cast<int>(xi::SkillType::BlueMagic); i++)
     {
-        uint16 maxSkill = battleutils::GetMaxSkill((xi::SkillType)i, mJob, mLvl > 99 ? 99 : mLvl);
+        uint16 maxSkill = battleutils::GetMaxSkill((xi::SkillType)i, mJob, std::min<uint8>(mLvl, 99));
         if (maxSkill != 0)
         {
             PTrust->WorkingSkills.skill[i] = static_cast<uint16>(maxSkill * settings::get<float>("map.ALTER_EGO_SKILL_MULTIPLIER"));
@@ -2361,7 +2338,7 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust)
         else // if the mob is WAR/BLM and can cast spell
         {
             // set skill as high as main level, so their spells won't get resisted
-            uint16 maxSubSkill = battleutils::GetMaxSkill((xi::SkillType)i, sJob, mLvl > 99 ? 99 : mLvl);
+            uint16 maxSubSkill = battleutils::GetMaxSkill((xi::SkillType)i, sJob, std::min<uint8>(mLvl, 99));
 
             if (maxSubSkill != 0)
             {
@@ -2372,7 +2349,7 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust)
 
     for (int i = static_cast<int>(xi::SkillType::HandToHand); i <= static_cast<int>(xi::SkillType::Staff); i++)
     {
-        uint16 maxSkill = battleutils::GetMaxSkill(static_cast<uint8>(i), mLvl > 99 ? 99 : mLvl);
+        uint16 maxSkill = battleutils::GetMaxSkill(static_cast<uint8>(i), std::min<uint8>(mLvl, 99));
         if (maxSkill != 0)
         {
             PTrust->WorkingSkills.skill[i] = static_cast<uint16>(maxSkill * settings::get<float>("map.ALTER_EGO_SKILL_MULTIPLIER"));

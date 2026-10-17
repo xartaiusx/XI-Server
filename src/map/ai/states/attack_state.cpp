@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -25,41 +25,53 @@
 #include "entities/battle_entity.h"
 
 #include "ai/ai_container.h"
+#include "entities/char_entity.h"
 #include "packets/s2c/0x028_battle2.h"
 #include "packets/s2c/0x058_assist.h"
 #include "utils/battleutils.h"
 #include "utils/trustutils.h"
+#include "zone.h"
 
-CAttackState::CAttackState(CBattleEntity* PEntity, const EntityId& target)
+namespace
+{
+
+constexpr timer::duration kEngageDelay    = 3s;     // time from engaging to the first swing
+constexpr timer::duration kEngageCooldown = 1500ms; // shortest wait before engaging again after a fight ends
+
+} // namespace
+
+CAttackState::CAttackState(xi::Badge<CState>, CBattleEntity* PEntity, const EntityId& target)
 : CState(PEntity, target)
 , m_PEntity(PEntity)
+, m_attackTime(kEngageDelay)
 {
-    PEntity->setBattleTarget(target);
-    PEntity->SetBattleStartTime(timer::now());
+    // Capture constructor arguments into members and nothing else. All other logic goes into init().
+}
+
+auto CAttackState::init() -> StateErrorOr<void>
+{
+    m_PEntity->setBattleTarget(target());
+    m_PEntity->SetBattleStartTime(timer::now());
+    m_swingDelay = std::chrono::milliseconds(m_PEntity->GetWeaponDelay(false));
     CAttackState::UpdateTarget();
 
-    if (!GetTarget() || m_errorMsg)
+    if (!m_PEntity->GetBattleTarget() || m_errorMsg)
     {
-        PEntity->setBattleTarget(std::nullopt);
-        if (this->HasErrorMsg())
-        {
-            throw CStateInitException(m_errorMsg->copy());
-        }
-        else
-        {
-            throw CStateInitException(std::make_unique<CBasicPacket>());
-        }
+        m_PEntity->setBattleTarget(std::nullopt);
+        return refuseWithErrorMsg();
     }
 
-    if (PEntity->PAI->PathFind)
+    if (m_PEntity->PAI->PathFind)
     {
-        PEntity->PAI->PathFind->Clear();
+        m_PEntity->PAI->PathFind->Clear();
     }
+
+    return Success();
 }
 
 auto CAttackState::Update(timer::time_point tick) -> bool
 {
-    auto* PTarget = static_cast<CBattleEntity*>(GetTarget());
+    auto* PTarget = m_PEntity->GetBattleTarget();
     if (!PTarget || PTarget->isDead())
     {
         return true;
@@ -73,7 +85,7 @@ auto CAttackState::Update(timer::time_point tick) -> bool
         if (CanAttack(PTarget))
         {
             // CanAttack may have set target id to 0 (disengage from out of range)
-            if (m_PEntity->GetBattleTargetID() == 0)
+            if (!m_PEntity->battleTarget().isSet())
             {
                 return true;
             }
@@ -95,7 +107,7 @@ auto CAttackState::Update(timer::time_point tick) -> bool
         {
             m_PEntity->HandleErrorMessage(m_errorMsg);
         }
-        if (m_PEntity->GetBattleTargetID() == 0)
+        if (!m_PEntity->battleTarget().isSet())
         {
             return true;
         }
@@ -120,15 +132,16 @@ void CAttackState::ResetAttackTimer()
     m_attackTime = std::chrono::milliseconds(m_PEntity->GetWeaponDelay(false));
 }
 
-void CAttackState::UpdateTarget(CBaseEntity* target)
+auto CAttackState::EngageLockout() const -> timer::duration
 {
-    if (target != nullptr)
-    {
-        CAttackState::UpdateTarget(target->targid);
-    }
+    // Uses the delay of the last swing, not the current weapon.
+    const timer::duration timeLeftOnSwing = m_attackTime;
+    const timer::duration longestLockout  = std::max(kEngageCooldown, m_swingDelay - kEngageDelay);
+
+    return std::clamp(timeLeftOnSwing, kEngageCooldown, longestLockout);
 }
 
-void CAttackState::UpdateTarget(uint16 targid)
+void CAttackState::UpdateTarget(const EntityId& target)
 {
     m_errorMsg.reset();
     auto           newTarget{ m_PEntity->battleTarget() };
@@ -138,6 +151,8 @@ void CAttackState::UpdateTarget(uint16 targid)
         PNewTarget = m_PEntity->IsValidTarget(newTarget, TARGET_ENEMY, m_errorMsg);
         if (!PNewTarget)
         {
+            const auto* PLostTarget = newTarget.resolve<CBattleEntity>();
+
             newTarget          = EntityId{};
             CCharEntity* PChar = dynamic_cast<CCharEntity*>(m_PEntity);
             if (PChar && PChar->hasAutoTargetEnabled())
@@ -157,12 +172,19 @@ void CAttackState::UpdateTarget(uint16 targid)
                     }
                 }
             }
-            m_PEntity->PAI->ChangeTarget(newTarget.targid);
+
+            // target died: restart the swing timer at a full delay
+            if (!newTarget.isSet() && PLostTarget && PLostTarget->isDead())
+            {
+                m_attackTime = m_swingDelay;
+            }
+
+            m_PEntity->PAI->ChangeTarget(newTarget);
         }
     }
-    if (targid != newTarget.targid)
+    if (target != newTarget)
     {
-        if (targid != 0)
+        if (target.isSet())
         {
             m_PEntity->OnChangeTarget(PNewTarget);
             SetTarget(newTarget);
@@ -173,7 +195,6 @@ void CAttackState::UpdateTarget(uint16 targid)
             }
         }
     }
-    CState::UpdateTarget(m_PEntity->GetBattleTarget());
 }
 
 auto CAttackState::CanAttack(CBattleEntity* PTarget) -> bool
@@ -182,7 +203,8 @@ auto CAttackState::CanAttack(CBattleEntity* PTarget) -> bool
 
     if (ret && !m_errorMsg)
     {
-        m_attackTime += std::chrono::milliseconds(m_PEntity->GetWeaponDelay(false));
+        m_swingDelay = std::chrono::milliseconds(m_PEntity->GetWeaponDelay(false));
+        m_attackTime += m_swingDelay;
     }
     return ret;
 }

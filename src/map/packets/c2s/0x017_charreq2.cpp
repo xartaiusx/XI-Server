@@ -27,28 +27,29 @@
 #include <array>
 
 #include "entities/char_entity.h"
+#include "packets/c2s/validation.h"
 #include "packets/char_sync.h"
 #include "packets/char_update.h"
-#include "utils/zoneutils.h"
+#include "zone.h"
 
 namespace
 {
 
 constexpr float CHARREQ2_SYNC_RANGE = 50.0f;
 
-auto resolveByUniqueNo(const uint32 uniqueNo) -> CBaseEntity*
+auto resolveByUniqueNo(const CCharEntity* PChar, const uint32 uniqueNo) -> CBaseEntity*
 {
-    if (uniqueNo == 0)
+    if (uniqueNo == 0 || PChar->loc.zone == nullptr)
     {
         return nullptr;
     }
 
-    if (auto* PEntity = zoneutils::GetEntity(uniqueNo))
+    if (auto* PEntity = PChar->loc.zone->GetEntity(uniqueNo & 0xFFF); PEntity && PEntity->id == uniqueNo)
     {
         return PEntity;
     }
 
-    return zoneutils::GetChar(uniqueNo);
+    return PChar->loc.zone->GetCharByID(uniqueNo);
 }
 
 } // namespace
@@ -62,8 +63,8 @@ void GP_CLI_COMMAND_CHARREQ2::process(MapSession* PSession, CCharEntity* PChar) 
 {
     const std::array targets{
         this->ActIndex ? PChar->GetEntity(this->ActIndex) : nullptr,
-        resolveByUniqueNo(this->UniqueNo2),
-        resolveByUniqueNo(this->UniqueNo3),
+        resolveByUniqueNo(PChar, this->UniqueNo2),
+        resolveByUniqueNo(PChar, this->UniqueNo3),
     };
 
     ShowWarningFmt("GP_CLI_COMMAND_CHARREQ2 from {}: ActIndex={} UniqueNo2={} UniqueNo3={} Flg={} Flg2={}",
@@ -94,10 +95,14 @@ void GP_CLI_COMMAND_CHARREQ2::process(MapSession* PSession, CCharEntity* PChar) 
             ShowWarningFmt("GP_CLI_COMMAND_CHARREQ2 from {}: target {} ({}) is {:.1f}y away (beyond {}y)", PChar->getName(), PTarget->getName(), PTarget->id, dist, CHARREQ2_SYNC_RANGE);
         }
 
-        if (PTarget->objtype == TYPE_PC)
+        if (auto* PTargetChar = dynamic_cast<CCharEntity*>(PTarget))
         {
-            auto* PTargetChar = static_cast<CCharEntity*>(PTarget);
             if (PTargetChar->m_isGMHidden)
+            {
+                continue;
+            }
+
+            if (PTargetChar->m_moghouseID != PChar->m_moghouseID)
             {
                 continue;
             }
@@ -106,7 +111,7 @@ void GP_CLI_COMMAND_CHARREQ2::process(MapSession* PSession, CCharEntity* PChar) 
 
             if (dist <= CHARREQ2_SYNC_RANGE)
             {
-                PChar->pushPacket<CCharSyncPacket>(PTargetChar);
+                PChar->pushPacket<CCharSyncPacket>(PTargetChar, CharSyncRecipient::Others);
                 PChar->pushPacket<CCharUpdatePacket>(PTargetChar, ENTITY_UPDATE, static_cast<uint8>(UPDATE_NAME));
             }
         }

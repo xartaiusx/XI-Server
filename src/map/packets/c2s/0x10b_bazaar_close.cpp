@@ -22,12 +22,14 @@
 #include "0x10b_bazaar_close.h"
 
 #include "entities/char_entity.h"
+#include "packets/c2s/validation.h"
 #include "packets/s2c/0x107_bazaar_close.h"
 
 auto GP_CLI_COMMAND_BAZAAR_CLOSE::validate(MapSession* PSession, const CCharEntity* PChar) const -> PacketValidationResult
 {
+    // FFXIclopedia: a Monipulator cannot set up a bazaar.
     return PacketValidator(PChar)
-        .blockedBy({ BlockedState::InEvent })
+        .blockedBy({ BlockedState::InEvent, BlockedState::Monstrosity })
         .mustEqual(this->AllListClearFlg, 0, "AllListClearFlg not 0"); // Always 0
 }
 
@@ -35,13 +37,13 @@ void GP_CLI_COMMAND_BAZAAR_CLOSE::process(MapSession* PSession, CCharEntity* PCh
 {
     for (std::size_t i = 0; i < PChar->BazaarCustomers.size(); ++i)
     {
-        auto* PEntity = PChar->GetEntity(PChar->BazaarCustomers[i].targid, TYPE_PC);
+        auto* PEntity = PChar->BazaarCustomers[i].resolve<CCharEntity>();
         if (!PEntity)
         {
             continue;
         }
 
-        if (auto* PCustomer = static_cast<CCharEntity*>(PEntity); PCustomer->id == PChar->BazaarCustomers[i].id)
+        if (auto* PCustomer = static_cast<CCharEntity*>(PEntity); PCustomer->id == PChar->BazaarCustomers[i].UniqueNo)
         {
             PCustomer->pushPacket<GP_SERV_COMMAND_BAZAAR_CLOSE>(PChar);
 

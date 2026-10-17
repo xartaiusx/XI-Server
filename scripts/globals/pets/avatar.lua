@@ -204,6 +204,19 @@ xi.pets.avatar.calculateAvatarWeaponDamage = function(pet)
     pet:setDamage(weaponDamage, xi.slot.RANGED)
 end
 
+-- NOTE: Called from petutils.cpp
+-- Acts as a hook for functions.
+-- Runs everytime a pet's stats are rebuilt/recalculated.
+---@param master CBaseEntity
+---@param pet CBaseEntity
+xi.pets.avatar.onPetStatCalculate = function(master, pet)
+    xi.job_utils.summoner.applyPerpetuationCost(master, pet)
+    xi.pets.avatar.calculateAvatarWeaponDamage(pet)
+    pet:setMobMod(xi.mobMod.DAMAGE_OFFSET, 2)
+    pet:setMobMod(xi.mobMod.RANGED_DAMAGE_OFFSET, 2)
+    pet:setMod(xi.mod.DMGPHYS, -5000) -- -50%
+end
+
 xi.pets.avatar.onMobSpawn = function(pet)
     local master = pet:getMaster()
     if not master then
@@ -214,10 +227,7 @@ xi.pets.avatar.onMobSpawn = function(pet)
         return
     end
 
-    -- Set up avatar's base damage.
-    xi.pets.avatar.calculateAvatarWeaponDamage(pet)
-
-    local petType       = pet:getPetID()
+    local petType = pet:getPetID()
 
     -- Only Spirits cast Magic.
     if
@@ -225,8 +235,6 @@ xi.pets.avatar.onMobSpawn = function(pet)
         petType <= xi.petId.DARK_SPIRIT
     then
         local spellCooldown = getMagicCastCooldown(pet)
-        -- Freshly summoned spirits may not cast until their spell cooldown is up.
-        pet:setMobMod(xi.mobMod.MAGIC_DELAY, 0)
         pet:setMagicCastingEnabled(false)
 
         pet:timer(spellCooldown * 1000, function(petArg)

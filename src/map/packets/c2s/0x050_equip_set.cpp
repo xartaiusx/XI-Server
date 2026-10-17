@@ -23,6 +23,8 @@
 
 #include "entities/char_entity.h"
 #include "lua/luautils.h"
+#include "monstrosity.h"
+#include "packets/c2s/validation.h"
 #include "utils/charutils.h"
 
 namespace
@@ -85,8 +87,19 @@ auto GP_CLI_COMMAND_EQUIP_SET::validate(MapSession* PSession, const CCharEntity*
 
 void GP_CLI_COMMAND_EQUIP_SET::process(MapSession* PSession, CCharEntity* PChar) const
 {
+    // Encumbrance locks the slot against unequipping too, which EquipItem allows for scripts.
+    if (PChar->m_EquipBlock & (1 << this->EquipKind))
+    {
+        return;
+    }
+
+    const auto* PBefore = PChar->getEquip(static_cast<SLOTTYPE>(this->EquipKind));
     charutils::EquipItem(PChar, this->PropertyItemIndex, this->EquipKind, this->Category);
-    PChar->RequestPersist(CHAR_PERSIST::EQUIP);
+    if (PChar->getEquip(static_cast<SLOTTYPE>(this->EquipKind)) != PBefore)
+    {
+        monstrosity::HandleGladiatorGearChange(PChar);
+    }
+
     luautils::CheckForGearSet(PChar); // check for gear set on gear change
     PChar->UpdateHealth();
     PChar->retriggerLatents = true; // retrigger all latents later because our gear has changed

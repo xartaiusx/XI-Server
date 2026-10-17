@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2020 Topaz Dev Teams
@@ -29,9 +29,12 @@
 #include "utils/charutils.h"
 #include "utils/zoneutils.h"
 
+#include "enums/msg_basic.h"
 #include "packets/s2c/0x0aa_magic_data.h"
 #include "packets/s2c/0x111_roe_activelog.h"
 #include "packets/s2c/0x112_roe_log.h"
+
+#include <bit>
 
 #define ROE_CACHETIME 15s
 
@@ -213,7 +216,7 @@ auto event(const ROE_EVENT eventID, CCharEntity* PChar, const RoeDatagramList& p
 {
     TracyZoneScoped;
 
-    if (!settings::get<bool>("main.ENABLE_ROE") || !PChar || PChar->objtype != TYPE_PC)
+    if (!settings::get<bool>("main.ENABLE_ROE") || !PChar)
     {
         return false;
     }
@@ -250,6 +253,11 @@ void SetEminenceRecordCompletion(CCharEntity* PChar, const uint16 recordID, cons
 {
     TracyZoneScoped;
 
+    if (recordID >= 4096)
+    {
+        return;
+    }
+
     uint16 page = recordID / 8;
     uint8  bit  = recordID % 8;
     if (newStatus)
@@ -273,6 +281,11 @@ auto GetEminenceRecordCompletion(const CCharEntity* PChar, const uint16 recordID
 {
     TracyZoneScoped;
 
+    if (recordID >= 4096)
+    {
+        return false;
+    }
+
     const uint16 page = recordID / 8;
     const uint8  bit  = recordID % 8;
     return PChar->m_eminenceLog.complete[page] & (1 << bit);
@@ -286,16 +299,11 @@ auto GetNumEminenceCompleted(const CCharEntity* PChar) -> uint16
 
     for (uint16 page = 0; page < 512; page++)
     {
-        unsigned long bitIndex{ 0 };
-        uint8         pageVal = PChar->m_eminenceLog.complete[page];
+        uint8 pageVal = PChar->m_eminenceLog.complete[page];
         // Strip off and check only the set bits - Hidden records are not counted.
         while (pageVal)
         {
-#ifdef _MSC_VER
-            _BitScanForward(&bitIndex, pageVal);
-#else
-            bitIndex = __builtin_ctz(pageVal);
-#endif
+            const auto bitIndex = std::countr_zero(pageVal);
             completedCount += !RoeSystem.HiddenRecords.test(page * 8 + bitIndex);
             pageVal &= (pageVal - 1);
         }
@@ -429,13 +437,17 @@ void UpdateUnityTrust(CCharEntity* PChar, const bool sendUpdate)
     {
         if (curPoints >= 5 || prevPoints >= 5)
         {
-            charutils::addSpell(PChar, unityLeaderTrust);
-            charutils::SaveSpell(PChar, unityLeaderTrust);
+            if (charutils::addSpell(PChar, unityLeaderTrust) != 0)
+            {
+                charutils::SaveSpell(PChar, unityLeaderTrust);
+            }
         }
         else
         {
-            charutils::delSpell(PChar, unityLeaderTrust);
-            charutils::DeleteSpell(PChar, unityLeaderTrust);
+            if (charutils::delSpell(PChar, unityLeaderTrust) != 0)
+            {
+                charutils::DeleteSpell(PChar, unityLeaderTrust);
+            }
         }
     }
 

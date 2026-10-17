@@ -12,7 +12,7 @@ local content = BattlefieldMission:new({
     isMission     = true,
     allowTrusts   = true,
     maxPlayers    = 6,
-    levelCap      = 40,
+    levelCap      = xi.settings.main.MAX_LEVEL,
     timeLimit     = utils.minutes(30),
     index         = 0,
     entryNpc      = 'MC_Entrance',
@@ -23,7 +23,15 @@ local content = BattlefieldMission:new({
     requiredValue = 4,
 
     grantXP = 1000,
+    title   = xi.title.DREAMBREAKER,
 })
+
+-- Both titles are granted here. Dreambreaker is the one left displayed.
+function content:onEventFinishWin(player, csid, option, npc)
+    player:addTitle(xi.title.TRANSIENT_DREAMER)
+
+    BattlefieldMission.onEventFinishWin(self, player, csid, option, npc)
+end
 
 function content:setupBattlefield(battlefield)
     local tileOffset = shroudedMawID.npc.DARKNESS_NAMED_TILE_OFFSET + (battlefield:getArea() - 1) * 8

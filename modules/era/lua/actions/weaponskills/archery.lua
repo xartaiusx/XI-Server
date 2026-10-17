@@ -4,13 +4,7 @@
 require('modules/module_utils')
 -----------------------------------
 
-local moduleName = 'toau_archery'
-
-if xi.module.isContentEnabled('WOTG') then
-    return { name = moduleName }
-end
-
-local m = Module:new(moduleName)
+local m = Module:new('toau_archery', xi.pre(xi.expansion.WOTG))
 
 -----------------------------------
 -- Flaming Arrow
@@ -63,10 +57,20 @@ m:addOverride('xi.actions.weaponskills.dulling_arrow.onUseWeaponSkill', function
     local effectId      = xi.effect.INT_DOWN
     local actionElement = xi.element.FIRE
     local power         = 10
-    local skillType     = xi.skill.ARCHERY
-    local resist        = xi.combat.magicHitRate.calculateResistRate(player, target, 0, skillType, 0, actionElement, 0, effectId, 0)
-    local duration      = math.floor(140 * resist)
-    xi.weaponskills.handleWeaponskillEffect(player, target, effectId, actionElement, damage, power, duration)
+    local maccParams    =
+    {
+        effectId       = effectId,
+        magicalElement = actionElement,
+        skillType      = xi.skill.ARCHERY,
+    }
+
+    local resistanceRate = xi.combat.magicHitRate.calculateResistRate(player, target, maccParams)
+
+    if xi.data.statusEffect.isResistRateSuccessfull(effectId, resistanceRate, 1) then
+        local duration = math.floor(140 * resistanceRate)
+
+        xi.weaponskills.handleWeaponskillEffect(player, target, effectId, actionElement, damage, power, duration)
+    end
 
     return tpHits, extraHits, criticalHit, damage
 end)
@@ -152,5 +156,3 @@ m:addOverride('xi.actions.weaponskills.namas_arrow.onUseWeaponSkill', function(p
 
     return tpHits, extraHits, criticalHit, damage
 end)
-
-return m

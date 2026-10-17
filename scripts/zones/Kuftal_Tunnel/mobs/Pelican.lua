@@ -2,15 +2,10 @@
 -- Area: Kuftal Tunnel
 --   NM: Pelican
 -----------------------------------
-local ID = zones[xi.zone.KUFTAL_TUNNEL]
+mixins = { require('scripts/mixins/families/cockatrice') }
 -----------------------------------
 ---@type TMobEntity
 local entity = {}
-
-entity.phList =
-{
-    [ID.mob.PELICAN - 1] = ID.mob.PELICAN, -- Confirmed on retail
-}
 
 entity.onMobInitialize = function(mob)
     mob:setMobMod(xi.mobMod.ADD_EFFECT, 1)
@@ -31,6 +26,14 @@ end
 entity.onAdditionalEffect = function(mob, target, damage)
     mob:resetEnmity(target)
     return xi.mob.onAddEffect(mob, target, damage, xi.mob.ae.PETRIFY, { chance = 10 }) -- Should be changed to endeath animation
+end
+
+entity.onMobMobskillChoose = function(mob, target, skillId)
+    return xi.mix.cockatrice.onMobMobskillChoose(mob, target)
+end
+
+entity.onMobWeaponSkill = function(mob, target, skill)
+    return xi.mix.cockatrice.onMobWeaponSkill(mob, target, skill)
 end
 
 entity.onMobDeath = function(mob, player, optParams)

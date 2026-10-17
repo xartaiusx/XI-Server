@@ -23,6 +23,8 @@
 
 #include "ai/ai_container.h"
 #include "entities/char_entity.h"
+#include "enums/msg_basic.h"
+#include "packets/c2s/validation.h"
 #include "packets/s2c/0x029_battle_message.h"
 #include "universal_container.h"
 
@@ -92,12 +94,10 @@ void GP_CLI_COMMAND_ITEM_USE::process(MapSession* PSession, CCharEntity* PChar) 
     };
 
     const bool isEquipment = PItem->isType(ITEM_WEAPON) || PItem->isType(ITEM_EQUIPMENT);
-    const bool isLocked    = PItem->isSubType(ITEM_LOCKED) && !(isEquipment && isEquipped());
-    if (isLocked ||
-        PItem->getReserve() > 0 ||
-        PItem->getCharPrice() > 0)
+    const bool isLocked    = PItem->isBusy() && !(isEquipment && isEquipped());
+    if (isLocked)
     {
-        ShowWarningFmt("GP_CLI_COMMAND_ITEM_USE: {} trying to use invalid item (locked/reserved/bazaared)", PChar->getName());
+        ShowWarningFmt("GP_CLI_COMMAND_ITEM_USE: {} trying to use a claimed item", PChar->getName());
         return;
     }
 

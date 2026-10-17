@@ -23,13 +23,14 @@
 
 #include "entities/char_entity.h"
 #include "lua/luautils.h"
+#include "packets/c2s/validation.h"
 #include "packets/s2c/0x073_chocobo_toteboard.h"
 #include "packets/s2c/0x074_chocobo_list.h"
 
 auto GP_CLI_COMMAND_CHOCOBO_RACE_REQ::validate(MapSession* PSession, const CCharEntity* PChar) const -> PacketValidationResult
 {
     return PacketValidator(PChar)
-        .mustEqual(PChar->getZone(), ZONE_CHOCOBO_CIRCUIT, "Not in Chocobo Circuit")
+        .mustEqual(PChar->getZone(), xi::ZoneId::ChocoboCircuit, "Not in Chocobo Circuit")
         .oneOf<GP_CLI_COMMAND_CHOCOBO_RACE_REQ_KIND>(this->Kind);
 }
 

@@ -10,8 +10,6 @@ local quest = Quest:new(xi.questLog.JEUNO, xi.quest.id.jeuno.A_CLOCK_MOST_DELICA
 
 quest.reward =
 {
-    fame     = 30,
-    fameArea = xi.fameArea.JEUNO,
     gil      = 1200,
     item     = xi.item.ENGINEERS_GLOVES,
     title    = xi.title.PROFESSIONAL_LOAFER,
@@ -84,7 +82,7 @@ quest.sections =
             ['_6s2'] =
             {
                 onTrigger = function(player, npc)
-                    if player:hasKeyItem(xi.ki.CLOCK_TOWER_OIL) then
+                    if player:hasKeyItem(xi.keyItem.CLOCK_TOWER_OIL) then
                         return quest:progressEvent(202)
                     else
                         return quest:event(117)
@@ -96,7 +94,10 @@ quest.sections =
             {
                 [202] = function(player, csid, option, npc)
                     if quest:complete(player) then
-                        player:delKeyItem(xi.ki.CLOCK_TOWER_OIL)
+                        player:addFame(xi.fameArea.SANDORIA, 17)
+                        player:addFame(xi.fameArea.BASTOK, 17)
+                        player:addFame(xi.fameArea.WINDURST, 17)
+                        player:delKeyItem(xi.keyItem.CLOCK_TOWER_OIL)
                     end
                 end,
             },

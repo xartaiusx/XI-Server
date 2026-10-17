@@ -25,6 +25,7 @@ entity.onMobInitialize = function(mob)
 end
 
 entity.onMobSpawn = function(mob)
+    mob:setMod(xi.mod.STORETP, 150)
     mob:setMobMod(xi.mobMod.BASE_DAMAGE_MODIFIER, 78) -- 175 total weapon damage
     mob:addMod(xi.mod.EVA, 30)
     mob:addMod(xi.mod.DEFP, 50)
@@ -57,6 +58,10 @@ entity.onMobSpawn = function(mob)
 end
 
 entity.onMobFight = function(mob, target)
+    if xi.combat.behavior.isEntityBusy(mob) then
+        return
+    end
+
     if
         mob:getLocalVar('SpellTime') < GetSystemTime() and
         mob:getLocalVar('SpellTime') ~= 0
@@ -70,7 +75,6 @@ entity.onMobFight = function(mob, target)
     local repeatMove = mob:getLocalVar('repeatMove')
     if
         repeatMove ~= 0 and
-        not xi.combat.behavior.isEntityBusy(mob) and
         math.randomInt(1, 100) <= 75 -- High chance to use it again
     then
         mob:useMobAbility(repeatMove, nil, 0)
@@ -102,10 +106,10 @@ end
 entity.onAdditionalEffect = function(mob, target, damage)
     local pTable =
     {
-        chance   = 65,
-        effectId = xi.effect.STUN,
-        element  = xi.element.THUNDER,
-        duration = math.randomInt(4, 8),
+        chance         = 65,
+        effectId       = xi.effect.STUN,
+        magicalElement = xi.element.THUNDER,
+        duration       = math.randomInt(4, 8),
     }
 
     return xi.combat.action.executeAddEffectEnfeeblement(mob, target, pTable)

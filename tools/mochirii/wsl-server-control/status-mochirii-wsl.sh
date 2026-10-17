@@ -8,6 +8,7 @@ SS_BIN="${MOCHIRII_SS_BIN:-ss}"
 
 SERVICES=(
   "mariadb.service"
+  "mochirii-xi-profile.service"
   "mochirii-xi-connect.service"
   "mochirii-xi-search.service"
   "mochirii-xi-world.service"
@@ -15,14 +16,15 @@ SERVICES=(
 )
 
 XI_SERVICES=(
+  "mochirii-xi-profile.service"
   "mochirii-xi-connect.service"
   "mochirii-xi-search.service"
   "mochirii-xi-world.service"
   "mochirii-xi-map.service"
 )
 
-PORTS=(3306 54001 54002 54003 55030 55031)
-XI_PORTS=(54001 54002 54003 55030 55031)
+PORTS=(3306 51220 51240 54001 54002 54003 55030 55031)
+XI_PORTS=(51220 51240 54001 54002 54003 55030 55031)
 
 usage() {
   cat <<'EOF'
@@ -67,9 +69,21 @@ declare -A SERVICE_ENABLED=()
 declare -A SERVICE_PID=()
 
 for service in "${SERVICES[@]}"; do
-  active="$("$SYSTEMCTL_BIN" is-active "$service" 2>/dev/null || true)"
-  enabled="$("$SYSTEMCTL_BIN" is-enabled "$service" 2>/dev/null || true)"
-  pid="$("$SYSTEMCTL_BIN" show "$service" -p MainPID --value 2>/dev/null || true)"
+  active_result=0
+  active="$("$SYSTEMCTL_BIN" is-active "$service" 2>/dev/null)" || active_result=$?
+  if [[ "$active:$active_result" != "active:0" && "$active:$active_result" != "inactive:3" ]]; then
+    active=unknown
+  fi
+
+  enabled_result=0
+  enabled="$("$SYSTEMCTL_BIN" is-enabled "$service" 2>/dev/null)" || enabled_result=$?
+  if [[ "$enabled:$enabled_result" != "disabled:1" && "$enabled:$enabled_result" != "enabled:0" ]]; then
+    enabled=unknown
+  fi
+
+  if ! pid="$("$SYSTEMCTL_BIN" show "$service" -p MainPID --value 2>/dev/null)"; then
+    pid=unknown
+  fi
 
   SERVICE_ACTIVE["$service"]="${active:-unknown}"
   SERVICE_ENABLED["$service"]="${enabled:-unknown}"
@@ -117,7 +131,7 @@ echo "---------------"
 
 MATCHING_LINES="$(
   printf '%s\n' "$LISTENING_LINES" |
-    grep -E ':(3306|54001|54002|54003|55030|55031)\b' || true
+    grep -E ':(3306|51220|51240|54001|54002|54003|55030|55031)\b' || true
 )"
 
 if [[ -n "$MATCHING_LINES" ]]; then

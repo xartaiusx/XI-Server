@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,16 +19,13 @@
 ===========================================================================
 */
 
-#ifndef _CITEMLINKSHELL_H
-#define _CITEMLINKSHELL_H
+#pragma once
 
 #include "common/cbasetypes.h"
 
 #include "exdata/linkshell.h"
 #include "item.h"
 
-// TODO: The LSTYPE definition is wrong here and values are off by 1 compared to what is actually passed
-// by the client. The correct values are listed in 0x0e2_set_lsmsg.h in GP_CLI_COMMAND_SET_LSMSG_WRITELEVEL
 enum LSTYPE : uint8
 {
     LSTYPE_NEW_LINKSHELL,
@@ -55,5 +52,3 @@ public:
     void              setSignature(const std::string& signature) override;
     void              SetLSType(LSTYPE value);
 };
-
-#endif

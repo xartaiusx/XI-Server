@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2023 LandSandBoat Dev Teams
@@ -30,7 +30,7 @@ ConquestData::ConquestData()
 : regionControls(std::vector<region_control_t>(19))
 , influences(std::vector<influence_t>(19))
 {
-    const auto rset = db::preparedStmt("SELECT region_id, region_control, region_control_prev, sandoria_influence, bastok_influence, windurst_influence, beastmen_influence "
+    const auto rset = db::preparedStmt("SELECT region_id, region_control, region_control_prev, sandoria_influence, bastok_influence, windurst_influence, mob_kills, player_homepoints "
                                        "FROM conquest_system");
     while (rset && rset->next())
     {
@@ -45,14 +45,15 @@ ConquestData::ConquestData()
         influence.sandoria_influence = rset->get<int32>("sandoria_influence");
         influence.bastok_influence   = rset->get<int32>("bastok_influence");
         influence.windurst_influence = rset->get<int32>("windurst_influence");
-        influence.beastmen_influence = rset->get<int32>("beastmen_influence");
+        influence.mob_kills          = rset->get<int32>("mob_kills");
+        influence.player_homepoints  = rset->get<int32>("player_homepoints");
         influences[regionId]         = influence;
     }
 }
 
 int32 ConquestData::getInfluence(REGION_TYPE region, NATION_TYPE nation) const
 {
-    if (static_cast<std::size_t>(region) > influences.size() - 1U)
+    if (static_cast<std::size_t>(region) >= influences.size())
     {
         ShowError("Invalid influence region requested");
         return 0;
@@ -67,7 +68,7 @@ int32 ConquestData::getInfluence(REGION_TYPE region, NATION_TYPE nation) const
         case NATION_WINDURST:
             return influences[(uint8)region].windurst_influence;
         case NATION_BEASTMEN:
-            return influences[(uint8)region].beastmen_influence;
+            return CalculateBeastmenInfluence(region, influences[(uint8)region]);
         default:
             ShowWarning("Influence not known for nation: %d", nation);
             return 0;
@@ -105,66 +106,17 @@ uint8 ConquestData::getRegionOwner(REGION_TYPE region) const
 
 uint8 ConquestData::getRegionControlCount(NATION_TYPE nation) const
 {
-    uint8 count = 0;
-    for (const auto& regionControl : regionControls)
-    {
-        if (regionControl.current == nation)
-        {
-            count++;
-        }
-    }
-
-    return count;
+    return static_cast<uint8>(std::ranges::count(regionControls, nation, &region_control_t::current));
 }
 
 uint8 ConquestData::getPrevRegionControlCount(NATION_TYPE nation) const
 {
-    uint8 count = 0;
-    for (const auto& regionControl : regionControls)
-    {
-        if (regionControl.prev == nation)
-        {
-            count++;
-        }
-    }
-
-    return count;
+    return static_cast<uint8>(std::ranges::count(regionControls, nation, &region_control_t::prev));
 }
 
 auto ConquestData::getRegionControls() const -> const std::vector<region_control_t>&
 {
     return regionControls;
-}
-
-void ConquestData::addInfluencePoints(int points, NATION_TYPE nation, REGION_TYPE region)
-{
-    switch (nation)
-    {
-        case NATION_SANDORIA:
-        {
-            influences[(uint8)region].sandoria_influence += points;
-            break;
-        }
-        case NATION_BASTOK:
-        {
-            influences[(uint8)region].bastok_influence += points;
-            break;
-        }
-        case NATION_WINDURST:
-        {
-            influences[(uint8)region].windurst_influence += points;
-            break;
-        }
-        case NATION_BEASTMEN:
-        {
-            influences[(uint8)region].beastmen_influence += points;
-            break;
-        }
-        default:
-        {
-            ShowWarning("Influence not known for nation: %d", nation);
-        }
-    }
 }
 
 void ConquestData::updateInfluencePoints(const std::vector<influence_t>& influencePoints)

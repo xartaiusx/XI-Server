@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -27,58 +27,63 @@
 #include "ai/helpers/targetfind.h"
 #include "enmity_container.h"
 #include "entities/battle_entity.h"
+#include "entities/char_entity.h"
 #include "entities/mob_entity.h"
 #include "enums/action/category.h"
 #include "enums/four_cc.h"
+#include "enums/msg_basic.h"
 #include "lua/luautils.h"
 #include "mobskill.h"
+#include "monstrosity.h"
 #include "packets/s2c/0x028_battle2.h"
+#include "packets/s2c/0x029_battle_message.h"
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
 #include "utils/trustutils.h"
+#include "zone.h"
 
-CMobSkillState::CMobSkillState(CBattleEntity* PEntity, const EntityId& target, const uint16 wsid, const Maybe<timer::duration> castTimeOverride)
+CMobSkillState::CMobSkillState(xi::Badge<CState>, CBattleEntity* PEntity, const EntityId& target, const uint16 wsid, const Maybe<timer::duration> castTimeOverride, const Maybe<uint16> tpCostOverride)
 : CState(PEntity, target)
 , m_PEntity(PEntity)
+, m_wsid(wsid)
+, m_castTimeOverride(castTimeOverride)
+, m_tpCostOverride(tpCostOverride)
 , m_spentTP(0)
 {
-    auto* skill = battleutils::GetMobSkill(wsid);
+    // Capture constructor arguments into members and nothing else. All other logic goes into init().
+}
+
+auto CMobSkillState::init() -> StateErrorOr<void>
+{
+    auto* skill = battleutils::GetMobSkill(m_wsid);
     if (!skill)
     {
-        throw CStateInitException(nullptr);
+        return RefuseSilently();
     }
 
     if (m_PEntity->StatusEffectContainer->HasStatusEffect({ xi::StatusEffect::Amnesia, xi::StatusEffect::Impairment }))
     {
-        throw CStateInitException(nullptr);
+        return RefuseSilently();
     }
 
     // Self-centered AoE: validate mob can target itself, but keep original targid for allegiance
     const bool   isSelfCenteredAoE = skill->getAoe() == static_cast<uint8>(AOE_RADIUS::ATTACKER);
     const uint16 validTargets      = isSelfCenteredAoE ? static_cast<uint16>(TARGET_SELF) : skill->getValidTargets();
-    const uint16 validateTargid    = isSelfCenteredAoE ? m_PEntity->targid : target.targid;
+    const uint16 validateTargid    = isSelfCenteredAoE ? m_PEntity->targid : target().ActIndex;
     auto*        PTarget           = m_PEntity->IsValidTarget(validateTargid, validTargets, m_errorMsg);
 
     if (!PTarget || this->HasErrorMsg())
     {
-        if (this->HasErrorMsg())
-        {
-            throw CStateInitException(m_errorMsg->copy());
-        }
-        else
-        {
-            throw CStateInitException(std::make_unique<CBasicPacket>());
-        }
+        return refuseWithErrorMsg();
     }
 
-    // Store original targid - for self-centered AoE this preserves battle target for allegiance checks
-    SetTarget(target);
-
+    // target() still holds the original targid, not validateTargid. For self-centered AoE
+    // that preserves the battle target for allegiance checks.
     m_PSkill = std::make_unique<CMobSkill>(*skill);
 
-    if (castTimeOverride.has_value())
+    if (m_castTimeOverride.has_value())
     {
-        m_castTime = castTimeOverride.value();
+        m_castTime = m_castTimeOverride.value();
     }
     else
     {
@@ -90,7 +95,7 @@ CMobSkillState::CMobSkillState(CBattleEntity* PEntity, const EntityId& target, c
         // For self-centered AoE damaging moves, show battle target in readies message
         // For true self-target buffs (TARGET_SELF), show self
         const bool isSelfBuff    = skill->getValidTargets() == TARGET_SELF;
-        auto*      PActionTarget = isSelfBuff ? m_PEntity : (isSelfCenteredAoE ? m_PEntity->GetBattleTarget() : m_PEntity->GetEntity(target.targid));
+        auto*      PActionTarget = isSelfBuff ? m_PEntity : (isSelfCenteredAoE ? m_PEntity->GetBattleTarget() : target().resolve());
         if (!PActionTarget)
         {
             PActionTarget = m_PEntity;
@@ -98,7 +103,7 @@ CMobSkillState::CMobSkillState(CBattleEntity* PEntity, const EntityId& target, c
 
         auto targetID = PActionTarget ? PActionTarget->id : m_PEntity->id;
 
-        if (m_PEntity->objtype != TYPE_PC && settings::get<bool>("map.HIDE_READIES_TARGET"))
+        if (dynamic_cast<const CCharEntity*>(m_PEntity) == nullptr && settings::get<bool>("map.HIDE_READIES_TARGET"))
         {
             targetID = m_PEntity->id;
         }
@@ -135,6 +140,8 @@ CMobSkillState::CMobSkillState(CBattleEntity* PEntity, const EntityId& target, c
     {
         DoUpdate(GetEntryTime());
     }
+
+    return Success();
 }
 
 auto CMobSkillState::GetSkill() const -> CMobSkill*
@@ -146,7 +153,12 @@ void CMobSkillState::SpendCost()
 {
     if (!m_PSkill->isTpFreeSkill())
     {
-        if (m_PEntity->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Sekkanoki))
+        if (m_tpCostOverride.has_value())
+        {
+            // Monstrosity skills each cost a fixed amount rather than the whole TP bar, paid when the skill fires.
+            m_spentTP = m_tpCostOverride.value();
+        }
+        else if (m_PEntity->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Sekkanoki))
         {
             m_spentTP = m_PEntity->addTP(-1000);
             m_PEntity->StatusEffectContainer->DelStatusEffect(xi::StatusEffect::Sekkanoki);
@@ -180,7 +192,7 @@ auto CMobSkillState::Update(const timer::time_point tick) -> bool
     // Rotate towards target during ability // TODO : add force param to turnTowardsTarget on certain TP moves like Petro Eyes
     if (m_castTime > 0s && tick < GetEntryTime() + m_castTime)
     {
-        if (CBaseEntity* PTarget = GetTarget())
+        if (CBaseEntity* PTarget = target().resolve())
         {
             battleutils::turnTowardsTarget(m_PEntity, PTarget);
         }
@@ -192,6 +204,29 @@ auto CMobSkillState::Update(const timer::time_point tick) -> bool
         if (m_PEntity->StatusEffectContainer->HasPreventActionEffect() || m_PEntity->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Hysteria))
         {
             return true;
+        }
+
+        // JP wiki: Meikyo Shisui makes one Monstrosity skill free.
+        if (m_tpCostOverride.has_value() && m_spentTP > 0)
+        {
+            if (m_PEntity->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::MeikyoShisui))
+            {
+                m_PEntity->StatusEffectContainer->DelStatusEffect(xi::StatusEffect::MeikyoShisui);
+            }
+            else if (m_PEntity->health.tp < m_spentTP)
+            {
+                // Meikyo Shisui wore off during the ready and the TP no longer covers the cost.
+                if (auto* PChar = dynamic_cast<CCharEntity*>(m_PEntity))
+                {
+                    PChar->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>(PChar, PChar, 0, 0, MsgBasic::UnableToUseWeaponskill);
+                }
+
+                return true;
+            }
+            else
+            {
+                m_PEntity->addTP(-m_spentTP);
+            }
         }
 
         action_t action{};
@@ -211,8 +246,13 @@ auto CMobSkillState::Update(const timer::time_point tick) -> bool
         if (!action.targets.empty())
         {
             m_skillSuccess = true;
-            trustutils::LogTrustActionPacket(m_PEntity, action, dynamic_cast<CBattleEntity*>(GetTarget()), "mobskill_state_finish");
+            trustutils::LogTrustActionPacket(m_PEntity, action, target().resolve<CBattleEntity>(), "mobskill_state_finish");
             m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
+
+            if (auto* PChar = dynamic_cast<CCharEntity*>(m_PEntity); PChar && PChar->m_PMonstrosity)
+            {
+                monstrosity::HandleMobSkillFired(PChar, m_PSkill->getID());
+            }
         }
 
         m_finishTime = tick + m_PSkill->getAnimationTime();
@@ -227,23 +267,22 @@ auto CMobSkillState::Update(const timer::time_point tick) -> bool
 
     if (IsCompleted() && tick > m_finishTime)
     {
-        auto* PTarget = GetTarget();
+        auto* PTarget = target().resolve();
         if (m_skillSuccess && PTarget && PTarget->objtype == TYPE_MOB && PTarget != m_PEntity && m_PEntity->allegiance == xi::Allegiance::Player)
         {
             bool withMaster = m_PEntity->objtype == TYPE_PET || (m_PEntity->objtype == TYPE_MOB && m_PEntity->isCharmed);
             static_cast<CMobEntity*>(PTarget)->PEnmityContainer->UpdateEnmity(m_PEntity, 0, 0, withMaster);
         }
 
-        if (m_PEntity->objtype == TYPE_PET && m_PEntity->PMaster && m_PEntity->PMaster->objtype == TYPE_PC && (m_PSkill->isBloodPactRage() || m_PSkill->isBloodPactWard()))
+        if (auto* PSummoner = dynamic_cast<CCharEntity*>(m_PEntity->PMaster); m_PEntity->objtype == TYPE_PET && PSummoner && (m_PSkill->isBloodPactRage() || m_PSkill->isBloodPactWard()))
         {
-            CCharEntity* PSummoner = dynamic_cast<CCharEntity*>(m_PEntity->PMaster);
-            if (PSummoner && PSummoner->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::AvatarsFavor))
+            if (PSummoner->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::AvatarsFavor))
             {
                 auto power = PSummoner->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::AvatarsFavor)->GetPower();
                 // Retail: Power is gained for BP use
                 auto levelGained = m_PSkill->isBloodPactRage() ? 3 : 2;
                 power += levelGained;
-                PSummoner->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::AvatarsFavor)->SetPower(power > 11 ? power : 11);
+                PSummoner->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::AvatarsFavor)->SetPower(std::max<uint16>(power, 11));
             }
         }
 
@@ -287,6 +326,12 @@ void CMobSkillState::Cleanup(timer::time_point tick)
 
 void CMobSkillState::reduceTpOnInterrupt() const
 {
+    // A fixed-cost skill pays when it fires, so an interrupted one has nothing to give back.
+    if (m_tpCostOverride.has_value())
+    {
+        return;
+    }
+
     if (m_PEntity && m_PEntity->isAlive())
     {
         // On retail testing, mobs lose 33% of their TP at 2900 or higher TP
@@ -297,15 +342,17 @@ void CMobSkillState::reduceTpOnInterrupt() const
         // Thus while incomplete, is better than nothing.
         if (m_PEntity->StatusEffectContainer && m_PEntity->StatusEffectContainer->HasPreventActionEffect() && !m_PEntity->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::MeikyoShisui))
         {
-            int16 tp = m_spentTP;
-            if (tp >= 2900)
+            const auto refundedTP = [&]() -> int16
             {
-                m_PEntity->health.tp = std::floor(std::round(0.333333f * tp));
-            }
-            else
-            {
-                m_PEntity->health.tp = std::floor(0.25f * tp);
-            }
+                if (m_spentTP >= 2900)
+                {
+                    return static_cast<int16>(std::round(m_spentTP / 3.0f));
+                }
+
+                return static_cast<int16>(std::floor(0.25f * m_spentTP));
+            }();
+
+            m_PEntity->health.tp = refundedTP;
         }
     }
 }

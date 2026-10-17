@@ -26,10 +26,15 @@ zoneObject.onInitialize = function(zone)
     if drawBridge3 then
         drawBridge3:setNpcAlwaysRelevant(true)
     end
+
+    zone:registerCuboidTriggerArea(315, -40.3, 3.1, -93.4, -12.3, 8.9, -61.2) -- Jeuno airship boarding area
 end
 
 zoneObject.onConquestUpdate = function(zone, updatetype, influence, owner, ranking, isConquestAlliance)
-    xi.conquest.onConquestUpdate(zone, updatetype, influence, owner, ranking, isConquestAlliance)
+    xi.conquest.onNonRegionConquestUpdate(zone, updatetype, ranking, isConquestAlliance)
+    if updatetype == xi.conquest.constants.TALLY_END then
+        xi.conquest.toggleRegionalNPCs(zone)
+    end
 end
 
 zoneObject.onZoneIn = function(player, prevZone)
@@ -40,7 +45,7 @@ zoneObject.onZoneIn = function(player, prevZone)
     then
         if prevZone == xi.zone.BASTOK_JEUNO_AIRSHIP then
             player:setPos(-36.000, 7.000, -58.000, 194)
-            return { 73, -1, bit.bor(xi.cutsceneFlag.UNKNOWN_1, xi.cutsceneFlag.NO_PCS) }
+            return { 73, -1, bit.bor(xi.cutsceneFlag.RESET_CAMERA, xi.cutsceneFlag.NO_PCS) }
         end
     end
 
@@ -53,14 +58,19 @@ end
 zoneObject.onTriggerAreaLeave = function(player, triggerArea)
 end
 
-zoneObject.onTransportEvent = function(player, prevZoneId, transportId)
+zoneObject.onTransportEvent = function(player, prevZoneId, transportName)
+    if not player:hasKeyItem(xi.keyItem.AIRSHIP_PASS) then
+        player:startEvent(72)
+        return
+    end
+
     player:startEvent(71, {
         isHidden = true,
         flags    = bit.bor(
-            xi.cutsceneFlag.UNKNOWN_1,
+            xi.cutsceneFlag.RESET_CAMERA,
             xi.cutsceneFlag.NO_PCS,
-            xi.cutsceneFlag.UNKNOWN_3,
-            xi.cutsceneFlag.UNKNOWN_7
+            xi.cutsceneFlag.SEND_POSITION,
+            xi.cutsceneFlag.NO_IDLE_WAIT
         ),
     })
 end

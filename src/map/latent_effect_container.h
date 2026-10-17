@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,8 +19,7 @@
 ===========================================================================
 */
 
-#ifndef _LATENTEFFECTCONTAINER_H
-#define _LATENTEFFECTCONTAINER_H
+#pragma once
 
 #include "common/cbasetypes.h"
 
@@ -84,5 +83,3 @@ private:
     auto ProcessLatentEffect(CLatentEffect& latentEffect, bool isDuringWs = false) -> bool;
     bool ApplyLatentEffect(CLatentEffect& effect, bool expression);
 };
-
-#endif

@@ -19,10 +19,10 @@ state documented in `README.md` and the files under `documentation/`.
 - For database or SQL changes, run the local migration/update path twice to
   verify idempotency.
 - For C++ changes, rebuild before runtime testing.
-- For client-facing behavior, launch through the desktop Windower shortcut,
-  foreground the Final Fantasy XI window, and use only Windower-native
-  screenshots for evidence after the foreground check passes. Do not use
-  OS-level desktop or window screenshots for in-game UI verification.
+- For client-facing behavior, launch through the desktop Windower shortcut and
+  use the background UUID command bridge plus native Windower screenshots. The
+  capture helper restores the previous foreground window. Use foreground input
+  only when the native command interface cannot express the operation.
 - For Twills repair/admin work, run `!twillsaudit` after applying changes and
   check the current map log for new errors.
 

@@ -2,20 +2,8 @@
 -- Area: Bostaunieux Oubliette (167)
 --   NM: Arioch
 -----------------------------------
-local ID = zones[xi.zone.BOSTAUNIEUX_OUBLIETTE]
------------------------------------
 ---@type TMobEntity
 local entity = {}
-
-entity.spawnPoints =
-{
-    { x = -259.000, y =  0.489, z = -188.000 }
-}
-
-entity.phList =
-{
-    [ID.mob.ARIOCH - 1] = ID.mob.ARIOCH, -- Confirmed on retail
-}
 
 entity.onMobInitialize = function(mob)
     mob:setMobMod(xi.mobMod.ADD_EFFECT, 1)

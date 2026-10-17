@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -28,6 +28,7 @@
 #include "items/item_furnishing.h"
 #include "items/item_usable.h"
 #include "items/item_weapon.h"
+#include "luautils.h"
 
 CLuaItem::CLuaItem(CItem* PItem)
 : m_readItem(PItem)
@@ -122,21 +123,6 @@ bool CLuaItem::isSubType(uint8 subtype)
 auto CLuaItem::state() const -> ItemState
 {
     return m_readItem->state();
-}
-
-void CLuaItem::setReservedValue(uint8 reserved)
-{
-    if (!m_writeItem)
-    {
-        return;
-    }
-
-    m_writeItem->setReserve(reserved);
-}
-
-uint8 CLuaItem::getReservedValue()
-{
-    return m_readItem->getReserve();
 }
 
 auto CLuaItem::getName() -> std::string
@@ -494,8 +480,6 @@ void CLuaItem::Register()
     SOL_REGISTER("setSubType", CLuaItem::setSubType);
     SOL_REGISTER("isSubType", CLuaItem::isSubType);
     SOL_REGISTER("state", CLuaItem::state);
-    SOL_REGISTER("setReservedValue", CLuaItem::setReservedValue);
-    SOL_REGISTER("getReservedValue", CLuaItem::getReservedValue);
     SOL_REGISTER("getName", CLuaItem::getName);
     SOL_REGISTER("getILvl", CLuaItem::getILvl);
     SOL_REGISTER("getReqLvl", CLuaItem::getReqLvl);

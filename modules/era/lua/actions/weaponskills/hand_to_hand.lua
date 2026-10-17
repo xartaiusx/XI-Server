@@ -4,13 +4,7 @@
 require('modules/module_utils')
 -----------------------------------
 
-local moduleName = 'toau_hand_to_hand'
-
-if xi.module.isContentEnabled('WOTG') then
-    return { name = moduleName }
-end
-
-local m = Module:new(moduleName)
+local m = Module:new('toau_hand_to_hand', xi.pre(xi.expansion.WOTG))
 
 -----------------------------------
 -- Combo
@@ -37,13 +31,21 @@ m:addOverride('xi.actions.weaponskills.shoulder_tackle.onUseWeaponSkill', functi
 
     local damage, criticalHit, tpHits, extraHits = xi.weaponskills.doPhysicalWeaponskill(player, target, wsID, params, tp, action, primary, taChar)
 
-    if math.randomInt(1, 100) <= xi.weaponskills.fTP(tp, { 50, 75, 100 }) then
-        local effectId      = xi.effect.STUN
-        local actionElement = xi.element.THUNDER
-        local power         = 1
-        local skillType     = xi.skill.HAND_TO_HAND
-        local resist        = xi.combat.magicHitRate.calculateResistRate(player, target, 0, skillType, 0, actionElement, 0, effectId, 0)
-        local duration      = math.floor(4 * resist)
+    local effectId      = xi.effect.STUN
+    local actionElement = xi.element.THUNDER
+    local power         = 1
+    local maccParams    =
+    {
+        effectId       = effectId,
+        magicalElement = actionElement,
+        skillType      = xi.skill.HAND_TO_HAND,
+        bonusMacc      = xi.weaponskills.fTP(tp, { 25, 50, 100 }),
+    }
+
+    local resistanceRate = xi.combat.magicHitRate.calculateResistRate(player, target, maccParams)
+
+    if xi.data.statusEffect.isResistRateSuccessfull(effectId, resistanceRate, 0) then
+        local duration = math.floor(4 * resistanceRate)
 
         xi.weaponskills.handleWeaponskillEffect(player, target, effectId, actionElement, damage, power, duration)
     end
@@ -204,5 +206,3 @@ m:addOverride('xi.actions.weaponskills.stringing_pummel.onUseWeaponSkill', funct
     local damage, criticalHit, tpHits, extraHits = xi.weaponskills.doPhysicalWeaponskill(player, target, wsID, params, tp, action, primary, taChar)
     return tpHits, extraHits, criticalHit, damage
 end)
-
-return m

@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -33,17 +33,20 @@
 
 #include "ability.h"
 #include "daily_system.h"
+#include "grades.h"
 #include "ipc_client.h"
 #include "job_points.h"
 #include "map_networking.h"
 #include "map_statistics.h"
 #include "mob_spell_list.h"
 #include "monstrosity.h"
+#include "persist_batch.h"
 #include "roe.h"
 #include "spell.h"
 #include "status_effect_container.h"
 #include "time_server.h"
-#include "transport.h"
+#include "transports/elevator_handler.h"
+#include "transports/ship_handler.h"
 #include "zone.h"
 #include "zone_entities.h"
 
@@ -87,6 +90,7 @@ MapEngine::MapEngine(Application& application, MapConfig& config)
 
 MapEngine::~MapEngine()
 {
+    networking_->sessions().shutdown();
     itemutils::FreeItemList();
     battleutils::FreeWeaponSkillsList();
     battleutils::FreeMobSkillList();
@@ -184,8 +188,11 @@ auto MapEngine::init() -> Task<void>
 
     guildutils::Initialize();
     charutils::LoadExpTable();
+    charutils::LoadCharPointsQueries();
     traits::LoadTraitsList();
     effects::LoadEffectsParameters();
+    grade::LoadGrades();
+    mobutils::LoadSpeciesData();
     battleutils::LoadSkillTable();
     meritNameSpace::LoadMeritsList();
     ability::LoadAbilitiesList();
@@ -207,7 +214,7 @@ auto MapEngine::init() -> Task<void>
 
     if (!config_.lazyZones)
     {
-        CTransportHandler::getInstance()->InitializeTransport(mapIPP);
+        ShipHandler::getInstance()->InitializeShips();
     }
 
     fishingutils::InitializeFishingSystem();
@@ -235,9 +242,24 @@ auto MapEngine::init() -> Task<void>
                 co_await time_server(scheduler_, config_);
             });
 
+        transportToken_ = scheduler_.intervalOnMainThread(
+            kTransportTickInterval,
+            []()
+            {
+                ShipHandler::getInstance()->tick();
+                ElevatorHandler::getInstance()->tick();
+            });
+
         persistVolatileServerVarsToken_ = scheduler_.intervalOnMainThread(kPersistVolatileServerVarsInterval, serverutils::PersistVolatileServerVars);
         pumpIPCToken_                   = scheduler_.intervalOnMainThread(kIPCPumpInterval, message::handle_incoming);
         flushStatisticsToken_           = scheduler_.intervalOnMainThread(kTimeServerTickInterval, std::bind(&MapNetworking::flushStatistics, networking_.get()));
+
+        persistSweepToken_ = scheduler_.intervalOnMainThread(
+            kPersistSweepInterval,
+            [this]() -> Task<void>
+            {
+                co_await persistSweep();
+            });
     }
 
     zoneutils::TOTDChange(vanadiel_time::get_totd()); // This tells the zones to spawn stuff based on time of day conditions (such as undead at night)
@@ -258,6 +280,9 @@ auto MapEngine::init() -> Task<void>
 
     db::enableTimers();
 
+    // Most startup queries never run again, so stop them holding server statement slots for the process lifetime.
+    db::clearStatementCache();
+
     //
     // Set up the watchdog tasks
     //
@@ -266,6 +291,14 @@ auto MapEngine::init() -> Task<void>
     {
         scheduler_.postToMainThread(watchdogUpdater());
         scheduler_.postToWorkerThread(watchdogWatcher());
+    }
+
+    // If this was a "--rebuild-navmeshes" run, we're using xi_map more like a tool. So, bail
+    // out now.
+    if (config_.rebuildNavmeshes)
+    {
+        ShowInfo("Navmeshes rebuilt, exiting...");
+        std::exit(0);
     }
 
 #ifdef TRACY_ENABLE
@@ -359,6 +392,35 @@ void MapEngine::garbageCollect() const
     luautils::garbageCollectFull();
 }
 
+auto MapEngine::persistSweep() -> Task<void>
+{
+    TracyZoneScoped;
+
+    PersistBatch batch;
+
+    zoneutils::ForEachZone(
+        [&](CZone* PZone)
+        {
+            PZone->ForEachChar(
+                [&](CCharEntity* PChar)
+                {
+                    // mid-teardown characters are written by persist::flush instead
+                    if (PChar->status == xi::Status::Disappear || PChar->status == xi::Status::Shutdown)
+                    {
+                        return;
+                    }
+
+                    batch.add(PChar);
+                });
+        });
+
+    co_await scheduler_.spawnOnWorkerThread(
+        [batch = std::move(batch)]() mutable
+        {
+            batch.write();
+        });
+}
+
 void MapEngine::onStats(std::vector<std::string>& inputs) const
 {
     mapStatistics_->print();
@@ -415,7 +477,7 @@ auto MapEngine::statistics() const -> MapStatistics&
     return *mapStatistics_;
 }
 
-auto MapEngine::zones() const -> std::map<uint16, CZone*>&
+auto MapEngine::zones() const -> std::map<xi::ZoneId, CZone*>&
 {
     return g_PZoneList;
 }

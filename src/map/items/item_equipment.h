@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,8 +19,7 @@
 ===========================================================================
 */
 
-#ifndef _CITEMEQUIPMENT_H
-#define _CITEMEQUIPMENT_H
+#pragma once
 
 #include <vector>
 
@@ -136,5 +135,3 @@ private:
 
     void SetAugmentMod(uint16 type, uint8 value);
 };
-
-#endif

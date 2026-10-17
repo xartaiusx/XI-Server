@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -36,15 +36,125 @@
 #include "packets/s2c/0x028_battle2.h"
 #include "status_effect_container.h"
 #include "trait.h"
+#include "utils/dataset_loader.h"
 #include "zone_entities.h"
 #include "zoneutils.h"
 
 namespace mobutils
 {
 
-ModsMap_t mobSpeciesModsList;
 ModsMap_t mobPoolModsList;
 ModsMap_t mobSpawnModsList;
+
+namespace
+{
+
+using EcosystemsDataset = xi::data::datasets::ecosystems::Dataset;
+
+HashMap<uint16, SpeciesInfo> speciesData;
+
+} // namespace
+
+void LoadSpeciesData()
+{
+    speciesData.clear();
+
+    for (const auto& [ecosystemId, ecosystem] : xi::data::loadDataset<EcosystemsDataset>())
+    {
+        xi::data::MobAttributesData ecosystemAttributes{};
+        xi::data::applyOverrides(ecosystemAttributes, ecosystem.MobAttributes);
+
+        for (const auto& [familyId, family] : ecosystem.Families)
+        {
+            auto familyAttributes = ecosystemAttributes;
+            xi::data::applyOverrides(familyAttributes, family.MobAttributes);
+
+            for (const auto& [speciesId, species] : family.Species)
+            {
+                SpeciesInfo info{ ecosystemId, familyId, familyAttributes };
+                xi::data::applyOverrides(info.MobAttributes, species.MobAttributes);
+
+                const auto id = static_cast<uint16>(speciesId);
+                if (!speciesData.try_emplace(id, info).second)
+                {
+                    throw std::runtime_error(fmt::format("data/ecosystems.yaml: duplicate species id {}", id));
+                }
+            }
+        }
+    }
+}
+
+void ApplySpecies(CMobEntity* PMob)
+{
+    ApplySpecies(PMob, GetSpeciesData(PMob->m_Species).MobAttributes);
+}
+
+// The attributes arrive already merged, so a caller with more layers than the species applies the whole chain.
+// This writes every field it covers, so a caller reading the same fields from SQL has to assign after it, not before.
+void ApplySpecies(CMobEntity* PMob, const xi::data::MobAttributesData& attributes)
+{
+    const auto& species = GetSpeciesData(PMob->m_Species);
+
+    PMob->m_EcoSystem = species.Ecosystem;
+    PMob->m_Family    = static_cast<uint16>(species.Family);
+    PMob->m_Element   = static_cast<uint8>(attributes.Element);
+
+    PMob->baseSpeed      = attributes.Speed;
+    PMob->animationSpeed = attributes.AnimationSpeed.value_or(attributes.Speed);
+    PMob->UpdateSpeed();
+
+    ApplyStatRanks(*PMob, attributes.Stats);
+
+    PMob->setMobMod(xi::MobMod::Detection, static_cast<uint16>(attributes.Detects));
+
+    // Clear charmable flag on special mobs
+    const bool special = (PMob->m_Type & xi::MobType::Event) != xi::MobType::Normal ||
+                         (PMob->m_Type & xi::MobType::Fished) != xi::MobType::Normal ||
+                         (PMob->m_Type & xi::MobType::Battlefield) != xi::MobType::Normal ||
+                         (PMob->m_Type & xi::MobType::Notorious) != xi::MobType::Normal;
+
+    PMob->setMobMod(xi::MobMod::Charmable, attributes.Charmable && !special ? 1 : 0);
+
+    for (const auto& [id, value] : attributes.Resists)
+    {
+        PMob->setModifier(id, value);
+    }
+
+    if (attributes.Behavior)
+    {
+        PMob->m_Behavior = *attributes.Behavior;
+    }
+
+    if (attributes.Immune)
+    {
+        PMob->m_Immunity = *attributes.Immune;
+    }
+
+    if (attributes.MainJob)
+    {
+        PMob->SetMJob(static_cast<uint8>(*attributes.MainJob));
+    }
+
+    if (attributes.SubJob)
+    {
+        PMob->SetSJob(static_cast<uint8>(*attributes.SubJob));
+    }
+
+    PMob->m_Aggro         = attributes.Aggressive;
+    PMob->m_Link          = static_cast<uint8>(attributes.Links);
+    PMob->m_TrueDetection = attributes.TrueDetection;
+}
+
+auto GetSpeciesData(const uint16 speciesId) -> const SpeciesInfo&
+{
+    const auto it = speciesData.find(speciesId);
+    if (it == speciesData.end())
+    {
+        throw std::runtime_error(fmt::format("mobutils::GetSpeciesData: unknown speciesID {}", speciesId));
+    }
+
+    return it->second;
+}
 
 /************************************************************************
  *                                                                       *
@@ -106,7 +216,7 @@ uint16 GetBaseWeaponDamage(CMobEntity* PMob, uint16 slot)
         case REGION_TYPE::LUMORIA:
         case REGION_TYPE::LIMBUS:
             offset       = 2;
-            rangedOffset = 5;
+            rangedOffset = 4;
             break;
         // TOAU Regions
         case REGION_TYPE::WEST_AHT_URHGAN:
@@ -155,22 +265,16 @@ uint16 GetBaseWeaponDamage(CMobEntity* PMob, uint16 slot)
 
     // Normal mobs in beginner zones have the offset lowered by 1.
     // Excluded NMs for now for things like Voidwatch Mobs.
-    if (mobZoneId != 0 && PMob->m_Type != xi::MobType::Notorious && (mobZoneId == ZONE_WEST_RONFAURE || mobZoneId == ZONE_EAST_RONFAURE || mobZoneId == ZONE_NORTH_GUSTABERG || mobZoneId == ZONE_SOUTH_GUSTABERG || mobZoneId == ZONE_WEST_SARUTABARUTA || mobZoneId == ZONE_EAST_SARUTABARUTA))
+    if (mobZoneId != xi::ZoneId::Unknown && PMob->m_Type != xi::MobType::Notorious && (mobZoneId == xi::ZoneId::WestRonfaure || mobZoneId == xi::ZoneId::EastRonfaure || mobZoneId == xi::ZoneId::NorthGustaberg || mobZoneId == xi::ZoneId::SouthGustaberg || mobZoneId == xi::ZoneId::WestSarutabaruta || mobZoneId == xi::ZoneId::EastSarutabaruta))
     {
         offset -= 1;
         rangedOffset -= 1;
     }
 
     // Clamp to 0 for edge cases that might cause the offset go negative.
-    if (offset < 0)
-    {
-        offset = 0;
-    }
+    offset = std::max<int8>(offset, 0);
 
-    if (rangedOffset < 0)
-    {
-        rangedOffset = 0;
-    }
+    rangedOffset = std::max<int8>(rangedOffset, 0);
 
     // Set default offsets. Will be calculated in battlentity::GetMainWeaponDmg()
     PMob->setMobMod(xi::MobMod::DamageOffset, offset);
@@ -453,101 +557,101 @@ uint16 GetSubJobStats(uint8 rank, uint16 level, uint16 stat)
  ************************************************************************/
 bool CheckSubJobZone(CMobEntity* PMob)
 {
-    auto zoneId = PMob->getZone();
-    if (zoneId != 0 && (zoneId == ZONE_WEST_RONFAURE ||
-                        zoneId == ZONE_EAST_RONFAURE ||
-                        zoneId == ZONE_LA_THEINE_PLATEAU ||
-                        zoneId == ZONE_VALKURM_DUNES ||
-                        zoneId == ZONE_JUGNER_FOREST ||
-                        zoneId == ZONE_BATALLIA_DOWNS ||
-                        zoneId == ZONE_NORTH_GUSTABERG ||
-                        zoneId == ZONE_SOUTH_GUSTABERG ||
-                        zoneId == ZONE_KONSCHTAT_HIGHLANDS ||
-                        zoneId == ZONE_PASHHOW_MARSHLANDS ||
-                        zoneId == ZONE_ROLANBERRY_FIELDS ||
-                        zoneId == ZONE_BEAUCEDINE_GLACIER ||
-                        zoneId == ZONE_XARCABARD ||
-                        zoneId == ZONE_CAPE_TERIGGAN ||
-                        zoneId == ZONE_EASTERN_ALTEPA_DESERT ||
-                        zoneId == ZONE_WEST_SARUTABARUTA ||
-                        zoneId == ZONE_EAST_SARUTABARUTA ||
-                        zoneId == ZONE_TAHRONGI_CANYON ||
-                        zoneId == ZONE_BUBURIMU_PENINSULA ||
-                        zoneId == ZONE_MERIPHATAUD_MOUNTAINS ||
-                        zoneId == ZONE_SAUROMUGUE_CHAMPAIGN ||
-                        zoneId == ZONE_THE_SANCTUARY_OF_ZITAH ||
-                        zoneId == ZONE_ROMAEVE ||
-                        zoneId == ZONE_YUHTUNGA_JUNGLE ||
-                        zoneId == ZONE_YHOATOR_JUNGLE ||
-                        zoneId == ZONE_WESTERN_ALTEPA_DESERT ||
-                        zoneId == ZONE_QUFIM_ISLAND ||
-                        zoneId == ZONE_BEHEMOTHS_DOMINION ||
-                        zoneId == ZONE_VALLEY_OF_SORROWS ||
-                        zoneId == ZONE_HORLAIS_PEAK ||
-                        zoneId == ZONE_GHELSBA_OUTPOST ||
-                        zoneId == ZONE_FORT_GHELSBA ||
-                        zoneId == ZONE_YUGHOTT_GROTTO ||
-                        zoneId == ZONE_PALBOROUGH_MINES ||
-                        zoneId == ZONE_WAUGHROON_SHRINE ||
-                        zoneId == ZONE_GIDDEUS ||
-                        zoneId == ZONE_BALGAS_DAIS ||
-                        zoneId == ZONE_BEADEAUX ||
-                        zoneId == ZONE_QULUN_DOME ||
-                        zoneId == ZONE_DAVOI ||
-                        zoneId == ZONE_MONASTIC_CAVERN ||
-                        zoneId == ZONE_CASTLE_OZTROJA ||
-                        zoneId == ZONE_ALTAR_ROOM ||
-                        zoneId == ZONE_THE_BOYAHDA_TREE ||
-                        zoneId == ZONE_DRAGONS_AERY ||
-                        zoneId == ZONE_MIDDLE_DELKFUTTS_TOWER ||
-                        zoneId == ZONE_UPPER_DELKFUTTS_TOWER ||
-                        zoneId == ZONE_TEMPLE_OF_UGGALEPIH ||
-                        zoneId == ZONE_DEN_OF_RANCOR ||
-                        zoneId == ZONE_CASTLE_ZVAHL_BAILEYS ||
-                        zoneId == ZONE_CASTLE_ZVAHL_KEEP ||
-                        zoneId == ZONE_SACRIFICIAL_CHAMBER ||
-                        zoneId == ZONE_THRONE_ROOM ||
-                        zoneId == ZONE_RANGUEMONT_PASS ||
-                        zoneId == ZONE_BOSTAUNIEUX_OUBLIETTE ||
-                        zoneId == ZONE_CHAMBER_OF_ORACLES ||
-                        zoneId == ZONE_TORAIMARAI_CANAL ||
-                        zoneId == ZONE_FULL_MOON_FOUNTAIN ||
-                        zoneId == ZONE_ZERUHN_MINES ||
-                        zoneId == ZONE_KORROLOKA_TUNNEL ||
-                        zoneId == ZONE_KUFTAL_TUNNEL ||
-                        zoneId == ZONE_SEA_SERPENT_GROTTO ||
-                        zoneId == ZONE_VELUGANNON_PALACE ||
-                        zoneId == ZONE_THE_SHRINE_OF_RUAVITAU ||
-                        zoneId == ZONE_STELLAR_FULCRUM ||
-                        zoneId == ZONE_LALOFF_AMPHITHEATER ||
-                        zoneId == ZONE_THE_CELESTIAL_NEXUS ||
-                        zoneId == ZONE_LOWER_DELKFUTTS_TOWER ||
-                        zoneId == ZONE_KING_RANPERRES_TOMB ||
-                        zoneId == ZONE_DANGRUF_WADI ||
-                        zoneId == ZONE_INNER_HORUTOTO_RUINS ||
-                        zoneId == ZONE_ORDELLES_CAVES ||
-                        zoneId == ZONE_OUTER_HORUTOTO_RUINS ||
-                        zoneId == ZONE_THE_ELDIEME_NECROPOLIS ||
-                        zoneId == ZONE_GUSGEN_MINES ||
-                        zoneId == ZONE_CRAWLERS_NEST ||
-                        zoneId == ZONE_MAZE_OF_SHAKHRAMI ||
-                        zoneId == ZONE_GARLAIGE_CITADEL ||
-                        zoneId == ZONE_CLOISTER_OF_GALES ||
-                        zoneId == ZONE_CLOISTER_OF_STORMS ||
-                        zoneId == ZONE_CLOISTER_OF_FROST ||
-                        zoneId == ZONE_FEIYIN ||
-                        zoneId == ZONE_IFRITS_CAULDRON ||
-                        zoneId == ZONE_QUBIA_ARENA ||
-                        zoneId == ZONE_CLOISTER_OF_FLAMES ||
-                        zoneId == ZONE_QUICKSAND_CAVES ||
-                        zoneId == ZONE_CLOISTER_OF_TREMORS ||
-                        zoneId == ZONE_CLOISTER_OF_TIDES ||
-                        zoneId == ZONE_GUSTAV_TUNNEL ||
-                        zoneId == ZONE_LABYRINTH_OF_ONZOZO ||
-                        zoneId == ZONE_SHIP_BOUND_FOR_SELBINA ||
-                        zoneId == ZONE_SHIP_BOUND_FOR_MHAURA ||
-                        zoneId == ZONE_SHIP_BOUND_FOR_SELBINA_PIRATES ||
-                        zoneId == ZONE_SHIP_BOUND_FOR_MHAURA_PIRATES))
+    const auto zoneId = PMob->getZone();
+    if (zoneId != xi::ZoneId::Unknown && (zoneId == xi::ZoneId::WestRonfaure ||
+                                          zoneId == xi::ZoneId::EastRonfaure ||
+                                          zoneId == xi::ZoneId::LaTheinePlateau ||
+                                          zoneId == xi::ZoneId::ValkurmDunes ||
+                                          zoneId == xi::ZoneId::JugnerForest ||
+                                          zoneId == xi::ZoneId::BatalliaDowns ||
+                                          zoneId == xi::ZoneId::NorthGustaberg ||
+                                          zoneId == xi::ZoneId::SouthGustaberg ||
+                                          zoneId == xi::ZoneId::KonschtatHighlands ||
+                                          zoneId == xi::ZoneId::PashhowMarshlands ||
+                                          zoneId == xi::ZoneId::RolanberryFields ||
+                                          zoneId == xi::ZoneId::BeaucedineGlacier ||
+                                          zoneId == xi::ZoneId::Xarcabard ||
+                                          zoneId == xi::ZoneId::CapeTeriggan ||
+                                          zoneId == xi::ZoneId::EasternAltepaDesert ||
+                                          zoneId == xi::ZoneId::WestSarutabaruta ||
+                                          zoneId == xi::ZoneId::EastSarutabaruta ||
+                                          zoneId == xi::ZoneId::TahrongiCanyon ||
+                                          zoneId == xi::ZoneId::BuburimuPeninsula ||
+                                          zoneId == xi::ZoneId::MeriphataudMountains ||
+                                          zoneId == xi::ZoneId::SauromugueChampaign ||
+                                          zoneId == xi::ZoneId::TheSanctuaryOfZitah ||
+                                          zoneId == xi::ZoneId::Romaeve ||
+                                          zoneId == xi::ZoneId::YuhtungaJungle ||
+                                          zoneId == xi::ZoneId::YhoatorJungle ||
+                                          zoneId == xi::ZoneId::WesternAltepaDesert ||
+                                          zoneId == xi::ZoneId::QufimIsland ||
+                                          zoneId == xi::ZoneId::BehemothsDominion ||
+                                          zoneId == xi::ZoneId::ValleyOfSorrows ||
+                                          zoneId == xi::ZoneId::HorlaisPeak ||
+                                          zoneId == xi::ZoneId::GhelsbaOutpost ||
+                                          zoneId == xi::ZoneId::FortGhelsba ||
+                                          zoneId == xi::ZoneId::YughottGrotto ||
+                                          zoneId == xi::ZoneId::PalboroughMines ||
+                                          zoneId == xi::ZoneId::WaughroonShrine ||
+                                          zoneId == xi::ZoneId::Giddeus ||
+                                          zoneId == xi::ZoneId::BalgasDais ||
+                                          zoneId == xi::ZoneId::Beadeaux ||
+                                          zoneId == xi::ZoneId::QulunDome ||
+                                          zoneId == xi::ZoneId::Davoi ||
+                                          zoneId == xi::ZoneId::MonasticCavern ||
+                                          zoneId == xi::ZoneId::CastleOztroja ||
+                                          zoneId == xi::ZoneId::AltarRoom ||
+                                          zoneId == xi::ZoneId::TheBoyahdaTree ||
+                                          zoneId == xi::ZoneId::DragonsAery ||
+                                          zoneId == xi::ZoneId::MiddleDelkfuttsTower ||
+                                          zoneId == xi::ZoneId::UpperDelkfuttsTower ||
+                                          zoneId == xi::ZoneId::TempleOfUggalepih ||
+                                          zoneId == xi::ZoneId::DenOfRancor ||
+                                          zoneId == xi::ZoneId::CastleZvahlBaileys ||
+                                          zoneId == xi::ZoneId::CastleZvahlKeep ||
+                                          zoneId == xi::ZoneId::SacrificialChamber ||
+                                          zoneId == xi::ZoneId::ThroneRoom ||
+                                          zoneId == xi::ZoneId::RanguemontPass ||
+                                          zoneId == xi::ZoneId::BostaunieuxOubliette ||
+                                          zoneId == xi::ZoneId::ChamberOfOracles ||
+                                          zoneId == xi::ZoneId::ToraimaraiCanal ||
+                                          zoneId == xi::ZoneId::FullMoonFountain ||
+                                          zoneId == xi::ZoneId::ZeruhnMines ||
+                                          zoneId == xi::ZoneId::KorrolokaTunnel ||
+                                          zoneId == xi::ZoneId::KuftalTunnel ||
+                                          zoneId == xi::ZoneId::SeaSerpentGrotto ||
+                                          zoneId == xi::ZoneId::VelugannonPalace ||
+                                          zoneId == xi::ZoneId::TheShrineOfRuavitau ||
+                                          zoneId == xi::ZoneId::StellarFulcrum ||
+                                          zoneId == xi::ZoneId::LaloffAmphitheater ||
+                                          zoneId == xi::ZoneId::TheCelestialNexus ||
+                                          zoneId == xi::ZoneId::LowerDelkfuttsTower ||
+                                          zoneId == xi::ZoneId::KingRanperresTomb ||
+                                          zoneId == xi::ZoneId::DangrufWadi ||
+                                          zoneId == xi::ZoneId::InnerHorutotoRuins ||
+                                          zoneId == xi::ZoneId::OrdellesCaves ||
+                                          zoneId == xi::ZoneId::OuterHorutotoRuins ||
+                                          zoneId == xi::ZoneId::TheEldiemeNecropolis ||
+                                          zoneId == xi::ZoneId::GusgenMines ||
+                                          zoneId == xi::ZoneId::CrawlersNest ||
+                                          zoneId == xi::ZoneId::MazeOfShakhrami ||
+                                          zoneId == xi::ZoneId::GarlaigeCitadel ||
+                                          zoneId == xi::ZoneId::CloisterOfGales ||
+                                          zoneId == xi::ZoneId::CloisterOfStorms ||
+                                          zoneId == xi::ZoneId::CloisterOfFrost ||
+                                          zoneId == xi::ZoneId::Feiyin ||
+                                          zoneId == xi::ZoneId::IfritsCauldron ||
+                                          zoneId == xi::ZoneId::QubiaArena ||
+                                          zoneId == xi::ZoneId::CloisterOfFlames ||
+                                          zoneId == xi::ZoneId::QuicksandCaves ||
+                                          zoneId == xi::ZoneId::CloisterOfTremors ||
+                                          zoneId == xi::ZoneId::CloisterOfTides ||
+                                          zoneId == xi::ZoneId::GustavTunnel ||
+                                          zoneId == xi::ZoneId::LabyrinthOfOnzozo ||
+                                          zoneId == xi::ZoneId::ShipBoundForSelbina ||
+                                          zoneId == xi::ZoneId::ShipBoundForMhaura ||
+                                          zoneId == xi::ZoneId::ShipBoundForSelbinaPirates ||
+                                          zoneId == xi::ZoneId::ShipBoundForMhauraPirates))
     {
         return true;
     }
@@ -614,6 +718,22 @@ static uint32 CalculateBaseMobHP(uint8 mLvl, uint8 baseHP, uint8 jobScale, uint8
 
 /************************************************************************
  *                                                                       *
+ *  Subjob HP at a given subjob level                                    *
+ *                                                                       *
+ ************************************************************************/
+static auto SubjobHPAtLevel(const int32 sjLvl, const uint8 sjJobScale, const uint8 sjScaleXHP) -> uint32
+{
+    const auto sjHP = sjJobScale * std::max(sjLvl - 1, 0) +
+                      (0.5 + 0.5 * sjScaleXHP) * std::max(sjLvl - 10, 0) +
+                      std::max(sjLvl - 30, 0) +
+                      std::max(sjLvl - 50, 0) +
+                      std::max(sjLvl - 70, 0);
+
+    return static_cast<uint32>(std::ceil(sjHP / 2.0));
+}
+
+/************************************************************************
+ *                                                                       *
  *  Calculate subjob HP contribution                                     *
  *                                                                       *
  ************************************************************************/
@@ -643,14 +763,24 @@ static uint32 CalculateSubjobHP(uint8 mLvl, uint8 sjJobScale, uint8 sjScaleXHP)
         sjScale = mLvl / 4;
     }
 
-    const double sjHp =
-        sjJobScale * std::max(sjScale - 1, 0) +
-        (0.5 + 0.5 * sjScaleXHP) * std::max(sjScale - 10, 0) +
-        std::max(sjScale - 30, 0) +
-        std::max(sjScale - 50, 0) +
-        std::max(sjScale - 70, 0);
+    return SubjobHPAtLevel(sjScale, sjJobScale, sjScaleXHP);
+}
 
-    return static_cast<uint32>(std::ceil(sjHp / 2.0));
+/************************************************************************
+ *                                                                       *
+ *  Monipulator HP before merits and its multiplier: the mob main job    *
+ *  term, and the sub job term at the full main level.                   *
+ *                                                                       *
+ ************************************************************************/
+auto MonipulatorBaseHP(const xi::Job mjob, const xi::Job sjob, const uint8 level) -> uint32
+{
+    const auto mJobGrade = grade::GetJobGrade(mjob, 0);
+    const auto sJobGrade = grade::GetJobGrade(sjob, 0);
+    // Retail Spriggans weight the level 1 base two to one between the main and sub job.
+    const auto baseHP = static_cast<uint8>((2 * grade::GetMobHPScale(mJobGrade, 0) + grade::GetMobHPScale(sJobGrade, 0)) / 3);
+    const auto mainHP = CalculateBaseMobHP(level, baseHP, grade::GetMobHPScale(mJobGrade, 1), grade::GetMobHPScale(mJobGrade, 2));
+
+    return mainHP + SubjobHPAtLevel(level, grade::GetMobHPScale(sJobGrade, 1), grade::GetMobHPScale(sJobGrade, 2));
 }
 
 /************************************************************************
@@ -660,15 +790,15 @@ static uint32 CalculateSubjobHP(uint8 mLvl, uint8 sjJobScale, uint8 sjScaleXHP)
  ************************************************************************/
 void CalculateMobStats(CMobEntity* PMob, bool recover)
 {
-    // Reset modifiers to base values to prevent stacking
-    PMob->restoreModifiers();
-    PMob->restoreMobModifiers();
-
     if (recover)
     {
         // Clear status effects only when fully recovering
         PMob->StatusEffectContainer->KillAllStatusEffect();
     }
+
+    // Reset modifiers to base values to prevent stacking
+    PMob->restoreModifiers();
+    PMob->restoreMobModifiers();
 
     bool         isNM     = (PMob->m_Type & xi::MobType::Notorious) != xi::MobType::Normal;
     xi::Job      mJob     = PMob->GetMJob();
@@ -902,7 +1032,7 @@ void CalculateMobStats(CMobEntity* PMob, bool recover)
     // cap all stats for mLvl / job
     for (int i = static_cast<int>(xi::SkillType::DivineMagic); i <= static_cast<int>(xi::SkillType::BlueMagic); i++)
     {
-        uint16 maxSkill = battleutils::GetMaxSkill((xi::SkillType)i, PMob->GetMJob(), mLvl > 99 ? 99 : mLvl);
+        uint16 maxSkill = battleutils::GetMaxSkill((xi::SkillType)i, PMob->GetMJob(), std::min<uint8>(mLvl, 99));
         if (maxSkill != 0)
         {
             PMob->WorkingSkills.skill[i] = maxSkill;
@@ -910,7 +1040,7 @@ void CalculateMobStats(CMobEntity* PMob, bool recover)
         else // if the mob is WAR/BLM and can cast spell
         {
             // set skill as high as main level, so their spells won't get resisted
-            uint16 maxSubSkill = battleutils::GetMaxSkill((xi::SkillType)i, PMob->GetSJob(), mLvl > 99 ? 99 : mLvl);
+            uint16 maxSubSkill = battleutils::GetMaxSkill((xi::SkillType)i, PMob->GetSJob(), std::min<uint8>(mLvl, 99));
 
             if (maxSubSkill != 0)
             {
@@ -920,7 +1050,7 @@ void CalculateMobStats(CMobEntity* PMob, bool recover)
     }
     for (int i = static_cast<int>(xi::SkillType::HandToHand); i <= static_cast<int>(xi::SkillType::Staff); i++)
     {
-        uint16 maxSkill = battleutils::GetMaxSkill(3, mLvl > 99 ? 99 : mLvl);
+        uint16 maxSkill = battleutils::GetMaxSkill(3, std::min<uint8>(mLvl, 99));
         if (maxSkill != 0)
         {
             PMob->WorkingSkills.skill[i] = maxSkill;
@@ -1024,11 +1154,6 @@ void CalculateMobStats(CMobEntity* PMob, bool recover)
     {
         ShowError("mobutils::CalculateMobStats Mob (%s, %d) with magic but no cool down set!", PMob->getName(), PMob->id);
     }
-
-    if (PMob->getMobMod(xi::MobMod::Detection) == 0)
-    {
-        ShowError("mobutils::CalculateMobStats Mob (%s, %d, %d) has no detection methods!", PMob->getName(), PMob->id, PMob->m_Species);
-    }
 }
 
 void SetupRangedAttack(CMobEntity* PMob)
@@ -1066,27 +1191,22 @@ void SetupJob(CMobEntity* PMob)
             break;
         case xi::Job::PLD:
             PMob->defaultMobMod(xi::MobMod::MagicCool, 35);
-            PMob->defaultMobMod(xi::MobMod::MagicDelay, 7);
             break;
         case xi::Job::DRK:
             PMob->defaultMobMod(xi::MobMod::MagicCool, 35);
-            PMob->defaultMobMod(xi::MobMod::MagicDelay, 7);
             break;
         case xi::Job::WHM:
             PMob->defaultMobMod(xi::MobMod::MagicCool, 35);
-            PMob->defaultMobMod(xi::MobMod::MagicDelay, 10);
             break;
         case xi::Job::BRD:
             PMob->defaultMobMod(xi::MobMod::MagicCool, 35);
             PMob->defaultMobMod(xi::MobMod::GaChance, 25);
             PMob->defaultMobMod(xi::MobMod::BuffChance, 60);
-            PMob->defaultMobMod(xi::MobMod::MagicDelay, 10);
             break;
         case xi::Job::RDM:
             PMob->defaultMobMod(xi::MobMod::MagicCool, 35);
             PMob->defaultMobMod(xi::MobMod::GaChance, 15);
             PMob->defaultMobMod(xi::MobMod::BuffChance, 40);
-            PMob->defaultMobMod(xi::MobMod::MagicDelay, 10);
             break;
         case xi::Job::SMN:
             PMob->defaultMobMod(xi::MobMod::MagicCool, 70);
@@ -1096,7 +1216,6 @@ void SetupJob(CMobEntity* PMob)
             PMob->defaultMobMod(xi::MobMod::SpecialCool, 9);
             PMob->defaultMobMod(xi::MobMod::MagicCool, 35);
             PMob->defaultMobMod(xi::MobMod::BuffChance, 20);
-            PMob->defaultMobMod(xi::MobMod::MagicDelay, 7);
             break;
         case xi::Job::BLU:
             PMob->defaultMobMod(xi::MobMod::MagicCool, 35);
@@ -1129,6 +1248,7 @@ void SetupJob(CMobEntity* PMob)
             if (PMob->m_Family == 57) // Gigas
             {
                 PMob->defaultMobMod(xi::MobMod::SpecialSkill, 658); // Catapult only used while at range
+                PMob->defaultMobMod(xi::MobMod::SpecialCool, 14);
             }
             else if (PMob->m_Family == 72) // Trolls
             {
@@ -1210,23 +1330,11 @@ void SetupJob(CMobEntity* PMob)
 
 void SetupRoaming(CMobEntity* PMob)
 {
-    uint16 distance = 10;
-    uint16 turns    = 1;
-    uint16 cool     = 20;
-    uint16 rate     = 15;
-
-    if (PMob->m_EcoSystem == xi::Ecosystem::Beastmen)
-    {
-        distance = 20;
-        turns    = 5;
-        cool     = 45;
-    }
-
-    // default mob roaming mods
-    PMob->defaultMobMod(xi::MobMod::RoamDistance, distance);
-    PMob->defaultMobMod(xi::MobMod::RoamTurns, turns);
-    PMob->defaultMobMod(xi::MobMod::RoamCool, cool);
-    PMob->defaultMobMod(xi::MobMod::RoamRate, rate);
+    // default mob roaming mods; 6 is the median retail leg
+    PMob->defaultMobMod(xi::MobMod::RoamDistance, 6);
+    PMob->defaultMobMod(xi::MobMod::RoamTurns, 1);
+    PMob->defaultMobMod(xi::MobMod::RoamCool, 20);
+    PMob->defaultMobMod(xi::MobMod::RoamRate, 15);
 
     if ((PMob->m_roamFlags & xi::RoamFlag::Ambush) != xi::RoamFlag::None)
     {
@@ -1365,11 +1473,11 @@ void SetupDungeonInstanceMob(CMobEntity* PMob)
     PMob->SetDespawnTime(0s);
     PMob->setMobMod(xi::MobMod::NoDespawn, 1);
     // Salvage and Nyzul
-    if (PMob->getZone() >= ZONE_ZHAYOLM_REMNANTS && PMob->getZone() <= ZONE_NYZUL_ISLE)
+    if (PMob->getZone() >= xi::ZoneId::ZhayolmRemnants && PMob->getZone() <= xi::ZoneId::NyzulIsle)
     {
         // Salvage and Nyzul mobs can not be charmed
         PMob->setMobMod(xi::MobMod::Charmable, 0);
-        if (PMob->getZone() != ZONE_NYZUL_ISLE)
+        if (PMob->getZone() != xi::ZoneId::NyzulIsle)
         {
             PMob->setMobMod(xi::MobMod::CheckAsNm, 1);
         }
@@ -1421,8 +1529,11 @@ void GetAvailableSpells(CMobEntity* PMob)
 
 void SetSpellList(CMobEntity* PMob, uint16 spellList)
 {
-    PMob->m_SpellListContainer = mobSpellList::GetMobSpellList(spellList);
-    RecalculateSpellContainer(PMob);
+    if (auto* PSpellList = mobSpellList::GetMobSpellList(spellList))
+    {
+        PMob->m_SpellListContainer = PSpellList;
+        RecalculateSpellContainer(PMob);
+    }
 }
 
 void InitializeMob(CMobEntity* PMob)
@@ -1438,7 +1549,7 @@ void InitializeMob(CMobEntity* PMob)
 
     if (PMob->m_maxLevel == 0 && PMob->m_minLevel == 0)
     {
-        if (PMob->getZone() >= 1 && PMob->getZone() <= 252)
+        if (const auto mobZone = static_cast<uint16>(PMob->getZone()); mobZone >= 1 && mobZone <= 252)
         {
             ShowError("Mob %s level is 0! zoneid %d, poolid %d", PMob->getName(), PMob->getZone(), PMob->m_Pool);
         }
@@ -1446,39 +1557,20 @@ void InitializeMob(CMobEntity* PMob)
 }
 
 /*
-Loads up mob mods from mob_pool_mods and mob_species_mods table. This will allow you to change
+Loads up mob mods from the mob_pool_mods table. This will allow you to change
 a mobs regen rate, magic defense, triple attack rate from a table instead of hardcoding it.
 
 Usage:
 
-    Evil weapons have a magic defense boost. So pop that into mob_species_mods table.
     Goblin Diggers have a vermin killer trait, so find its poolid and put it in mod_pool_mods table.
+
+Species-wide mods live in data/ecosystems.yaml instead.
 */
 void LoadSqlModifiers()
 {
-    // load family mods
-    auto rset = db::preparedStmt("SELECT speciesid, modid, value, is_mob_mod "
-                                 "FROM mob_species_mods");
-    FOR_DB_MULTIPLE_RESULTS(rset)
-    {
-        ModsList_t* speciesMods = GetMobSpeciesMods(rset->get<uint16>("speciesid"), true);
-
-        auto* mod = new CModifier(rset->get<xi::Mod>("modid"));
-        mod->setModAmount(rset->get<int16>("value"));
-
-        if (rset->get<bool>("is_mob_mod"))
-        {
-            speciesMods->mobMods.emplace_back(mod);
-        }
-        else
-        {
-            speciesMods->mods.emplace_back(mod);
-        }
-    }
-
     // load pool mods
-    rset = db::preparedStmt("SELECT poolid, modid, value, is_mob_mod "
-                            "FROM mob_pool_mods");
+    auto rset = db::preparedStmt("SELECT poolid, modid, value, is_mob_mod "
+                                 "FROM mob_pool_mods");
     FOR_DB_MULTIPLE_RESULTS(rset)
     {
         const auto  pool     = rset->get<uint16>("poolid");
@@ -1521,25 +1613,6 @@ void Cleanup()
     }
     mobSpawnModsList.clear();
 
-    for (auto mobSpeciesMods : mobSpeciesModsList)
-    {
-        if (mobSpeciesMods.second)
-        {
-            for (auto mobMods : mobSpeciesMods.second->mobMods)
-            {
-                destroy(mobMods);
-            }
-
-            for (auto mods : mobSpeciesMods.second->mods)
-            {
-                destroy(mods);
-            }
-
-            destroy(mobSpeciesMods.second);
-        }
-    }
-    mobSpeciesModsList.clear();
-
     for (auto mobPoolMods : mobPoolModsList)
     {
         if (mobPoolMods.second)
@@ -1557,27 +1630,6 @@ void Cleanup()
         }
     }
     mobPoolModsList.clear();
-}
-
-ModsList_t* GetMobSpeciesMods(uint16 speciesId, bool create)
-{
-    if (mobSpeciesModsList[speciesId])
-    {
-        return mobSpeciesModsList[speciesId];
-    }
-
-    if (create)
-    {
-        // create new one
-        ModsList_t* mods = new ModsList_t;
-        mods->id         = speciesId;
-
-        mobSpeciesModsList[speciesId] = mods;
-
-        return mods;
-    }
-
-    return nullptr;
 }
 
 ModsList_t* GetMobPoolMods(uint32 poolId, bool create)
@@ -1625,20 +1677,16 @@ ModsList_t* GetMobSpawnMods(uint32 mobId, bool create)
 void AddSqlModifiers(CMobEntity* PMob)
 {
     // find my species mods
-    ModsList_t* PSpeciesMods = GetMobSpeciesMods(PMob->m_Species);
+    const auto& speciesAttributes = GetSpeciesData(PMob->m_Species).MobAttributes;
 
-    if (PSpeciesMods != nullptr)
+    for (const auto& [id, value] : speciesAttributes.Mods)
     {
-        // add them
-        for (auto& mod : PSpeciesMods->mods)
-        {
-            PMob->addModifier(mod->getModID(), mod->getModAmount());
-        }
-        // TODO: don't store mobmods in a CModifier
-        for (auto& mobMod : PSpeciesMods->mobMods)
-        {
-            PMob->setMobMod(static_cast<xi::MobMod>(mobMod->getModID()), mobMod->getModAmount());
-        }
+        PMob->addModifier(id, value);
+    }
+
+    for (const auto& [id, value] : speciesAttributes.MobMods)
+    {
+        PMob->setMobMod(id, value);
     }
 
     // find my pools mods
@@ -1676,7 +1724,7 @@ void AddSqlModifiers(CMobEntity* PMob)
     }
 }
 
-auto InstantiateAlly(uint32 groupid, uint16 zoneID, CInstance* instance) -> CMobEntity*
+auto InstantiateAlly(const uint32 groupid, const xi::ZoneId zoneID, CInstance* instance) -> CMobEntity*
 {
     CMobEntity* PMob = nullptr;
 
@@ -1685,24 +1733,19 @@ auto InstantiateAlly(uint32 groupid, uint16 zoneID, CInstance* instance) -> CMob
                                        "mob_spawn_points.minLevel, mob_spawn_points.maxLevel, modelid, mJob, "
                                        "sJob, cmbSkill, cmbDmgMult, cmbDelay, "
                                        "behavior, links, mobType, immunity, "
-                                       "ecosystemID, speed, STR, "
-                                       "DEX, VIT, AGI, `INT`, "
-                                       "MND, CHR, EVA, DEF, "
-                                       "ATT, ACC, slash_sdt, pierce_sdt, "
+                                       "slash_sdt, pierce_sdt, "
                                        "h2h_sdt, impact_sdt, magical_sdt, "
                                        "fire_sdt, ice_sdt, wind_sdt, earth_sdt, lightning_sdt, water_sdt, light_sdt, dark_sdt, "
                                        "fire_res_rank, ice_res_rank, wind_res_rank, earth_res_rank, lightning_res_rank, water_res_rank, light_res_rank, dark_res_rank, "
                                        "paralyze_res_rank, bind_res_rank, silence_res_rank, slow_res_rank, poison_res_rank, light_sleep_res_rank, dark_sleep_res_rank, blind_res_rank, stun_res_rank, gravity_res_rank, "
-                                       "Element, "
                                        "mob_pools.speciesid, name_prefix, entityFlags, animationsub, "
-                                       "(mob_species_system.HP / 100) AS hp_scale, (mob_species_system.MP / 100) AS mp_scale, hasSpellScript, spellList, "
+                                       "hasSpellScript, spellList, "
                                        "mob_groups.poolid, allegiance, namevis, aggro, "
-                                       "mob_pools.skill_list_id, mob_pools.true_detection, mob_species_system.detects, "
+                                       "mob_pools.skill_list_id, mob_pools.true_detection, "
                                        "mob_pools.modelSize, mob_pools.modelHitboxSize "
                                        "FROM mob_groups INNER JOIN mob_spawn_points ON mob_groups.groupid = mob_spawn_points.groupid "
                                        "INNER JOIN mob_pools ON mob_groups.poolid = mob_pools.poolid "
                                        "INNER JOIN mob_resistances ON mob_pools.resist_id = mob_resistances.resist_id "
-                                       "INNER JOIN mob_species_system ON mob_pools.speciesid = mob_species_system.speciesID "
                                        "WHERE mob_groups.groupid = ? AND mob_groups.zoneid = ?",
                                        groupid,
                                        zoneID);
@@ -1737,27 +1780,9 @@ auto InstantiateAlly(uint32 groupid, uint16 zoneID, CInstance* instance) -> CMob
         static_cast<CItemWeapon*>(PMob->m_Weapons[SLOT_MAIN])->setDelay(rset->get<uint16>("cmbDelay"));
         static_cast<CItemWeapon*>(PMob->m_Weapons[SLOT_MAIN])->setBaseDelay(rset->get<uint16>("cmbDelay"));
 
-        PMob->m_Behavior  = rset->get<xi::Behavior>("behavior");
-        PMob->m_Link      = rset->get<uint8>("links");
-        PMob->m_Type      = rset->get<xi::MobType>("mobType");
-        PMob->m_Immunity  = rset->get<xi::Immunity>("immunity");
-        PMob->m_EcoSystem = rset->get<xi::Ecosystem>("ecosystemID");
-
-        PMob->baseSpeed      = rset->get<uint8>("speed"); // Overwrites baseentity.cpp's defined baseSpeed
-        PMob->animationSpeed = rset->get<uint8>("speed"); // Overwrites baseentity.cpp's defined animationSpeed
-        PMob->UpdateSpeed();
-
-        PMob->strRank = rset->get<uint8>("STR");
-        PMob->dexRank = rset->get<uint8>("DEX");
-        PMob->vitRank = rset->get<uint8>("VIT");
-        PMob->agiRank = rset->get<uint8>("AGI");
-        PMob->intRank = rset->get<uint8>("INT");
-        PMob->mndRank = rset->get<uint8>("MND");
-        PMob->chrRank = rset->get<uint8>("CHR");
-        PMob->evaRank = rset->get<uint8>("EVA");
-        PMob->defRank = rset->get<uint8>("DEF");
-        PMob->attRank = rset->get<uint8>("ATT");
-        PMob->accRank = rset->get<uint8>("ACC");
+        PMob->m_Behavior = rset->get<xi::Behavior>("behavior");
+        PMob->m_Type     = rset->get<xi::MobType>("mobType");
+        PMob->m_Immunity = rset->get<xi::Immunity>("immunity");
 
         PMob->setModifier(xi::Mod::SLASH_SDT, rset->get<int16>("slash_sdt"));
         PMob->setModifier(xi::Mod::PIERCE_SDT, rset->get<int16>("pierce_sdt"));
@@ -1795,19 +1820,16 @@ auto InstantiateAlly(uint32 groupid, uint16 zoneID, CInstance* instance) -> CMob
         PMob->setModifier(xi::Mod::STUN_RES_RANK, rset->get<int8>("stun_res_rank"));
         PMob->setModifier(xi::Mod::GRAVITY_RES_RANK, rset->get<int8>("gravity_res_rank"));
 
-        PMob->m_Element     = rset->get<uint8>("Element");
         PMob->m_Species     = rset->get<uint16>("speciesid");
         PMob->m_name_prefix = rset->get<uint8>("name_prefix");
-        PMob->m_flags       = rset->get<xi::EntityFlags>("entityFlags");
+        ApplySpecies(PMob);
+        PMob->setMobMod(xi::MobMod::Charmable, 0); // Allies are never charmable
+        PMob->m_flags = rset->get<xi::EntityFlags>("entityFlags");
 
         // Special sub animation for Mob (yovra, jailer of love, phuabo)
         // yovra 1: On top/in the sky, 2: , 3: On top/in the sky
         // phuabo 1: Underwater, 2: Out of the water, 3: Goes back underwater
         PMob->animationsub = rset->get<uint32>("animationsub");
-
-        // Setup HP / MP Stat Percentage Boost
-        PMob->HPscale = rset->get<float>("hp_scale");
-        PMob->MPscale = rset->get<float>("mp_scale");
 
         PMob->m_SpellListContainer = mobSpellList::GetMobSpellList(rset->get<uint16>("spellList"));
 
@@ -1819,8 +1841,8 @@ auto InstantiateAlly(uint32 groupid, uint16 zoneID, CInstance* instance) -> CMob
         PMob->modelSize       = rset->getOrDefault<uint8>("modelSize", 0);
         PMob->m_Aggro         = rset->get<bool>("aggro");
         PMob->m_MobSkillList  = rset->get<uint16>("skill_list_id");
+        PMob->m_Link          = rset->get<uint8>("links");
         PMob->m_TrueDetection = rset->get<bool>("true_detection");
-        PMob->setMobMod(xi::MobMod::Detection, rset->get<int16>("detects"));
 
         if (instance)
         {
@@ -1860,7 +1882,7 @@ auto InstantiateAlly(uint32 groupid, uint16 zoneID, CInstance* instance) -> CMob
     return PMob;
 }
 
-auto InstantiateDynamicMob(uint32 groupid, uint16 groupZoneId, uint16 targetZoneId) -> CMobEntity*
+auto InstantiateDynamicMob(const uint32 groupid, const xi::ZoneId groupZoneId, const xi::ZoneId targetZoneId) -> CMobEntity*
 {
     auto* PMob = new CMobEntity();
 
@@ -1869,23 +1891,19 @@ auto InstantiateDynamicMob(uint32 groupid, uint16 groupZoneId, uint16 targetZone
                                        "modelid, mJob, "
                                        "sJob, cmbSkill, cmbDmgMult, cmbDelay, "
                                        "behavior, links, mobType, immunity, "
-                                       "ecosystemID, speed, STR, "
-                                       "DEX, VIT, AGI, `INT`, "
-                                       "MND, CHR, EVA, DEF, "
-                                       "ATT, ACC, slash_sdt, pierce_sdt, "
+                                       "slash_sdt, pierce_sdt, "
                                        "h2h_sdt, impact_sdt, magical_sdt, fire_sdt, "
                                        "ice_sdt, wind_sdt, earth_sdt, lightning_sdt, "
                                        "water_sdt, light_sdt, dark_sdt, fire_res_rank, "
                                        "ice_res_rank, wind_res_rank, earth_res_rank, lightning_res_rank, "
-                                       "water_res_rank, light_res_rank, dark_res_rank, Element, "
+                                       "water_res_rank, light_res_rank, dark_res_rank, "
                                        "mob_pools.speciesid, name_prefix, entityFlags, animationsub, "
-                                       "(mob_species_system.HP / 100) AS hp_scale, (mob_species_system.MP / 100) AS mp_scale, hasSpellScript, spellList, "
+                                       "hasSpellScript, spellList, "
                                        "mob_groups.poolid, allegiance, namevis, aggro, "
                                        "mob_pools.modelSize, mob_pools.modelHitboxSize, "
-                                       "mob_pools.skill_list_id, mob_pools.true_detection, mob_species_system.detects "
+                                       "mob_pools.skill_list_id, mob_pools.true_detection "
                                        "FROM mob_groups INNER JOIN mob_pools ON mob_groups.poolid = mob_pools.poolid "
                                        "INNER JOIN mob_resistances ON mob_pools.resist_id = mob_resistances.resist_id "
-                                       "INNER JOIN mob_species_system ON mob_pools.speciesid = mob_species_system.speciesID "
                                        "WHERE mob_groups.groupid = ? AND mob_groups.zoneid = ?",
                                        groupid,
                                        groupZoneId);
@@ -1914,27 +1932,9 @@ auto InstantiateDynamicMob(uint32 groupid, uint16 groupZoneId, uint16 targetZone
         static_cast<CItemWeapon*>(PMob->m_Weapons[SLOT_MAIN])->setDelay(rset->get<uint16>("cmbDelay"));
         static_cast<CItemWeapon*>(PMob->m_Weapons[SLOT_MAIN])->setBaseDelay(rset->get<uint16>("cmbDelay"));
 
-        PMob->m_Behavior  = rset->get<xi::Behavior>("behavior");
-        PMob->m_Link      = rset->get<uint8>("links");
-        PMob->m_Type      = rset->get<xi::MobType>("mobType");
-        PMob->m_Immunity  = rset->get<xi::Immunity>("immunity");
-        PMob->m_EcoSystem = rset->get<xi::Ecosystem>("ecosystemID");
-
-        PMob->baseSpeed      = rset->get<uint8>("speed"); // Overwrites baseentity.cpp's defined baseSpeed
-        PMob->animationSpeed = rset->get<uint8>("speed"); // Overwrites baseentity.cpp's defined animationSpeed
-        PMob->UpdateSpeed();
-
-        PMob->strRank = rset->get<uint8>("STR");
-        PMob->dexRank = rset->get<uint8>("DEX");
-        PMob->vitRank = rset->get<uint8>("VIT");
-        PMob->agiRank = rset->get<uint8>("AGI");
-        PMob->intRank = rset->get<uint8>("INT");
-        PMob->mndRank = rset->get<uint8>("MND");
-        PMob->chrRank = rset->get<uint8>("CHR");
-        PMob->evaRank = rset->get<uint8>("EVA");
-        PMob->defRank = rset->get<uint8>("DEF");
-        PMob->attRank = rset->get<uint8>("ATT");
-        PMob->accRank = rset->get<uint8>("ACC");
+        PMob->m_Behavior = rset->get<xi::Behavior>("behavior");
+        PMob->m_Type     = rset->get<xi::MobType>("mobType");
+        PMob->m_Immunity = rset->get<xi::Immunity>("immunity");
 
         PMob->setModifier(xi::Mod::SLASH_SDT, rset->get<int16>("slash_sdt"));
         PMob->setModifier(xi::Mod::PIERCE_SDT, rset->get<int16>("pierce_sdt"));
@@ -1961,16 +1961,12 @@ auto InstantiateDynamicMob(uint32 groupid, uint16 groupZoneId, uint16 targetZone
         PMob->setModifier(xi::Mod::LIGHT_RES_RANK, rset->get<int8>("light_res_rank"));
         PMob->setModifier(xi::Mod::DARK_RES_RANK, rset->get<int8>("dark_res_rank"));
 
-        PMob->m_Element     = rset->get<uint8>("Element");
         PMob->m_Species     = rset->get<uint16>("speciesid");
         PMob->m_name_prefix = rset->get<uint8>("name_prefix");
-        PMob->m_flags       = rset->get<xi::EntityFlags>("entityFlags");
+        ApplySpecies(PMob);
+        PMob->m_flags = rset->get<xi::EntityFlags>("entityFlags");
 
         PMob->animationsub = rset->get<uint32>("animationsub");
-
-        // Setup HP / MP Stat Percentage Boost
-        PMob->HPscale = rset->get<float>("hp_scale");
-        PMob->MPscale = rset->get<float>("mp_scale");
 
         PMob->m_SpellListContainer = mobSpellList::GetMobSpellList(rset->get<uint16>("spellList"));
 
@@ -1982,8 +1978,8 @@ auto InstantiateDynamicMob(uint32 groupid, uint16 groupZoneId, uint16 targetZone
         PMob->modelSize       = rset->getOrDefault<uint8>("modelSize", 0);
         PMob->m_Aggro         = rset->get<bool>("aggro");
         PMob->m_MobSkillList  = rset->get<uint16>("skill_list_id");
+        PMob->m_Link          = rset->get<uint8>("links");
         PMob->m_TrueDetection = rset->get<bool>("true_detection");
-        PMob->setMobMod(xi::MobMod::Detection, rset->get<int16>("detects"));
 
         mobutils::InitializeMob(PMob);
         mobutils::AddSqlModifiers(PMob);

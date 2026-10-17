@@ -11,7 +11,7 @@ local quest = Quest:new(xi.questLog.WINDURST, xi.quest.id.windurst.MAKING_THE_GR
 
 quest.reward =
 {
-    fame     = 75,
+    fame     = 30,
     fameArea = xi.fameArea.WINDURST,
     item     = xi.item.SCROLL_OF_ASPIR,
 }
@@ -23,7 +23,8 @@ quest.sections =
             return status == xi.questStatus.QUEST_AVAILABLE and
                 player:hasCompletedQuest(xi.questLog.WINDURST, xi.quest.id.windurst.TEACHERS_PET) and
                 player:getQuestStatus(xi.questLog.WINDURST, xi.quest.id.windurst.LET_SLEEPING_DOGS_LIE) ~= xi.questStatus.QUEST_ACCEPTED and
-                player:getFameLevel(xi.fameArea.WINDURST) >= 3
+                player:getFameLevel(xi.fameArea.WINDURST) >= 3 and
+                player:getMainLvl() >= 10 -- Level requirement added in the March 8, 2007 update: https://www.playonline.com/pcd/update/ff11us/20070308c2bbd1/detail.html
         end,
 
         [xi.zone.WINDURST_WATERS] =
@@ -113,7 +114,7 @@ quest.sections =
                 end,
 
                 [460] = function(player, csid, option, npc)
-                    player:delKeyItem(xi.ki.TATTERED_TEST_SHEET)
+                    player:delKeyItem(xi.keyItem.TATTERED_TEST_SHEET)
                     quest:setVar(player, 'Prog', 3)
                 end,
             },
@@ -152,7 +153,7 @@ quest.sections =
                 [285] = function(player, csid, option, npc)
                     player:confirmTrade()
 
-                    npcUtil.giveKeyItem(player, xi.ki.TATTERED_TEST_SHEET)
+                    npcUtil.giveKeyItem(player, xi.keyItem.TATTERED_TEST_SHEET)
                     quest:setVar(player, 'Prog', 2)
                 end,
             },

@@ -9,9 +9,7 @@ local quest = Quest:new(xi.questLog.JEUNO, xi.quest.id.jeuno.CANDLE_MAKING)
 
 quest.reward =
 {
-    fame     = 30,
-    fameArea = xi.fameArea.JEUNO,
-    keyItem  = xi.ki.HOLY_CANDLE,
+    keyItem  = xi.keyItem.HOLY_CANDLE,
     title    = xi.title.BELIEVER_OF_ALTANA,
 }
 
@@ -46,7 +44,7 @@ quest.sections =
             ['Rouliette'] =
             {
                 onTrade = function(player, npc, trade)
-                    if npcUtil.tradeHasExactly(trade, xi.item.LANOLIN_CUBE) then
+                    if npcUtil.tradeMatches(trade, { { xi.item.LANOLIN_CUBE, 1 } }) then
                         return quest:progressEvent(37)
                     end
                 end,
@@ -60,7 +58,10 @@ quest.sections =
             {
                 [37] = function(player, csid, option, npc)
                     if quest:complete(player) then
-                        player:confirmTrade()
+                        player:addFame(xi.fameArea.SANDORIA, 13)
+                        player:addFame(xi.fameArea.BASTOK, 13)
+                        player:addFame(xi.fameArea.WINDURST, 13)
+                        player:tradeComplete()
                     end
                 end,
             },

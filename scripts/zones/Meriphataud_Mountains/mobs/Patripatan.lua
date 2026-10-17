@@ -2,22 +2,8 @@
 -- Area: Meriphataud Mountains
 --   NM: Patripatan
 -----------------------------------
-local ID = zones[xi.zone.MERIPHATAUD_MOUNTAINS]
------------------------------------
 ---@type TMobEntity
 local entity = {}
-
-entity.spawnPoints =
-{
-    { x =  559.000, y = -31.000, z =  590.000 },
-    { x =  541.000, y = -32.000, z =  618.000 },
-    { x =  645.000, y = -27.000, z =  658.000 }
-}
-
-entity.phList =
-{
-    [ID.mob.PATRIPATAN - 4] = ID.mob.PATRIPATAN, -- Confirmed on retail
-}
 
 entity.onMobInitialize = function(mob)
     mob:setMobMod(xi.mobMod.ADD_EFFECT, 1)

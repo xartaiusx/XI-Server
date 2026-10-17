@@ -3,9 +3,7 @@
 --  Mob: Giant Sentry
 -- Note: PH for Hippolytos and Eurymedon
 -----------------------------------
-mixins = { require('scripts/mixins/families/gigas_bst') }
------------------------------------
-local ID = zones[xi.zone.LOWER_DELKFUTTS_TOWER]
+mixins = { require('scripts/mixins/pet_resummon') }
 -----------------------------------
 ---@type TMobEntity
 local entity = {}
@@ -16,11 +14,6 @@ end
 
 entity.onMobDeath = function(mob, player, optParams)
     xi.regime.checkRegime(player, mob, 778, 2, xi.regime.type.GROUNDS)
-end
-
-entity.onMobDespawn = function(mob)
-    xi.mob.phOnDespawn(mob, ID.mob.HIPPOLYTOS, 5, 1) -- no cooldown
-    xi.mob.phOnDespawn(mob, ID.mob.EURYMEDON, 5, 1) -- no cooldown
 end
 
 return entity

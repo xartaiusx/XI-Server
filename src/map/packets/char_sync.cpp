@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -25,7 +25,7 @@
 #include "status_effect_container.h"
 #include "utils/mountutils.h"
 
-CCharSyncPacket::CCharSyncPacket(CCharEntity* PChar)
+CCharSyncPacket::CCharSyncPacket(CCharEntity* PChar, const CharSyncRecipient recipient)
 {
     this->setType(0x67);
     this->setSize(0x28);
@@ -46,7 +46,10 @@ CCharSyncPacket::CCharSyncPacket(CCharEntity* PChar)
             ref<uint8>(0x10) |= 0x04;
         }
 
-        ref<uint8>(0x26) = PChar->m_LevelRestriction;
+        if (recipient == CharSyncRecipient::Self)
+        {
+            ref<uint8>(0x26) = PChar->m_LevelRestriction;
+        }
     }
 
     if (PChar->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Mounted))
@@ -57,6 +60,24 @@ CCharSyncPacket::CCharSyncPacket(CCharEntity* PChar)
         ref<uint32>(0x1C)                           = CustomProperties[1]; // Noble Chocobo
     }
 
-    ref<uint8>(0x25) = PChar->jobs.job[static_cast<uint8>(PChar->GetMJob())];
-    ref<uint8>(0x27) = PChar->profile.mhflag & 0x20 ? 1 : 0; // MogExpansionFlag - Is 2nd floor unlocked.
+    // Retail only sends the Mog House and main job level fields to the character's own client
+    if (recipient == CharSyncRecipient::Self)
+    {
+        if (PChar->inMogHouse(xi::MogHouse::Visiting))
+        {
+            ref<uint32>(0x20) = PChar->m_moghouseID; // Owner of the Mog House being visited
+        }
+
+        ref<uint8>(0x24) = PChar->moghouse().isOpen(); // MogHouseFlag - Open to visitors
+        ref<uint8>(0x25) = PChar->jobs.job[static_cast<uint8>(PChar->GetMJob())];
+    }
+
+    // MogExpansionFlag - Is 2nd floor unlocked, the owner's when visiting
+    const auto* POwner = PChar->moghouse().host();
+    if (POwner == nullptr)
+    {
+        POwner = PChar;
+    }
+
+    ref<uint8>(0x27) = (POwner->profile.mhflag & 0x20) != 0;
 }

@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2025 LandSandBoat Dev Teams
@@ -20,8 +20,6 @@
 */
 
 #pragma once
-
-#include "common/logging.h"
 
 #include <cstdint>
 

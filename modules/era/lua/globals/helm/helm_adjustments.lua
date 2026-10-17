@@ -6,59 +6,69 @@
 --  Dyer's Woad: https://www.bg-wiki.com/ffxi/September_2008_Version_Update_Changes#Other_Usable_Items
 --  Aquilaria Log: https://www.bg-wiki.com/ffxi/September_2010_Version_Update_Changes#Usable_Items
 --  Butterpear and Kapor Log: https://www.bg-wiki.com/ffxi/September_2011_Version_Update_Changes#Wings_of_the_Goddess_Quests
+--  Slab of Plumbago: https://wiki.ffo.jp/html/19538.html (added in the March 23, 2010 version update)
 -----------------------------------
 require('modules/module_utils')
 -----------------------------------
-local moduleName = 'era_helm_adjustments'
+local m = Module:new('era_helm_adjustments')
 
 local removalsByContent =
 {
+    ABYSSEA =
     {
-        contentTag = 'ABYSSEA',
-        removals =
+        [xi.helmType.LOGGING] =
         {
-            [xi.helmType.LOGGING] =
+            [xi.zone.YHOATOR_JUNGLE] =
             {
-                [xi.zone.YHOATOR_JUNGLE] =
-                {
-                    xi.item.BUTTERPEAR,
-                    xi.item.AQUILARIA_LOG,
-                    xi.item.KAPOR_LOG,
-                },
+                xi.item.BUTTERPEAR,
+                xi.item.AQUILARIA_LOG,
+                xi.item.KAPOR_LOG,
+            },
 
-                [xi.zone.YUHTUNGA_JUNGLE] =
-                {
-                    xi.item.AQUILARIA_LOG,
-                },
+            [xi.zone.YUHTUNGA_JUNGLE] =
+            {
+                xi.item.BUTTERPEAR,
+                xi.item.AQUILARIA_LOG,
+                xi.item.KAPOR_LOG,
             },
         },
     },
 
+    WOTG =
     {
-        contentTag = 'WOTG',
-        removals =
+        [xi.helmType.HARVESTING] =
         {
-            [xi.helmType.HARVESTING] =
+            [xi.zone.BHAFLAU_THICKETS] =
             {
-                [xi.zone.BHAFLAU_THICKETS] =
-                {
-                    xi.item.EASTERN_GINGER_ROOT,
-                },
+                xi.item.EASTERN_GINGER_ROOT,
+            },
 
-                [xi.zone.GIDDEUS] =
-                {
-                    xi.item.SPRIG_OF_DYERS_WOAD,
-                },
+            [xi.zone.GIDDEUS] =
+            {
+                xi.item.SPRIG_OF_DYERS_WOAD,
+            },
 
-                [xi.zone.WAJAOM_WOODLANDS] =
-                {
-                    xi.item.EASTERN_GINGER_ROOT,
-                },
+            [xi.zone.WAJAOM_WOODLANDS] =
+            {
+                xi.item.EASTERN_GINGER_ROOT,
+            },
 
-                [xi.zone.WEST_SARUTABARUTA] =
-                {
-                    xi.item.SPRIG_OF_DYERS_WOAD,
-                },
+            [xi.zone.WEST_SARUTABARUTA] =
+            {
+                xi.item.SPRIG_OF_DYERS_WOAD,
+            },
+        },
+
+        [xi.helmType.MINING] =
+        {
+            [xi.zone.HALVUNG] =
+            {
+                xi.item.SLAB_OF_PLUMBAGO,
+            },
+
+            [xi.zone.MOUNT_ZHAYOLM] =
+            {
+                xi.item.SLAB_OF_PLUMBAGO,
             },
         },
     },
@@ -94,10 +104,16 @@ local applyRemovals = function(removals)
     end
 end
 
-for _, entry in ipairs(removalsByContent) do
-    if not xi.module.isContentEnabled(entry.contentTag) then
-        applyRemovals(entry.removals)
-    end
-end
+m:addOverrideByEra('xi.server.onServerStart', {
+    [xi.expansion.ABYSSEA] = function()
+        super()
 
-return { name = moduleName }
+        applyRemovals(removalsByContent.ABYSSEA)
+    end,
+
+    [xi.expansion.WOTG] = function()
+        super()
+
+        applyRemovals(removalsByContent.WOTG)
+    end,
+})

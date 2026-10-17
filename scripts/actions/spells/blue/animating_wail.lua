@@ -20,8 +20,8 @@ spellObject.onMagicCastingCheck = function(caster, target, spell)
     return 0
 end
 
-spellObject.onSpellCast = function(caster, target, spell)
-    local power = 1500 -- 15%
+spellObject.onSpellCast = function(caster, target, spell, action)
+    local power    = 1500 -- 15%
     local duration = xi.spells.blue.calculateDurationWithDiffusion(caster, 300)
 
     if not target:addStatusEffect(xi.effect.HASTE, { power = power, duration = duration, origin = caster }) then

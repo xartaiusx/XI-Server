@@ -12,7 +12,8 @@ local quest = Quest:new(xi.questLog.OTHER_AREAS, xi.quest.id.otherAreas.BETTER_T
 
 quest.reward =
 {
-    item = xi.item.GOBLIN_GRENADE,
+    item  = xi.item.GOBLIN_GRENADE,
+    title = xi.title.APOSTATE_FOR_HIRE,
 }
 
 quest.sections =
@@ -53,11 +54,11 @@ quest.sections =
                     if progress == 0 then
                         return quest:event(21, 0, xi.item.DEMON_PEN):setPriority(101) -- Reminder to get Demon Pen
                     elseif progress == 1 then
-                            if GetSystemTime() >= waitTime + 60 then
-                                return quest:progressCutscene(24) -- Go to Castle Zvahl Baileys
-                            else
-                                return quest:event(23):setPriority(101) -- Wait Longer
-                            end
+                        if GetSystemTime() >= waitTime then
+                            return quest:progressCutscene(24) -- Go to Castle Zvahl Baileys
+                        else
+                            return quest:event(23):setPriority(101) -- Wait Longer
+                        end
                     elseif progress == 2 then
                         return quest:event(25):setPriority(101) -- Reminder to go to castle Zvahl Baileys
                     elseif progress == 3 then
@@ -77,6 +78,7 @@ quest.sections =
                 [22] = function(player, csid, option, npc)
                     player:confirmTrade()
                     quest:setVar(player, 'Prog', 1)
+                    -- TODO: Check when the wait starts and how it is rounded. Retail can advance less than a minute after this cutscene.
                     quest:setVar(player, 'Wait', GetSystemTime() + 60) -- 1 Minute wait time
                 end,
 
@@ -86,7 +88,7 @@ quest.sections =
 
                 [26] = function(player, csid, option, npc)
                     if quest:complete(player) then
-                        player:delKeyItem(xi.ki.ZEELOZOKS_EARPLUG)
+                        player:delKeyItem(xi.keyItem.ZEELOZOKS_EARPLUG)
                     end
                 end,
             },
@@ -103,9 +105,9 @@ quest.sections =
                         player:getLocalVar('NMKilled') == 1 and
                         progress == 2
                     then
-                        player:addKeyItem(xi.ki.ZEELOZOKS_EARPLUG)
+                        player:addKeyItem(xi.keyItem.ZEELOZOKS_EARPLUG)
                         quest:setVar(player, 'Prog', 3)
-                        return quest:messageSpecial(zvahlID.text.KEYITEM_OBTAINED, xi.ki.ZEELOZOKS_EARPLUG)
+                        return quest:messageSpecial(zvahlID.text.KEYITEM_OBTAINED, xi.keyItem.ZEELOZOKS_EARPLUG)
                     elseif
                         progress == 2 and
                         not GetMobByID(zvahlID.mob.MARQUIS_ANDREALPUS):isSpawned() and

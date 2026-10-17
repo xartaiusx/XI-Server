@@ -14,8 +14,10 @@ local quest = Quest:new(xi.questLog.SANDORIA, xi.quest.id.sandoria.EXIT_THE_GAMB
 
 quest.reward =
 {
+    fame       = 20,
+    fameArea   = xi.fameArea.SANDORIA,
     exp        = 2000,
-    keyItem    = xi.ki.MAP_OF_KING_RANPERRES_TOMB,
+    keyItem    = xi.keyItem.MAP_OF_KING_RANPERRES_TOMB,
     title      = xi.title.DAYBREAK_GAMBLER,
 }
 

@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,10 +19,8 @@
 ===========================================================================
 */
 
-#include <cstring>
-
-#include "entities/base_entity.h"
 #include "universal_container.h"
+#include "entities/base_entity.h"
 #include "utils/itemutils.h"
 
 CUContainer::CUContainer()
@@ -44,17 +42,6 @@ void CUContainer::Clean()
         for (uint8 i = 0; i < UCONTAINER_SIZE; ++i)
         {
             destroy(m_PItem[i]);
-        }
-    }
-
-    if (m_ContainerType == UCONTAINER_TRADE)
-    {
-        for (auto&& PItem : m_PItem)
-        {
-            if (PItem)
-            {
-                PItem->setReserve(0);
-            }
         }
     }
 

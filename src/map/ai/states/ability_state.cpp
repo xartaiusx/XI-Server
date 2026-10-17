@@ -29,6 +29,8 @@
 #include "entities/char_entity.h"
 #include "entities/mob_entity.h"
 #include "entities/pet_entity.h"
+#include "enums/msg_basic.h"
+#include "lua/luautils.h"
 #include "packets/s2c/0x028_battle2.h"
 #include "packets/s2c/0x029_battle_message.h"
 #include "petskill.h"
@@ -99,37 +101,35 @@ auto PetSkillDistanceCheck(CCharEntity* PChar, CBaseEntity* PTarget, const CAbil
 
 } // namespace
 
-CAbilityState::CAbilityState(CBattleEntity* PEntity, const EntityId& target, const uint16 abilityid)
+CAbilityState::CAbilityState(xi::Badge<CState>, CBattleEntity* PEntity, const EntityId& target, const uint16 abilityid)
 : CState(PEntity, target)
 , m_PEntity(PEntity)
+, m_abilityId(abilityid)
 {
-    CAbility* PAbility = ability::GetAbility(abilityid);
+    // Capture constructor arguments into members and nothing else. All other logic goes into init().
+}
+
+auto CAbilityState::init() -> StateErrorOr<void>
+{
+    CAbility* PAbility = ability::GetAbility(m_abilityId);
 
     if (!PAbility)
     {
-        throw CStateInitException(std::make_unique<GP_SERV_COMMAND_BATTLE_MESSAGE>(m_PEntity, m_PEntity, 0, 0, MsgBasic::UnableToUseJobAbility));
+        return Error{ std::make_unique<GP_SERV_COMMAND_BATTLE_MESSAGE>(m_PEntity, m_PEntity, 0, 0, MsgBasic::UnableToUseJobAbility) };
     }
-    auto* PTarget = m_PEntity->IsValidTarget(target, PAbility->getValidTarget(), m_errorMsg);
+    auto* PTarget = m_PEntity->IsValidTarget(target(), PAbility->getValidTarget(), m_errorMsg);
 
     if (!PTarget || this->HasErrorMsg())
     {
-        if (this->HasErrorMsg())
-        {
-            throw CStateInitException(m_errorMsg->copy());
-        }
-        else
-        {
-            throw CStateInitException(std::make_unique<CBasicPacket>());
-        }
+        return refuseWithErrorMsg();
     }
-    SetTarget(target);
     m_PAbility = std::make_unique<CAbility>(*PAbility);
     m_castTime = PAbility->getCastTime();
 
     if (m_castTime > 0s && CanUseAbility())
     {
         action_t action{
-            .actorId    = PEntity->id,
+            .actorId    = m_PEntity->id,
             .actiontype = ActionCategory::AbilityStart,
             .targets    = {
                 {
@@ -145,8 +145,8 @@ CAbilityState::CAbilityState(CBattleEntity* PEntity, const EntityId& target, con
             }
         };
 
-        trustutils::LogTrustActionPacket(PEntity, action, PTarget, "ability_state_start");
-        PEntity->loc.zone->PushPacket(PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
+        trustutils::LogTrustActionPacket(m_PEntity, action, PTarget, "ability_state_start");
+        m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
         m_PEntity->PAI->EventHandler.triggerListener("ABILITY_START", m_PEntity, PAbility);
 
         // face toward target
@@ -156,6 +156,8 @@ CAbilityState::CAbilityState(CBattleEntity* PEntity, const EntityId& target, con
     {
         m_PEntity->PAI->EventHandler.triggerListener("ABILITY_START", m_PEntity, PAbility);
     }
+
+    return Success();
 }
 
 auto CAbilityState::GetAbility() const -> CAbility*
@@ -165,7 +167,7 @@ auto CAbilityState::GetAbility() const -> CAbility*
 
 void CAbilityState::ApplyEnmity() const
 {
-    auto* PTarget = GetTarget();
+    auto* PTarget = target().resolve();
     if (PTarget)
     {
         if (m_PAbility->getValidTarget() & TARGET_ENEMY && PTarget->allegiance != m_PEntity->allegiance)
@@ -194,7 +196,7 @@ auto CAbilityState::Update(const timer::time_point tick) -> bool
     // Rotate towards target during ability
     if (m_castTime > 0s && tick < GetEntryTime() + m_castTime)
     {
-        CBaseEntity* PTarget = GetTarget();
+        CBaseEntity* PTarget = target().resolve();
         if (PTarget)
         {
             battleutils::turnTowardsTarget(m_PEntity, PTarget);
@@ -211,11 +213,11 @@ auto CAbilityState::Update(const timer::time_point tick) -> bool
 
         action_t action{};
         m_PEntity->OnAbility(*this, action);
-        m_PEntity->PAI->EventHandler.triggerListener("ABILITY_USE", m_PEntity, GetTarget(), m_PAbility.get(), &action);
+        m_PEntity->PAI->EventHandler.triggerListener("ABILITY_USE", m_PEntity, target().resolve(), m_PAbility.get(), &action);
         // Only send packet if action was populated (e.g. interrupts return early)
         if (!action.targets.empty())
         {
-            trustutils::LogTrustActionPacket(m_PEntity, action, dynamic_cast<CBattleEntity*>(GetTarget()), "ability_state_finish");
+            trustutils::LogTrustActionPacket(m_PEntity, action, target().resolve<CBattleEntity>(), "ability_state_finish");
             m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
         }
 
@@ -233,9 +235,8 @@ auto CAbilityState::Update(const timer::time_point tick) -> bool
 
     if (IsCompleted() && tick > GetEntryTime() + m_castTime + m_PAbility->getAnimationTime())
     {
-        if (m_PEntity->objtype == TYPE_PC)
+        if (auto* PChar = dynamic_cast<CCharEntity*>(m_PEntity))
         {
-            CCharEntity* PChar = static_cast<CCharEntity*>(m_PEntity);
             PChar->m_charHistory.abilitiesUsed++;
         }
         m_PEntity->PAI->EventHandler.triggerListener("ABILITY_STATE_EXIT", m_PEntity, m_PAbility.get());
@@ -248,13 +249,14 @@ auto CAbilityState::Update(const timer::time_point tick) -> bool
 auto CAbilityState::CanUseAbility() const -> bool
 {
     CAbility*    PAbility = GetAbility();
-    CBaseEntity* PTarget  = GetTarget();
+    CBaseEntity* PTarget  = target().resolve();
 
     std::unique_ptr<CBasicPacket> errMsg;
 
-    if (m_PEntity->objtype == TYPE_PC)
+    if (auto* PChar = dynamic_cast<CCharEntity*>(m_PEntity))
     {
-        auto* PChar = static_cast<CCharEntity*>(m_PEntity);
+        const bool isLuopanAbility = PAbility->getID() >= ABILITY_CONCENTRIC_PULSE && PAbility->getID() <= ABILITY_RADIAL_ARCANA;
+
         if (PChar->PRecastContainer->HasRecast(RECAST_ABILITY, PAbility->getRecastId(), PAbility->getRecastTime()))
         {
             PChar->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>(PChar, PChar, 0, 0, MsgBasic::WaitLonger);
@@ -263,7 +265,7 @@ auto CAbilityState::CanUseAbility() const -> bool
 
         if (PChar->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Amnesia) ||
             (PChar->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Impairment) && (PChar->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::Impairment)->GetPower() == 0x01 || PChar->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::Impairment)->GetPower() == 0x03)) ||
-            (!PAbility->isPetAbility() && !charutils::hasAbility(PChar, PAbility->getID())) ||
+            ((!PAbility->isPetAbility() || isLuopanAbility) && !charutils::hasAbility(PChar, PAbility->getID())) ||
             (PAbility->isPetAbility() && PAbility->getID() >= ABILITY_HEALING_RUBY && !charutils::hasPetAbility(PChar, PAbility->getID() - ABILITY_HEALING_RUBY)))
         {
             PChar->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>(PChar, PChar, 0, 0, MsgBasic::UnableToUseJobAbility2);
@@ -273,8 +275,7 @@ auto CAbilityState::CanUseAbility() const -> bool
         if (PTarget && PChar->IsValidTarget(PTarget->targid, PAbility->getValidTarget(), errMsg))
         {
             // TODO: Rework the way abilities and pet abilities are laid out so it can all go through the same block and have the pet special checks done in lua
-            const CPetSkill* PPetSkill       = PAbility->isPetAbility() ? battleutils::GetPetSkill(PAbility->getID()) : nullptr;
-            const bool       isLuopanAbility = PAbility->getID() >= ABILITY_CONCENTRIC_PULSE && PAbility->getID() <= ABILITY_RADIAL_ARCANA;
+            const CPetSkill* PPetSkill = PAbility->isPetAbility() ? battleutils::GetPetSkill(PAbility->getID()) : nullptr;
             if (PPetSkill && !isLuopanAbility && (PPetSkill->isBloodPactRage() || PPetSkill->isBloodPactWard() || PPetSkill->getMobSkillID() > 0))
             {
                 if (!PetSkillDistanceCheck(PChar, PTarget, PAbility))

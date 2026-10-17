@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -87,57 +87,38 @@ void CAutomatonController::setCooldowns()
     }
 }
 
-// New retail Automaton magic AI (Needs more information to accurately recreate)
+// Automaton magic cooldowns, looked up once on automaton creation and stored as variables.
 void CAutomatonController::setMagicCooldowns()
 {
-    switch (PAutomaton->head())
+    const auto maybeCooldowns = lua["xi"]["pets"]["automaton"]["magicCooldowns"].get<sol::optional<sol::table>>();
+    if (!maybeCooldowns)
     {
-        case AutomatonHead::Harlequin:
-        {
-            m_magicCooldown    = 10s;
-            m_enfeebleCooldown = 12s;
-            m_healCooldown     = 12s;
-        }
-        break;
-        case AutomatonHead::Valoredge:
-        {
-            m_magicCooldown = 10s;
-            m_healCooldown  = 20s;
-        }
-        break;
-        case AutomatonHead::Sharpshot:
-        {
-            m_magicCooldown    = 10s;
-            m_enfeebleCooldown = 12s;
-            m_healCooldown     = 20s;
-        }
-        break;
-        case AutomatonHead::Stormwaker:
-        {
-            m_magicCooldown     = 8s;
-            m_enfeebleCooldown  = 10s;
-            m_healCooldown      = 20s;
-            m_elementalCooldown = 25s;
-            m_enhanceCooldown   = 25s;
-        }
-        break;
-        case AutomatonHead::Soulsoother:
-        {
-            m_magicCooldown    = 8s;
-            m_enfeebleCooldown = 10s;
-            m_healCooldown     = 10s;
-            m_statusCooldown   = 10s;
-            m_enhanceCooldown  = 25s;
-        }
-        break;
-        case AutomatonHead::Spiritreaver:
-        {
-            m_magicCooldown     = 8s;
-            m_enfeebleCooldown  = 10s;
-            m_elementalCooldown = 30s;
-            m_enhanceCooldown   = 35s;
-        }
+        ShowError("CAutomatonController::setMagicCooldowns() - Missing xi.pets.automaton.magicCooldowns");
+        return;
     }
+
+    const auto head = static_cast<uint8>(PAutomaton->head());
+
+    const auto maybeHeadCooldowns = (*maybeCooldowns)[head].get<sol::optional<sol::table>>();
+    if (!maybeHeadCooldowns)
+    {
+        ShowErrorFmt("CAutomatonController::setMagicCooldowns() - Missing magic cooldowns for head {}", static_cast<uint16>(head));
+        return;
+    }
+
+    const auto& headCooldowns = *maybeHeadCooldowns;
+
+    const auto categoryCooldown = [&headCooldowns](const char* key) -> timer::duration
+    {
+        return std::chrono::seconds(headCooldowns[key].get<sol::optional<int32>>().value_or(0));
+    };
+
+    m_magicCooldown     = categoryCooldown("global");
+    m_healCooldown      = categoryCooldown("healing");
+    m_enfeebleCooldown  = categoryCooldown("enfeebling");
+    m_elementalCooldown = categoryCooldown("elemental");
+    m_enhanceCooldown   = categoryCooldown("enhancing");
+    m_statusCooldown    = categoryCooldown("statusRemoval");
 }
 
 // Determines standback behavior for the Automaton.
@@ -191,7 +172,7 @@ auto CAutomatonController::DoCombatTick(timer::time_point tick) -> Task<void>
         co_return;
     }
 
-    PTarget = static_cast<CBattleEntity*>(PAutomaton->GetEntity(PAutomaton->GetBattleTargetID()));
+    setTarget(PAutomaton->battleTarget().resolve<CBattleEntity>());
 
     if (TryDeaggro())
     {
@@ -234,6 +215,8 @@ auto CAutomatonController::DoCombatTick(timer::time_point tick) -> Task<void>
 
 void CAutomatonController::Move()
 {
+    auto* PTarget = target().resolve<CBattleEntity>();
+
     if ((shouldStandBack() && !isWithinDistance(PAutomaton->loc.p, PTarget->loc.p, 15.0f)) ||
         (PAutomaton->health.mp < 8 && PAutomaton->health.maxmp > 8))
     {
@@ -245,6 +228,8 @@ void CAutomatonController::Move()
 
 auto CAutomatonController::TryAction() -> bool
 {
+    auto* PTarget = target().resolve<CBattleEntity>();
+
     if (m_Tick > m_LastActionTime + (m_actionCooldown - std::chrono::milliseconds(PAutomaton->getMod(xi::Mod::AUTO_DECISION_DELAY) * 10)))
     {
         m_LastActionTime = m_Tick;
@@ -258,6 +243,8 @@ auto CAutomatonController::TryAction() -> bool
 
 auto CAutomatonController::TryShieldBash() -> bool
 {
+    auto* PTarget = target().resolve<CBattleEntity>();
+
     CState* PState = PTarget->PAI->GetCurrentState();
 
     if (m_shieldbashCooldown > 0s && PState && PState->CanInterrupt() &&
@@ -271,6 +258,8 @@ auto CAutomatonController::TryShieldBash() -> bool
 
 auto CAutomatonController::TrySpellcast(const CurrentManeuvers& maneuvers) -> bool
 {
+    auto* PTarget = target().resolve<CBattleEntity>();
+
     // Apparently the automaton has nothing in its spell list, so CanCastSpells must ignore spell lists and recasts?
     if (!PAutomaton->PMaster || m_magicCooldown == 0s ||
         m_Tick <= m_LastMagicTime + (m_magicCooldown + std::chrono::seconds(PAutomaton->getMod(xi::Mod::AUTO_MAGIC_COOLDOWN))) || !CanCastSpells(IgnoreRecastsAndCosts::Yes))
@@ -432,6 +421,8 @@ auto CAutomatonController::TrySpellcast(const CurrentManeuvers& maneuvers) -> bo
 
 auto CAutomatonController::TryHeal(const CurrentManeuvers& maneuvers) -> bool
 {
+    auto* PTarget = target().resolve<CBattleEntity>();
+
     if (!PAutomaton->PMaster || m_healCooldown == 0s ||
         m_Tick <= m_LastHealTime + (m_healCooldown - std::chrono::seconds(PAutomaton->getMod(xi::Mod::AUTO_HEALING_DELAY))))
     {
@@ -455,7 +446,12 @@ auto CAutomatonController::TryHeal(const CurrentManeuvers& maneuvers) -> bool
             break;
     }
 
-    threshold                  = std::clamp<float>(threshold + PAutomaton->getMod(xi::Mod::AUTO_HEALING_THRESHOLD), 30.0f, 90.0f);
+    const auto healingThreshold = PAutomaton->getMod(xi::Mod::AUTO_HEALING_THRESHOLD);
+    if (healingThreshold > 0)
+    {
+        threshold = static_cast<float>(healingThreshold);
+    }
+
     CBattleEntity* PCastTarget = nullptr;
 
     bool          haveHate   = false;
@@ -584,7 +580,7 @@ inline auto resistanceComparator(const std::pair<SpellID, int16>& firstElem, con
 
 auto CAutomatonController::Disengage() -> bool
 {
-    PTarget = nullptr;
+    setTarget(nullptr);
     if (shouldStandBack())
     {
         PAutomaton->m_Behavior |= xi::Behavior::Standback;
@@ -630,6 +626,8 @@ auto CAutomatonController::MobSkill(const EntityId target, uint16 wsid, const Ma
 
 auto CAutomatonController::TryElemental(const CurrentManeuvers& maneuvers) -> bool
 {
+    auto* PTarget = target().resolve<CBattleEntity>();
+
     if (!PAutomaton->PMaster || m_elementalCooldown == 0s || m_Tick <= m_LastElementalTime + m_elementalCooldown)
     {
         return false;
@@ -763,6 +761,8 @@ auto CAutomatonController::TryElemental(const CurrentManeuvers& maneuvers) -> bo
 
 auto CAutomatonController::TryEnfeeble(const CurrentManeuvers& maneuvers) -> bool
 {
+    auto* PTarget = target().resolve<CBattleEntity>();
+
     if (!PAutomaton->PMaster || m_enfeebleCooldown == 0s || m_Tick <= m_LastEnfeebleTime + m_enfeebleCooldown)
     {
         return false;
@@ -792,7 +792,7 @@ auto CAutomatonController::TryEnfeeble(const CurrentManeuvers& maneuvers) -> boo
             {
                 castPriority.emplace_back(SpellID::Dispel);
             }
-            break;
+            [[fallthrough]];
         }
         default:
         {
@@ -1219,6 +1219,8 @@ auto CAutomatonController::TryStatusRemoval(const CurrentManeuvers& maneuvers) -
 
 auto CAutomatonController::TryEnhance() -> bool
 {
+    auto* PTarget = target().resolve<CBattleEntity>();
+
     if (!PAutomaton->PMaster || m_enhanceCooldown == 0s || m_Tick <= m_LastEnhanceTime + m_enhanceCooldown)
     {
         return false;
@@ -1536,6 +1538,8 @@ auto CAutomatonController::TryEnhance() -> bool
 
 auto CAutomatonController::TryTPMove() -> bool
 {
+    auto* PTarget = target().resolve<CBattleEntity>();
+
     if (PAutomaton->health.tp >= 1000)
     {
         const auto& FrameSkills = battleutils::GetMobSkillList(PAutomaton->m_MobSkillList);
@@ -1553,7 +1557,7 @@ auto CAutomatonController::TryTPMove() -> bool
         for (auto skillid : FrameSkills)
         {
             auto* PSkill = battleutils::GetMobSkill(skillid);
-            if (PSkill && PAutomaton->GetSkill(skilltype) > PSkill->getParam() && PSkill->getParam() != -1 &&
+            if (PSkill && PAutomaton->GetSkill(skilltype) >= PSkill->getParam() && PSkill->getParam() != -1 &&
                 distance(PAutomaton->loc.p, PTarget->loc.p) < PSkill->getRadius())
             {
                 validSkills.emplace_back(PSkill);
@@ -1564,25 +1568,55 @@ auto CAutomatonController::TryTPMove() -> bool
         CMobSkill* PWSkill          = nullptr;
         int8       currentManeuvers = -1;
 
+        // Follows most matching maneuvers, then highest skill requirement, then highest skill ID.
+        auto hasSkillPriority = [&](const CMobSkill* PNewSkill, int8 newManeuvers)
+        {
+            if (newManeuvers != currentManeuvers)
+            {
+                return newManeuvers > currentManeuvers;
+            }
+
+            if (PNewSkill->getParam() != currentSkill)
+            {
+                return PNewSkill->getParam() > currentSkill;
+            }
+
+            return PWSkill && PNewSkill->getID() > PWSkill->getID();
+        };
+
         bool attemptChain = (PAutomaton->getMod(xi::Mod::AUTO_TP_EFFICIENCY) != 0);
+
+        const CStatusEffect* PSCEffect = PTarget->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::Skillchain, 0);
+
+        // Skillchain has been started, wait 3 seconds until skillchain window is open before executing weaponskill.
+        if (attemptChain && PSCEffect && PSCEffect->GetStartTime() + 3s >= timer::now())
+        {
+            return false;
+        }
 
         if (attemptChain)
         {
-            const CStatusEffect* PSCEffect = PTarget->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::Skillchain, 0);
-            if (PSCEffect && PSCEffect->GetStartTime() + 3s < timer::now())
+            if (PSCEffect)
             {
                 std::list<SKILLCHAIN_ELEMENT> resonanceProperties;
 
                 if (const uint16 power = PSCEffect->GetPower())
                 {
-                    resonanceProperties.emplace_back(static_cast<SKILLCHAIN_ELEMENT>(power & 0xF));
-                    resonanceProperties.emplace_back(static_cast<SKILLCHAIN_ELEMENT>((power >> 4) & 0xF));
-                    resonanceProperties.emplace_back(static_cast<SKILLCHAIN_ELEMENT>(power >> 8));
+                    if (PSCEffect->GetTier() == 0)
+                    {
+                        resonanceProperties.emplace_back(static_cast<SKILLCHAIN_ELEMENT>(power & 0xF));
+                        resonanceProperties.emplace_back(static_cast<SKILLCHAIN_ELEMENT>((power >> 4) & 0xF));
+                        resonanceProperties.emplace_back(static_cast<SKILLCHAIN_ELEMENT>(power >> 8));
+                    }
+                    else
+                    {
+                        resonanceProperties.emplace_back(static_cast<SKILLCHAIN_ELEMENT>(power));
+                    }
                 }
 
                 for (auto* PSkill : validSkills)
                 {
-                    if (PSkill->getParam() > currentSkill)
+                    if (hasSkillPriority(PSkill, 1))
                     {
                         std::list<SKILLCHAIN_ELEMENT> skillProperties;
                         skillProperties.emplace_back(static_cast<SKILLCHAIN_ELEMENT>(PSkill->getPrimarySkillchain()));
@@ -1604,7 +1638,7 @@ auto CAutomatonController::TryTPMove() -> bool
             for (auto* PSkill : validSkills)
             {
                 int8 maneuvers = luautils::OnAutomatonAbilityCheck(PTarget, PAutomaton, PSkill);
-                if (maneuvers > -1 && (maneuvers > currentManeuvers || (maneuvers == currentManeuvers && PSkill->getParam() > currentSkill)))
+                if (maneuvers > -1 && hasSkillPriority(PSkill, maneuvers))
                 {
                     currentManeuvers = maneuvers;
                     currentSkill     = PSkill->getParam();
@@ -1629,6 +1663,8 @@ auto CAutomatonController::TryTPMove() -> bool
 
 auto CAutomatonController::TryRangedAttack() -> bool // TODO: Find the animation for its ranged attack
 {
+    auto* PTarget = target().resolve<CBattleEntity>();
+
     if (PAutomaton->frame() == AutomatonFrame::Sharpshot)
     {
         timer::duration minDelay   = PAutomaton->head() == AutomatonHead::Sharpshot ? 5s : 10s;
@@ -1645,6 +1681,8 @@ auto CAutomatonController::TryRangedAttack() -> bool // TODO: Find the animation
 
 auto CAutomatonController::TryAttachment() -> bool
 {
+    auto* PTarget = target().resolve<CBattleEntity>();
+
     if (!PAutomaton->PAI->CanChangeState())
     {
         return false;

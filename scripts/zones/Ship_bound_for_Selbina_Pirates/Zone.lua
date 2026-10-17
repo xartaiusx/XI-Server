@@ -6,7 +6,22 @@ local ID = zones[xi.zone.SHIP_BOUND_FOR_SELBINA_PIRATES]
 ---@type TZone
 local zoneObject = {}
 
+-- The first Sea Monk and Sea Pugil IDs are for fishing.
+local slots =
+{
+    { id = ID.mob.SEA_CRAB[1] },
+    { id = ID.mob.SEA_CRAB[2] },
+    { id = ID.mob.SEA_PUGIL[2] },
+    { id = ID.mob.SEA_PUGIL[3] },
+    { id = ID.mob.SEA_MONK[2] },
+    { id = ID.mob.PHANTOM, night = true },
+}
+
 zoneObject.onInitialize = function(zone)
+end
+
+zoneObject.onZoneTick = function(zone)
+    xi.ferry.onZoneTick(zone, slots)
 end
 
 zoneObject.onZoneIn = function(player, prevZone)
@@ -28,11 +43,9 @@ zoneObject.onZoneIn = function(player, prevZone)
     if
         enagakure and
         not enagakure:isSpawned() and
-        VanadielUniqueDay() > enagakure:getLocalVar('despawnDay') and
-        hour < 4 and
-        hour >= 20 and
-        player:hasKeyItem(xi.ki.SEANCE_STAFF) and
-        player:getCharVar('Enagakure_Killed') == 0
+        (hour >= 20 or hour < 4) and
+        player:hasKeyItem(xi.keyItem.SEANCE_STAFF) and
+        xi.quest.getVar(player, xi.questLog.OUTLANDS, xi.quest.id.outlands.I_LL_TAKE_THE_BIG_BOX, 'Prog') == 4
     then
         SpawnMob(ID.mob.ENAGAKURE)
     end
@@ -40,11 +53,16 @@ zoneObject.onZoneIn = function(player, prevZone)
     return cs
 end
 
-zoneObject.onTransportEvent = function(player, prevZoneId, transportId)
+zoneObject.onTransportEvent = function(player, prevZoneId, transportName)
     -- don't take action on pirate ship transport departure
     if prevZoneId > 0 then
         player:startEvent(255)
     end
+end
+
+zoneObject.onTransportVoyageEnd = function(zone)
+    zone:setLocalVar('nmCanSpawn', 0)
+    xi.ferry.onTransportVoyageEnd(zone)
 end
 
 zoneObject.onEventUpdate = function(player, csid, option, npc)
@@ -57,32 +75,23 @@ zoneObject.onEventFinish = function(player, csid, option, npc)
 end
 
 zoneObject.onGameHour = function(zone)
-    -- Enagakure pop mechanics.
+    -- Enagakure pop mechanics. It appears at night for anyone already aboard, so the
+    -- check also runs here; the spawn point's window handles the despawn.
     local enagakure = GetMobByID(ID.mob.ENAGAKURE)
     local hour      = VanadielHour()
 
-    if enagakure then
-        if enagakure:isSpawned() then
+    if
+        enagakure and
+        not enagakure:isSpawned() and
+        (hour >= 20 or hour < 4)
+    then
+        for _, player in pairs(zone:getPlayers()) do
             if
-                hour >= 4 and hour < 20 and -- Not night-time.
-                not enagakure:isEngaged()   -- Not engaged.
+                player:hasKeyItem(xi.keyItem.SEANCE_STAFF) and
+                xi.quest.getVar(player, xi.questLog.OUTLANDS, xi.quest.id.outlands.I_LL_TAKE_THE_BIG_BOX, 'Prog') == 4
             then
-                DespawnMob(ID.mob.ENAGAKURE)
-            end
-        else
-            if
-                hour < 4 and hour >= 20 and                               -- Night-time.
-                VanadielUniqueDay() > enagakure:getLocalVar('despawnDay') -- Can spawn today.
-            then
-                for _, player in pairs(zone:getPlayers()) do
-                    if
-                        player:hasKeyItem(xi.ki.SEANCE_STAFF) and
-                        player:getCharVar('Enagakure_Killed') == 0
-                    then
-                        SpawnMob(ID.mob.ENAGAKURE)
-                        break
-                    end
-                end
+                SpawnMob(ID.mob.ENAGAKURE)
+                break
             end
         end
     end

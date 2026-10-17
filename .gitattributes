@@ -10,6 +10,7 @@
 *.lua text eol=lf
 *.cpp text eol=lf
 *.h text eol=lf
+*.py text eol=lf
 *.sql text eol=lf
 *.sh text eol=lf
 *.json text eol=lf
@@ -17,8 +18,10 @@
 *.ps1 text eol=crlf
 *.yaml text eol=lf
 *.yml text eol=lf
+# Imported reference documents retain upstream whitespace, including Markdown breaks.
+docs/** -whitespace
 
-# Retaining CRLF line ends in the documentation dir (for now..)
+# Retaining CRLF line ends in the docs dir (for now..)
 *.txt text eol=crlf
 *.log text eol=crlf
 

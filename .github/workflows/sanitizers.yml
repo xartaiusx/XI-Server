@@ -1,0 +1,45 @@
+name: Sanitizers
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  Build:
+    name: ${{ matrix.sanitizer && 'Build' || '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [ASAN, TSAN]
+    uses: ./.github/workflows/runner_build.yml
+    with:
+      runner: ubuntu-26.04
+      compiler: clang
+      compiler_version: 22
+      build_type: ${{ matrix.sanitizer }}
+      upload_artifact: true
+
+  Test:
+    needs: Build
+    name: ${{ matrix.sanitizer && 'Test' || '' }}
+    permissions:
+      actions: read
+      checks: write
+      contents: read
+      pull-requests: read
+      statuses: write
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [ASAN, TSAN]
+    uses: ./.github/workflows/runner_test.yml
+    with:
+      runner: ubuntu-26.04
+      build_type: ${{ matrix.sanitizer }}
+      same_run_artifact: true
+      startup_checks: false

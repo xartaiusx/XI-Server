@@ -6,7 +6,7 @@ local zoneObject = {}
 
 zoneObject.onInitialize = function(zone)
     xi.helm.initZone(zone, xi.helmType.LOGGING)
-    xi.chocobo.initZone(zone)
+    xi.rentalChocobo.initZone(zone)
     xi.voidwalker.zoneOnInit(zone)
     xi.darkixion.zoneOnInit(zone)
 end
@@ -36,6 +36,10 @@ zoneObject.onEventUpdate = function(player, csid, option, npc)
 end
 
 zoneObject.onEventFinish = function(player, csid, option, npc)
+end
+
+zoneObject.onZoneOut = function(player)
+    xi.helm.onZoneOut(player)
 end
 
 return zoneObject

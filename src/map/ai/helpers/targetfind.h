@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,8 +19,7 @@
 ===========================================================================
 */
 
-#ifndef _TARGETFIND_H
-#define _TARGETFIND_H
+#pragma once
 
 #include "common/cbasetypes.h"
 #include "common/mmo.h"
@@ -136,10 +135,10 @@ protected:
     CBattleEntity* m_PMasterTarget; // mater of target
     CBattleEntity* m_PTarget;       // first target
 
-    uint16    m_zone;
-    FIND_TYPE m_findType;
-    uint8     m_findFlags;   // what to search for
-    uint16    m_targetFlags; // targetflags to reject potentially bad targets
+    xi::ZoneId m_zone;
+    FIND_TYPE  m_findType;
+    uint8      m_findFlags;   // what to search for
+    uint16     m_targetFlags; // targetflags to reject potentially bad targets
 
     // conal vars
     bool        m_conal;
@@ -151,5 +150,3 @@ protected:
     // For self-centered AoEs (radiusType == AOE_RADIUS::ATTACKER)
     bool m_selfCenteredAoE;
 };
-
-#endif

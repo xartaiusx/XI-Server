@@ -2,20 +2,8 @@
 -- Area: Eastern Altepa Desert
 --   NM: Donnergugi
 -----------------------------------
-local ID = zones[xi.zone.EASTERN_ALTEPA_DESERT]
------------------------------------
 ---@type TMobEntity
 local entity = {}
-
-entity.spawnPoints =
-{
-    { x =  217.000, y = -8.200, z =  376.000 }
-}
-
-entity.phList =
-{
-    [ID.mob.DONNERGUGI - 5]  = ID.mob.DONNERGUGI, -- Confirmed on retail
-}
 
 entity.onMobDeath = function(mob, player, optParams)
     xi.hunts.checkHunt(mob, player, 410)

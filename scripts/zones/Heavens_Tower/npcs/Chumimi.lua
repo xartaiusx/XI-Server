@@ -43,9 +43,9 @@ entity.onTrigger = function(player, npc)
         mJob == xi.job.BLM and
         mLvl >= xi.settings.main.AF1_QUEST_LEVEL
     then
-        player:startEvent(260, 0, 613, 0, 0, 0, xi.item.GLOWSTONE) -- Start Quest "The Three Magi" --- NOTE: 5th parameter is "Meteorites" but he doesn't exist ---
+        player:startEvent(260, 0, 613, 0, 0, xi.item.METEORITE, xi.item.GLOWSTONE) -- Start Quest "The Three Magi"
     elseif theThreeMagi == xi.questStatus.QUEST_ACCEPTED then
-        player:startEvent(261, 0, 0, 0, 0, 0, xi.item.GLOWSTONE) -- During Quest "The Three Magi"
+        player:startEvent(261, 0, 0, 0, 0, xi.item.METEORITE, xi.item.GLOWSTONE) -- During Quest "The Three Magi"
     elseif
         theThreeMagi == xi.questStatus.QUEST_COMPLETED and
         recollections == xi.questStatus.QUEST_AVAILABLE and
@@ -62,7 +62,7 @@ entity.onTrigger = function(player, npc)
         player:startEvent(270, 0, xi.item.BAG_OF_SEEDS) -- Start Quest "Recollections"
     elseif
         recollections == xi.questStatus.QUEST_ACCEPTED and
-        player:hasKeyItem(xi.ki.FOE_FINDER_MK_I)
+        player:hasKeyItem(xi.keyItem.FOE_FINDER_MK_I)
     then
         player:startEvent(275) -- Finish Quest "Recollections"
     elseif
@@ -119,20 +119,21 @@ entity.onEventFinish = function(player, csid, option, npc)
     elseif csid == 275 then
         if npcUtil.giveItem(player, xi.item.WIZARDS_SABOTS) then
             player:setCharVar('recollectionsQuest', 0)
-            player:delKeyItem(xi.ki.FOE_FINDER_MK_I)
-            player:addFame(xi.fameArea.WINDURST, 40)
+            player:delKeyItem(xi.keyItem.FOE_FINDER_MK_I)
+            player:addFame(xi.fameArea.WINDURST, 20)
             player:completeQuest(xi.questLog.WINDURST, xi.quest.id.windurst.RECOLLECTIONS)
         end
     elseif csid == 276 then
         player:addQuest(xi.questLog.WINDURST, xi.quest.id.windurst.THE_ROOT_OF_THE_PROBLEM)
         player:setCharVar('rootProblem', 1)
     elseif csid == 279 then
-        npcUtil.giveKeyItem(player, xi.ki.SLUICE_SURVEYOR_MK_I)
+        npcUtil.giveKeyItem(player, xi.keyItem.SLUICE_SURVEYOR_MK_I)
     elseif csid == 281 then
         if npcUtil.giveItem(player, xi.item.WIZARDS_PETASOS) then
             player:completeQuest(xi.questLog.WINDURST, xi.quest.id.windurst.THE_ROOT_OF_THE_PROBLEM)
+            player:addFame(xi.fameArea.WINDURST, 20)
             player:addTitle(xi.title.PARAGON_OF_BLACK_MAGE_EXCELLENCE)
-            player:delKeyItem(xi.ki.SLUICE_SURVEYOR_MK_I)
+            player:delKeyItem(xi.keyItem.SLUICE_SURVEYOR_MK_I)
         end
     end
 end

@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -27,19 +27,13 @@
 #include "common/stdext.h"
 
 #include <algorithm>
+#include <bit>
 #include <cctype>
 #include <charconv>
 #include <cstdlib>
 #include <cstring>
-#include <numbers>
 #include <regex>
 #include <string>
-
-#ifdef _MSC_VER
-#include <intrin.h>
-#endif
-
-static constexpr float pi = std::numbers::pi_v<float>;
 
 int32 checksum(unsigned char* buf, uint32 buflen, char checkhash[16])
 {
@@ -91,39 +85,6 @@ int32 intpow32(int32 base, int32 exponent)
     return power;
 }
 
-void getMSB(uint32* result, uint32 value)
-{
-    *result = 0;
-    if (value == 0)
-    {
-        return;
-    }
-#ifdef __GNUC__
-    *result = 31 - (unsigned)__builtin_clz(value);
-#elif defined _MSC_VER
-    _BitScanReverse((unsigned long*)result, value);
-#else
-    while (value >>= 1)
-    {
-        (*result)++;
-    }
-#endif
-}
-
-/*
-Rotations of entities are saved in uint8s, which can only hold up to a value of 255. In order to properly calculate rotations you'll need these methods to
-convert back and forth.
-*/
-float rotationToRadian(uint8 rotation)
-{
-    return (rotation / 256.0f) * 2 * pi;
-}
-
-uint8 radianToRotation(float radian)
-{
-    return (uint8)((radian / (2 * pi)) * 256);
-}
-
 /****************************************************************************
  * Functions for entity-to-entity world angles, and facing differences.      *
  * Highly recommended to read our wiki page to understand these.             *
@@ -138,7 +99,7 @@ uint8 worldAngle(const position_t& A, const position_t& B)
     }
 
     float radians  = atan2f(B.z - A.z, B.x - A.x);
-    int16 rawAngle = static_cast<int16>(radians * -(128.0f / pi));
+    int16 rawAngle = static_cast<int16>(radians * -(128.0f / M_PI));
     return static_cast<uint8>((rawAngle % 256 + 256) % 256);
 }
 
@@ -226,14 +187,36 @@ position_t nearPosition(const position_t& A, float offset, float radian)
     float      totalRadians = rotationToRadian(A.rotation) + radian;
     position_t B;
 
-    B.x = A.x + cosf(2 * pi - totalRadians) * offset;
+    B.x = A.x + cosf((float)(2 * M_PI - totalRadians)) * offset;
     B.y = A.y;
-    B.z = A.z + sinf(2 * pi - totalRadians) * offset;
+    B.z = A.z + sinf((float)(2 * M_PI - totalRadians)) * offset;
 
     B.rotation = A.rotation;
     B.moving   = A.moving;
 
     return B;
+}
+
+auto sidestepPosition(const position_t& from, const position_t& referencePoint, float offset) -> position_t
+{
+    // Adding 64 (a quarter turn in the 0..255 rotation byte) gives a vector perpendicular to from -> referencePoint.
+    const auto perpendicularAngle = worldAngle(from, referencePoint) + 64;
+    const auto radians            = rotationToRadian(perpendicularAngle);
+
+    return position_t{
+        from.x - std::cosf(radians) * offset,
+        referencePoint.y,
+        from.z + std::sinf(radians) * offset,
+        0,
+        0,
+    };
+}
+
+auto isNear(const position_t& a, const position_t& b) -> bool
+{
+    // Below this, positions are effectively co-located and a path query would be trivial/empty.
+    constexpr float kNearThreshold = 1.0f;
+    return distance(a, b) < kNearThreshold;
 }
 
 /************************************************************************
@@ -609,7 +592,7 @@ void PackSoultrapperName(std::string name, uint8* output)
         name.resize(15);
     }
 
-    name.erase(std::ranges::remove(name, '_').begin(), name.end());
+    std::erase(name, '_');
 
     uint8 current = 0;
     uint8 next    = 0;
@@ -781,7 +764,7 @@ std::string trim(const std::string& str, const std::string& whitespace)
 void rtrim(std::string& s)
 {
     s.erase(
-        std::find_if(
+        std::ranges::find_if(
             s.rbegin(),
             s.rend(),
             [](unsigned char ch)
@@ -796,11 +779,6 @@ void rtrim(std::string& s)
 bool matches(const std::string& target, const std::string& pattern)
 {
     return std::regex_match(target, std::regex(pattern));
-}
-
-bool starts_with(const std::string& target, const std::string& pattern)
-{
-    return target.starts_with(pattern);
 }
 
 std::string replace(const std::string& target, const std::string& search, const std::string& replace)
@@ -848,10 +826,7 @@ look_t stringToLook(std::string str)
 
     for (auto& entry : hex)
     {
-        // Swap endian-ness
-        auto top    = entry << 8;
-        auto bottom = entry >> 8;
-        entry       = top | bottom;
+        entry = std::byteswap(entry);
     }
 
     out.size = hex[0];
@@ -874,25 +849,25 @@ look_t stringToLook(std::string str)
 bool approximatelyEqual(float a, float b)
 {
     constexpr float epsilon = std::numeric_limits<float>::epsilon();
-    return fabs(a - b) <= ((fabs(a) < fabs(b) ? fabs(b) : fabs(a)) * epsilon);
+    return fabs(a - b) <= (std::max(fabs(a), fabs(b)) * epsilon);
 }
 
 bool essentiallyEqual(float a, float b)
 {
     constexpr float epsilon = std::numeric_limits<float>::epsilon();
-    return fabs(a - b) <= ((fabs(a) > fabs(b) ? fabs(b) : fabs(a)) * epsilon);
+    return fabs(a - b) <= (std::min(fabs(a), fabs(b)) * epsilon);
 }
 
 bool definitelyGreaterThan(float a, float b)
 {
     constexpr float epsilon = std::numeric_limits<float>::epsilon();
-    return (a - b) > ((fabs(a) < fabs(b) ? fabs(b) : fabs(a)) * epsilon);
+    return (a - b) > (std::max(fabs(a), fabs(b)) * epsilon);
 }
 
 bool definitelyLessThan(float a, float b)
 {
     constexpr float epsilon = std::numeric_limits<float>::epsilon();
-    return (b - a) > ((fabs(a) < fabs(b) ? fabs(b) : fabs(a)) * epsilon);
+    return (b - a) > (std::max(fabs(a), fabs(b)) * epsilon);
 }
 
 XI_NOINLINE void crash()
@@ -930,9 +905,8 @@ auto utils::isPrintableASCII(unsigned char ch, ASCIIMode mode) -> bool
 
 auto utils::isStringPrintable(const std::string& str, ASCIIMode mode) -> bool
 {
-    return std::all_of(
-        str.begin(),
-        str.end(),
+    return std::ranges::all_of(
+        str,
         [mode](unsigned char ch)
         {
             return isPrintableASCII(ch, mode);

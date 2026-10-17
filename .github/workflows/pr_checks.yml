@@ -34,9 +34,11 @@ jobs:
       # $GITHUB_WORKSPACE is the workspace in the container (/__w/server/server)
       - run: git config --global --add safe.directory $GITHUB_WORKSPACE
 
-      - uses: actions/checkout@v6
+      # Full history is only needed for the merge base; blobs are fetched on demand.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
+          filter: blob:none
 
       - name: Install Python dependencies
         run: |
@@ -51,7 +53,7 @@ jobs:
         run: tr -d '\r' < sanity_checks_summary.md >> $GITHUB_STEP_SUMMARY
 
       - name: Upload changed files as artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: changed-files
           path: changed-files.txt
@@ -68,7 +70,7 @@ jobs:
         shell: bash
     steps:
       - name: Download Changed Files
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: changed-files
 
@@ -87,10 +89,11 @@ jobs:
 
       - run: git config --global --add safe.directory $GITHUB_WORKSPACE
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         if: ${{ steps.check-changes.outputs.lua_changes == 'true' }}
         with:
           fetch-depth: 0
+          filter: blob:none
 
       - name: Install Python dependencies
         if: ${{ steps.check-changes.outputs.lua_changes == 'true' }}
@@ -138,51 +141,64 @@ jobs:
           echo "Lua Language Server failed. See summary for details."
           exit 1
 
-  Schema_Validation:
+  Data_Validation:
     needs: Sanity_Checks
     name: Data validation
     runs-on: ubuntu-latest
+    container:
+      image: ${{ vars.DEVTOOLS_IMAGE || 'ghcr.io/landsandboat/devtools:ubuntu' }}
     defaults:
       run:
         shell: bash
+    env:
+      CPM_SOURCE_CACHE: /tmp/data-schema-cpm
     steps:
       - name: Download Changed Files
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: changed-files
 
-      - name: Check for data/ or codegen changes
+      - name: Check for data schema changes
         id: changed
         run: |
           mapfile -t changed_files < changed-files.txt
           touched=false
-          for f in "${changed_files[@]}"; do
-            if [[ $f == data/* || $f == tools/codegen/* ]]; then
-              touched=true
-              break
-            fi
+          for changed_file in "${changed_files[@]}"; do
+            case "$changed_file" in
+              data/*|tools/codegen/*|src/map/data/*|src/common/enum_traits.h|*CMakeLists.txt)
+                touched=true
+                break
+                ;;
+            esac
           done
           echo "touched=$touched" >> "$GITHUB_OUTPUT"
-          echo "Touched: $touched"
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         if: steps.changed.outputs.touched == 'true'
-
-      - name: Setup Python
-        if: steps.changed.outputs.touched == 'true'
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.14"
 
       - name: Install Python dependencies
         if: steps.changed.outputs.touched == 'true'
-        run: python -m pip install jinja2 jsonschema pyyaml
+        run: python -m pip install --upgrade -r ./tools/requirements.txt
 
-      - name: Run codegen --validate
+      - name: Restore CPM source cache
+        if: steps.changed.outputs.touched == 'true'
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: /tmp/data-schema-cpm
+          key: data-schema-cpm-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'ext/CMakeLists.txt') }}
+          restore-keys: data-schema-cpm-${{ runner.os }}-
+
+      - name: Configure schema compiler
         if: steps.changed.outputs.touched == 'true'
         run: |
-          mkdir -p "$RUNNER_TEMP/codegen-out"
-          python -m tools.codegen "$RUNNER_TEMP/codegen-out" --validate
+          cmake -G Ninja -S . -B build-data-schema \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DPCH_ENABLE=OFF \
+            -DTRACY_ENABLE=OFF
+
+      - name: Generate and validate data schemas
+        if: steps.changed.outputs.touched == 'true'
+        run: cmake --build build-data-schema --target data_schema_check
 
   Formatting:
     needs: Sanity_Checks
@@ -193,7 +209,7 @@ jobs:
         shell: bash
     steps:
       - name: Download Changed Files
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: changed-files
 
@@ -215,12 +231,12 @@ jobs:
           echo "Changed YAML: ${yaml_files[*]}"
           echo "Changed other: ${other_files[*]}"
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         if: steps.changed.outputs.yaml != '' || steps.changed.outputs.other != ''
 
       - name: Setup Python
         if: steps.changed.outputs.yaml != ''
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.14"
 
@@ -234,7 +250,7 @@ jobs:
 
       - name: Cache prettier results
         if: steps.changed.outputs.other != ''
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: /tmp/prettier-cache
           key: prettier-cache-${{ hashFiles('data/**/*.json') }}
@@ -305,6 +321,22 @@ jobs:
       build_modules: ${{ matrix.build_modules }}
       upload_artifact: true
 
+  # Compiles modules/*/cpp, which no other job builds. Uploads no artifact:
+  # REGISTER_CPP_MODULE is a static initializer, so a modules-enabled binary
+  # runs those modules regardless of init.txt and must not be tested against.
+  Modules_Build:
+    needs: Sanity_Checks
+    name: Modules Build
+    uses: ./.github/workflows/runner_build.yml
+    with:
+      runner: ubuntu-26.04
+      compiler: gcc
+      compiler_version: 15
+      build_type: Debug
+      build_modules: true
+      upload_artifact: false
+      optional_build: true
+
   Test:
     needs: Build
     if: ${{ !cancelled() && needs.Build.result == 'success' }}
@@ -313,7 +345,7 @@ jobs:
       actions: read
       checks: write
       contents: read
-      pull-requests: write
+      pull-requests: read
       statuses: write
     strategy:
       fail-fast: false

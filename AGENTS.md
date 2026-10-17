@@ -74,6 +74,10 @@ when referring to the game.
   but restart `xi_map` when spell lists, SQL, or startup-loaded module behavior
   changed.
 - Start and stop Mochirii only with the canonical desktop/runtime controls.
+  Current upstream includes `xi_profile`; MariaDB plus all five XI units and
+  all eight declared ports must participate in each lifecycle gate. Profile
+  certificate/key links must resolve into the canonical credential root before
+  startup. Never generate or replace existing credential material implicitly.
   Every start must satisfy `status-mochirii-wsl.sh --expect-running-manual`;
   every full stop must satisfy `--expect-stopped-disabled`. MariaDB and all four
   XI units must remain `enabled=disabled` even while active. The developer stop
@@ -217,6 +221,13 @@ and tracked restore copy, then prove solo and full-alliance states with native
   - relevant LuaJIT syntax checks
   - relevant CMake build target when C++ changed
 - Use focused commits with descriptive messages.
+- Name new feature branches `mochi/<slug>`. Verify author and committer identity
+  as `xartaiusx <36020251+xartaiusx@users.noreply.github.com>` before a commit,
+  and verify the authenticated GitHub login is `xartaiusx` before publication.
+- Integrate upstream from the accepted snapshot recorded in the restore
+  manifest. Squash-linear history does not retain reliable upstream ancestry;
+  preserve interrupted work and use the explicit snapshot as the comparison
+  base. Record the newly fetched full commit before integration.
 - Do not rewrite or revert user work unless explicitly asked.
 - Prefer the GitHub connector for PR inspection when local `gh` is not
   authenticated.

@@ -29,7 +29,7 @@ entity.onTrigger = function(player, npc)
         player:getVar('Quest[2][23]Prog') == 0 -- Quest progress in "All At Sea" blocks "Hat In Hand" from starting
     then
         player:startEvent(48) -- Quest Offered
-    elseif player:hasKeyItem(xi.ki.NEW_MODEL_HAT) then
+    elseif player:hasKeyItem(xi.keyItem.NEW_MODEL_HAT) then
         local count = player:getCharVar('QuestHatInHand_count')
 
         if count >= 8 then
@@ -91,10 +91,10 @@ entity.onEventFinish = function(player, csid, option, npc)
 
     if csid == 48 and option == 1 then
         player:addQuest(xi.questLog.WINDURST, xi.quest.id.windurst.HAT_IN_HAND)
-        npcUtil.giveKeyItem(player, xi.ki.NEW_MODEL_HAT)
+        npcUtil.giveKeyItem(player, xi.keyItem.NEW_MODEL_HAT)
     elseif csid == 52 and option >= 1 then
         local rewardTier = player:getLocalVar('hatRewardTier')
-        local rewards = { fame = 75, fameArea = xi.fameArea.WINDURST, var = { 'QuestHatInHand_var', 'QuestHatInHand_count' } }
+        local rewards = { fame = 10, fameArea = xi.fameArea.WINDURST, var = { 'QuestHatInHand_var', 'QuestHatInHand_count' } }
 
         if rewardTier == 5 then
             rewards.gil = 500
@@ -111,7 +111,7 @@ entity.onEventFinish = function(player, csid, option, npc)
         end
 
         if npcUtil.completeQuest(player, xi.questLog.WINDURST, xi.quest.id.windurst.HAT_IN_HAND, rewards) then
-            player:delKeyItem(xi.ki.NEW_MODEL_HAT)
+            player:delKeyItem(xi.keyItem.NEW_MODEL_HAT)
             player:needToZone(true)
         end
     elseif csid == 75 and option == 1 then
@@ -122,9 +122,9 @@ entity.onEventFinish = function(player, csid, option, npc)
         end
     elseif csid == 79 then
         if aFeatherInOnesCap == xi.questStatus.QUEST_ACCEPTED then
-            npcUtil.completeQuest(player, xi.questLog.WINDURST, xi.quest.id.windurst.A_FEATHER_IN_ONES_CAP, { fame = 75, fameArea = xi.fameArea.WINDURST })
+            npcUtil.completeQuest(player, xi.questLog.WINDURST, xi.quest.id.windurst.A_FEATHER_IN_ONES_CAP, { fame = 16, fameArea = xi.fameArea.WINDURST })
         else
-            player:addFame(xi.fameArea.WINDURST, 8)
+            player:addFame(xi.fameArea.WINDURST, 16)
             player:setCharVar('QuestFeatherInOnesCap_var', 0)
         end
 

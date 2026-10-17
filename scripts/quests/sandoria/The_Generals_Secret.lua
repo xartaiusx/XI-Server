@@ -9,7 +9,7 @@ local quest = Quest:new(xi.questLog.SANDORIA, xi.quest.id.sandoria.THE_GENERALS_
 
 quest.reward =
 {
-    fame = 30,
+    fame = 20,
     fameArea = xi.fameArea.SANDORIA,
     item = xi.item.LYNX_BAGHNAKHS,
 }
@@ -30,7 +30,7 @@ quest.sections =
                 [55] = function(player, csid, option, npc)
                     if option == 1 then
                         quest:begin(player)
-                        npcUtil.giveKeyItem(player, xi.ki.CURILLAS_BOTTLE_EMPTY)
+                        npcUtil.giveKeyItem(player, xi.keyItem.CURILLAS_BOTTLE_EMPTY)
                     end
                 end,
             },
@@ -47,7 +47,7 @@ quest.sections =
             ['Curilla'] =
             {
                 onTrigger = function(player, npc)
-                    if player:hasKeyItem(xi.ki.CURILLAS_BOTTLE_FULL) then
+                    if player:hasKeyItem(xi.keyItem.CURILLAS_BOTTLE_FULL) then
                         return quest:progressEvent(54)
                     else
                         return quest:progressEvent(53)
@@ -59,7 +59,7 @@ quest.sections =
             {
                 [54] = function(player, csid, option, npc)
                     if quest:complete(player) then
-                        player:delKeyItem(xi.ki.CURILLAS_BOTTLE_FULL)
+                        player:delKeyItem(xi.keyItem.CURILLAS_BOTTLE_FULL)
                     end
                 end,
             },
@@ -70,9 +70,9 @@ quest.sections =
             ['Hot_Springs'] =
             {
                 onTrigger = function(player, npc)
-                    if player:hasKeyItem(xi.ki.CURILLAS_BOTTLE_EMPTY) then
-                        player:delKeyItem(xi.ki.CURILLAS_BOTTLE_EMPTY)
-                        return quest:keyItem(xi.ki.CURILLAS_BOTTLE_FULL)
+                    if player:hasKeyItem(xi.keyItem.CURILLAS_BOTTLE_EMPTY) then
+                        player:delKeyItem(xi.keyItem.CURILLAS_BOTTLE_EMPTY)
+                        return quest:keyItem(xi.keyItem.CURILLAS_BOTTLE_FULL)
                     end
                 end,
             },

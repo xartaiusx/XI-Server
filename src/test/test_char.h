@@ -23,6 +23,8 @@
 
 #include "common/ipp.h"
 #include "common/macros.h"
+#include "data/enums/zone.h"
+#include "map/entities/char_entity.h"
 #include "map/map_session.h"
 
 #include <memory>
@@ -34,7 +36,7 @@ class TestChar
 public:
     TestChar() = default;
 
-    static auto create(uint16_t zoneId = 240, std::string_view entityNameOverride = {}) -> std::unique_ptr<TestChar>;
+    static auto create(xi::ZoneId zoneId = xi::ZoneId::GmHome, CharRace race = CharRace::HumeMale, std::string_view entityNameOverride = {}) -> std::unique_ptr<TestChar>;
     static void clean(uint32_t charId = 0);
 
     ~TestChar();

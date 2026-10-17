@@ -89,6 +89,10 @@ local checks =
     skillType = function(self, player, params) -- Generic numeric check, used for synthSuccess and helmSuccess
         return params.skillType == self.reqs.skillType and true or false
     end,
+
+    monipulator = function(self, player, params) -- Player is in Monstrosity
+        return player:getMainJob() == xi.job.MON
+    end,
 }
 
 -- Main general check function for all-purpose use.
@@ -196,8 +200,8 @@ end
     completeRecord(player, record#)
     reward =
     {
-        item = { { 640, 2 }, 641 },      -- see npcUtil.giveItem for formats (Only given on first completion)
-        keyItem = xi.ki.ZERUHN_REPORT,   -- see npcUtil.giveKeyItem for formats
+        item = { { 640, 2 }, 641 },           -- see npcUtil.giveItem for formats (Only given on first completion)
+        keyItem = xi.keyItem.ZERUHN_REPORT,   -- see npcUtil.giveKeyItem for formats
         sparks = 500,
         xp = 1000,
         accolades = 300,

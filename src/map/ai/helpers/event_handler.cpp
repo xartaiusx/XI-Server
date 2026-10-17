@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -69,10 +69,6 @@ void CAIEventHandler::removeFromAllListeners(const std::string& identifier)
 
     for (auto& [_, listeners] : eventListeners_)
     {
-        // Partition the vector so that all elements that match the identifier are at the end
-        auto it = std::remove_if(listeners.begin(), listeners.end(), isSameIdentifier);
-
-        // Erase the partitioned elements
-        listeners.erase(it, listeners.end());
+        std::erase_if(listeners, isSameIdentifier);
     }
 }

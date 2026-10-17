@@ -23,6 +23,7 @@
 
 #include "ai/ai_container.h"
 #include "entities/char_entity.h"
+#include "item_container.h"
 #include "items/item_linkshell.h"
 #include "status_effect_container.h"
 #include "utils/charutils.h"
@@ -47,6 +48,7 @@ auto PacketValidator::blockedBy(const magic_enum::containers::bitset<BlockedStat
     CHECK_BLOCKED(BlockedState::Engaged,        PChar_->PAI->IsEngaged())
     CHECK_BLOCKED(BlockedState::AbnormalStatus, PChar_->status != xi::Status::Normal)
     CHECK_BLOCKED(BlockedState::Monstrosity,    PChar_->m_PMonstrosity != nullptr)
+    CHECK_BLOCKED(BlockedState::Gestation,      PChar_->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Gestation))
     CHECK_BLOCKED(BlockedState::Healing,        PChar_->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Healing) || PChar_->animation == xi::Animation::Healing)
     CHECK_BLOCKED(BlockedState::Charmed,        PChar_->StatusEffectContainer->HasStatusEffect({ xi::StatusEffect::CharmI, xi::StatusEffect::CharmIi }))
     CHECK_BLOCKED(BlockedState::PreventAction,  PChar_->StatusEffectContainer->HasPreventActionEffect())
@@ -92,17 +94,17 @@ auto PacketValidator::hasLinkshellRank(const uint8_t slot, const LSTYPE rank) ->
     switch (slot)
     {
         case 1:
-            PItemLinkshell = reinterpret_cast<CItemLinkshell*>(PChar_->getEquip(SLOT_LINK1));
+            PItemLinkshell = PChar_->getLinkshell(SLOT_LINK1);
             break;
         case 2:
-            PItemLinkshell = reinterpret_cast<CItemLinkshell*>(PChar_->getEquip(SLOT_LINK2));
+            PItemLinkshell = PChar_->getLinkshell(SLOT_LINK2);
             break;
         default:
             result_.addError("Invalid linkshell slot.");
             return *this;
     }
 
-    if (!PItemLinkshell || !PItemLinkshell->isType(ITEM_LINKSHELL))
+    if (!PItemLinkshell)
     {
         result_.addError("Invalid linkshell item.");
         return *this;
@@ -148,6 +150,21 @@ auto PacketValidator::hasZoneMiscFlag(const xi::ZoneMisc flag) -> PacketValidato
     if (PChar_->m_GMlevel == 0 && !PChar_->loc.zone->CanUseMisc(flag))
     {
         result_.addError(std::format("Zone {} does not allow misc flag {}.", PChar_->loc.zone->getName(), static_cast<uint16_t>(flag)));
+    }
+
+    return *this;
+}
+
+auto PacketValidator::isValidContainer(const std::string& fieldName, const uint32 containerId) -> PacketValidator&
+{
+    if (!result_.valid())
+    {
+        return *this;
+    }
+
+    if (containerId >= MAX_CONTAINER_ID || !PChar_->getStorage(static_cast<uint8>(containerId)))
+    {
+        result_.addError(std::format("{} value {} is not a valid container.", fieldName, containerId));
     }
 
     return *this;
@@ -214,14 +231,14 @@ auto PacketValidator::isEngaged() -> PacketValidator&
     return *this;
 }
 
-auto PacketValidator::isInMogHouse() -> PacketValidator&
+auto PacketValidator::isInMogHouse(const xi::MogHouse kind) -> PacketValidator&
 {
     if (!result_.valid())
     {
         return *this;
     }
 
-    if (!PChar_->inMogHouse())
+    if (!PChar_->inMogHouse(kind))
     {
         result_.addError("Character is not in Mog House.");
     }
@@ -229,7 +246,7 @@ auto PacketValidator::isInMogHouse() -> PacketValidator&
     return *this;
 }
 
-auto PacketValidator::hasKeyItem(const KeyItem keyItemId) -> PacketValidator&
+auto PacketValidator::hasKeyItem(const xi::KeyItem keyItemId) -> PacketValidator&
 {
     if (!result_.valid())
     {

@@ -2,21 +2,8 @@
 -- Area: Upper Delkfutts Tower
 --   NM: Ixtab
 -----------------------------------
-local ID = zones[xi.zone.UPPER_DELKFUTTS_TOWER]
------------------------------------
 ---@type TMobEntity
 local entity = {}
-
-entity.spawnPoints =
-{
-    { x = -360.000, y = -175.500, z =  80.000 }
-}
-
-entity.phList =
-{
-    [ID.mob.IXTAB[1] - 1] = ID.mob.IXTAB[1], -- Confirmed on retail
-    [ID.mob.IXTAB[2] - 1] = ID.mob.IXTAB[2], -- Confirmed on retail
-}
 
 entity.onMobInitialize = function(mob)
     mob:addImmunity(xi.immunity.SILENCE)

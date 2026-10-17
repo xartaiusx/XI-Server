@@ -4,19 +4,15 @@
 require('modules/module_utils')
 require('scripts/globals/pets/automaton')
 -----------------------------------
-local moduleName = 'automaton_pet'
-
-if xi.module.isContentEnabled('SOA') then
-    return { name = moduleName }
-end
-
-local m = Module:new(moduleName)
+local m = Module:new('automaton_pet')
 
 -- Sets Maneuver Duration back to 60 seconds, without scaling time while in combat : https://wiki.ffo.jp/html/32936.html
-m:addOverride('xi.pets.automaton.onMobSpawn', function(mob)
-    super(mob)
-    mob:removeListener('MANEUVER_DURATION')
-end)
+m:addOverrideByEra('xi.pets.automaton.onMobSpawn', {
+    [xi.expansion.SOA] = function(mob)
+        super(mob)
+        mob:removeListener('MANEUVER_DURATION')
+    end,
+})
 
 -- Reduces HP of Automatons to Pre-2015 Values : https://wiki.ffo.jp/html/33858.html
 local frameHPMultipliers =
@@ -40,61 +36,143 @@ local function applyEraFrameHPReductions()
     end
 end
 
-applyEraFrameHPReductions()
+local eraMagicCooldowns =
+{
+    [xi.automaton.head.HARLEQUIN] =
+    {
+        global        = 30,
+        healing       = 20,
+        enfeebling    = 20,
+    },
 
-if xi.module.isContentEnabled('ABYSSEA') then
-    return { name = moduleName }
+    [xi.automaton.head.VALOREDGE] =
+    {
+        global        = 45,
+        healing       = 30,
+    },
+
+    [xi.automaton.head.SHARPSHOT] =
+    {
+        global        = 45,
+        healing       = 30,
+        enfeebling    = 30,
+    },
+
+    [xi.automaton.head.STORMWAKER] =
+    {
+        global        = 25,
+        healing       = 15,
+        enfeebling    = 30,
+        elemental     = 30,
+    },
+
+    [xi.automaton.head.SOULSOOTHER] =
+    {
+        global        = 25,
+        healing       = 15,
+        enfeebling    = 30,
+        statusRemoval = 15,
+    },
+
+    [xi.automaton.head.SPIRITREAVER] =
+    {
+        global        = 25,
+        enfeebling    = 45,
+        elemental     = 15,
+    },
+}
+
+local function applyEraMagicCooldowns()
+    for head, cooldowns in pairs(eraMagicCooldowns) do
+        xi.pets.automaton.magicCooldowns[head] = cooldowns
+    end
 end
 
--- Adds Frame Specific DT Taken Modifiers. / Removes Valoredge Block : https://wiki.ffo.jp/html/19739.html / https://wiki.ffo.jp/html/31705.html
-xi.pets.automaton.frameMods[xi.automaton.frame.HARLEQUIN] =
-{
-    mods =
-    {
-        { xi.mod.DMG, -625 },
-    },
-}
+m:addOverrideByEra('xi.server.onServerStart', {
+    [xi.expansion.SOA] = function()
+        super()
 
-xi.pets.automaton.frameMods[xi.automaton.frame.VALOREDGE] =
-{
-    mods =
-    {
-        { xi.mod.DMG, -1250 },
-    },
-}
+        applyEraFrameHPReductions()
+    end,
 
-xi.pets.automaton.frameMods[xi.automaton.frame.SHARPSHOT] =
-{
-    mods =
-    {
-        { xi.mod.PIERCE_SDT,  8750 },
-        { xi.mod.DMGBREATH,  -1250 },
-        { xi.mod.DMGMAGIC,   -1250 },
-    },
-}
+    [xi.expansion.ABYSSEA] = function()
+        super()
 
-xi.pets.automaton.frameMods[xi.automaton.frame.STORMWAKER] =
-{
-    mods =
-    {
-        { xi.mod.DMGBREATH, -2500 },
-        { xi.mod.DMGMAGIC,  -2500 },
-    },
-}
+        applyEraMagicCooldowns()
 
--- Era skill caps: Valoredge, Sharpshot, and Stormwaker heads only grant a 1 rank skill bonus. : https://wiki.ffo.jp/html/32037.html
-xi.pets.automaton.skillCaps.heads[xi.automaton.head.VALOREDGE ][xi.skill.AUTOMATON_MELEE ] = -1
-xi.pets.automaton.skillCaps.heads[xi.automaton.head.SHARPSHOT ][xi.skill.AUTOMATON_RANGED] = -1
-xi.pets.automaton.skillCaps.heads[xi.automaton.head.STORMWAKER][xi.skill.AUTOMATON_MAGIC ] = -1
+        -- Adds Frame Specific DT Taken Modifiers. / Removes Valoredge Block : https://wiki.ffo.jp/html/19739.html / https://wiki.ffo.jp/html/31705.html
+        xi.pets.automaton.frameMods[xi.automaton.frame.HARLEQUIN] =
+        {
+            mods =
+            {
+                { xi.mod.DMG,  -625 },
+                { xi.mod.DEFP,   20 },
+            },
+        }
 
-if xi.module.isContentEnabled('WOTG') then
-    return { name = moduleName }
-end
+        xi.pets.automaton.frameMods[xi.automaton.frame.VALOREDGE] =
+        {
+            mods =
+            {
+                { xi.mod.DMG, -1250 },
+                { xi.mod.DEFP,   50 },
+            },
+        }
 
--- Removes Frame Specific DT Taken Modifiers for Automaton Frames & Removes Valoredge Block : https://wiki.ffo.jp/html/19739.html / https://wiki.ffo.jp/html/31705.html
-xi.pets.automaton.frameMods[xi.automaton.frame.HARLEQUIN ] = {}
-xi.pets.automaton.frameMods[xi.automaton.frame.VALOREDGE ] = {}
-xi.pets.automaton.frameMods[xi.automaton.frame.SHARPSHOT ] = {}
-xi.pets.automaton.frameMods[xi.automaton.frame.STORMWAKER] = {}
+        xi.pets.automaton.frameMods[xi.automaton.frame.SHARPSHOT] =
+        {
+            mods =
+            {
+                { xi.mod.PIERCE_SDT,  8750 },
+                { xi.mod.DMGBREATH,  -1250 },
+                { xi.mod.DMGMAGIC,   -1250 },
+                { xi.mod.DEFP,          10 },
+            },
+        }
 
-return m
+        xi.pets.automaton.frameMods[xi.automaton.frame.STORMWAKER] =
+        {
+            mods =
+            {
+                { xi.mod.DMGBREATH, -2500 },
+                { xi.mod.DMGMAGIC,  -2500 },
+            },
+        }
+
+        -- Era skill caps: Valoredge, Sharpshot, and Stormwaker heads only grant a 1 rank skill bonus. : https://wiki.ffo.jp/html/32037.html
+        xi.pets.automaton.skillCaps.heads[xi.automaton.head.VALOREDGE ][xi.skill.AUTOMATON_MELEE ] = -1
+        xi.pets.automaton.skillCaps.heads[xi.automaton.head.SHARPSHOT ][xi.skill.AUTOMATON_RANGED] = -1
+        xi.pets.automaton.skillCaps.heads[xi.automaton.head.STORMWAKER][xi.skill.AUTOMATON_MAGIC ] = -1
+    end,
+
+    [xi.expansion.WOTG] = function()
+        super()
+
+        -- Removes Frame Specific DT Taken Modifiers for Automaton Frames & Removes Valoredge Block : https://wiki.ffo.jp/html/19739.html / https://wiki.ffo.jp/html/31705.html
+        xi.pets.automaton.frameMods[xi.automaton.frame.HARLEQUIN] =
+        {
+            mods =
+            {
+                { xi.mod.DEFP, 20 },
+            },
+        }
+
+        xi.pets.automaton.frameMods[xi.automaton.frame.VALOREDGE] =
+        {
+            mods =
+            {
+                { xi.mod.DEFP, 50 },
+            },
+        }
+
+        xi.pets.automaton.frameMods[xi.automaton.frame.SHARPSHOT] =
+        {
+            mods =
+            {
+                { xi.mod.DEFP, 10 },
+            },
+        }
+
+        xi.pets.automaton.frameMods[xi.automaton.frame.STORMWAKER] = {}
+    end,
+})

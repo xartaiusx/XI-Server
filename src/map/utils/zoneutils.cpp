@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -26,9 +26,15 @@
 #include "battlefield.h"
 #include "campaign_system.h"
 #include "common/logging.h"
+#include "common/synchronized.h"
 #include "conquest_system.h"
+#include "data/datasets/zones/mobs/dataset.h"
+#include "data/datasets/zones/npcs/dataset.h"
+#include "data/datasets/zones/regions/dataset.h"
+#include "data/datasets/zones/settings/dataset.h"
 #include "data/enums/mob_mod.h"
 #include "data/enums/weather.h"
+#include "data/loader.h"
 #include "entities/mob_entity.h"
 #include "entities/npc_entity.h"
 #include "items/item_weapon.h"
@@ -37,19 +43,410 @@
 #include "map_networking.h"
 #include "mob_spell_list.h"
 #include "mobutils.h"
+#include "roam_region.h"
 #include "spawn_handler.h"
 #include "spawn_slot.h"
+#include "spell.h"
+#include "transports/elevator_handler.h"
 #include "zone_instance.h"
 
 #include <algorithm>
-#include <cstring>
 #include <execution>
 #include <future>
 #include <ranges>
 
 #include <fmt/ranges.h>
 
-std::map<uint16, CZone*> g_PZoneList; // Global array of pointers for zones
+std::map<xi::ZoneId, CZone*> g_PZoneList; // Global array of pointers for zones
+
+namespace
+{
+
+constexpr uint16 kDefaultMobDelay            = 240;
+constexpr uint16 kDefaultMobDamageMultiplier = 100;
+
+using ZoneSettingsDataset = xi::data::datasets::zones::settings::Dataset;
+using NpcsDataset         = xi::data::datasets::zones::npcs::Dataset;
+using MobsDataset         = xi::data::datasets::zones::mobs::Dataset;
+using RegionsDataset      = xi::data::datasets::zones::regions::Dataset;
+
+Synchronized<std::deque<CMobSpellList>> ownedSpellLists;
+
+// Each zone's entity files, parsed once: the id lookups and the entity inserts both read these.
+struct ZoneEntityFiles
+{
+    std::optional<xi::data::Npcs> Npcs;
+    std::optional<xi::data::Mobs> Mobs;
+};
+
+// Loot is named in the files, so it resolves here, where the item table exists.
+auto buildDropList(const xi::ZoneId zoneId, const std::string& templateName, const xi::data::LootData& loot) -> const DropList_t*
+{
+    // Zones build these on worker threads, and every mob holds a pointer, so a deque keeps the earlier entries put.
+    static Synchronized<std::deque<DropList_t>> ownedDropLists;
+
+    const auto resolve = [&](const std::string& name) -> uint16
+    {
+        if (name == "nothing")
+        {
+            return 0;
+        }
+
+        const auto itemId = xi::items::lookupIdByName(name);
+        if (!itemId)
+        {
+            ShowCriticalFmt("buildDropList: template '{}' in zone {} names unknown or ambiguous item '{}'", templateName, static_cast<uint32>(zoneId), name);
+            std::exit(-1);
+        }
+
+        return *itemId;
+    };
+
+    DropList_t dropList;
+
+    for (const auto& roll : loot.Drops)
+    {
+        if (roll.OneOf.empty())
+        {
+            dropList.Items.emplace_back(DROP_NORMAL, resolve(roll.Item), roll.Chance);
+            continue;
+        }
+
+        auto& group = dropList.Groups.emplace_back(roll.Chance);
+        for (const auto& [name, weight] : roll.OneOf)
+        {
+            group.Items.emplace_back(DROP_GROUPED, resolve(name), weight);
+        }
+    }
+
+    for (const auto& name : loot.Steal)
+    {
+        dropList.Items.emplace_back(DROP_STEAL, resolve(name), 0);
+    }
+
+    // Despoil keeps its weights, though the engine picks uniformly.
+    for (const auto& [name, weight] : loot.Despoil)
+    {
+        dropList.Items.emplace_back(DROP_DESPOIL, resolve(name), weight);
+    }
+
+    return ownedDropLists.write([&](auto& lists) -> const DropList_t*
+                                {
+                                    return &lists.emplace_back(std::move(dropList));
+                                });
+}
+
+auto buildSpellList(const xi::ZoneId zoneId, const std::string& templateName, const std::vector<std::string>& spells) -> CMobSpellList*
+{
+    CMobSpellList spellList(std::nullopt);
+
+    for (const auto& name : spells)
+    {
+        const auto spellId = spell::lookupIdByName(name);
+        if (!spellId)
+        {
+            ShowCriticalFmt("buildSpellList: template '{}' in zone {} names unknown spell '{}'", templateName, static_cast<uint32>(zoneId), name);
+            std::exit(-1);
+        }
+
+        spellList.AddSpell(*spellId, 0, 255);
+    }
+
+    return ownedSpellLists.write([&](auto& lists) -> CMobSpellList*
+                                 {
+                                     return &lists.emplace_back(std::move(spellList));
+                                 });
+}
+
+void InsertNPCs(CZone* PZone, const xi::ZoneId zoneId, const xi::data::Npcs& npcs)
+{
+    if ((PZone->GetTypeMask() & xi::ZoneType::Instanced) != xi::ZoneType::Unknown)
+    {
+        return;
+    }
+
+    std::vector<std::pair<CNpcEntity*, const xi::data::ElevatorData*>> lifts;
+
+    for (const auto& entry : npcs)
+    {
+        auto* PNpc   = new CNpcEntity;
+        PNpc->targid = entry.ActIndex;
+        PNpc->id     = entry.Id;
+
+        PNpc->name       = entry.Script;
+        PNpc->packetName = entry.DisplayName;
+
+        PNpc->loc.p = entry.Position;
+
+        PNpc->m_TargID = entry.LookAt;
+
+        PNpc->animationSpeed = entry.AnimationSpeed;
+        PNpc->baseSpeed      = entry.Speed;
+        PNpc->UpdateSpeed();
+
+        PNpc->animation    = entry.Animation;
+        PNpc->animationsub = entry.AnimationSub;
+
+        PNpc->namevis = entry.NameVis;
+        PNpc->status  = entry.Status;
+        PNpc->m_flags = entry.EntityFlags;
+
+        PNpc->look = look_t(entry.Look.data());
+
+        PNpc->name_prefix     = entry.NamePrefix;
+        PNpc->door_id         = entry.DoorId;
+        PNpc->modelSize       = entry.ModelSize;
+        PNpc->modelHitboxSize = std::max<float>(0.0f, entry.ModelHitboxSize / 10.f);
+        PNpc->setWidescan(entry.Widescan);
+        PNpc->setAlwaysRelevant(entry.King);
+
+        if (!luautils::IsContentEnabled(entry.Content))
+        {
+            PNpc->loc.p.x = 0.f;
+            PNpc->loc.p.y = 0.f;
+            PNpc->loc.p.z = 0.f;
+
+            PNpc->status = xi::Status::Disappear;
+
+            PNpc->setWidescan(false);
+            PNpc->setContentDisabled(true);
+        }
+
+        PZone->InsertNPC(PNpc);
+
+        if (entry.Elevator)
+        {
+            lifts.emplace_back(PNpc, &*entry.Elevator);
+        }
+    }
+
+    // Held back until the zone is whole, because a lift names doors that may not have been inserted yet.
+    for (const auto& [PPlatform, lift] : lifts)
+    {
+        ElevatorHandler::getInstance()->addElevator(zoneId, PPlatform, *lift);
+    }
+}
+
+void InsertMobs(CZone* PZone, const xi::ZoneId zoneId, const xi::data::Mobs& mobs, const uint8 normalLevelRangeMin, const uint8 normalLevelRangeMax)
+{
+    const auto zoneType = PZone->GetTypeMask();
+    if ((zoneType & xi::ZoneType::Instanced) != xi::ZoneType::Unknown)
+    {
+        return;
+    }
+
+    HashMap<std::string, const DropList_t*> dropListByTemplate;
+    HashMap<std::string, CMobSpellList*>    spellListByTemplate;
+    for (const auto& [name, mobTemplate] : mobs.Templates)
+    {
+        if (!mobTemplate.Loot.empty())
+        {
+            dropListByTemplate[name] = buildDropList(zoneId, name, mobTemplate.Loot);
+        }
+
+        if (!mobTemplate.Spells.empty())
+        {
+            spellListByTemplate[name] = buildSpellList(zoneId, name, mobTemplate.Spells);
+        }
+    }
+
+    struct SlotPlacement
+    {
+        uint32 SlotId{};
+        uint8  Chance{};
+        uint32 Cooldown{};
+    };
+
+    HashMap<uint16, SlotPlacement> slotByActIndex;
+    for (const auto& slot : mobs.Slots)
+    {
+        // A lost roll falls back on the members without a chance, so a slot without one comes up empty.
+        if (std::ranges::count(slot.Members, uint8{ 0 }, &xi::data::MobSlotMemberData::Chance) == 0)
+        {
+            ShowErrorFmt("InsertMobs: spawn slot {} in zone {} gives every member a chance", slot.Id, static_cast<uint16>(zoneId));
+        }
+
+        for (const auto& member : slot.Members)
+        {
+            slotByActIndex[member.ActIndex] = { slot.Id, member.Chance, member.Cooldown };
+        }
+    }
+
+    for (const auto& spawn : mobs.Spawns)
+    {
+        // A spawn with no template, or no position, only reserves its targid for script lookups.
+        if (spawn.TemplateName.empty() || !spawn.Placed)
+        {
+            continue;
+        }
+
+        const auto& mobTemplate = mobs.Templates.at(spawn.TemplateName);
+
+        if (!luautils::IsContentEnabled(mobTemplate.Content))
+        {
+            continue;
+        }
+
+        {
+            auto* PMob = new CMobEntity;
+
+            PMob->name       = spawn.Script;
+            PMob->packetName = mobTemplate.DisplayName;
+            PMob->id         = spawn.Id;
+            PMob->targid     = spawn.ActIndex;
+
+            PMob->m_SpawnPoint = spawn.Position;
+            PMob->loc.p        = PMob->m_SpawnPoint;
+
+            if (const auto dropList = dropListByTemplate.find(spawn.TemplateName); dropList != dropListByTemplate.end())
+            {
+                PMob->m_DropList = dropList->second;
+            }
+
+            PMob->m_minLevel = spawn.MinLevel;
+            PMob->m_maxLevel = spawn.MaxLevel;
+
+            PMob->m_Type = mobTemplate.Type;
+
+            PMob->m_Species = static_cast<uint16>(mobTemplate.Species);
+
+            // Merge the whole chain of attributes:
+            // Ecosystem -> Family -> Species -> Templates -> Spawn
+            auto attributes = mobutils::GetSpeciesData(PMob->m_Species).MobAttributes;
+            xi::data::applyOverrides(attributes, mobTemplate.Attributes);
+            xi::data::applyOverrides(attributes, spawn.Attributes);
+
+            // And apply it!
+            mobutils::ApplySpecies(PMob, attributes);
+
+            // The weapon's own defaults are not a mob's, so these are always applied.
+            auto* mainWeapon = static_cast<CItemWeapon*>(PMob->m_Weapons[SLOT_MAIN]);
+            mainWeapon->setMaxHit(1);
+            mainWeapon->setSkillType(attributes.CombatSkill.value_or(xi::SkillType::None));
+            mainWeapon->setDelay(attributes.Delay.value_or(kDefaultMobDelay));
+            mainWeapon->setBaseDelay(attributes.Delay.value_or(kDefaultMobDelay));
+
+            PMob->m_dmgMult = attributes.DamageMultiplier.value_or(kDefaultMobDamageMultiplier);
+
+            if (attributes.Look)
+            {
+                PMob->look = look_t(attributes.Look->data());
+            }
+
+            PMob->HPmodifier = attributes.Stats.HP;
+            PMob->MPmodifier = attributes.Stats.MP;
+
+            PMob->m_RespawnTime = std::chrono::seconds(attributes.Respawn.value_or(0));
+            PMob->m_SpawnType   = attributes.SpawnType.value_or(xi::SpawnType::Normal);
+
+            if (attributes.SpawnWindow)
+            {
+                PMob->setSpawnWindow(attributes.SpawnWindow->first, attributes.SpawnWindow->second);
+            }
+
+            PMob->m_name_prefix = attributes.NamePrefix.value_or(0);
+            PMob->loc.p.moving  = attributes.Moving.value_or(0);
+
+            // main.NORMAL_MOB_MAX_LEVEL_RANGE_MIN/MAX let a server flatten normal mob levels; notorious mobs keep theirs.
+            const bool isNotorious = (PMob->m_Type & xi::MobType::Notorious) != xi::MobType::Normal;
+            if (normalLevelRangeMin > 0 && !isNotorious && PMob->m_minLevel > normalLevelRangeMin)
+            {
+                PMob->m_minLevel = normalLevelRangeMin;
+            }
+
+            if (normalLevelRangeMax > 0 && !isNotorious && PMob->m_maxLevel > normalLevelRangeMax)
+            {
+                PMob->m_maxLevel = normalLevelRangeMax;
+            }
+
+            PMob->m_flags      = static_cast<xi::EntityFlags>(attributes.EntityFlags.value_or(0));
+            PMob->animation    = attributes.Animation.value_or(xi::Animation::None);
+            PMob->animationsub = attributes.AnimationSub.value_or(0);
+            if (PMob->animationsub != 0)
+            {
+                PMob->setMobMod(xi::MobMod::SpawnAnimationsub, PMob->animationsub);
+            }
+
+            if (const auto spellList = spellListByTemplate.find(spawn.TemplateName); spellList != spellListByTemplate.end())
+            {
+                PMob->m_SpellListContainer = spellList->second;
+            }
+            else
+            {
+                PMob->m_SpellListContainer = mobSpellList::GetMobSpellList(mobTemplate.SpellList);
+            }
+
+            PMob->m_Pool = mobTemplate.Id;
+
+            PMob->allegiance      = mobTemplate.Allegiance;
+            PMob->namevis         = static_cast<xi::NameVis>(attributes.NameVis.value_or(0));
+            PMob->modelHitboxSize = std::max<float>(0.0f, attributes.Hitbox.value_or(0) / 10.f);
+            PMob->modelSize       = attributes.ModelSize.value_or(0);
+
+            PMob->m_roamFlags    = mobTemplate.RoamFlags;
+            PMob->m_MobSkillList = mobTemplate.SkillList;
+
+            if (!spawn.Regions.empty())
+            {
+                std::vector<const RoamRegion*> regions;
+                regions.reserve(spawn.Regions.size());
+                for (const auto& name : spawn.Regions)
+                {
+                    const auto* region = PZone->roamRegion(name);
+                    if (!region)
+                    {
+                        ShowCriticalFmt("InsertMobs: spawn {} names region '{}', which the zone does not declare", spawn.Id, name);
+                        std::exit(-1);
+                    }
+
+                    regions.push_back(region);
+                }
+
+                PMob->setRoamRegions(std::move(regions));
+            }
+
+            if (!spawn.Route.empty())
+            {
+                PMob->setPatrolRoute(spawn.Route);
+            }
+
+            if (const auto placement = slotByActIndex.find(spawn.ActIndex); placement != slotByActIndex.end())
+            {
+                SpawnSlot* spawnSlot = PZone->spawnHandler().getOrCreateSpawnSlot(placement->second.SlotId);
+
+                if (PMob->m_SpawnType == xi::SpawnType::Scripted)
+                {
+                    ShowError("Mob with ID %u in spawn slot %u in zone %u is a scripted spawn. Scripted spawns should not be assigned to spawn slots.", PMob->id, placement->second.SlotId, zoneId);
+                }
+
+                spawnSlot->AddMob(PMob, placement->second.Chance, std::chrono::seconds(placement->second.Cooldown));
+            }
+
+            if ((zoneType & xi::ZoneType::Dynamis) != xi::ZoneType::Unknown)
+            {
+                PMob->setMobMod(xi::MobMod::Charmable, 0);
+            }
+
+            // must be here first to define mobmods
+            mobutils::InitializeMob(PMob);
+
+            // species chain first, then the template over it
+            for (const auto& [id, value] : attributes.Mods)
+            {
+                PMob->addModifier(id, value);
+            }
+
+            for (const auto& [id, value] : attributes.MobMods)
+            {
+                PMob->setMobMod(id, value);
+            }
+
+            PZone->InsertMOB(PMob);
+        }
+    }
+}
+
+} // namespace
 
 namespace zoneutils
 {
@@ -104,7 +501,7 @@ void SavePlayTime()
     ShowDebug("Player playtime saving finished");
 }
 
-auto GetZone(uint16 zoneId) -> CZone*
+auto GetZone(const xi::ZoneId zoneId) -> CZone*
 {
     if (g_PZoneList.contains(zoneId))
     {
@@ -114,16 +511,30 @@ auto GetZone(uint16 zoneId) -> CZone*
     return nullptr;
 }
 
-auto GetInstanceByRunId(const uint16 zoneId, const uint32 runId) -> CInstance*
+auto GetInstanceByRunId(const xi::ZoneId zoneId, const uint32 runId) -> CInstance*
 {
     auto* PZoneInstance = dynamic_cast<CZoneInstance*>(GetZone(zoneId));
     return PZoneInstance ? PZoneInstance->getInstanceByRunId(runId) : nullptr;
 }
 
+auto GetNpcByName(CZone* PZone, const std::string& name) -> CNpcEntity*
+{
+    CNpcEntity* PFound = nullptr;
+    PZone->ForEachNpc([&](CNpcEntity* PNpc)
+                      {
+                          if (!PFound && PNpc->name == name)
+                          {
+                              PFound = PNpc;
+                          }
+                      });
+
+    return PFound;
+}
+
 auto GetEntity(const uint32 id, const uint8 filter) -> CBaseEntity*
 {
     const uint16 DynamicEntityStart = 0x700;
-    const uint16 zoneID             = (id >> 12) & 0x0FFF;
+    const auto   zoneID             = static_cast<xi::ZoneId>((id >> 12) & 0x0FFF);
     if (CZone* PZone = GetZone(zoneID))
     {
         return PZone->GetEntity(static_cast<uint16>(id & 0x00000800 ? (id & 0x7FF) + DynamicEntityStart : id & 0xFFF), filter);
@@ -149,7 +560,7 @@ auto GetCharFromWorld(const uint32 charId, const uint16 targId) -> CCharEntity*
 {
     for (auto [zoneId, PZone] : g_PZoneList)
     {
-        if (zoneId == 0)
+        if (zoneId == xi::ZoneId::Unknown)
         {
             continue;
         }
@@ -218,46 +629,30 @@ auto GetCharToUpdate(uint32 primary, uint32 tertiary) -> CCharEntity*
     return PTertiary;
 }
 
-auto GetZonesAssignedToThisProcess(const IPP mapIPP) -> std::vector<uint16>
+auto GetZonesAssignedToThisProcess(const IPP mapIPP) -> std::vector<xi::ZoneId>
 {
-    const auto ip    = mapIPP.getIP();
-    const auto ipStr = mapIPP.getIPString();
-    const auto port  = mapIPP.getPort();
+    std::vector<xi::ZoneId> zonesOnThisProcess;
 
-    // NOTE: We normally don't want to build a prepared statement with fmt::format,
-    //     : but this query is entirely internal, so it's OK.
-    const auto zonesQuery = fmt::format("SELECT zoneid "
-                                        "FROM zone_settings "
-                                        "WHERE IF({} <> 0, '{}' = zoneip AND {} = zoneport, TRUE)",
-                                        ip,
-                                        ipStr,
-                                        port);
-
-    std::vector<uint16> zonesOnThisProcess;
-
-    const auto rset = db::preparedStmt(zonesQuery);
+    const auto rset = db::preparedStmt("SELECT zoneid "
+                                       "FROM zone_settings "
+                                       "WHERE ? = 0 OR (zoneip = ? AND zoneport = ?)",
+                                       mapIPP.getIP(),
+                                       mapIPP.getIPString(),
+                                       mapIPP.getPort());
     if (rset && rset->rowsCount())
     {
         while (rset->next())
         {
-            zonesOnThisProcess.emplace_back(rset->get<uint16>("zoneid"));
+            zonesOnThisProcess.emplace_back(rset->get<xi::ZoneId>("zoneid"));
         }
     }
 
     return zonesOnThisProcess;
 }
 
-auto IsZoneAssignedToThisProcess(const IPP mapIPP, const ZONEID zoneId) -> bool
+auto IsZoneAssignedToThisProcess(const IPP mapIPP, const xi::ZoneId zoneId) -> bool
 {
-    for (const auto zone : GetZonesAssignedToThisProcess(mapIPP))
-    {
-        if (zone == zoneId)
-        {
-            return true;
-        }
-    }
-
-    return false;
+    return std::ranges::contains(GetZonesAssignedToThisProcess(mapIPP), zoneId);
 }
 
 /************************************************************************
@@ -266,7 +661,7 @@ auto IsZoneAssignedToThisProcess(const IPP mapIPP, const ZONEID zoneId) -> bool
  *                                                                       *
  ************************************************************************/
 
-auto LoadNPCList(Scheduler& scheduler, const std::vector<uint16>& zoneIds) -> Task<void>
+auto LoadNPCList(Scheduler& scheduler, const std::vector<xi::ZoneId>& zoneIds, const std::vector<ZoneEntityFiles>& parsed) -> Task<void>
 {
     TracyZoneScoped;
 
@@ -276,97 +671,18 @@ auto LoadNPCList(Scheduler& scheduler, const std::vector<uint16>& zoneIds) -> Ta
         zoneIds.size(),
         [&](auto& add)
         {
-            for (const auto zoneId : zoneIds)
+            for (const auto& [zoneId, records] : std::views::zip(zoneIds, parsed))
             {
                 add(scheduler.spawnOnWorkerThread(
-                    [zoneId]()
+                    [zoneId, &records]()
                     {
                         TracyZoneScoped;
 
                         auto* PZone = g_PZoneList[zoneId];
 
-                        const auto query = "SELECT "
-                                           "content_tag, "
-                                           "npcid, "
-                                           "npc_list.name, "
-                                           "npc_list.polutils_name, "
-                                           "pos_rot, "
-                                           "pos_x, "
-                                           "pos_y, "
-                                           "pos_z, "
-                                           "flag, "
-                                           "speed, "
-                                           "speedsub, "
-                                           "animation, "
-                                           "animationsub, "
-                                           "namevis, "
-                                           "status, "
-                                           "entityFlags,"
-                                           "look,"
-                                           "name_prefix, "
-                                           "widescan "
-                                           "FROM npc_list INNER JOIN zone_settings "
-                                           "ON (npcid & 0xFFF000) >> 12 = zone_settings.zoneid "
-                                           "WHERE ((npcid & 0xFFF000) >> 12) = ?";
-
-                        const auto rset = db::preparedStmt(query, zoneId);
-                        if (rset && rset->rowsCount())
+                        if (const auto& npcs = records.Npcs)
                         {
-                            while (rset->next())
-                            {
-                                const auto NpcID = rset->get<uint32>("npcid");
-
-                                if (!((PZone->GetTypeMask() & xi::ZoneType::Instanced) != xi::ZoneType::Unknown))
-                                {
-                                    CNpcEntity* PNpc = new CNpcEntity;
-                                    PNpc->targid     = NpcID & 0xFFF;
-                                    PNpc->id         = NpcID;
-
-                                    PNpc->name       = rset->get<std::string>("name");          // Internal name
-                                    PNpc->packetName = rset->get<std::string>("polutils_name"); // Name sent to the client (when applicable)
-
-                                    PNpc->loc.p.rotation = rset->get<uint8>("pos_rot");
-                                    PNpc->loc.p.x        = rset->get<float>("pos_x");
-                                    PNpc->loc.p.y        = rset->get<float>("pos_y");
-                                    PNpc->loc.p.z        = rset->get<float>("pos_z");
-                                    PNpc->loc.p.moving   = rset->get<uint16>("flag");
-
-                                    PNpc->m_TargID = rset->get<uint32>("flag") >> 16;
-
-                                    PNpc->animationSpeed = rset->get<uint8>("speedsub"); // Overwrites baseentity.cpp's defined animationSpeed
-                                    PNpc->baseSpeed      = rset->get<uint8>("speed");    // Overwrites baseentity.cpp's defined baseSpeed
-                                    PNpc->UpdateSpeed();
-
-                                    PNpc->animation    = rset->get<xi::Animation>("animation");
-                                    PNpc->animationsub = rset->get<uint8>("animationsub");
-
-                                    PNpc->namevis = rset->get<xi::NameVis>("namevis");
-                                    PNpc->status  = rset->get<xi::Status>("status");
-                                    PNpc->m_flags = rset->get<xi::EntityFlags>("entityFlags");
-
-                                    db::extractFromBlob(rset, "look", PNpc->look);
-
-                                    PNpc->name_prefix = rset->get<uint8>("name_prefix");
-                                    PNpc->setWidescan(rset->get<uint8>("widescan"));
-
-                                    // If there is no content tag, the NPC will be loaded but not spawned
-                                    // We load them because certain CS require NPCs that may be flagged as content tagged and the client may request them through a CHARREQ packet
-                                    const auto contentTag = rset->getOrDefault<std::string>("content_tag", "");
-                                    if (!luautils::IsContentEnabled(contentTag))
-                                    {
-                                        // TODO: set some invisible flags so the client can't render them?
-                                        PNpc->loc.p.x = 0.f;
-                                        PNpc->loc.p.y = 0.f;
-                                        PNpc->loc.p.z = 0.f;
-
-                                        PNpc->status = xi::Status::Disappear;
-
-                                        PNpc->setWidescan(false);
-                                    }
-
-                                    PZone->InsertNPC(PNpc);
-                                }
-                            }
+                            InsertNPCs(PZone, zoneId, *npcs);
                         }
                     }));
             }
@@ -401,7 +717,47 @@ auto LoadNPCList(Scheduler& scheduler, const std::vector<uint16>& zoneIds) -> Ta
  *                                                                       *
  ************************************************************************/
 
-auto LoadMOBList(Scheduler& scheduler, const std::vector<uint16>& zoneIds) -> Task<void>
+void LoadRoamRegions(CZone* PZone)
+{
+    const auto regions = xi::data::loadZoneFile<RegionsDataset>(PZone->GetID());
+    if (!regions)
+    {
+        return;
+    }
+
+    for (const auto& region : *regions)
+    {
+        RoamRegion::Ring outer;
+        outer.reserve(region.Outer.size());
+        for (const auto& corner : region.Outer)
+        {
+            outer.push_back({ .x = corner[0], .y = corner[1], .z = corner[2] });
+        }
+
+        std::vector<RoamRegion::Ring> holes;
+        holes.reserve(region.Holes.size());
+        for (const auto& source : region.Holes)
+        {
+            RoamRegion::Ring hole;
+            hole.reserve(source.size());
+            for (const auto& corner : source)
+            {
+                hole.push_back({ .x = corner[0], .y = corner[1], .z = corner[2] });
+            }
+
+            holes.push_back(std::move(hole));
+        }
+
+        const auto* added = PZone->addRoamRegion(region.Name, RoamRegion(outer, holes));
+
+        if (!added->hasWalkableSurface(*PZone->navMesh()))
+        {
+            ShowWarningFmt("LoadRoamRegions: {} does not sit on the navmesh of zone {}", region.Name, static_cast<uint16>(PZone->GetID()));
+        }
+    }
+}
+
+auto LoadMOBList(Scheduler& scheduler, const std::vector<xi::ZoneId>& zoneIds, const std::vector<ZoneEntityFiles>& parsed) -> Task<void>
 {
     TracyZoneScoped;
 
@@ -414,247 +770,18 @@ auto LoadMOBList(Scheduler& scheduler, const std::vector<uint16>& zoneIds) -> Ta
         zoneIds.size(),
         [&](auto& add)
         {
-            for (const auto zoneId : zoneIds)
+            for (const auto& [zoneId, records] : std::views::zip(zoneIds, parsed))
             {
                 add(scheduler.spawnOnWorkerThread(
-                    [normalLevelRangeMin, normalLevelRangeMax, zoneId]()
+                    [normalLevelRangeMin, normalLevelRangeMax, zoneId, &records]()
                     {
                         TracyZoneScoped;
 
                         auto* PZone = g_PZoneList[zoneId];
 
-                        const auto query = "SELECT mobname, packet_name, mobid, pos_rot, pos_x, pos_y, pos_z, "
-                                           "respawntime, spawntype, dropid, mob_groups.HP, mob_groups.MP, mob_spawn_points.minLevel, mob_spawn_points.maxLevel, "
-                                           "mob_spawn_points.spawnHour, mob_spawn_points.despawnHour, "
-                                           "modelid, mJob, sJob, cmbSkill, cmbDmgMult, cmbDelay, behavior, links, mobType, immunity, "
-                                           "ecosystemID, speed, "
-                                           "STR, DEX, VIT, AGI, `INT`, MND, CHR, EVA, DEF, ATT, ACC, "
-                                           "slash_sdt, pierce_sdt, h2h_sdt, impact_sdt, "
-                                           "magical_sdt, fire_sdt, ice_sdt, wind_sdt, earth_sdt, lightning_sdt, water_sdt, light_sdt, dark_sdt, "
-                                           "fire_res_rank, ice_res_rank, wind_res_rank, earth_res_rank, lightning_res_rank, water_res_rank, light_res_rank, dark_res_rank, "
-                                           "paralyze_res_rank, bind_res_rank, silence_res_rank, slow_res_rank, poison_res_rank, light_sleep_res_rank, dark_sleep_res_rank, blind_res_rank, stun_res_rank, gravity_res_rank, "
-                                           "Element, mob_pools.speciesid, mob_species_system.familyID, name_prefix, entityFlags, animationsub, "
-                                           "(mob_species_system.HP / 100), (mob_species_system.MP / 100), spellList, mob_groups.poolid, "
-                                           "allegiance, namevis, aggro, roamflag, mob_pools.skill_list_id, mob_pools.true_detection, mob_species_system.detects, "
-                                           "mob_species_system.charmable, mob_groups.content_tag, "
-                                           "mob_pools.modelSize, mob_pools.modelHitboxSize, "
-                                           "mob_spawn_slots.spawnslotid, mob_spawn_slots.chance "
-                                           "FROM mob_groups INNER JOIN mob_pools ON mob_groups.poolid = mob_pools.poolid "
-                                           "INNER JOIN mob_resistances ON mob_resistances.resist_id = mob_pools.resist_id "
-                                           "INNER JOIN mob_spawn_points ON mob_groups.groupid = mob_spawn_points.groupid "
-                                           "LEFT JOIN mob_spawn_slots ON (mob_spawn_slots.spawnslotid = mob_spawn_points.spawnslotid AND mob_spawn_slots.zoneid = mob_groups.zoneid) "
-                                           "INNER JOIN mob_species_system ON mob_pools.speciesid = mob_species_system.speciesID "
-                                           "INNER JOIN zone_settings ON mob_groups.zoneid = zone_settings.zoneid "
-                                           "WHERE NOT (pos_x = 0 AND pos_y = 0 AND pos_z = 0) "
-                                           "AND mob_groups.zoneid = ((mobid >> 12) & 0xFFF) "
-                                           "AND mob_groups.zoneid = ?";
-
-                        const auto rset = db::preparedStmt(query, zoneId);
-                        if (rset && rset->rowsCount())
+                        if (const auto& mobs = records.Mobs)
                         {
-                            while (rset->next())
-                            {
-                                // If there is no content tag, the mob will always be loaded
-                                const auto contentTag = rset->getOrDefault<std::string>("content_tag", "");
-                                if (!luautils::IsContentEnabled(contentTag))
-                                {
-                                    continue;
-                                }
-
-                                xi::ZoneType zoneType = PZone->GetTypeMask();
-
-                                if (!((zoneType & xi::ZoneType::Instanced) != xi::ZoneType::Unknown))
-                                {
-                                    CMobEntity* PMob = new CMobEntity;
-
-                                    PMob->name       = rset->get<std::string>("mobname");
-                                    PMob->packetName = rset->get<std::string>("packet_name");
-                                    PMob->id         = rset->get<uint32>("mobid");
-
-                                    PMob->targid = static_cast<uint16>(PMob->id & 0x0FFF);
-
-                                    PMob->m_SpawnPoint.rotation = rset->get<uint8>("pos_rot");
-                                    PMob->m_SpawnPoint.x        = rset->get<float>("pos_x");
-                                    PMob->m_SpawnPoint.y        = rset->get<float>("pos_y");
-                                    PMob->m_SpawnPoint.z        = rset->get<float>("pos_z");
-                                    PMob->loc.p                 = PMob->m_SpawnPoint;
-
-                                    PMob->m_RespawnTime = std::chrono::seconds(rset->get<uint32>("respawntime"));
-                                    PMob->m_SpawnType   = rset->get<xi::SpawnType>("spawntype");
-                                    PMob->m_DropID      = rset->get<uint32>("dropid");
-
-                                    if (!rset->isNull("spawnHour") && !rset->isNull("despawnHour"))
-                                    {
-                                        PMob->setSpawnWindow(rset->get<uint8>("spawnHour"), rset->get<uint8>("despawnHour"));
-                                    }
-
-                                    // Check if the drop list is valid
-                                    if (PMob->m_DropID != 0 && itemutils::GetDropList(PMob->m_DropID) == nullptr)
-                                    {
-                                        ShowErrorFmt("LoadMOBList: Drop list {} on mob {} (zone id {}) set but has no entries!", PMob->m_DropID, PMob->name, zoneId);
-                                    }
-
-                                    PMob->HPmodifier = rset->get<uint32>("HP");
-                                    PMob->MPmodifier = rset->get<uint32>("MP");
-
-                                    PMob->m_minLevel = rset->get<uint8>("minLevel");
-                                    PMob->m_maxLevel = rset->get<uint8>("maxLevel");
-
-                                    db::extractFromBlob(rset, "modelid", PMob->look);
-
-                                    PMob->SetMJob(rset->get<uint8>("mJob"));
-                                    PMob->SetSJob(rset->get<uint8>("sJob"));
-
-                                    auto* mainWeapon = static_cast<CItemWeapon*>(PMob->m_Weapons[SLOT_MAIN]);
-
-                                    mainWeapon->setMaxHit(1);
-                                    mainWeapon->setSkillType(rset->get<xi::SkillType>("cmbSkill"));
-
-                                    PMob->m_dmgMult = rset->get<uint16>("cmbDmgMult");
-
-                                    mainWeapon->setDelay(rset->get<uint16>("cmbDelay"));
-                                    mainWeapon->setBaseDelay(rset->get<uint16>("cmbDelay"));
-
-                                    PMob->m_Behavior  = rset->get<xi::Behavior>("behavior");
-                                    PMob->m_Link      = rset->get<uint32>("links");
-                                    PMob->m_Type      = rset->get<xi::MobType>("mobType");
-                                    PMob->m_Immunity  = rset->get<xi::Immunity>("immunity");
-                                    PMob->m_EcoSystem = rset->get<xi::Ecosystem>("ecosystemID");
-
-                                    PMob->baseSpeed      = rset->get<uint8>("speed");
-                                    PMob->animationSpeed = rset->get<uint8>("speed");
-                                    PMob->UpdateSpeed();
-
-                                    PMob->strRank = rset->get<uint8>("STR");
-                                    PMob->dexRank = rset->get<uint8>("DEX");
-                                    PMob->vitRank = rset->get<uint8>("VIT");
-                                    PMob->agiRank = rset->get<uint8>("AGI");
-                                    PMob->intRank = rset->get<uint8>("INT");
-                                    PMob->mndRank = rset->get<uint8>("MND");
-                                    PMob->chrRank = rset->get<uint8>("CHR");
-                                    PMob->evaRank = rset->get<uint8>("EVA");
-                                    PMob->defRank = rset->get<uint8>("DEF");
-                                    PMob->attRank = rset->get<uint8>("ATT");
-                                    PMob->accRank = rset->get<uint8>("ACC");
-
-                                    PMob->setModifier(xi::Mod::SLASH_SDT, rset->get<int16>("slash_sdt"));
-                                    PMob->setModifier(xi::Mod::PIERCE_SDT, rset->get<int16>("pierce_sdt"));
-                                    PMob->setModifier(xi::Mod::HTH_SDT, rset->get<int16>("h2h_sdt"));
-                                    PMob->setModifier(xi::Mod::IMPACT_SDT, rset->get<int16>("impact_sdt"));
-
-                                    PMob->setModifier(xi::Mod::UDMGMAGIC, rset->get<int16>("magical_sdt"));
-
-                                    PMob->setModifier(xi::Mod::FIRE_SDT, rset->get<int16>("fire_sdt"));
-                                    PMob->setModifier(xi::Mod::ICE_SDT, rset->get<int16>("ice_sdt"));
-                                    PMob->setModifier(xi::Mod::WIND_SDT, rset->get<int16>("wind_sdt"));
-                                    PMob->setModifier(xi::Mod::EARTH_SDT, rset->get<int16>("earth_sdt"));
-                                    PMob->setModifier(xi::Mod::THUNDER_SDT, rset->get<int16>("lightning_sdt"));
-                                    PMob->setModifier(xi::Mod::WATER_SDT, rset->get<int16>("water_sdt"));
-                                    PMob->setModifier(xi::Mod::LIGHT_SDT, rset->get<int16>("light_sdt"));
-                                    PMob->setModifier(xi::Mod::DARK_SDT, rset->get<int16>("dark_sdt"));
-
-                                    PMob->setModifier(xi::Mod::FIRE_RES_RANK, rset->get<int8>("fire_res_rank"));
-                                    PMob->setModifier(xi::Mod::ICE_RES_RANK, rset->get<int8>("ice_res_rank"));
-                                    PMob->setModifier(xi::Mod::WIND_RES_RANK, rset->get<int8>("wind_res_rank"));
-                                    PMob->setModifier(xi::Mod::EARTH_RES_RANK, rset->get<int8>("earth_res_rank"));
-                                    PMob->setModifier(xi::Mod::THUNDER_RES_RANK, rset->get<int8>("lightning_res_rank"));
-                                    PMob->setModifier(xi::Mod::WATER_RES_RANK, rset->get<int8>("water_res_rank"));
-                                    PMob->setModifier(xi::Mod::LIGHT_RES_RANK, rset->get<int8>("light_res_rank"));
-                                    PMob->setModifier(xi::Mod::DARK_RES_RANK, rset->get<int8>("dark_res_rank"));
-
-                                    PMob->setModifier(xi::Mod::PARALYZE_RES_RANK, rset->get<int8>("paralyze_res_rank"));
-                                    PMob->setModifier(xi::Mod::BIND_RES_RANK, rset->get<int8>("bind_res_rank"));
-                                    PMob->setModifier(xi::Mod::SILENCE_RES_RANK, rset->get<int8>("silence_res_rank"));
-                                    PMob->setModifier(xi::Mod::SLOW_RES_RANK, rset->get<int8>("slow_res_rank"));
-                                    PMob->setModifier(xi::Mod::POISON_RES_RANK, rset->get<int8>("poison_res_rank"));
-                                    PMob->setModifier(xi::Mod::LIGHT_SLEEP_RES_RANK, rset->get<int8>("light_sleep_res_rank"));
-                                    PMob->setModifier(xi::Mod::DARK_SLEEP_RES_RANK, rset->get<int8>("dark_sleep_res_rank"));
-                                    PMob->setModifier(xi::Mod::BLIND_RES_RANK, rset->get<int8>("blind_res_rank"));
-                                    PMob->setModifier(xi::Mod::STUN_RES_RANK, rset->get<int8>("stun_res_rank"));
-                                    PMob->setModifier(xi::Mod::GRAVITY_RES_RANK, rset->get<int8>("gravity_res_rank"));
-
-                                    PMob->m_Element     = rset->get<uint8>("Element");
-                                    PMob->m_Species     = rset->get<uint16>("speciesid");
-                                    PMob->m_Family      = rset->get<uint16>("familyID");
-                                    PMob->m_name_prefix = rset->get<uint8>("name_prefix");
-                                    PMob->m_flags       = rset->get<xi::EntityFlags>("entityFlags");
-
-                                    // Cap Level if Necessary (Don't Cap NMs)
-                                    if (normalLevelRangeMin > 0 && !((PMob->m_Type & xi::MobType::Notorious) != xi::MobType::Normal) && PMob->m_minLevel > normalLevelRangeMin)
-                                    {
-                                        PMob->m_minLevel = normalLevelRangeMin;
-                                    }
-
-                                    if (normalLevelRangeMax > 0 && !((PMob->m_Type & xi::MobType::Notorious) != xi::MobType::Normal) && PMob->m_maxLevel > normalLevelRangeMax)
-                                    {
-                                        PMob->m_maxLevel = normalLevelRangeMax;
-                                    }
-
-                                    // Special sub animation for Mob (yovra, jailer of love, phuabo)
-                                    // yovra 1: On top/in the sky, 2: , 3: On top/in the sky
-                                    // phuabo 1: Underwater, 2: Out of the water, 3: Goes back underwater
-                                    PMob->animationsub = rset->get<uint8>("animationsub");
-
-                                    if (PMob->animationsub != 0)
-                                    {
-                                        PMob->setMobMod(xi::MobMod::SpawnAnimationsub, PMob->animationsub);
-                                    }
-
-                                    // Setup HP / MP Stat Percentage Boost
-                                    PMob->HPscale = rset->get<float>("(mob_species_system.HP / 100)");
-                                    PMob->MPscale = rset->get<float>("(mob_species_system.MP / 100)");
-
-                                    PMob->m_SpellListContainer = mobSpellList::GetMobSpellList(rset->get<uint16>("spellList"));
-
-                                    PMob->m_Pool = rset->get<uint32>("poolid");
-
-                                    PMob->allegiance      = rset->get<xi::Allegiance>("allegiance");
-                                    PMob->namevis         = rset->get<xi::NameVis>("namevis");
-                                    PMob->modelHitboxSize = std::max<float>(0.0f, rset->getOrDefault<float>("modelHitboxSize", 0) / 10.f);
-                                    PMob->modelSize       = rset->getOrDefault<uint8>("modelSize", 0);
-                                    PMob->m_Aggro         = rset->get<bool>("aggro");
-
-                                    PMob->m_roamFlags    = rset->get<xi::RoamFlag>("roamflag");
-                                    PMob->m_MobSkillList = rset->get<uint16>("skill_list_id");
-
-                                    PMob->m_TrueDetection = rset->get<bool>("true_detection");
-                                    PMob->setMobMod(xi::MobMod::Detection, rset->get<uint16>("detects"));
-
-                                    PMob->setMobMod(xi::MobMod::Charmable, rset->get<uint16>("charmable"));
-
-                                    // Add mob to spawn slot if it has one
-                                    uint32 slotId      = rset->getOrDefault<uint32>("spawnslotid", 0);
-                                    uint8  spawnChance = rset->getOrDefault<uint8>("chance", 0);
-
-                                    if (slotId > 0)
-                                    {
-                                        SpawnSlot* spawnSlot = PZone->spawnHandler().getOrCreateSpawnSlot(slotId);
-
-                                        if (PMob->m_SpawnType == xi::SpawnType::Scripted)
-                                        {
-                                            ShowError("Mob with ID %u in spawn slot %u in zone %u is a scripted spawn. Scripted spawns should not be assigned to spawn slots.", PMob->id, slotId, zoneId);
-                                        }
-
-                                        spawnSlot->AddMob(PMob, spawnChance);
-                                    }
-
-                                    // Overwrite base family charmables depending on mob type. Disallowed mobs which should be charmable
-                                    // can be set in their onInitialize
-                                    if ((PMob->m_Type & xi::MobType::Event) != xi::MobType::Normal ||
-                                        (PMob->m_Type & xi::MobType::Fished) != xi::MobType::Normal ||
-                                        (PMob->m_Type & xi::MobType::Battlefield) != xi::MobType::Normal ||
-                                        (PMob->m_Type & xi::MobType::Notorious) != xi::MobType::Normal ||
-                                        (zoneType & xi::ZoneType::Dynamis) != xi::ZoneType::Unknown)
-                                    {
-                                        PMob->setMobMod(xi::MobMod::Charmable, 0);
-                                    }
-
-                                    // must be here first to define mobmods
-                                    mobutils::InitializeMob(PMob);
-
-                                    PZone->InsertMOB(PMob);
-                                }
-                            }
+                            InsertMobs(PZone, zoneId, *mobs, normalLevelRangeMin, normalLevelRangeMax);
                         }
                     }));
             }
@@ -676,8 +803,6 @@ auto LoadMOBList(Scheduler& scheduler, const std::vector<uint16>& zoneIds) -> Ta
             PZone->ForEachMob(
                 [&PZone](CMobEntity* PMob)
                 {
-                    mobutils::AddSqlModifiers(PMob);
-
                     luautils::OnMobInitialize(PMob);
                     PZone->FindPartyForMob(PMob);
 
@@ -743,27 +868,26 @@ auto LoadMOBList(Scheduler& scheduler, const std::vector<uint16>& zoneIds) -> Ta
  *                                                                       *
  ************************************************************************/
 
-auto CreateZone(Scheduler& scheduler, MapConfig config, uint16 ZoneID) -> CZone*
+auto CreateZone(Scheduler& scheduler, MapConfig config, const xi::ZoneId ZoneID) -> CZone*
 {
-    const auto query = "SELECT zonetype, restriction FROM zone_settings "
-                       "WHERE zoneid = ? LIMIT 1";
-
-    const auto rset = db::preparedStmt(query, ZoneID);
-    if (rset && rset->rowsCount() && rset->next())
+    const auto make = [&](const xi::ZoneType zoneType, const uint8 restriction, const std::optional<xi::data::ZoneSettings>& settings) -> CZone*
     {
-        const auto zoneType    = rset->get<xi::ZoneType>("zonetype");
-        const auto restriction = rset->get<uint8>("restriction");
-
         if ((zoneType & xi::ZoneType::Instanced) != xi::ZoneType::Unknown)
         {
-            return new CZoneInstance(scheduler, config, static_cast<ZONEID>(ZoneID), GetCurrentRegion(ZoneID), GetCurrentContinent(ZoneID), restriction);
+            return new CZoneInstance(scheduler, config, ZoneID, GetCurrentRegion(ZoneID), GetCurrentContinent(ZoneID), restriction, settings);
         }
 
-        return new CZone(scheduler, config, static_cast<ZONEID>(ZoneID), GetCurrentRegion(ZoneID), GetCurrentContinent(ZoneID), restriction);
+        return new CZone(scheduler, config, ZoneID, GetCurrentRegion(ZoneID), GetCurrentContinent(ZoneID), restriction, settings);
+    };
+
+    const auto settings = xi::data::loadZoneFile<ZoneSettingsDataset>(ZoneID);
+
+    if (!settings)
+    {
+        return make(xi::ZoneType::Unknown, uint8{}, settings);
     }
 
-    ShowCritical("zoneutils::CreateZone: Cannot load zone settings (%u)", ZoneID);
-    return nullptr;
+    return make(settings->Type, settings->LevelRestriction, settings);
 }
 
 /************************************************************************
@@ -772,9 +896,9 @@ auto CreateZone(Scheduler& scheduler, MapConfig config, uint16 ZoneID) -> CZone*
  *                                                                       *
  ************************************************************************/
 
-auto LoadZones(Scheduler& scheduler, MapConfig config, const std::vector<uint16>& zoneIds) -> Task<void>
+auto LoadZones(Scheduler& scheduler, MapConfig config, const std::vector<xi::ZoneId>& zoneIds) -> Task<void>
 {
-    std::vector<uint16> zonesIdsToLoad;
+    std::vector<xi::ZoneId> zonesIdsToLoad;
 
     for (const auto zoneId : zoneIds)
     {
@@ -797,11 +921,11 @@ auto LoadZones(Scheduler& scheduler, MapConfig config, const std::vector<uint16>
         g_PZoneList[zoneId] = CreateZone(scheduler, config, zoneId);
     }
 
-    if (!g_PZoneList.contains(0))
+    if (!g_PZoneList.contains(xi::ZoneId::Unknown))
     {
         // False positive: "performance: Searching before insertion is not necessary."
         // cppcheck-suppress stlFindInsert
-        g_PZoneList[0] = CreateZone(scheduler, config, 0);
+        g_PZoneList[xi::ZoneId::Unknown] = CreateZone(scheduler, config, xi::ZoneId::Unknown);
     }
 
     // Phase 1: Load ximeshes (navmesh build depends on ximesh)
@@ -826,14 +950,42 @@ auto LoadZones(Scheduler& scheduler, MapConfig config, const std::vector<uint16>
         co_await g_PZoneList[zoneId]->LoadNavMesh();
     }
 
+    // Parse each zone's entity files once, on workers.
+    // Everything below reads these records.
+
+    std::vector<ZoneEntityFiles> parsed(zonesIdsToLoad.size());
+
+    co_await Scheduler::TaskGroup(
+        zonesIdsToLoad.size(),
+        [&](auto& add)
+        {
+            for (size_t index = 0; index < zonesIdsToLoad.size(); ++index)
+            {
+                add(scheduler.spawnOnWorkerThread(
+                    [zoneId = zonesIdsToLoad[index], &records = parsed[index]]()
+                    {
+                        TracyZoneScoped;
+
+                        records.Npcs = xi::data::loadZoneFile<NpcsDataset>(zoneId);
+                        records.Mobs = xi::data::loadZoneFile<MobsDataset>(zoneId);
+                    }));
+            }
+        });
+
     // IDs attached to xi.zone[name] need to be populated before NPCs and Mobs are loaded
-    for (const auto zoneId : zonesIdsToLoad)
+    for (const auto& [zoneId, records] : std::views::zip(zonesIdsToLoad, parsed))
     {
-        luautils::PopulateIDLookupsByZone(zoneId);
+        luautils::PopulateIDLookupsByZone(zoneId, { records.Npcs, records.Mobs });
     }
 
-    co_await LoadNPCList(scheduler, zonesIdsToLoad);
-    co_await LoadMOBList(scheduler, zonesIdsToLoad);
+    // Regions come first: a spawn joins one by name, so they have to exist before mobs load.
+    for (const auto zoneId : zonesIdsToLoad)
+    {
+        LoadRoamRegions(g_PZoneList[zoneId]);
+    }
+
+    co_await LoadNPCList(scheduler, zonesIdsToLoad, parsed);
+    co_await LoadMOBList(scheduler, zonesIdsToLoad, parsed);
 
     campaign::LoadState();
     campaign::LoadNations();
@@ -907,22 +1059,32 @@ auto IsLazyLoadingEnabled() -> bool
     return lazyLoad.enabled;
 }
 
+void EnsureZoneLoaded(Scheduler& scheduler, MapConfig config, const xi::ZoneId zoneId)
+{
+    if (!IsLazyLoadingEnabled() || GetZone(zoneId))
+    {
+        return;
+    }
+
+    // TODO: Remove this usage of blockOnMain, it's here to help with xi_test
+    scheduler.blockOnMainThread(LoadZones(scheduler, config, { zoneId }));
+}
+
 // Returns all zones managed by this process (ID and name)
 // - Lazy mode: queries database for zone names
 // - Immediate mode: uses already-loaded zone objects
-auto GetManagedZones() -> std::vector<std::pair<uint16, std::string>>
+auto GetManagedZones() -> std::vector<std::pair<xi::ZoneId, std::string>>
 {
-    std::vector<std::pair<uint16, std::string>> result;
+    std::vector<std::pair<xi::ZoneId, std::string>> result;
 
     // Lazy loading enabled: fetch from database
     if (!lazyLoad.managedZones.empty())
     {
-        const auto query = fmt::format("SELECT zoneid, name FROM zone_settings WHERE zoneid IN ({})",
-                                       fmt::join(lazyLoad.managedZones, ","));
-        const auto rset  = db::preparedStmt(query);
+        const auto rset = db::preparedStmt("SELECT zoneid, name FROM zone_settings WHERE FIND_IN_SET(zoneid, ?)",
+                                           fmt::format("{}", fmt::join(lazyLoad.managedZones, ",")));
         FOR_DB_MULTIPLE_RESULTS(rset)
         {
-            result.emplace_back(rset->get<uint16>("zoneid"), rset->get<std::string>("name"));
+            result.emplace_back(rset->get<xi::ZoneId>("zoneid"), rset->get<std::string>("name"));
         }
     }
     // Lazy loading disabled: use loaded zone objects
@@ -940,7 +1102,7 @@ auto GetManagedZones() -> std::vector<std::pair<uint16, std::string>>
 // TODO:
 // This shouldn't have side effects, it should be const and the caller should be responsible
 // for requesting the zone is loaded if it isn't ready.
-auto IsZoneReady(Scheduler& scheduler, MapConfig config, uint16 zoneId) -> Task<bool>
+auto IsZoneReady(Scheduler& scheduler, MapConfig config, xi::ZoneId zoneId) -> Task<bool>
 {
     // Zone already loaded, or lazy loading disabled (all zones loaded at startup)
     if (GetZone(zoneId) || !lazyLoad.enabled)
@@ -972,304 +1134,308 @@ auto IsZoneReady(Scheduler& scheduler, MapConfig config, uint16 zoneId) -> Task<
  *                                                                       *
  ************************************************************************/
 
-auto GetCurrentRegion(const uint16 zoneId) -> REGION_TYPE
+auto GetCurrentRegion(const xi::ZoneId zoneId) -> REGION_TYPE
 {
     switch (zoneId)
     {
-        case ZONE_BOSTAUNIEUX_OUBLIETTE:
-        case ZONE_EAST_RONFAURE:
-        case ZONE_FORT_GHELSBA:
-        case ZONE_GHELSBA_OUTPOST:
-        case ZONE_HORLAIS_PEAK:
-        case ZONE_KING_RANPERRES_TOMB:
-        case ZONE_WEST_RONFAURE:
-        case ZONE_YUGHOTT_GROTTO:
+        case xi::ZoneId::BostaunieuxOubliette:
+        case xi::ZoneId::EastRonfaure:
+        case xi::ZoneId::FortGhelsba:
+        case xi::ZoneId::GhelsbaOutpost:
+        case xi::ZoneId::HorlaisPeak:
+        case xi::ZoneId::KingRanperresTomb:
+        case xi::ZoneId::WestRonfaure:
+        case xi::ZoneId::YughottGrotto:
             return REGION_TYPE::RONFAURE;
-        case ZONE_GUSGEN_MINES:
-        case ZONE_KONSCHTAT_HIGHLANDS:
-        case ZONE_LA_THEINE_PLATEAU:
-        case ZONE_ORDELLES_CAVES:
-        case ZONE_SELBINA:
-        case ZONE_VALKURM_DUNES:
+        case xi::ZoneId::GusgenMines:
+        case xi::ZoneId::KonschtatHighlands:
+        case xi::ZoneId::LaTheinePlateau:
+        case xi::ZoneId::OrdellesCaves:
+        case xi::ZoneId::Selbina:
+        case xi::ZoneId::ValkurmDunes:
             return REGION_TYPE::ZULKHEIM;
-        case ZONE_BATALLIA_DOWNS:
-        case ZONE_CARPENTERS_LANDING:
-        case ZONE_DAVOI:
-        case ZONE_THE_ELDIEME_NECROPOLIS:
-        case ZONE_JUGNER_FOREST:
-        case ZONE_MONASTIC_CAVERN:
-        case ZONE_PHANAUET_CHANNEL:
+        case xi::ZoneId::BatalliaDowns:
+        case xi::ZoneId::CarpentersLanding:
+        case xi::ZoneId::Davoi:
+        case xi::ZoneId::TheEldiemeNecropolis:
+        case xi::ZoneId::JugnerForest:
+        case xi::ZoneId::MonasticCavern:
+        case xi::ZoneId::PhanauetChannel:
             return REGION_TYPE::NORVALLEN;
-        case ZONE_DANGRUF_WADI:
-        case ZONE_KORROLOKA_TUNNEL:
-        case ZONE_NORTH_GUSTABERG:
-        case ZONE_PALBOROUGH_MINES:
-        case ZONE_SOUTH_GUSTABERG:
-        case ZONE_WAUGHROON_SHRINE:
-        case ZONE_ZERUHN_MINES:
+        case xi::ZoneId::DangrufWadi:
+        case xi::ZoneId::KorrolokaTunnel:
+        case xi::ZoneId::NorthGustaberg:
+        case xi::ZoneId::PalboroughMines:
+        case xi::ZoneId::SouthGustaberg:
+        case xi::ZoneId::WaughroonShrine:
+        case xi::ZoneId::ZeruhnMines:
             return REGION_TYPE::GUSTABERG;
-        case ZONE_BEADEAUX:
-        case ZONE_CRAWLERS_NEST:
-        case ZONE_PASHHOW_MARSHLANDS:
-        case ZONE_QULUN_DOME:
-        case ZONE_ROLANBERRY_FIELDS:
+        case xi::ZoneId::Beadeaux:
+        case xi::ZoneId::CrawlersNest:
+        case xi::ZoneId::PashhowMarshlands:
+        case xi::ZoneId::QulunDome:
+        case xi::ZoneId::RolanberryFields:
             return REGION_TYPE::DERFLAND;
-        case ZONE_BALGAS_DAIS:
-        case ZONE_EAST_SARUTABARUTA:
-        case ZONE_FULL_MOON_FOUNTAIN:
-        case ZONE_GIDDEUS:
-        case ZONE_INNER_HORUTOTO_RUINS:
-        case ZONE_OUTER_HORUTOTO_RUINS:
-        case ZONE_TORAIMARAI_CANAL:
-        case ZONE_WEST_SARUTABARUTA:
+        case xi::ZoneId::BalgasDais:
+        case xi::ZoneId::EastSarutabaruta:
+        case xi::ZoneId::FullMoonFountain:
+        case xi::ZoneId::Giddeus:
+        case xi::ZoneId::InnerHorutotoRuins:
+        case xi::ZoneId::OuterHorutotoRuins:
+        case xi::ZoneId::ToraimaraiCanal:
+        case xi::ZoneId::WestSarutabaruta:
             return REGION_TYPE::SARUTABARUTA;
-        case ZONE_BIBIKI_BAY:
-        case ZONE_BUBURIMU_PENINSULA:
-        case ZONE_LABYRINTH_OF_ONZOZO:
-        case ZONE_MANACLIPPER:
-        case ZONE_MAZE_OF_SHAKHRAMI:
-        case ZONE_MHAURA:
-        case ZONE_TAHRONGI_CANYON:
+        case xi::ZoneId::BibikiBay:
+        case xi::ZoneId::BuburimuPeninsula:
+        case xi::ZoneId::LabyrinthOfOnzozo:
+        case xi::ZoneId::Manaclipper:
+        case xi::ZoneId::MazeOfShakhrami:
+        case xi::ZoneId::Mhaura:
+        case xi::ZoneId::TahrongiCanyon:
             return REGION_TYPE::KOLSHUSHU;
-        case ZONE_ALTAR_ROOM:
-        case ZONE_ATTOHWA_CHASM:
-        case ZONE_BONEYARD_GULLY:
-        case ZONE_CASTLE_OZTROJA:
-        case ZONE_GARLAIGE_CITADEL:
-        case ZONE_MERIPHATAUD_MOUNTAINS:
-        case ZONE_SAUROMUGUE_CHAMPAIGN:
+        case xi::ZoneId::AltarRoom:
+        case xi::ZoneId::AttohwaChasm:
+        case xi::ZoneId::BoneyardGully:
+        case xi::ZoneId::CastleOztroja:
+        case xi::ZoneId::GarlaigeCitadel:
+        case xi::ZoneId::MeriphataudMountains:
+        case xi::ZoneId::SauromugueChampaign:
             return REGION_TYPE::ARAGONEU;
-        case ZONE_BEAUCEDINE_GLACIER:
-        case ZONE_CLOISTER_OF_FROST:
-        case ZONE_FEIYIN:
-        case ZONE_PSOXJA:
-        case ZONE_QUBIA_ARENA:
-        case ZONE_RANGUEMONT_PASS:
-        case ZONE_THE_SHROUDED_MAW:
+        case xi::ZoneId::BeaucedineGlacier:
+        case xi::ZoneId::CloisterOfFrost:
+        case xi::ZoneId::Feiyin:
+        case xi::ZoneId::Psoxja:
+        case xi::ZoneId::QubiaArena:
+        case xi::ZoneId::RanguemontPass:
+        case xi::ZoneId::TheShroudedMaw:
             return REGION_TYPE::FAUREGANDI;
-        case ZONE_BEARCLAW_PINNACLE:
-        case ZONE_CASTLE_ZVAHL_BAILEYS:
-        case ZONE_CASTLE_ZVAHL_KEEP:
-        case ZONE_THRONE_ROOM:
-        case ZONE_ULEGUERAND_RANGE:
-        case ZONE_XARCABARD:
+        case xi::ZoneId::BearclawPinnacle:
+        case xi::ZoneId::CastleZvahlBaileys:
+        case xi::ZoneId::CastleZvahlKeep:
+        case xi::ZoneId::ThroneRoom:
+        case xi::ZoneId::UleguerandRange:
+        case xi::ZoneId::Xarcabard:
             return REGION_TYPE::VALDEAUNIA;
-        case ZONE_BEHEMOTHS_DOMINION:
-        case ZONE_LOWER_DELKFUTTS_TOWER:
-        case ZONE_MIDDLE_DELKFUTTS_TOWER:
-        case ZONE_QUFIM_ISLAND:
-        case ZONE_STELLAR_FULCRUM:
-        case ZONE_UPPER_DELKFUTTS_TOWER:
+        case xi::ZoneId::BehemothsDominion:
+        case xi::ZoneId::LowerDelkfuttsTower:
+        case xi::ZoneId::MiddleDelkfuttsTower:
+        case xi::ZoneId::QufimIsland:
+        case xi::ZoneId::StellarFulcrum:
+        case xi::ZoneId::UpperDelkfuttsTower:
             return REGION_TYPE::QUFIMISLAND;
-        case ZONE_THE_BOYAHDA_TREE:
-        case ZONE_CLOISTER_OF_STORMS:
-        case ZONE_DRAGONS_AERY:
-        case ZONE_HALL_OF_THE_GODS:
-        case ZONE_ROMAEVE:
-        case ZONE_THE_SANCTUARY_OF_ZITAH:
+        case xi::ZoneId::TheBoyahdaTree:
+        case xi::ZoneId::CloisterOfStorms:
+        case xi::ZoneId::DragonsAery:
+        case xi::ZoneId::HallOfTheGods:
+        case xi::ZoneId::Romaeve:
+        case xi::ZoneId::TheSanctuaryOfZitah:
             return REGION_TYPE::LITELOR;
-        case ZONE_CLOISTER_OF_TREMORS:
-        case ZONE_EASTERN_ALTEPA_DESERT:
-        case ZONE_CHAMBER_OF_ORACLES:
-        case ZONE_QUICKSAND_CAVES:
-        case ZONE_RABAO:
-        case ZONE_WESTERN_ALTEPA_DESERT:
+        case xi::ZoneId::CloisterOfTremors:
+        case xi::ZoneId::EasternAltepaDesert:
+        case xi::ZoneId::ChamberOfOracles:
+        case xi::ZoneId::QuicksandCaves:
+        case xi::ZoneId::Rabao:
+        case xi::ZoneId::WesternAltepaDesert:
             return REGION_TYPE::KUZOTZ;
-        case ZONE_CAPE_TERIGGAN:
-        case ZONE_CLOISTER_OF_GALES:
-        case ZONE_GUSTAV_TUNNEL:
-        case ZONE_KUFTAL_TUNNEL:
-        case ZONE_VALLEY_OF_SORROWS:
+        case xi::ZoneId::CapeTeriggan:
+        case xi::ZoneId::CloisterOfGales:
+        case xi::ZoneId::GustavTunnel:
+        case xi::ZoneId::KuftalTunnel:
+        case xi::ZoneId::ValleyOfSorrows:
             return REGION_TYPE::VOLLBOW;
-        case ZONE_KAZHAM:
-        case ZONE_NORG:
-        case ZONE_SEA_SERPENT_GROTTO:
-        case ZONE_YUHTUNGA_JUNGLE:
+        case xi::ZoneId::Kazham:
+        case xi::ZoneId::Norg:
+        case xi::ZoneId::SeaSerpentGrotto:
+        case xi::ZoneId::YuhtungaJungle:
             return REGION_TYPE::ELSHIMO_LOWLANDS;
-        case ZONE_CLOISTER_OF_FLAMES:
-        case ZONE_CLOISTER_OF_TIDES:
-        case ZONE_DEN_OF_RANCOR:
-        case ZONE_IFRITS_CAULDRON:
-        case ZONE_SACRIFICIAL_CHAMBER:
-        case ZONE_TEMPLE_OF_UGGALEPIH:
-        case ZONE_YHOATOR_JUNGLE:
+        case xi::ZoneId::CloisterOfFlames:
+        case xi::ZoneId::CloisterOfTides:
+        case xi::ZoneId::DenOfRancor:
+        case xi::ZoneId::IfritsCauldron:
+        case xi::ZoneId::SacrificialChamber:
+        case xi::ZoneId::TempleOfUggalepih:
+        case xi::ZoneId::YhoatorJungle:
             return REGION_TYPE::ELSHIMO_UPLANDS;
-        case ZONE_THE_CELESTIAL_NEXUS:
-        case ZONE_LALOFF_AMPHITHEATER:
-        case ZONE_RUAUN_GARDENS:
-        case ZONE_THE_SHRINE_OF_RUAVITAU:
-        case ZONE_VELUGANNON_PALACE:
+        case xi::ZoneId::TheCelestialNexus:
+        case xi::ZoneId::LaloffAmphitheater:
+        case xi::ZoneId::RuaunGardens:
+        case xi::ZoneId::TheShrineOfRuavitau:
+        case xi::ZoneId::VelugannonPalace:
             return REGION_TYPE::TULIA;
-        case ZONE_MINE_SHAFT_2716:
-        case ZONE_NEWTON_MOVALPOLOS:
-        case ZONE_OLDTON_MOVALPOLOS:
+        case xi::ZoneId::MineShaft2716:
+        case xi::ZoneId::NewtonMovalpolos:
+        case xi::ZoneId::OldtonMovalpolos:
             return REGION_TYPE::MOVALPOLOS;
-        case ZONE_LUFAISE_MEADOWS:
-        case ZONE_MISAREAUX_COAST:
-        case ZONE_MONARCH_LINN:
-        case ZONE_PHOMIUNA_AQUEDUCTS:
-        case ZONE_RIVERNE_SITE_A01:
-        case ZONE_RIVERNE_SITE_B01:
-        case ZONE_SACRARIUM:
-        case ZONE_SEALIONS_DEN:
+        case xi::ZoneId::LufaiseMeadows:
+        case xi::ZoneId::MisareauxCoast:
+        case xi::ZoneId::MonarchLinn:
+        case xi::ZoneId::PhomiunaAqueducts:
+        case xi::ZoneId::RiverneSiteA01:
+        case xi::ZoneId::RiverneSiteB01:
+        case xi::ZoneId::Sacrarium:
+        case xi::ZoneId::SealionsDen:
             return REGION_TYPE::TAVNAZIA;
-        case ZONE_TAVNAZIAN_SAFEHOLD:
+        case xi::ZoneId::TavnazianSafehold:
             return REGION_TYPE::TAVNAZIAN_MARQ;
-        case ZONE_SOUTHERN_SANDORIA:
-        case ZONE_NORTHERN_SANDORIA:
-        case ZONE_PORT_SANDORIA:
-        case ZONE_CHATEAU_DORAGUILLE:
+        case xi::ZoneId::SouthernSanDoria:
+        case xi::ZoneId::NorthernSanDoria:
+        case xi::ZoneId::PortSanDoria:
+        case xi::ZoneId::ChateauDoraguille:
             return REGION_TYPE::SANDORIA;
-        case ZONE_BASTOK_MINES:
-        case ZONE_BASTOK_MARKETS:
-        case ZONE_PORT_BASTOK:
-        case ZONE_METALWORKS:
+        case xi::ZoneId::BastokMines:
+        case xi::ZoneId::BastokMarkets:
+        case xi::ZoneId::PortBastok:
+        case xi::ZoneId::Metalworks:
             return REGION_TYPE::BASTOK;
-        case ZONE_WINDURST_WATERS:
-        case ZONE_WINDURST_WALLS:
-        case ZONE_PORT_WINDURST:
-        case ZONE_WINDURST_WOODS:
-        case ZONE_HEAVENS_TOWER:
+        case xi::ZoneId::WindurstWaters:
+        case xi::ZoneId::WindurstWalls:
+        case xi::ZoneId::PortWindurst:
+        case xi::ZoneId::WindurstWoods:
+        case xi::ZoneId::HeavensTower:
             return REGION_TYPE::WINDURST;
-        case ZONE_RULUDE_GARDENS:
-        case ZONE_UPPER_JEUNO:
-        case ZONE_LOWER_JEUNO:
-        case ZONE_PORT_JEUNO:
+        case xi::ZoneId::RuludeGardens:
+        case xi::ZoneId::UpperJeuno:
+        case xi::ZoneId::LowerJeuno:
+        case xi::ZoneId::PortJeuno:
             return REGION_TYPE::JEUNO;
-        case ZONE_DYNAMIS_BASTOK:
-        case ZONE_DYNAMIS_BEAUCEDINE:
-        case ZONE_DYNAMIS_BUBURIMU:
-        case ZONE_DYNAMIS_JEUNO:
-        case ZONE_DYNAMIS_QUFIM:
-        case ZONE_DYNAMIS_SAN_DORIA:
-        case ZONE_DYNAMIS_TAVNAZIA:
-        case ZONE_DYNAMIS_VALKURM:
-        case ZONE_DYNAMIS_WINDURST:
-        case ZONE_DYNAMIS_XARCABARD:
+        case xi::ZoneId::DynamisBastok:
+        case xi::ZoneId::DynamisBeaucedine:
+        case xi::ZoneId::DynamisBuburimu:
+        case xi::ZoneId::DynamisJeuno:
+        case xi::ZoneId::DynamisQufim:
+        case xi::ZoneId::DynamisSanDoria:
+        case xi::ZoneId::DynamisTavnazia:
+        case xi::ZoneId::DynamisValkurm:
+        case xi::ZoneId::DynamisWindurst:
+        case xi::ZoneId::DynamisXarcabard:
             return REGION_TYPE::DYNAMIS;
-        case ZONE_PROMYVION_DEM:
-        case ZONE_PROMYVION_HOLLA:
-        case ZONE_PROMYVION_MEA:
-        case ZONE_PROMYVION_VAHZL:
-        case ZONE_SPIRE_OF_DEM:
-        case ZONE_SPIRE_OF_HOLLA:
-        case ZONE_SPIRE_OF_MEA:
-        case ZONE_SPIRE_OF_VAHZL:
-        case ZONE_HALL_OF_TRANSFERENCE:
+        case xi::ZoneId::PromyvionDem:
+        case xi::ZoneId::PromyvionHolla:
+        case xi::ZoneId::PromyvionMea:
+        case xi::ZoneId::PromyvionVahzl:
+        case xi::ZoneId::SpireOfDem:
+        case xi::ZoneId::SpireOfHolla:
+        case xi::ZoneId::SpireOfMea:
+        case xi::ZoneId::SpireOfVahzl:
+        case xi::ZoneId::HallOfTransference:
             return REGION_TYPE::PROMYVION;
-        case ZONE_ALTAIEU:
-        case ZONE_EMPYREAL_PARADOX:
-        case ZONE_THE_GARDEN_OF_RUHMET:
-        case ZONE_GRAND_PALACE_OF_HUXZOI:
+        case xi::ZoneId::Altaieu:
+        case xi::ZoneId::EmpyrealParadox:
+        case xi::ZoneId::TheGardenOfRuhmet:
+        case xi::ZoneId::GrandPalaceOfHuxzoi:
             return REGION_TYPE::LUMORIA;
-        case ZONE_APOLLYON:
-        case ZONE_TEMENOS:
+        case xi::ZoneId::Apollyon:
+        case xi::ZoneId::Temenos:
             return REGION_TYPE::LIMBUS;
-        case ZONE_AL_ZAHBI:
-        case ZONE_AHT_URHGAN_WHITEGATE:
-        case ZONE_BHAFLAU_THICKETS:
-        case ZONE_THE_COLOSSEUM:
+        case xi::ZoneId::AlZahbi:
+        case xi::ZoneId::AhtUrhganWhitegate:
+        case xi::ZoneId::BhaflauThickets:
+        case xi::ZoneId::TheColosseum:
             return REGION_TYPE::WEST_AHT_URHGAN;
-        case ZONE_MAMOOL_JA_TRAINING_GROUNDS:
-        case ZONE_MAMOOK:
-        case ZONE_WAJAOM_WOODLANDS:
-        case ZONE_AYDEEWA_SUBTERRANE:
-        case ZONE_JADE_SEPULCHER:
+        case xi::ZoneId::MamoolJaTrainingGrounds:
+        case xi::ZoneId::Mamook:
+        case xi::ZoneId::WajaomWoodlands:
+        case xi::ZoneId::AydeewaSubterrane:
+        case xi::ZoneId::JadeSepulcher:
             return REGION_TYPE::MAMOOL_JA_SAVAGE;
-        case ZONE_HALVUNG:
-        case ZONE_MOUNT_ZHAYOLM:
-        case ZONE_LEBROS_CAVERN:
-        case ZONE_NAVUKGO_EXECUTION_CHAMBER:
+        case xi::ZoneId::Halvung:
+        case xi::ZoneId::MountZhayolm:
+        case xi::ZoneId::LebrosCavern:
+        case xi::ZoneId::NavukgoExecutionChamber:
             return REGION_TYPE::HALVUNG;
-        case ZONE_ARRAPAGO_REEF:
-        case ZONE_CAEDARVA_MIRE:
-        case ZONE_LEUJAOAM_SANCTUM:
-        case ZONE_NASHMAU:
-        case ZONE_HAZHALM_TESTING_GROUNDS:
-        case ZONE_TALACCA_COVE:
-        case ZONE_PERIQIA:
+        case xi::ZoneId::ArrapagoReef:
+        case xi::ZoneId::CaedarvaMire:
+        case xi::ZoneId::LeujaoamSanctum:
+        case xi::ZoneId::Nashmau:
+        case xi::ZoneId::HazhalmTestingGrounds:
+        case xi::ZoneId::TalaccaCove:
+        case xi::ZoneId::Periqia:
+        case xi::ZoneId::IlrusiAtoll:
+        case xi::ZoneId::TheAshuTalif:
             return REGION_TYPE::ARRAPAGO;
-        case ZONE_NYZUL_ISLE:
-        case ZONE_ARRAPAGO_REMNANTS:
-        case ZONE_ALZADAAL_UNDERSEA_RUINS:
-        case ZONE_BHAFLAU_REMNANTS:
-        case ZONE_SILVER_SEA_REMNANTS:
-        case ZONE_ZHAYOLM_REMNANTS:
+        case xi::ZoneId::NyzulIsle:
+        case xi::ZoneId::ArrapagoRemnants:
+        case xi::ZoneId::AlzadaalUnderseaRuins:
+        case xi::ZoneId::BhaflauRemnants:
+        case xi::ZoneId::SilverSeaRemnants:
+        case xi::ZoneId::ZhayolmRemnants:
             return REGION_TYPE::ALZADAAL;
-        case ZONE_SOUTHERN_SAN_DORIA_S:
-        case ZONE_EAST_RONFAURE_S:
+        case xi::ZoneId::SouthernSanDoriaS:
+        case xi::ZoneId::EastRonfaureS:
             return REGION_TYPE::RONFAURE_FRONT;
-        case ZONE_BASTOK_MARKETS_S:
-        case ZONE_NORTH_GUSTABERG_S:
-        case ZONE_RUHOTZ_SILVERMINES:
-        case ZONE_GRAUBERG_S:
+        case xi::ZoneId::BastokMarketsS:
+        case xi::ZoneId::NorthGustabergS:
+        case xi::ZoneId::RuhotzSilvermines:
+        case xi::ZoneId::GraubergS:
             return REGION_TYPE::GUSTABERG_FRONT;
-        case ZONE_WINDURST_WATERS_S:
-        case ZONE_WEST_SARUTABARUTA_S:
-        case ZONE_GHOYUS_REVERIE:
-        case ZONE_FORT_KARUGO_NARUGO_S:
+        case xi::ZoneId::WindurstWatersS:
+        case xi::ZoneId::WestSarutabarutaS:
+        case xi::ZoneId::GhoyusReverie:
+        case xi::ZoneId::FortKarugoNarugoS:
             return REGION_TYPE::SARUTA_FRONT;
-        case ZONE_BATALLIA_DOWNS_S:
-        case ZONE_JUGNER_FOREST_S:
-        case ZONE_LA_VAULE_S:
-        case ZONE_EVERBLOOM_HOLLOW:
-        case ZONE_THE_ELDIEME_NECROPOLIS_S:
+        case xi::ZoneId::BatalliaDownsS:
+        case xi::ZoneId::JugnerForestS:
+        case xi::ZoneId::LaVauleS:
+        case xi::ZoneId::EverbloomHollow:
+        case xi::ZoneId::TheEldiemeNecropolisS:
             return REGION_TYPE::NORVALLEN_FRONT;
-        case ZONE_ROLANBERRY_FIELDS_S:
-        case ZONE_PASHHOW_MARSHLANDS_S:
-        case ZONE_CRAWLERS_NEST_S:
-        case ZONE_BEADEAUX_S:
-        case ZONE_VUNKERL_INLET_S:
+        case xi::ZoneId::RolanberryFieldsS:
+        case xi::ZoneId::PashhowMarshlandsS:
+        case xi::ZoneId::CrawlersNestS:
+        case xi::ZoneId::BeadeauxS:
+        case xi::ZoneId::VunkerlInletS:
             return REGION_TYPE::DERFLAND_FRONT;
-        case ZONE_SAUROMUGUE_CHAMPAIGN_S:
-        case ZONE_MERIPHATAUD_MOUNTAINS_S:
-        case ZONE_CASTLE_OZTROJA_S:
-        case ZONE_GARLAIGE_CITADEL_S:
+        case xi::ZoneId::SauromugueChampaignS:
+        case xi::ZoneId::MeriphataudMountainsS:
+        case xi::ZoneId::CastleOztrojaS:
+        case xi::ZoneId::GarlaigeCitadelS:
             return REGION_TYPE::ARAGONEAU_FRONT;
-        case ZONE_BEAUCEDINE_GLACIER_S:
+        case xi::ZoneId::BeaucedineGlacierS:
             return REGION_TYPE::FAUREGANDI_FRONT;
-        case ZONE_XARCABARD_S:
-        case ZONE_CASTLE_ZVAHL_BAILEYS_S:
-        case ZONE_CASTLE_ZVAHL_KEEP_S:
-        case ZONE_THRONE_ROOM_S:
+        case xi::ZoneId::XarcabardS:
+        case xi::ZoneId::CastleZvahlBaileysS:
+        case xi::ZoneId::CastleZvahlKeepS:
+        case xi::ZoneId::ThroneRoomS:
             return REGION_TYPE::VALDEAUNIA_FRONT;
-        case ZONE_ABYSSEA_ALTEPA:
-        case ZONE_ABYSSEA_ATTOHWA:
-        case ZONE_ABYSSEA_EMPYREAL_PARADOX:
-        case ZONE_ABYSSEA_GRAUBERG:
-        case ZONE_ABYSSEA_KONSCHTAT:
-        case ZONE_ABYSSEA_LA_THEINE:
-        case ZONE_ABYSSEA_MISAREAUX:
-        case ZONE_ABYSSEA_TAHRONGI:
-        case ZONE_ABYSSEA_ULEGUERAND:
-        case ZONE_ABYSSEA_VUNKERL:
+        case xi::ZoneId::AbysseaAltepa:
+        case xi::ZoneId::AbysseaAttohwa:
+        case xi::ZoneId::AbysseaEmpyrealParadox:
+        case xi::ZoneId::AbysseaGrauberg:
+        case xi::ZoneId::AbysseaKonschtat:
+        case xi::ZoneId::AbysseaLaTheine:
+        case xi::ZoneId::AbysseaMisareaux:
+        case xi::ZoneId::AbysseaTahrongi:
+        case xi::ZoneId::AbysseaUleguerand:
+        case xi::ZoneId::AbysseaVunkerl:
             return REGION_TYPE::ABYSSEA;
-        case ZONE_WALK_OF_ECHOES:
+        case xi::ZoneId::WalkOfEchoes:
             return REGION_TYPE::THE_THRESHOLD;
-        case ZONE_DIORAMA_ABDHALJS_GHELSBA:
-        case ZONE_ABDHALJS_ISLE_PURGONORGO:
-        case ZONE_MAQUETTE_ABDHALJS_LEGION_A:
-        case ZONE_MAQUETTE_ABDHALJS_LEGION_B:
+        case xi::ZoneId::DioramaAbdhaljsGhelsba:
+        case xi::ZoneId::AbdhaljsIslePurgonorgo:
+        case xi::ZoneId::MaquetteAbdhaljsLegionA:
+        case xi::ZoneId::MaquetteAbdhaljsLegionB:
             return REGION_TYPE::ABDHALJS;
-        case ZONE_WESTERN_ADOULIN:
-        case ZONE_EASTERN_ADOULIN:
-        case ZONE_RALA_WATERWAYS:
-        case ZONE_RALA_WATERWAYS_U:
+        case xi::ZoneId::WesternAdoulin:
+        case xi::ZoneId::EasternAdoulin:
+        case xi::ZoneId::RalaWaterways:
+        case xi::ZoneId::RalaWaterwaysU:
             return REGION_TYPE::ADOULIN_ISLANDS;
-        case ZONE_CEIZAK_BATTLEGROUNDS:
-        case ZONE_FORET_DE_HENNETIEL:
-        case ZONE_SIH_GATES:
-        case ZONE_MOH_GATES:
-        case ZONE_CIRDAS_CAVERNS:
-        case ZONE_CIRDAS_CAVERNS_U:
-        case ZONE_YAHSE_HUNTING_GROUNDS:
-        case ZONE_MORIMAR_BASALT_FIELDS:
+        case xi::ZoneId::CeizakBattlegrounds:
+        case xi::ZoneId::ForetDeHennetiel:
+        case xi::ZoneId::SihGates:
+        case xi::ZoneId::MohGates:
+        case xi::ZoneId::CirdasCaverns:
+        case xi::ZoneId::CirdasCavernsU:
+        case xi::ZoneId::YahseHuntingGrounds:
+        case xi::ZoneId::MorimarBasaltFields:
             return REGION_TYPE::EAST_ULBUKA;
+        default:
+            break;
     }
     return REGION_TYPE::UNKNOWN;
 }
 
-auto GetCurrentContinent(const uint16 zoneId) -> CONTINENT_TYPE
+auto GetCurrentContinent(const xi::ZoneId zoneId) -> CONTINENT_TYPE
 {
     return GetCurrentRegion(zoneId) != REGION_TYPE::UNKNOWN ? CONTINENT_TYPE::THE_MIDDLE_LANDS : CONTINENT_TYPE::OTHER_AREAS;
 }
@@ -1333,7 +1499,7 @@ void ForEachZone(FnRef<void(CZone*)> func)
     }
 }
 
-void ForEachZone(const std::vector<uint16>& zoneIds, FnRef<void(CZone*)> func)
+void ForEachZone(const std::vector<xi::ZoneId>& zoneIds, FnRef<void(CZone*)> func)
 {
     for (auto zoneId : zoneIds)
     {
@@ -1344,7 +1510,7 @@ void ForEachZone(const std::vector<uint16>& zoneIds, FnRef<void(CZone*)> func)
     }
 }
 
-auto GetZoneIPP(uint16 zoneId) -> uint64
+auto GetZoneIPP(xi::ZoneId zoneId) -> uint64
 {
     uint64 ipp = 0;
 
@@ -1366,20 +1532,14 @@ auto GetZoneIPP(uint16 zoneId) -> uint64
     return ipp;
 }
 
-auto CanZoneUseMisc(uint16 zoneId, xi::ZoneMisc misc) -> bool
+auto CanZoneUseMisc(xi::ZoneId zoneId, xi::ZoneMisc misc) -> bool
 {
-    const auto rset = db::preparedStmt("SELECT misc FROM zone_settings WHERE zoneid = ?", zoneId);
-    FOR_DB_SINGLE_RESULT(rset)
-    {
-        const auto mask = rset->get<xi::ZoneMisc>("misc");
-        return (mask & misc) == misc;
-    }
+    const auto settings = xi::data::loadZoneFile<ZoneSettingsDataset>(zoneId);
 
-    ShowCritical("zoneutils::CanZoneUseMisc: Cannot find zone %u", zoneId);
-    return false;
+    return settings && (settings->Misc & misc) == misc;
 }
 
-auto IsZoneAtPlayerCap(uint16 zoneId, bool isGM) -> bool
+auto IsZoneAtPlayerCap(xi::ZoneId zoneId, bool isGM) -> bool
 {
     const auto cap = settings::get<uint16>("map.ZONE_PLAYER_CAP");
     if (cap == 0)
@@ -1390,23 +1550,20 @@ auto IsZoneAtPlayerCap(uint16 zoneId, bool isGM) -> bool
     const auto reserved  = settings::get<uint16>("map.ZONE_PLAYER_GM_RESERVED");
     const auto threshold = isGM ? cap : static_cast<uint16>(cap > reserved ? cap - reserved : 0);
 
+    const auto settings = xi::data::loadZoneFile<ZoneSettingsDataset>(zoneId);
+    if (settings && (settings->Type & xi::ZoneType::Instanced) != xi::ZoneType::Unknown)
+    {
+        return false;
+    }
+
     const auto rset = db::preparedStmt(
-        "SELECT z.zonetype, "
-        "  (SELECT COUNT(*) FROM accounts_sessions s "
-        "    JOIN chars c ON c.charid = s.charid "
-        "    WHERE c.pos_zone = ?) AS pop "
-        "FROM zone_settings z WHERE z.zoneid = ? LIMIT 1",
-        zoneId,
+        "SELECT COUNT(*) AS pop FROM accounts_sessions s "
+        "JOIN chars c ON c.charid = s.charid "
+        "WHERE c.pos_zone = ?",
         zoneId);
 
     FOR_DB_SINGLE_RESULT(rset)
     {
-        const auto zoneType = rset->get<xi::ZoneType>("zonetype");
-        if ((zoneType & xi::ZoneType::Instanced) != xi::ZoneType::Unknown)
-        {
-            return false;
-        }
-
         return rset->get<uint32>("pop") >= threshold;
     }
 

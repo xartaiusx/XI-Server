@@ -1,15 +1,18 @@
 -----------------------------------
 -- Area: Southern San d'Oria
 --  NPC: Arvilauge
--- Optional Involvement in Quest: A Squire's Test II
--- !pos -11 1 -94 230
+-- Type: Chocobo Stable Clerk
+-- !pos -13.237 1.399 -93.206 230
 -----------------------------------
 ---@type TNpcEntity
 local entity = {}
 
 entity.onTrigger = function(player, npc)
-    -- TODO: Use enum, verify this message is relevant
-    player:showText(npc, 11076)
+    local walks  = xi.chocoboRaising.walks
+    local params = walks.clerkReview(player:getCharVar(walks.lostChickVar), xi.chocoboRaising.raisingLocation[player:getZoneID()])
+    params[1]    = math.floor(player:getCharSkillLevel(xi.skill.DIG) / 10)
+
+    player:startEvent(846, params)
 end
 
 return entity

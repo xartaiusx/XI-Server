@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -21,6 +21,7 @@
 
 #include "lua_ability.h"
 #include "ability.h"
+#include "luautils.h"
 
 CLuaAbility::CLuaAbility(CAbility* PAbility)
 : m_PLuaAbility(PAbility)

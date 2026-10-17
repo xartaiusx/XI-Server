@@ -11,6 +11,7 @@ SERVICES=(
   "mochirii-xi-world.service"
   "mochirii-xi-search.service"
   "mochirii-xi-connect.service"
+  "mochirii-xi-profile.service"
 )
 
 usage() {
@@ -34,29 +35,39 @@ if [[ "$(id -u)" != "0" ]]; then
   exit 1
 fi
 
+ERROR_COUNT=0
+
+record_failure() {
+  echo "Mochirii stop failed: $*" >&2
+  ERROR_COUNT=$((ERROR_COUNT + 1))
+}
+
 for service in "${SERVICES[@]}"; do
   echo "Stopping $service..."
-  systemctl disable "$service" >/dev/null
-  systemctl stop "$service" >/dev/null
+  systemctl disable "$service" >/dev/null || record_failure "could not disable $service"
+  systemctl stop "$service" >/dev/null || record_failure "could not stop $service"
   systemctl reset-failed "$service" >/dev/null 2>&1 || true
 done
 
-systemctl disable mariadb.service >/dev/null
-
-rm -f "$STATE_FILE"
+systemctl disable mariadb.service >/dev/null || record_failure "could not disable mariadb.service"
 
 if [[ "$STOP_DB" == "true" ]]; then
   echo "Stopping MariaDB..."
-  systemctl stop mariadb.service >/dev/null
+  systemctl stop mariadb.service >/dev/null || record_failure "could not stop mariadb.service"
   systemctl reset-failed mariadb.service >/dev/null 2>&1 || true
-  "$STATUS_SCRIPT" --expect-stopped-disabled
+  "$STATUS_SCRIPT" --expect-stopped-disabled || record_failure "stopped/disabled status gate"
 else
   echo "MariaDB left in its existing manual-start state for development access."
   if systemctl is-active --quiet mariadb.service; then
-    "$STATUS_SCRIPT" --expect-xi-stopped-db-running-manual
+    "$STATUS_SCRIPT" --expect-xi-stopped-db-running-manual || record_failure "developer-stop status gate"
   else
-    "$STATUS_SCRIPT" --expect-stopped-disabled
+    "$STATUS_SCRIPT" --expect-stopped-disabled || record_failure "stopped/disabled status gate"
   fi
 fi
 
+if (( ERROR_COUNT > 0 )); then
+  exit 1
+fi
+
+rm -f "$STATE_FILE"
 echo "Mochirii XI server stopped."

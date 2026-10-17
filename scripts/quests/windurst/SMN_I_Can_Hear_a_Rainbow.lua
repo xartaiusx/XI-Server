@@ -107,8 +107,9 @@ end
 
 quest.reward =
 {
-    fame     = 30,
+    fame     = 20,
     fameArea = xi.fameArea.WINDURST,
+    keyItem  = xi.keyItem.JOB_GESTURE_SUMMONER,
     title    = xi.title.RAINBOW_WEAVER,
 }
 

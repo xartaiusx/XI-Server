@@ -24,7 +24,10 @@
 #include "alliance.h"
 #include "common/ipc_structs.h"
 #include "entities/char_entity.h"
+#include "enums/party_kind.h"
 #include "ipc_client.h"
+#include "monstrosity.h"
+#include "packets/c2s/validation.h"
 #include "packets/s2c/0x009_message.h"
 #include "party.h"
 #include "status_effect_container.h"
@@ -39,7 +42,15 @@ auto GP_CLI_COMMAND_GROUP_SOLICIT_RES::validate(MapSession* PSession, const CCha
 
 void GP_CLI_COMMAND_GROUP_SOLICIT_RES::process(MapSession* PSession, CCharEntity* PChar) const
 {
-    if (CCharEntity* PInviter = zoneutils::GetCharFromWorld(PChar->InvitePending.id, PChar->InvitePending.targid); PInviter != nullptr)
+    const auto accepted = static_cast<GP_CLI_COMMAND_GROUP_SOLICIT_RES_RES>(this->Res) == GP_CLI_COMMAND_GROUP_SOLICIT_RES_RES::Accept;
+    if (accepted && ((PChar->InvitePending.kind == PartyKind::Party && PChar->PParty != nullptr) || !monstrosity::CanParty(PChar)))
+    {
+        PChar->pushPacket<GP_SERV_COMMAND_MESSAGE>(PChar, 0, 0, MsgStd::CannotBeProcessed);
+        PChar->InvitePending.clean();
+        return;
+    }
+
+    if (CCharEntity* PInviter = zoneutils::GetCharFromWorld(PChar->InvitePending.entity.UniqueNo, PChar->InvitePending.entity.ActIndex); PInviter != nullptr)
     {
         // This switch statement only occurs when both the invitee and inviter are on the same process
         switch (static_cast<GP_CLI_COMMAND_GROUP_SOLICIT_RES_RES>(this->Res))
@@ -54,6 +65,13 @@ void GP_CLI_COMMAND_GROUP_SOLICIT_RES::process(MapSession* PSession, CCharEntity
             break;
             case GP_CLI_COMMAND_GROUP_SOLICIT_RES_RES::Accept:
             {
+                // The inviter became a Monipulator while the invite was pending.
+                if (!monstrosity::CanParty(PInviter))
+                {
+                    PChar->pushPacket<GP_SERV_COMMAND_MESSAGE>(PChar, 0, 0, MsgStd::CannotBeProcessed);
+                    break;
+                }
+
                 // check for alliance invite
                 if (PChar->PParty != nullptr && PInviter->PParty != nullptr)
                 {
@@ -62,8 +80,13 @@ void GP_CLI_COMMAND_GROUP_SOLICIT_RES::process(MapSession* PSession, CCharEntity
                     {
                         ShowDebug("%s invited %s to an alliance", PInviter->getName(), PChar->getName());
 
+                        if (PChar->PParty->HasTrusts() || PInviter->PParty->HasTrusts())
+                        {
+                            // Cannot form alliance if you have Trusts
+                            PChar->pushPacket<GP_SERV_COMMAND_MESSAGE>(PChar, 0, 0, MsgStd::TrustCannotJoinAlliance);
+                        }
                         // the inviter already has an alliance and wants to add another party - only add if they have room for another party
-                        if (PInviter->PParty->m_PAlliance)
+                        else if (PInviter->PParty->m_PAlliance)
                         {
                             // break if alliance is full or the inviter is not the leader
                             if (PInviter->PParty->m_PAlliance->isFull() || PInviter->PParty->m_PAlliance->getMainParty() != PInviter->PParty)
@@ -76,11 +99,6 @@ void GP_CLI_COMMAND_GROUP_SOLICIT_RES::process(MapSession* PSession, CCharEntity
                             // alliance is not full, add the new party
                             PInviter->PParty->m_PAlliance->addParty(PChar->PParty);
                             ShowDebug("%s party added to %s alliance", PChar->getName(), PInviter->getName());
-                        }
-                        else if (PChar->PParty->HasTrusts() || PInviter->PParty->HasTrusts())
-                        {
-                            // Cannot form alliance if you have Trusts
-                            PChar->pushPacket<GP_SERV_COMMAND_MESSAGE>(PChar, 0, 0, MsgStd::TrustCannotJoinAlliance);
                         }
                         else
                         {
@@ -135,8 +153,8 @@ void GP_CLI_COMMAND_GROUP_SOLICIT_RES::process(MapSession* PSession, CCharEntity
         message::send(ipc::PartyInviteResponse{
             .inviteeId     = PChar->id,
             .inviteeTargId = PChar->targid,
-            .inviterId     = PChar->InvitePending.id,
-            .inviterTargId = PChar->InvitePending.targid,
+            .inviterId     = PChar->InvitePending.entity.UniqueNo,
+            .inviterTargId = PChar->InvitePending.entity.ActIndex,
             .inviteAnswer  = this->Res,
         });
     }

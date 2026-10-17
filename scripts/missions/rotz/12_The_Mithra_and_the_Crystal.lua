@@ -26,9 +26,41 @@ mission.sections =
             return currentMission == mission.missionId
         end,
 
+        [xi.zone.LOWER_JEUNO] =
+        {
+            ['Aldo'] =
+            {
+                onTrigger = function(player, npc)
+                    if mission:getVar(player, 'Intro') == 0 then
+                        return mission:progressEvent(111, 0, 1, 2, 0, 0, 0, 4352, 4)
+                    else
+                        return mission:event(69, 0, 1, 2, 0, 0, 0, 4352, 4)
+                    end
+                end,
+            },
+
+            onEventFinish =
+            {
+                [111] = function(player, csid, option, npc)
+                    mission:setVar(player, 'Intro', 1)
+                end,
+            },
+        },
+
         [xi.zone.NORG] =
         {
-            ['Gilgamesh'] = mission:event(170),
+            ['_700'] = mission:event(5):replaceDefault(),
+
+            ['Gilgamesh'] =
+            {
+                onTrigger = function(player, npc)
+                    if player:hasKeyItem(xi.keyItem.CERULEAN_CRYSTAL) then
+                        return mission:event(171)
+                    else
+                        return mission:event(170)
+                    end
+                end,
+            },
         },
 
         [xi.zone.RABAO] =
@@ -70,7 +102,7 @@ mission.sections =
     -- Section: Mission Active, missionStatus == 1, does not have Scrap of Papyrus
     {
         check = function(player, currentMission, missionStatus, vars)
-            return currentMission == mission.missionId and missionStatus == 1 and not player:hasKeyItem(xi.ki.SCRAP_OF_PAPYRUS)
+            return currentMission == mission.missionId and missionStatus == 1 and not player:hasKeyItem(xi.keyItem.SCRAP_OF_PAPYRUS)
         end,
 
         [xi.zone.QUICKSAND_CAVES] =
@@ -90,6 +122,10 @@ mission.sections =
             {
                 onMobDeath = function(mob, player, optParams)
                     mission:setLocalVar(player, 'nmDefeated', 1)
+
+                    if optParams.isKiller or optParams.noKiller then
+                        mob:setLocalVar('[AncientVessel]Respawn', GetSystemTime() + 300)
+                    end
                 end,
             },
 
@@ -97,15 +133,36 @@ mission.sections =
             {
                 [12] = function(player, csid, option, npc)
                     if option == 1 then
-                        player:messageSpecial(quicksandCavesID.text.SOMETHING_ATTACKING_YOU)
+                        if player:checkDistance(npc) > 1.5 then
+                            player:messageText(npc, quicksandCavesID.text.MUST_MOVE_CLOSER, false, 6)
+                            return
+                        end
 
-                        SpawnMob(quicksandCavesID.mob.ANCIENT_VESSEL):updateClaim(player)
+                        local ancientVessel = GetMobByID(quicksandCavesID.mob.ANCIENT_VESSEL)
+                        if not ancientVessel then
+                            return
+                        end
+
+                        if ancientVessel:isSpawned() then
+                            player:messageText(npc, quicksandCavesID.text.THIS_IS_NOT_THE_TIME, false, 6)
+                        elseif GetSystemTime() < ancientVessel:getLocalVar('[AncientVessel]Respawn') then
+                            player:messageText(npc, quicksandCavesID.text.FAINT_TRACES_OF_MAGIC, false, 6)
+                        else
+                            player:messageText(npc, quicksandCavesID.text.SOMETHING_ATTACKING_YOU, false, 6)
+
+                            SpawnMob(quicksandCavesID.mob.ANCIENT_VESSEL):updateClaim(player)
+                        end
                     end
                 end,
 
                 [13] = function(player, csid, option, npc)
                     if option == 1 then
-                        npcUtil.giveKeyItem(player, xi.ki.SCRAP_OF_PAPYRUS)
+                        if player:checkDistance(npc) > 1.5 then
+                            player:messageText(npc, quicksandCavesID.text.MUST_MOVE_CLOSER, false, 6)
+                            return
+                        end
+
+                        npcUtil.giveKeyItem(player, xi.keyItem.SCRAP_OF_PAPYRUS)
                     end
                 end,
             },
@@ -116,7 +173,7 @@ mission.sections =
     {
         check = function(player, currentMission, missionStatus, vars)
             return currentMission == mission.missionId and
-                player:hasKeyItem(xi.ki.SCRAP_OF_PAPYRUS)
+                player:hasKeyItem(xi.keyItem.SCRAP_OF_PAPYRUS)
         end,
 
         [xi.zone.RABAO] =
@@ -126,8 +183,8 @@ mission.sections =
             onEventFinish =
             {
                 [83] = function(player, csid, option, npc)
-                    player:delKeyItem(xi.ki.SCRAP_OF_PAPYRUS)
-                    npcUtil.giveKeyItem(player, xi.ki.CERULEAN_CRYSTAL)
+                    player:delKeyItem(xi.keyItem.SCRAP_OF_PAPYRUS)
+                    npcUtil.giveKeyItem(player, xi.keyItem.CERULEAN_CRYSTAL)
                     player:setMissionStatus(xi.mission.log_id.ZILART, 2)
                 end,
             },
@@ -149,7 +206,7 @@ mission.sections =
     -- Section: Mission Active, has Cerulean Crystal
     {
         check = function(player, currentMission, missionStatus, vars)
-            return currentMission == mission.missionId and player:hasKeyItem(xi.ki.CERULEAN_CRYSTAL)
+            return currentMission == mission.missionId and player:hasKeyItem(xi.keyItem.CERULEAN_CRYSTAL)
         end,
 
         [xi.zone.HALL_OF_THE_GODS] =
@@ -170,12 +227,19 @@ mission.sections =
     {
         check = function(player, currentMission, missionStatus, vars)
             return player:hasCompletedMission(mission.areaId, mission.missionId) or
-                player:hasKeyItem(xi.ki.SCRAP_OF_PAPYRUS)
+                player:hasKeyItem(xi.keyItem.SCRAP_OF_PAPYRUS)
         end,
 
         [xi.zone.QUICKSAND_CAVES] =
         {
-            ['qm7'] = mission:messageSpecial(quicksandCavesID.text.YOU_FIND_NOTHING),
+            ['qm7'] =
+            {
+                onTrigger = function(player, npc)
+                    player:messageText(npc, quicksandCavesID.text.YOU_FIND_NOTHING, false, 6)
+
+                    return mission:noAction()
+                end,
+            },
         },
     },
 

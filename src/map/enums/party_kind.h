@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2025 LandSandBoat Dev Teams
@@ -20,6 +20,8 @@
 */
 
 #pragma once
+
+#include <cstdint>
 
 enum class PartyKind : uint8_t
 {

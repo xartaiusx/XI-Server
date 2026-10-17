@@ -25,6 +25,7 @@
 #include "entities/char_entity.h"
 #include "enums/item_lockflg.h"
 #include "items/item_furnishing.h"
+#include "packets/c2s/validation.h"
 #include "packets/s2c/0x01d_item_same.h"
 #include "packets/s2c/0x01f_item_list.h"
 #include "packets/s2c/0x020_item_attr.h"
@@ -79,7 +80,7 @@ auto GP_CLI_COMMAND_SUBCONTAINER::validate(MapSession* PSession, const CCharEnti
 void GP_CLI_COMMAND_SUBCONTAINER::process(MapSession* PSession, CCharEntity* PChar) const
 {
     auto* PItem = PChar->getStorage(this->Category1)->GetItem(this->ItemIndex1);
-    if (PItem == nullptr)
+    if (PItem == nullptr || !PItem->isMannequin())
     {
         ShowWarning("GP_CLI_COMMAND_SUBCONTAINER: Unable to load mannequin from slot %u in location %u by %s", this->ItemIndex1, this->Category1, PChar->getName());
         return;
@@ -88,7 +89,7 @@ void GP_CLI_COMMAND_SUBCONTAINER::process(MapSession* PSession, CCharEntity* PCh
     auto* PFurnishing = static_cast<CItemFurnishing*>(PItem);
     auto& mannequin   = PFurnishing->exdata<Exdata::Mannequin>();
 
-    const auto getEquipSlot = [&mannequin](uint8 index) -> uint8&
+    const auto getEquipSlot = [&mannequin](const uint8 index) -> uint8&
     {
         switch (index)
         {

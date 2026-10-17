@@ -5,13 +5,7 @@
 -----------------------------------
 require('modules/module_utils')
 -----------------------------------
-local moduleName = 'era_skillchain'
-
-if xi.module.isContentEnabled('SOA') then
-    return { name = moduleName }
-end
-
-local m = Module:new(moduleName)
+local m = Module:new('era_skillchain', xi.pre(xi.expansion.SOA))
 
 local chainMultipliers =
 {
@@ -88,7 +82,7 @@ m:addOverride('xi.combat.skillchain.calculateSkillchainDamage', function(actor, 
     local dayWeatherMultiplier = xi.spells.damage.calculateDayAndWeather(actor, skillchainElement, false)
     local staffMultiplier      = xi.spells.damage.calculateElementalStaffBonus(actor, skillchainElement)
     local affinityMultiplier   = xi.spells.damage.calculateElementalAffinityBonus(actor, skillchainElement)
-    local resistRate           = xi.combat.magicHitRate.calculateResistRate(actor, target, 0, 0, xi.skillRank.A_PLUS, skillchainElement, 0, 0, 0)
+    local resistRate           = xi.combat.magicHitRate.calculateResistRate(actor, target, { magicalElement = skillchainElement, skillRank = xi.skillRank.A_PLUS })
     local magicTakenMultiplier = xi.combat.damage.calculateDamageAdjustment(target, false, true, false, false)
 
     -- Unconfirmed order.
@@ -128,5 +122,3 @@ m:addOverride('xi.combat.skillchain.calculateSkillchainDamage', function(actor, 
 
     return finalDamage
 end)
-
-return m

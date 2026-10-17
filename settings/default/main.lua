@@ -86,12 +86,8 @@ xi.settings.main =
     -- Moblin Maze Mongers
     ENABLE_MMM = 0,
 
-    -- Monstrosity (Heavily in development, use at your own risk!)
-    ENABLE_MONSTROSITY               = 0,
-    MONSTROSITY_TELEPORT_TO_FERETORY = 0,   -- Return to Feretory instead of the zone where you entered Feretory when Relinquishing or after death.
-    MONSTROSITY_TRIGGER_NPCS         = 0,   -- Allow Monipulators to trigger NPCs outside of the Feretory.
-    MONSTROSITY_DONT_WIPE_BUFFS      = 0,   -- If set, buffs won't be wiped when changing species in the Feretory.
-    MONSTROSITY_PVP_ZONE_BYPASS = 0, -- Show the full zone teleport menu from Feretory while Belligerency is flagged.
+    -- Monstrosity
+    ENABLE_MONSTROSITY = 1,
 
     -- TREASURE CASKETS
     -- Retail droprate = 0.1 (10%) with no other effects active
@@ -110,17 +106,18 @@ xi.settings.main =
     ABYSSEA_BONUSLIGHT_AMOUNT = 0,
 
     -- CHARACTER CONFIG
-    INITIAL_LEVEL_CAP              = 50, -- The initial level cap for new players.  There seems to be a hardcap of 255.
-    MAX_LEVEL                      = 99, -- Level max of the server, lowers the attainable cap by disabling Limit Break quests.
-    NORMAL_MOB_MAX_LEVEL_RANGE_MIN = 0,  -- Lower Bound of Max Level Range for Normal Mobs (0 = Uncapped)
-    NORMAL_MOB_MAX_LEVEL_RANGE_MAX = 0,  -- Upper Bound of Max Level Range for Normal Mobs (0 = Uncapped)
-    START_GIL                      = 10, -- Amount of gil given to newly created characters.
-    START_INVENTORY                = 30, -- Starting inventory and satchel size.  Ignores values < 30.  Do not set above 80!
-    NEW_CHARACTER_CUTSCENE         = 1,  -- Set to 1 to enable opening cutscenes, 0 to disable.
-    SUBJOB_QUEST_LEVEL             = 18, -- Minimum level to accept either subjob quest.  Set to 0 to start the game with subjobs unlocked.
-    ADVANCED_JOB_LEVEL             = 30, -- Minimum level to accept advanced job quests.  Set to 0 to start the game with advanced jobs.
-    ALL_MAPS                       = 0,  -- Set to 1 to give starting characters all the maps.
-    UNLOCK_OUTPOST_WARPS           = 0,  -- Set to 1 to give starting characters all outpost warps.  2 to add Tu'Lia and Tavnazia.
+    INITIAL_LEVEL_CAP              = 50,  -- The initial level cap for new players.  There seems to be a hardcap of 255.
+    MAX_LEVEL                      = 99,  -- Level max of the server, lowers the attainable cap by disabling Limit Break quests.
+    NORMAL_MOB_MAX_LEVEL_RANGE_MIN = 0,   -- Lower Bound of Max Level Range for Normal Mobs (0 = Uncapped)
+    NORMAL_MOB_MAX_LEVEL_RANGE_MAX = 0,   -- Upper Bound of Max Level Range for Normal Mobs (0 = Uncapped)
+    START_GIL                      = 10,  -- Amount of gil given to newly created characters.
+    START_INVENTORY                = 30,  -- Starting inventory and satchel size.  Ignores values < 30.  Do not set above 80!
+    NEW_CHARACTER_CUTSCENE         = 1,   -- Set to 1 to enable opening cutscenes, 0 to disable.
+    NEW_ADVENTURER_PLAYTIME_LIMIT  = 240, -- Hours played before the New Adventurer icon is removed. 240 for retail, 10 for pre-TVR.
+    SUBJOB_QUEST_LEVEL             = 18,  -- Minimum level to accept either subjob quest.  Set to 0 to start the game with subjobs unlocked.
+    ADVANCED_JOB_LEVEL             = 30,  -- Minimum level to accept advanced job quests.  Set to 0 to start the game with advanced jobs.
+    ALL_MAPS                       = 0,   -- Set to 1 to give starting characters all the maps.
+    UNLOCK_OUTPOST_WARPS           = 0,   -- Set to 1 to give starting characters all outpost warps.  2 to add Tu'Lia and Tavnazia.
 
     SHOP_PRICE          = 1.000, -- Multiplies prices in NPC shops.
     GIL_RATE            = 1.000, -- Multiplies gil earned from quests.  Won't always display in game.
@@ -140,6 +137,10 @@ xi.settings.main =
     ITEM_POWER          = 1.000, -- Multiplies the effect of items such as Potions and Ethers.
     WEAPON_SKILL_POWER  = 1.000, -- Multiplies damage dealt by Weapon Skills.
     DELAY_REDUCTION_CAP = 0.80,  -- Set the cap for melee swing haste effect. (0.80 = 80% retail delay reduction max, 0.93 = 93% ToAU delay reduction max)
+
+    -- When true, use 8 + Blue magic skill + STR*ONE_HAND_MAIN_HAND_STR_ATTACK_MULTIPLIER for base attack (before blue magic merits) instead of current retail's "fetch main hand weapon attack" style
+    -- see xi.spells.blue.getBlueMagicBaseAttack
+    BLUE_SKILL_IS_BLUE_ATTACK = false,
 
     -- STR:ATT/RATT ratios. For players only. Mobs are hardcoded to 0.5
     TWO_HANDED_STR_ATTACK_MULTIPLIER         = 1.0,  -- 1.0: 1 STR = 1 Attack. This has been 0.5 and 0.75 in previous eras
@@ -164,7 +165,6 @@ xi.settings.main =
     RANGED_ATTACK_FREE_PHASE_DELAY = 500,
 
     USE_ADOULIN_WEAPON_SKILL_CHANGES = true,  -- true/false. Change to toggle new Adoulin weapon skill damage calculations
-    DISABLE_PARTY_EXP_PENALTY        = false, -- true/false.
     ENABLE_IMMUNOBREAK               = true,  -- true/false. Allow/Disallow immunobreaks to happen.
     ENABLE_SMN_MAGIC_CAST_TIME_MERIT = true,  -- true/false. If false, the Summoning Magic Casting Time merit has no effect on cast time (pre-2012 behavior).
 
@@ -218,14 +218,6 @@ xi.settings.main =
         '[Trust] The Alter Ego Expo Campaign is active!\n' ..
         'Trusts gain the benefits of Increased HP, MP, and Status Resistances!',
 
-    HARVESTING_BREAK_CHANCE = 33,    -- % chance for the sickle to break during harvesting.  Set between 0 and 100.
-    EXCAVATION_BREAK_CHANCE = 33,    -- % chance for the pickaxe to break during excavation.  Set between 0 and 100.
-    LOGGING_BREAK_CHANCE    = 33,    -- % chance for the hatchet to break during logging.  Set between 0 and 100.
-    MINING_BREAK_CHANCE     = 33,    -- % chance for the pickaxe to break during mining.  Set between 0 and 100.
-    HARVESTING_RATE         = 50,    -- % chance to recieve an item from haresting.  Set between 0 and 100.
-    EXCAVATION_RATE         = 50,    -- % chance to recieve an item from excavation.  Set between 0 and 100.
-    LOGGING_RATE            = 50,    -- % chance to recieve an item from logging.  Set between 0 and 100.
-    MINING_RATE             = 50,    -- % chance to recieve an item from mining.  Set between 0 and 100.
     ENABLE_HELM_WAIT        = false, -- Enforces a 3 second wait between HELM gathering attempts.
 
     HEALING_TP_CHANGE       = -100, -- Change in TP for each healing tick. Default is -100
@@ -233,17 +225,14 @@ xi.settings.main =
     -- SE implemented coffer/chest illusion time in order to prevent coffer farming. No-one in the same area can open a chest or coffer for loot (gil, gems & items)
     -- till a random time between MIN_ILLSION_TIME and MAX_ILLUSION_TIME. During this time players can loot keyitem and item related to quests (AF, maps... etc.)
     COFFER_MAX_ILLUSION_TIME = 3600,  -- 1 hour
-    COFFER_MIN_ILLUSION_TIME = 1800,  -- 30 minutes
+    COFFER_MIN_ILLUSION_TIME =  900,  -- 15 minutes
     CHEST_MAX_ILLUSION_TIME  = 3600,  -- 1 hour
-    CHEST_MIN_ILLUSION_TIME  = 1800,  -- 30 minutes
+    CHEST_MIN_ILLUSION_TIME  =  900,  -- 15 minutes
 
     -- Multiplier to NM lottery spawn chance. (Default 1.0) eg. 0 = disable lottery spawns. -1 for always 100% chance.
     NM_LOTTERY_CHANCE = 1.0,
     -- Multiplier to NM lottery cooldown time (Default 1.0) eg. 2.0 = twice as long. 0 = no cooldowns.
     NM_LOTTERY_COOLDOWN = 1.0,
-
-    -- CONQUEST SETTINGS
-    CONQUEST_INFLUENCE_CAP = 250000, -- Combined influence pool per region shared across the 4 nations. Ceiling is 20 million.
 
     -- GARRISON SETTINGS
     ENABLE_GARRISON        = true,  -- If true, enables garrison functionality
@@ -338,15 +327,13 @@ xi.settings.main =
     ENABLE_VIGIL_DROPS   = true,  -- Enable Vigil Weapon drops from NMs.
     ACTIVATE_LAMP_TIME   = 6000,  -- Time in miliseconds for lamps to stay lit. TODO: Get retail confirmation.
 
-    -- CHOCOBO RAISING (HEAVILY-IN-DEVELOPMENT, USE AT YOUR OWN RISK)
-    -- GM command: `!chocoboraising`
-    ENABLE_CHOCOBO_RAISING              = false, -- true/false. Enable Chocobo Raising features.
-    DEBUG_CHOCOBO_RAISING               = false, -- true/false. Enable verbose debug logging for Chocobo Raising (visible by players).
-    CHOCOBO_RAISING_STAT_POS_MULTIPLIER = 1.0,   -- float. Multiplier for positive stat changes. Default 1.0.
-    CHOCOBO_RAISING_STAT_NEG_MULTIPLIER = 1.0,   -- float. Multiplier for negative stat changes. Default 1.0.
-    CHOCOBO_RAISING_GIL_MULTIPLIER      = 1.0,   -- float. Multiplier for gil recieved through chocobo actions (care plans, etc.). Default 1.0.
-    CHOCOBO_RAISING_DISABLE_RETIREMENT  = false, -- true/false.
-    CHOCOBO_RAISING_STAT_GROWTH_CAP     = 512,   -- int.
+    -- CHOCOBO RAISING
+    -- GMs open the developer debug menu on the chocobo next to each VCS trainer.
+    ENABLE_CHOCOBO_RAISING = true,  -- true/false. Enable Chocobo Raising features.
+    DEBUG_CHOCOBO_RAISING  = false, -- true/false. Enable verbose debug logging for Chocobo Raising (visible by players).
+
+    -- CHOCOBO RACING
+    ENABLE_CHOCOBO_RACING = true, -- true/false. Enable Chocobo Racing features.
 
     -- SYNERGY (HEAVILY-IN-DEVELOPMENT, USE AT YOUR OWN RISK)
     ENABLE_SYNERGY = false, -- true/false. Enable Synergy features.
@@ -360,8 +347,6 @@ xi.settings.main =
     NUMBER_OF_DM_EARRINGS        = 1,     -- Number of earrings players can simultaneously own from Divine Might before scripts start blocking them (Default: 1)
     HOMEPOINT_TELEPORT           = 1,     -- Enables the homepoint teleport system
     DIG_FATIGUE                  = 100,   -- Allowed succesful digs per day. Set to 0 to disable Dig Fatigue
-    DIG_GRANT_BURROW             = 0,     -- Set to 1 to grant burrow ability
-    DIG_GRANT_BORE               = 0,     -- Set to 1 to grant bore ability
     ENM_COOLDOWN                 = 120,   -- Number of hours before a player can obtain same KI for ENMs (default: 5 days)
     FORCE_SPAWN_QM_RESET_TIME    = 300,   -- Number of seconds the ??? remains hidden for after the despawning of the mob it force spawns.
     EQUIP_FROM_OTHER_CONTAINERS  = false, -- true/false. Allows equipping items from Mog Satchel, Sack, and Case. Only possible with the use of client addons.

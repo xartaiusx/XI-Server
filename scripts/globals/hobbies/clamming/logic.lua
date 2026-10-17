@@ -7,6 +7,8 @@ xi.clamming = xi.clamming or {}
 local ID = zones[xi.zone.BIBIKI_BAY]
 -----------------------------------
 local function giveClammedItems(player)
+    player:setCharVar('[Clam]OweItems', 0)
+
     for itemId, _ in pairs(xi.clamming.itemData) do
         local varName    = xi.clamming.itemData[itemId][2]
         local itemAmount = player:getCharVar(varName)
@@ -46,20 +48,39 @@ end
 
 -- Leaving Bibiki Bay for another zone drops the clamming kit and its bucket contents.
 xi.clamming.removeKit = function(player)
-    if not player:hasKeyItem(xi.ki.CLAMMING_KIT) then
+    if not player:hasKeyItem(xi.keyItem.CLAMMING_KIT) then
         return
     end
 
-    player:delKeyItem(xi.ki.CLAMMING_KIT)
+    player:delKeyItem(xi.keyItem.CLAMMING_KIT)
     resetVariables(player)
-    player:messageSpecial(ID.text.YOU_DROPPED_THE, xi.ki.CLAMMING_KIT)
+    player:messageSpecial(ID.text.YOU_DROPPED_THE, xi.keyItem.CLAMMING_KIT)
+end
+
+-- High tide while the moon waxes, low tide while it wanes.
+local highTidePhases =
+set{
+    xi.moonCycle.NEW_MOON,
+    xi.moonCycle.LESSER_WAXING_CRESCENT,
+    xi.moonCycle.GREATER_WAXING_CRESCENT,
+    xi.moonCycle.FIRST_QUARTER,
+    xi.moonCycle.LESSER_WAXING_GIBBOUS,
+    xi.moonCycle.GREATER_WAXING_GIBBOUS,
+}
+
+local function getTideColumn()
+    if highTidePhases[getVanadielMoonCycle()] then
+        return 3
+    end
+
+    return 2
 end
 
 -----------------------------------
 -- Clamming Point public functions.
 -----------------------------------
 xi.clamming.nodeOnTrigger = function(player, npc)
-    if not player:hasKeyItem(xi.ki.CLAMMING_KIT) then
+    if not player:hasKeyItem(xi.keyItem.CLAMMING_KIT) then
         player:messageSpecial(ID.text.AREA_IS_LITTERED)
         return
     end
@@ -79,7 +100,7 @@ xi.clamming.nodeOnEventUpdate = function(player, csid, option, npc)
     end
 
     -- Early return: No Clamming Kit.
-    if not player:hasKeyItem(xi.ki.CLAMMING_KIT) then
+    if not player:hasKeyItem(xi.keyItem.CLAMMING_KIT) then
         return
     end
 
@@ -93,8 +114,8 @@ xi.clamming.nodeOnEventUpdate = function(player, csid, option, npc)
     -- Check "Incidents"
     local kitSize        = player:getCharVar('[Clam]KitSize')
     local kitWeight      = player:getCharVar('[Clam]KitWeight')
-    -- 37% measured no-gear. Gear value set weak on purpose until a capture is provided.
-    local incidentChance = player:getMod(xi.mod.CLAMMING_REDUCED_INCIDENTS) > 0 and 36 or 37
+    -- 37% base, reduced to 32% by the swimsuit body piece.
+    local incidentChance = player:getMod(xi.mod.CLAMMING_REDUCED_INCIDENTS) > 0 and 32 or 37
     if
         kitSize == 200 and
         math.randomInt(1, 100) <= incidentChance
@@ -109,18 +130,18 @@ xi.clamming.nodeOnEventUpdate = function(player, csid, option, npc)
         return
     end
 
-    -- Roll a clammed item from the current capacity weighted table.
-    -- TODO: "Improved results" gear effect unverified
-    local lootList = xi.clamming.lootTable[kitSize]
-    local rateSum  = 0
+    -- Roll a clammed item from the current tide and capacity weighted table.
+    local lootList   = xi.clamming.lootTable[kitSize]
+    local rateColumn = getTideColumn()
+    local rateSum    = 0
     for i = 1, #lootList do
-        rateSum = rateSum + lootList[i][2]
+        rateSum = rateSum + lootList[i][rateColumn]
     end
 
     local itemId     = lootList[#lootList][1]
     local randomRoll = math.randomInt(1, rateSum)
     for i = 1, #lootList do
-        randomRoll = randomRoll - lootList[i][2]
+        randomRoll = randomRoll - lootList[i][rateColumn]
         if randomRoll <= 0 then
             itemId = lootList[i][1]
             break
@@ -144,8 +165,10 @@ xi.clamming.nodeOnEventUpdate = function(player, csid, option, npc)
     end
 
     -- Update delay and weight, no matter the result.
+    -- 16s base dig cooldown, reduced to 10s by the swimsuit legs piece.
+    local digDelay = player:getMod(xi.mod.CLAMMING_IMPROVED_RESULTS) > 0 and 10 or 16
     player:setCharVar('[Clam]KitWeight', kitWeight + itemWeight)
-    player:setLocalVar('[Clam]Delay' .. npc:getName(), GetSystemTime() + 16)
+    player:setLocalVar('[Clam]Delay' .. npc:getName(), GetSystemTime() + digDelay)
 end
 
 xi.clamming.nodeOnEventFinish = function(player, csid, option, npc)
@@ -156,7 +179,7 @@ end
 -----------------------------------
 xi.clamming.zonikkiOnTrigger = function(player, npc)
     -- Clamming started.
-    if player:hasKeyItem(xi.ki.CLAMMING_KIT) then
+    if player:hasKeyItem(xi.keyItem.CLAMMING_KIT) then
         -- Bucket is broken.
         if player:getCharVar('[Clam]KitBroken') ~= 0 then
             player:startEvent(30, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -184,7 +207,7 @@ xi.clamming.zonikkiOnEventUpdate = function(player, csid, option, npc)
     -- Start Clamming.
     if csid == 28 then
         local enoughMoney = player:getGil() >= 500 and 1 or 2
-        player:updateEvent(xi.ki.CLAMMING_KIT, enoughMoney, 0, 0, 0, 500, 0, 0)
+        player:updateEvent(xi.keyItem.CLAMMING_KIT, enoughMoney, 0, 0, 0, 500, 0, 0)
 
     -- Give items or upgrade kit.
     elseif csid == 29 then
@@ -205,14 +228,14 @@ xi.clamming.zonikkiOnEventFinish = function(player, csid, option, npc)
         resetVariables(player) -- Ensure default state.
         player:setCharVar('[Clam]KitSize', 50)
         player:delGil(500)
-        npcUtil.giveKeyItem(player, xi.ki.CLAMMING_KIT)
+        npcUtil.giveKeyItem(player, xi.keyItem.CLAMMING_KIT)
 
     -- Give player clammed items.
     elseif csid == 29 and option == 2 then
         player:setCharVar('[Clam]KitSize', 0)
         player:setCharVar('[Clam]KitWeight', 0)
-        player:delKeyItem(xi.ki.CLAMMING_KIT)
-        player:messageSpecial(ID.text.YOU_RETURN_THE, xi.ki.CLAMMING_KIT)
+        player:delKeyItem(xi.keyItem.CLAMMING_KIT)
+        player:messageSpecial(ID.text.YOU_RETURN_THE, xi.keyItem.CLAMMING_KIT)
         giveClammedItems(player)
 
     -- Get bigger kit.
@@ -239,7 +262,7 @@ xi.clamming.zonikkiOnEventFinish = function(player, csid, option, npc)
     -- Broken bucket.
     elseif csid == 30 then
         resetVariables(player)
-        player:delKeyItem(xi.ki.CLAMMING_KIT)
-        player:messageSpecial(ID.text.YOU_RETURN_THE, xi.ki.CLAMMING_KIT)
+        player:delKeyItem(xi.keyItem.CLAMMING_KIT)
+        player:messageSpecial(ID.text.YOU_RETURN_THE, xi.keyItem.CLAMMING_KIT)
     end
 end

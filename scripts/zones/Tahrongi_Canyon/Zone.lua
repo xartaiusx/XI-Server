@@ -9,7 +9,7 @@ local zoneObject = {}
 
 zoneObject.onInitialize = function(zone)
     xi.helm.initZone(zone, xi.helmType.EXCAVATION)
-    xi.chocobo.initZone(zone)
+    xi.rentalChocobo.initZone(zone)
     xi.voidwalker.zoneOnInit(zone)
 end
 
@@ -71,6 +71,10 @@ zoneObject.onZoneWeatherChange = function(weather)
             SpawnMob(ID.mob.HABROK)
         end
     end
+end
+
+zoneObject.onZoneOut = function(player)
+    xi.helm.onZoneOut(player)
 end
 
 return zoneObject

@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -22,6 +22,7 @@
 #include "attackround.h"
 #include "data/enums/mob_mod.h"
 #include "items/item_weapon.h"
+#include "items/transactions/item_claim.h"
 #include "packets/s2c/0x01d_item_same.h"
 #include "status_effect_container.h"
 
@@ -41,7 +42,7 @@ CAttackRound::CAttackRound(CBattleEntity* attacker, CBattleEntity* defender)
     m_taEntity = battleutils::getAvailableTrickAttackChar(attacker, attacker->GetBattleTarget());
 
     // Get cover partner
-    if (attacker->GetBattleTarget()->objtype == TYPE_PC)
+    if (dynamic_cast<const CCharEntity*>(attacker->GetBattleTarget()) != nullptr)
     {
         m_coverAbilityUserEntity = battleutils::GetCoverAbilityUser(attacker->GetBattleTarget(), attacker);
     }
@@ -240,7 +241,8 @@ void CAttackRound::CreateAttacks(CItemWeapon* PWeapon, PHYSICAL_ATTACK_DIRECTION
 
     uint8 num = 1;
 
-    bool isPC = m_attacker->objtype == TYPE_PC;
+    auto*      PChar = dynamic_cast<CCharEntity*>(m_attacker);
+    const bool isPC  = PChar != nullptr;
 
     // Checking the players weapon hit count
     if (PWeapon->getReqLvl() <= m_attacker->GetMLevel())
@@ -251,7 +253,7 @@ void CAttackRound::CreateAttacks(CItemWeapon* PWeapon, PHYSICAL_ATTACK_DIRECTION
     // Existance of "Occasionally attacks X times" overwrites PWeapon hit count
     if (isPC && m_attacker->getMod(xi::Mod::MAX_SWINGS))
     {
-        auto modSwings = std::min<uint8>((uint8) static_cast<CCharEntity*>(m_attacker)->getMod(xi::Mod::MAX_SWINGS), 8);
+        auto modSwings = std::min<uint8>((uint8)PChar->getMod(xi::Mod::MAX_SWINGS), 8);
         num            = battleutils::getHitCount(modSwings);
     }
 
@@ -280,24 +282,22 @@ void CAttackRound::CreateAttacks(CItemWeapon* PWeapon, PHYSICAL_ATTACK_DIRECTION
     // Checking for merit upgrades
     if (isPC)
     {
-        CCharEntity* PChar = (CCharEntity*)m_attacker;
-
         // Merit chance only applies if player has the job trait
         if (charutils::hasTrait(PChar, TRAIT_TRIPLE_ATTACK))
         {
-            tripleAttack += PChar->PMeritPoints->GetMeritValue(MERIT_TRIPLE_ATTACK_RATE, PChar);
+            tripleAttack += PChar->PMeritPoints->GetMeritValue(xi::Merit::TripleAttackRate, PChar);
         }
 
         // Ambush Augment adds +1% Triple Attack per merit (need to satisfy conditions for Ambush)
         if (charutils::hasTrait(PChar, TRAIT_AMBUSH) && PChar->getMod(xi::Mod::AUGMENTS_AMBUSH) > 0 &&
             abs(m_defender->loc.p.rotation - m_attacker->loc.p.rotation) < 23)
         {
-            tripleAttack += PChar->PMeritPoints->GetMerit(MERIT_AMBUSH)->count;
+            tripleAttack += PChar->PMeritPoints->GetMerit(xi::Merit::Ambush)->count;
         }
 
         if (charutils::hasTrait(PChar, TRAIT_DOUBLE_ATTACK))
         {
-            doubleAttack += PChar->PMeritPoints->GetMeritValue(MERIT_DOUBLE_ATTACK_RATE, PChar);
+            doubleAttack += PChar->PMeritPoints->GetMeritValue(xi::Merit::DoubleAttackRate, PChar);
         }
         // TODO: Quadruple attack merits when SE release them.
 
@@ -443,11 +443,16 @@ void CAttackRound::ProcFollowUpAttacks()
                                 if (PAmmo->getQuantity() == 1)
                                 {
                                     charutils::UnequipItem(PChar, SLOT_AMMO);
-                                    PChar->RequestPersist(CHAR_PERSIST::EQUIP);
                                 }
 
-                                charutils::UpdateItem(PChar, loc, slot, -1);
-                                PChar->pushPacket<GP_SERV_COMMAND_ITEM_SAME>(PChar);
+                                if (auto transaction = ItemClaimTransaction::start(PChar); !transaction || !transaction->take(loc, slot, 1) || !transaction->commit())
+                                {
+                                    ShowErrorFmt("attackround: {} fired without spending ammo in slot {}", PChar->getName(), slot);
+                                }
+                                else
+                                {
+                                    PChar->pushPacket<GP_SERV_COMMAND_ITEM_SAME>(PChar);
+                                }
                             }
                         }
                     }
@@ -499,9 +504,9 @@ void CAttackRound::CreateKickAttacks()
         // kick attack mod (All jobs)
         uint16 kickAttack = m_attacker->getMod(xi::Mod::KICK_ATTACK_RATE);
 
-        if (m_attacker->GetMJob() == xi::Job::MNK && m_attacker->objtype == TYPE_PC) // MNK (Main job)
+        if (auto* PChar = dynamic_cast<CCharEntity*>(m_attacker); m_attacker->GetMJob() == xi::Job::MNK && PChar) // MNK (Main job)
         {
-            kickAttack += ((CCharEntity*)m_attacker)->PMeritPoints->GetMeritValue(MERIT_KICK_ATTACK_RATE, (CCharEntity*)m_attacker);
+            kickAttack += PChar->PMeritPoints->GetMeritValue(xi::Merit::KickAttackRate, PChar);
         }
 
         kickAttack = std::clamp<uint16>(kickAttack, 0, 100);
@@ -527,7 +532,7 @@ void CAttackRound::CreateKickAttacks()
  ************************************************************************/
 void CAttackRound::CreateDakenAttack()
 {
-    if (m_attacker->objtype == TYPE_PC)
+    if (dynamic_cast<const CCharEntity*>(m_attacker) != nullptr)
     {
         auto* PAmmo = static_cast<CItemWeapon*>(m_attacker->m_Weapons[SLOT_AMMO]);
         if (PAmmo && PAmmo->isShuriken())

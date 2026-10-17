@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -28,8 +28,8 @@
 #include "utils/charutils.h"
 #include "utils/zoneutils.h"
 
-CZoneInstance::CZoneInstance(Scheduler& scheduler, MapConfig config, ZONEID ZoneID, REGION_TYPE RegionID, CONTINENT_TYPE ContinentID, uint8 levelRestriction)
-: CZone(scheduler, config, ZoneID, RegionID, ContinentID, levelRestriction)
+CZoneInstance::CZoneInstance(Scheduler& scheduler, MapConfig config, xi::ZoneId ZoneID, REGION_TYPE RegionID, CONTINENT_TYPE ContinentID, uint8 levelRestriction, const std::optional<xi::data::ZoneSettings>& settings)
+: CZone(scheduler, config, ZoneID, RegionID, ContinentID, levelRestriction, settings)
 {
     TracyZoneScoped;
 }
@@ -148,13 +148,23 @@ void CZoneInstance::FindPartyForMob(CBaseEntity* PEntity)
     }
 }
 
-void CZoneInstance::TransportDepart(uint16 boundary, uint16 prevZoneId, uint16 transportId)
+void CZoneInstance::TransportDepart(uint16 boundary, xi::ZoneId prevZoneId, std::string_view transport)
 {
     TracyZoneScoped;
 
     for (const auto& PInstance : m_InstanceList)
     {
-        PInstance->TransportDepart(boundary, prevZoneId, transportId);
+        PInstance->TransportDepart(boundary, prevZoneId, transport);
+    }
+}
+
+void CZoneInstance::DisembarkAll()
+{
+    TracyZoneScoped;
+
+    for (const auto& PInstance : m_InstanceList)
+    {
+        PInstance->DisembarkAll();
     }
 }
 
@@ -249,7 +259,7 @@ void CZoneInstance::IncreaseZoneCounter(CCharEntity* PChar)
                         .c_str());
 
         // instance no longer exists: put them outside (at exit)
-        uint16 zoneid = luautils::OnInstanceLoadFailed(this);
+        auto zoneid = luautils::OnInstanceLoadFailed(this);
 
         CZone* PZone = zoneutils::GetZone(zoneid);
         // At this stage, can only send the player to a zone on this map server
@@ -268,10 +278,7 @@ void CZoneInstance::IncreaseZoneCounter(CCharEntity* PChar)
             zoneutils::GetZone(zoneid)->IncreaseZoneCounter(PChar);
         }
 
-        // They are properly sent to zone, but bypassed the onZoneIn position fixup, do that now
-        PChar->loc.prevzone    = GetID();
-        PChar->loc.destination = zoneid;
-        luautils::OnZoneIn(PChar);
+        PChar->loc.prevzone = GetID();
         charutils::SaveCharPosition(PChar);
     }
 }
@@ -398,7 +405,7 @@ void CZoneInstance::WideScan(CCharEntity* PChar, uint16 radius)
 
 auto CZoneInstance::ZoneServer(timer::time_point tick) -> Task<void>
 {
-    TracyZoneScoped;
+    TracyZoneScopedN("CZoneInstance::ZoneServer");
 
     std::vector<CInstance*> instancesToRemove;
     for (const auto& PInstance : m_InstanceList)
@@ -419,9 +426,8 @@ auto CZoneInstance::ZoneServer(timer::time_point tick) -> Task<void>
         instancesByRun_.erase(PInstance->runId());
 
         m_InstanceList.erase(
-            std::find_if(
-                m_InstanceList.begin(),
-                m_InstanceList.end(),
+            std::ranges::find_if(
+                m_InstanceList,
                 [&PInstance](const auto& el)
                 {
                     return el.get() == PInstance;

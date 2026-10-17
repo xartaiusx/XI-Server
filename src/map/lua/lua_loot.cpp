@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2022-2022 LandSandBoat
@@ -20,6 +20,7 @@
 */
 
 #include "lua_loot.h"
+#include "luautils.h"
 
 // Converts known TH rarity rates to their respective percentages
 // Once the new TH logic has been applied to mobentity.cpp then this can be removed

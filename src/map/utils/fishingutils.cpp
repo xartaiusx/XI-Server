@@ -47,14 +47,19 @@
 
 #include "battleutils.h"
 #include "charutils.h"
+#include "data/enums/detects.h"
+#include "data/enums/key_item.h"
 #include "data/enums/mob_mod.h"
 #include "data/enums/weather.h"
 #include "enums/chat_message_type.h"
 #include "enums/four_cc.h"
-#include "enums/key_items.h"
+#include "enums/msg_basic.h"
 #include "enums/msg_std.h"
 #include "item_container.h"
+#include "items/exdata/fish.h"
+#include "items/transactions/item_claim.h"
 #include "itemutils.h"
+#include "lua/luautils.h"
 #include "packets/c2s/0x110_fishing_2.h"
 #include "packets/s2c/0x029_battle_message.h"
 #include "status_effect_container.h"
@@ -63,44 +68,68 @@
 namespace fishingutils
 {
 
-uint16                                            MessageOffset[MAX_ZONEID];
-fishing_area_pool                                 FishingPools[MAX_ZONEID];
-std::map<uint32, fish_t*>                         FishList;
-std::map<uint16, std::vector<uint32>>             ChestList;
-std::map<uint16, rod_t*>                          FishingRods;
-std::map<uint16, bait_t*>                         FishingBaits;
-std::map<uint16, std::map<uint32, fishmob_t*>>    FishZoneMobList;       // zoneid, mobid, mob
-std::map<uint16, std::map<uint8, fishingarea_t*>> FishingAreaList;       // zoneid, areaid, area
-std::map<uint16, std::map<uint8, uint16>>         FishingCatchLists;     // zoneid, areaid, groupid
-std::map<uint16, std::map<uint32, uint16>>        FishingGroups;         // groupid, fishid, rarity
-std::map<uint16, std::map<uint32, uint8>>         FishingBaitAffinities; // baitid, fishid, power
+std::map<xi::ZoneId, uint16>                          MessageOffset;
+std::map<xi::ZoneId, fishing_area_pool>               FishingPools;
+std::map<uint32, fish_t*>                             FishList;
+std::map<xi::ZoneId, std::vector<uint32>>             ChestList;
+std::map<uint16, rod_t*>                              FishingRods;
+std::map<uint16, bait_t*>                             FishingBaits;
+std::map<xi::ZoneId, std::map<uint32, fishmob_t*>>    FishZoneMobList;       // zoneid, mobid, mob
+std::map<xi::ZoneId, std::map<uint8, fishingarea_t*>> FishingAreaList;       // zoneid, areaid, area
+std::map<xi::ZoneId, std::map<uint8, uint16>>         FishingCatchLists;     // zoneid, areaid, groupid
+std::map<uint16, std::map<uint32, uint16>>            FishingGroups;         // groupid, fishid, rarity
+std::map<uint16, std::map<uint32, uint8>>             FishingBaitAffinities; // baitid, fishid, power
 
 /************************************************************************
  *                                                                       *
  *                            CATCH POOLS                                *
  *                                                                       *
  ************************************************************************/
-void ReduceFishPool(uint16 zoneId, uint8 areaId, uint16 fishId)
+namespace
+{
+
+auto findFishStock(const xi::ZoneId zoneId, const uint8 areaId, const uint16 fishId) -> fish_pool*
+{
+    const auto zoneIter = FishingPools.find(zoneId);
+    if (zoneIter == FishingPools.end())
+    {
+        return nullptr;
+    }
+
+    const auto areaIter = zoneIter->second.catchPools.find(areaId);
+    if (areaIter == zoneIter->second.catchPools.end())
+    {
+        return nullptr;
+    }
+
+    const auto stockIter = areaIter->second.stock.find(fishId);
+    return stockIter != areaIter->second.stock.end() ? &stockIter->second : nullptr;
+}
+
+auto isFishPoolDepleted(const xi::ZoneId zoneId, const uint8 areaId, const uint16 fishId) -> bool
+{
+    const auto* stock = findFishStock(zoneId, areaId, fishId);
+    return stock == nullptr || stock->quantity == 0;
+}
+
+} // namespace
+
+void ReduceFishPool(const xi::ZoneId zoneId, const uint8 areaId, const uint16 fishId)
 {
     if (FishList[fishId] && FishList[fishId]->quest_only)
     {
         return;
     }
 
-    if (FishingPools[zoneId].catchPools.count(areaId) && FishingPools[zoneId].catchPools[areaId].stock.count(fishId))
+    if (auto* stock = findFishStock(zoneId, areaId, fishId); stock != nullptr && stock->quantity > 0)
     {
-        uint16 qty = FishingPools[zoneId].catchPools[areaId].stock[fishId].quantity;
-
-        if (qty > 0)
-        {
-            FishingPools[zoneId].catchPools[areaId].stock[fishId].quantity = (qty - 1);
-        }
+        stock->quantity -= 1;
     }
 }
 
 void RestockFishingAreas()
 {
-    for (auto& FishingPool : FishingPools)
+    for (auto& FishingPool : FishingPools | std::views::values)
     {
         for (const auto& a : FishingPool.catchPools)
         {
@@ -125,9 +154,9 @@ void CreateFishingPools()
                                        "JOIN fishing_catch fc USING(groupid)");
     FOR_DB_MULTIPLE_RESULTS(rset)
     {
-        const auto zoneId = rset->get<uint16>("zoneid");
-        auto       areaId = rset->get<uint8>("areaid");
-        auto       fishId = rset->get<uint16>("fishid");
+        const auto zoneId = rset->get<xi::ZoneId>("zoneid");
+        const auto areaId = rset->get<uint8>("areaid");
+        const auto fishId = rset->get<uint16>("fishid");
         const auto pSize  = rset->get<uint16>("pool_size");
         const auto rRate  = rset->get<uint16>("restock_rate");
 
@@ -456,7 +485,7 @@ uint8 CalculateHookTime(CCharEntity* PChar, Legendary legendary, uint32 legendar
         hookTime += 10;
     }
 
-    if (charutils::hasKeyItem(PChar, KeyItem::MOOCHING) && (bait->baitID == DRILL_CALAMARY || bait->baitID == DWARF_PUGIL))
+    if (charutils::hasKeyItem(PChar, xi::KeyItem::Mooching) && (bait->baitID == DRILL_CALAMARY || bait->baitID == DWARF_PUGIL))
     {
         hookTime += 30;
     }
@@ -600,7 +629,7 @@ uint8 CalculateLuckyTiming(CCharEntity* PChar, uint8 fishingSkill, uint8 catchSk
     }
 
     luckyTiming += (uint8)std::floor(bonus);
-    luckyTiming -= (uint8)std::floor((penalty > luckyTiming) ? luckyTiming : penalty);
+    luckyTiming -= (uint8)std::floor(std::min<float>(penalty, luckyTiming));
 
     return std::max<uint8>(5, luckyTiming);
 }
@@ -1072,14 +1101,14 @@ uint8 GetBaitPower(bait_t* bait, fish_t* fish)
     return 0;
 }
 
-std::map<fish_t*, uint16> GetFishPool(uint16 zoneID, uint8 areaID, uint16 BaitID)
+auto GetFishPool(const xi::ZoneId zoneID, const uint8 areaID, const uint16 BaitID) -> std::map<fish_t*, uint16>
 {
     std::map<fish_t*, uint16> pool;
     uint16                    groupId = FishingCatchLists[zoneID][areaID];
 
     for (auto fish : FishingGroups[groupId])
     {
-        if ((!FishList[fish.first]->item) && FishingBaitAffinities.count(BaitID) && FishingBaitAffinities[BaitID].count(fish.first))
+        if ((!FishList[fish.first]->item) && FishingBaitAffinities.contains(BaitID) && FishingBaitAffinities[BaitID].contains(fish.first))
         {
             pool.insert(std::make_pair(FishList[fish.first], fish.second));
         }
@@ -1088,7 +1117,7 @@ std::map<fish_t*, uint16> GetFishPool(uint16 zoneID, uint8 areaID, uint16 BaitID
     return pool;
 }
 
-std::vector<fish_t*> GetItemPool(uint16 zoneID, uint8 areaID)
+auto GetItemPool(const xi::ZoneId zoneID, const uint8 areaID) -> std::vector<fish_t*>
 {
     std::vector<fish_t*> pool;
     uint16               groupId = FishingCatchLists[zoneID][areaID];
@@ -1104,7 +1133,7 @@ std::vector<fish_t*> GetItemPool(uint16 zoneID, uint8 areaID)
     return pool;
 }
 
-std::vector<fishmob_t*> GetMobPool(uint16 zoneId)
+auto GetMobPool(const xi::ZoneId zoneId) -> std::vector<fishmob_t*>
 {
     std::vector<fishmob_t*> pool;
 
@@ -1122,7 +1151,7 @@ std::vector<fishmob_t*> GetMobPool(uint16 zoneId)
     return pool;
 }
 
-std::vector<uint32> GetChestPool(uint16 zoneId)
+auto GetChestPool(const xi::ZoneId zoneId) -> std::vector<uint32>
 {
     std::vector<uint32> pool;
 
@@ -1137,9 +1166,10 @@ std::vector<uint32> GetChestPool(uint16 zoneId)
     return pool;
 }
 
-uint16 GetMessageOffset(uint16 ZoneID)
+auto GetMessageOffset(const xi::ZoneId ZoneID) -> uint16
 {
-    return MessageOffset[ZoneID];
+    const auto it = MessageOffset.find(ZoneID);
+    return it != MessageOffset.end() ? it->second : 0;
 }
 
 auto IsFish(const CItem* fish) -> bool
@@ -1286,7 +1316,7 @@ fishingarea_t* GetFishingArea(CCharEntity* PChar)
         return nullptr;
     }
 
-    int16        zoneId = PChar->getZone();
+    const auto   zoneId = PChar->getZone();
     position_t   p      = PChar->loc.p;
     areavector_t loc    = { p.x, p.y, p.z };
 
@@ -1352,9 +1382,14 @@ bool BaitLoss(CCharEntity* PChar, RemoveFly removeFly, SendUpdate sendUpdate)
                 {
                     charutils::UnequipItem(PChar, SLOT_AMMO);
                 }
-                charutils::UpdateItem(PChar, PBait->getLocationID(), PBait->getSlotID(), -1);
+                const uint8 baitLocation = PBait->getLocationID();
+                const uint8 baitSlot     = PBait->getSlotID();
 
-                if (sendUpdate)
+                if (auto transaction = ItemClaimTransaction::start(PChar); !transaction || !transaction->take(baitLocation, baitSlot, 1) || !transaction->commit())
+                {
+                    ShowErrorFmt("fishingutils: {} did not lose bait in slot {}", PChar->getName(), baitSlot);
+                }
+                else if (sendUpdate)
                 {
                     PChar->pushPacket<GP_SERV_COMMAND_ITEM_SAME>(PChar);
                 }
@@ -1385,9 +1420,16 @@ void RodBreak(CCharEntity* PChar)
     {
         BaitLoss(PChar, RemoveFly::Yes, SendUpdate::No);
         charutils::UnequipItem(PChar, SLOT_RANGED);
-        uint8 location = PRanged->getLocationID();
-        charutils::UpdateItem(PChar, location, PRanged->getSlotID(), -1);
-        charutils::AddItem(PChar, location, PRod->brokenRodId, 1);
+        uint8 location    = PRanged->getLocationID();
+        uint8 rodSlot     = PRanged->getSlotID();
+        auto  transaction = ItemClaimTransaction::start(PChar);
+        if (!transaction ||
+            !transaction->take(location, rodSlot, 1) ||
+            !transaction->give(location, PRod->brokenRodId, 1) ||
+            !transaction->commit())
+        {
+            ShowErrorFmt("fishingutils: {} kept an unbroken rod in slot {}", PChar->getName(), rodSlot);
+        }
         PChar->pushPacket<GP_SERV_COMMAND_ITEM_SAME>(PChar);
     }
 }
@@ -1495,12 +1537,19 @@ int32 CatchFish(CCharEntity* PChar, uint16 FishID, BigFish bigFish, uint16 lengt
 
         if (bigFish && length > 1 && weight > 1)
         {
-            Fish->SetLength(length);
-            Fish->SetWeight(weight);
+            auto& fishData  = Fish->exdata<Exdata::Fish>();
+            fishData.Size   = length;
+            fishData.Weight = weight;
         }
 
         Fish->setQuantity(Count);
-        charutils::AddItem(PChar, LOC_INVENTORY, std::move(Fish));
+
+        auto transaction = ItemClaimTransaction::start(PChar);
+        if (!transaction || !transaction->give(LOC_INVENTORY, std::move(Fish)) || !transaction->commit())
+        {
+            ShowErrorFmt("fishingutils: {} did not receive the fish they caught", PChar->getName());
+            return 0;
+        }
 
         if (Count > 1)
         {
@@ -1538,7 +1587,12 @@ int32 CatchItem(CCharEntity* PChar, uint16 ItemID, uint8 Count = 1)
             return 0;
         }
 
-        charutils::AddItem(PChar, LOC_INVENTORY, ItemID, Count);
+        auto transaction = ItemClaimTransaction::start(PChar);
+        if (!transaction || !transaction->give(LOC_INVENTORY, ItemID, Count) || !transaction->commit())
+        {
+            ShowErrorFmt("fishingutils: {} did not receive item {} they caught", PChar->getName(), ItemID);
+            return 0;
+        }
 
         if (Count > 1)
         {
@@ -2174,15 +2228,15 @@ fishresponse_t* FishingCheck(CCharEntity* PChar, uint8 fishingSkill, rod_t* rod,
         {
             fish_t* fishIter = fish.first;
 
-            if (RemoveList.count(fishIter->fishID) > 0)
+            if (RemoveList.contains(fishIter->fishID))
             {
                 continue;
             }
 
             // uint16 baitPower = fish.second; //@TODO: implement this in later patch
-            if ((fishingSkill >= fishIter->maxSkill || fishIter->maxSkill - fishingSkill <= 100) && (fishIter->reqKeyItem == KeyItem::NONE || charutils::hasKeyItem(PChar, fishIter->reqKeyItem)))
+            if ((fishingSkill >= fishIter->maxSkill || fishIter->maxSkill - fishingSkill <= 100) && (fishIter->reqKeyItem == xi::KeyItem::None || charutils::hasKeyItem(PChar, fishIter->reqKeyItem)))
             { // Key item okay
-                if (!fishIter->quest_only && FishingPools[PChar->getZone()].catchPools[area->areaId].stock[fishIter->fishID].quantity == 0)
+                if (!fishIter->quest_only && isFishPoolDepleted(PChar->getZone(), area->areaId, fishIter->fishID))
                 {
                     NoCatchList.insert(fishIter->fishID);
                 }
@@ -2190,7 +2244,7 @@ fishresponse_t* FishingCheck(CCharEntity* PChar, uint8 fishingSkill, rod_t* rod,
                 uint16 hookChance = CalculateHookChance(fishingSkill, fishIter, bait, rod);
                 FishHookPool.insert(std::make_pair(fishIter, hookChance));
                 FishHookChanceTotal += hookChance;
-                maxChance = (hookChance > maxChance) ? hookChance : maxChance;
+                maxChance = std::max(maxChance, hookChance);
             }
         }
 
@@ -2202,12 +2256,12 @@ fishresponse_t* FishingCheck(CCharEntity* PChar, uint8 fishingSkill, rod_t* rod,
     {
         for (auto* item : ItemPool)
         {
-            if (RemoveList.count(item->fishID) > 0)
+            if (RemoveList.contains(item->fishID))
             {
                 continue;
             }
 
-            if (item->quest_only || item->reqKeyItem == KeyItem::NONE || charutils::hasKeyItem(PChar, item->reqKeyItem))
+            if (item->quest_only || item->reqKeyItem == xi::KeyItem::None || charutils::hasKeyItem(PChar, item->reqKeyItem))
             { // Key item okay
                 uint16 hookChance = 100;
                 if (item->quest < 255 && item->log < 255)
@@ -2220,7 +2274,7 @@ fishresponse_t* FishingCheck(CCharEntity* PChar, uint8 fishingSkill, rod_t* rod,
                 }
                 else
                 {
-                    if (!item->quest_only && FishingPools[PChar->getZone()].catchPools[area->areaId].stock[item->fishID].quantity == 0)
+                    if (!item->quest_only && isFishPoolDepleted(PChar->getZone(), area->areaId, item->fishID))
                     {
                         NoCatchList.insert(item->fishID);
                     }
@@ -2239,7 +2293,7 @@ fishresponse_t* FishingCheck(CCharEntity* PChar, uint8 fishingSkill, rod_t* rod,
     {
         for (auto* mob : MobPool)
         {
-            if (RemoveList.count(mob->mobId) > 0)
+            if (RemoveList.contains(mob->mobId))
             {
                 continue;
             }
@@ -2357,7 +2411,7 @@ fishresponse_t* FishingCheck(CCharEntity* PChar, uint8 fishingSkill, rod_t* rod,
             uint16  hookChance = fishIter.second;
             hookChanceAggregate += hookChance;
 
-            if (hookSelect < hookChanceAggregate && NoCatchList.count(fish->fishID) == 0)
+            if (hookSelect < hookChanceAggregate && !NoCatchList.contains(fish->fishID))
             {
                 FishSelection   = fish;
                 uint8 skilldiff = 0;
@@ -2393,7 +2447,7 @@ fishresponse_t* FishingCheck(CCharEntity* PChar, uint8 fishingSkill, rod_t* rod,
             uint16  hookChance = itemIter.second;
             hookChanceAggregate += hookChance;
 
-            if (hookSelect < hookChanceAggregate && NoCatchList.count(item->fishID) == 0)
+            if (hookSelect < hookChanceAggregate && !NoCatchList.contains(item->fishID))
             {
                 ItemSelection = item;
                 break;
@@ -2406,7 +2460,7 @@ fishresponse_t* FishingCheck(CCharEntity* PChar, uint8 fishingSkill, rod_t* rod,
         ItemPoolWeight = 0;
     }
 
-    if (PChar->getZone() == ZONE_BUBURIMU_PENINSULA && PChar->GetLocalVar("bChartActive") == 1)
+    if (PChar->getZone() == xi::ZoneId::BuburimuPeninsula && PChar->GetLocalVar("bChartActive") == 1)
     {
         MobHookPool.clear();
 
@@ -2443,7 +2497,7 @@ fishresponse_t* FishingCheck(CCharEntity* PChar, uint8 fishingSkill, rod_t* rod,
     if (!ChestPool.empty())
     {
         // Brigand's Chart Quest
-        if (PChar->getZone() == ZONE_BUBURIMU_PENINSULA && PChar->GetLocalVar("bChartActive") == 1)
+        if (PChar->getZone() == xi::ZoneId::BuburimuPeninsula && PChar->GetLocalVar("bChartActive") == 1)
         {
             for (uint32 chestId : ChestPool)
             {
@@ -2463,7 +2517,7 @@ fishresponse_t* FishingCheck(CCharEntity* PChar, uint8 fishingSkill, rod_t* rod,
     }
 
     // Pirate's Chart quest pool weighting: Catch items.
-    if (PChar->getZone() == ZONE_VALKURM_DUNES && PChar->GetLocalVar("pChartActive") == 1 && area->areaId == 2)
+    if (PChar->getZone() == xi::ZoneId::ValkurmDunes && PChar->GetLocalVar("pChartActive") == 1 && area->areaId == 2)
     {
         FishPoolWeight  = 0;
         ItemPoolWeight  = 100;
@@ -2473,7 +2527,7 @@ fishresponse_t* FishingCheck(CCharEntity* PChar, uint8 fishingSkill, rod_t* rod,
     }
 
     // Brigand's Chart quest pool weighting: Catch chests.
-    else if (PChar->getZone() == ZONE_BUBURIMU_PENINSULA && PChar->GetLocalVar("bChartActive") == 1)
+    else if (PChar->getZone() == xi::ZoneId::BuburimuPeninsula && PChar->GetLocalVar("bChartActive") == 1)
     {
         FishPoolWeight  = 0;
         ItemPoolWeight  = 0;
@@ -2692,10 +2746,24 @@ void FishingAction(CCharEntity* PChar, const GP_CLI_COMMAND_FISHING_2_MODE mode,
     uint16 MessageOffset = GetMessageOffset(PChar->getZone());
     uint32 vanaTime      = earth_time::vanadiel_timestamp();
 
+    // Ending the minigame clears the token before the client requests release.
+    // Release must still clean up the catch and restore the idle animation.
+    if (PChar->fishingToken == 0 && mode != GP_CLI_COMMAND_FISHING_2_MODE::RequestRelease)
+    {
+        PChar->animation = xi::Animation::NewFishingStop;
+        return;
+    }
+
     switch (mode)
     {
         case GP_CLI_COMMAND_FISHING_2_MODE::RequestCheckHook:
         {
+            if (PChar->animation != xi::Animation::NewFishingStart)
+            {
+                CatchNothing(PChar, FISHINGFAILTYPE_NONE);
+                return;
+            }
+
             if (vanaTime < PChar->lastCastTime + PChar->hookDelay - 2)
             {
                 CatchNothing(PChar, FISHINGFAILTYPE_NONE);
@@ -2705,13 +2773,13 @@ void FishingAction(CCharEntity* PChar, const GP_CLI_COMMAND_FISHING_2_MODE mode,
             fishingarea_t*  fishingArea = GetFishingArea(PChar);
             fishresponse_t* response    = nullptr;
 
-            if (PChar->getZone() == ZONE_VALKURM_DUNES && PChar->GetLocalVar("pChartActive") == 1)
+            if (PChar->getZone() == xi::ZoneId::ValkurmDunes && PChar->GetLocalVar("pChartActive") == 1)
             {
-                fishingArea = FishingAreaList[ZONE_VALKURM_DUNES][2];
+                fishingArea = FishingAreaList[xi::ZoneId::ValkurmDunes][2];
             }
-            else if (PChar->getZone() == ZONE_BUBURIMU_PENINSULA && PChar->GetLocalVar("bChartActive") == 1)
+            else if (PChar->getZone() == xi::ZoneId::BuburimuPeninsula && PChar->GetLocalVar("bChartActive") == 1)
             {
-                fishingArea = FishingAreaList[ZONE_BUBURIMU_PENINSULA][2];
+                fishingArea = FishingAreaList[xi::ZoneId::BuburimuPeninsula][2];
             }
 
             if (PChar->hookedFish != nullptr)
@@ -2886,6 +2954,8 @@ void FishingAction(CCharEntity* PChar, const GP_CLI_COMMAND_FISHING_2_MODE mode,
                     PChar->hookedFish->successtype = FISHINGSUCCESSTYPE_NONE;
                 }
             }
+
+            PChar->fishingToken = 0;
         }
         break;
 
@@ -2927,15 +2997,14 @@ void FishingAction(CCharEntity* PChar, const GP_CLI_COMMAND_FISHING_2_MODE mode,
     }
 }
 
-auto GetFish(uint16 itemid) -> std::unique_ptr<CItemFish>
+auto GetFish(uint16 itemid) -> std::unique_ptr<CItem>
 {
-    const CItem* PItem = xi::items::lookup(itemid);
-
-    if (PItem && FishList[itemid])
+    if (!FishList[itemid])
     {
-        return std::make_unique<CItemFish>(*PItem);
+        return nullptr;
     }
-    return nullptr;
+
+    return xi::items::spawn(itemid);
 }
 
 /************************************************************************
@@ -3000,7 +3069,7 @@ void LoadFishingAreas()
         fishingArea->center.z   = rset->get<float>("center_z");
         fishingArea->radius     = rset->get<uint8>("bound_radius");
         fishingArea->areaName   = rset->get<std::string>("name");
-        fishingArea->zoneId     = rset->get<uint32>("zoneid");
+        fishingArea->zoneId     = rset->get<xi::ZoneId>("zoneid");
         fishingArea->difficulty = rset->get<uint8>("difficulty");
 
         FishingAreaList[fishingArea->zoneId][fishingArea->areaId] = fishingArea;
@@ -3040,7 +3109,7 @@ void LoadFishItems()
         fish->item            = rset->get<bool>("item");
         fish->maxhook         = rset->get<uint8>("max_hook");
         fish->rarity          = rset->get<uint16>("rarity");
-        fish->reqKeyItem      = rset->get<KeyItem>("required_keyitem");
+        fish->reqKeyItem      = rset->get<xi::KeyItem>("required_keyitem");
 
         fish->reqFish = new std::vector<uint16>();
 
@@ -3078,7 +3147,7 @@ void LoadChests()
     FOR_DB_MULTIPLE_RESULTS(rset)
     {
         uint32 chestId = rset->get<uint32>("npcid");
-        uint16 zoneId  = rset->get<uint32>("zoneid");
+        auto   zoneId  = rset->get<xi::ZoneId>("zoneid");
         ChestList[zoneId].emplace_back(chestId);
     }
 }
@@ -3113,7 +3182,7 @@ void LoadFishMobs()
         mob->reqKeyItem = rset->get<uint16>("required_keyitem");
         mob->reqBaitId  = rset->get<uint16>("required_baitid");
         mob->areaId     = rset->get<uint8>("areaid");
-        mob->zoneId     = rset->get<uint16>("zoneid");
+        mob->zoneId     = rset->get<xi::ZoneId>("zoneid");
         mob->questOnly  = rset->get<bool>("quest_only");
         mob->minLength  = rset->get<uint16>("min_length");
         mob->maxLength  = rset->get<uint16>("max_length");
@@ -3214,7 +3283,7 @@ void LoadFishingCatchLists()
                                        "FROM fishing_catch");
     FOR_DB_MULTIPLE_RESULTS(rset)
     {
-        const auto zoneId = rset->get<uint16>("zoneid");
+        const auto zoneId = rset->get<xi::ZoneId>("zoneid");
         const auto areaId = rset->get<uint8>("areaid");
 
         FishingCatchLists[zoneId][areaId] = rset->get<uint16>("groupid");

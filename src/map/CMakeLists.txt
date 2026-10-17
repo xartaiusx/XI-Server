@@ -6,6 +6,7 @@ add_subdirectory(enums)
 add_subdirectory(items)
 add_subdirectory(lua)
 add_subdirectory(packets)
+add_subdirectory(transports)
 add_subdirectory(utils)
 
 set(APP_SOURCES
@@ -13,7 +14,6 @@ set(APP_SOURCES
 )
 
 set(MAP_CORE_SOURCES
-    ${COMMON_SOURCES}
     ${CMAKE_CURRENT_SOURCE_DIR}/ability.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ability.h
     ${CMAKE_CURRENT_SOURCE_DIR}/alliance.cpp
@@ -102,6 +102,10 @@ set(MAP_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/merit.h
     ${CMAKE_CURRENT_SOURCE_DIR}/mob_spell_container.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/mob_spell_container.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/moghouse_container.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/moghouse_container.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/persist_batch.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/persist_batch.h
     ${CMAKE_CURRENT_SOURCE_DIR}/mob_spell_list.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/mob_spell_list.h
     ${CMAKE_CURRENT_SOURCE_DIR}/mobskill.cpp
@@ -110,12 +114,16 @@ set(MAP_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/modifier.h
     ${CMAKE_CURRENT_SOURCE_DIR}/monstrosity.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/monstrosity.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/navmesh/inavmesh.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/navmesh/navmesh.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/navmesh/detour_navmesh.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/navmesh/detour_navmesh.h
     ${CMAKE_CURRENT_SOURCE_DIR}/navmesh/navmesh.h
     ${CMAKE_CURRENT_SOURCE_DIR}/navmesh/navmesh_builder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/navmesh/navmesh_builder.h
     ${CMAKE_CURRENT_SOURCE_DIR}/navmesh/navmesh_config.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/navmesh/path_inset.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/navmesh/path_inset.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/navmesh/null_navmesh.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/navmesh/null_navmesh.h
     ${CMAKE_CURRENT_SOURCE_DIR}/nominate_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/nominate_manager.h
     ${CMAKE_CURRENT_SOURCE_DIR}/notoriety_container.cpp
@@ -130,6 +138,8 @@ set(MAP_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/recast_container.h
     ${CMAKE_CURRENT_SOURCE_DIR}/roe.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/roe.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/roam_region.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/roam_region.h
     ${CMAKE_CURRENT_SOURCE_DIR}/socket.h
     ${CMAKE_CURRENT_SOURCE_DIR}/spatial_grid.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/spatial_grid.h
@@ -151,8 +161,6 @@ set(MAP_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/trade_container.h
     ${CMAKE_CURRENT_SOURCE_DIR}/trait.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/trait.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/transport.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/transport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/treasure_pool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/treasure_pool.h
     ${CMAKE_CURRENT_SOURCE_DIR}/trigger_area.cpp
@@ -167,9 +175,12 @@ set(MAP_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/weather_container.h
     ${CMAKE_CURRENT_SOURCE_DIR}/ximesh/transformation_matrix.h
     ${CMAKE_CURRENT_SOURCE_DIR}/ximesh/vector3.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ximesh/null_ximesh.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ximesh/null_ximesh.h
     ${CMAKE_CURRENT_SOURCE_DIR}/ximesh/ximesh_structs.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/ximesh/ximesh.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ximesh/ximesh.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/ximesh/ximesh_impl.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ximesh/ximesh_impl.h
     ${CMAKE_CURRENT_SOURCE_DIR}/zone_entities.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/zone_entities.h
     ${CMAKE_CURRENT_SOURCE_DIR}/zone_instance.cpp
@@ -178,157 +189,54 @@ set(MAP_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/zone.h
 )
 
-if(UNIX)
-    set(resource "")
-else()
-    set(resource "${CMAKE_SOURCE_DIR}/res/mapserver.rc")
-endif()
+xi_collect_modules(module_sources module_include_dirs module_cmakelists)
+list(APPEND APP_SOURCES ${module_sources})
 
-# Track the init file to make sure a re-configure will happen on build if needed
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/modules/init.txt")
+xi_add_executable(xi_map mapserver.rc ${APP_SOURCES})
+add_dependencies(xi_map data_schema_generate)
 
-# Search for module directories
-set(module_include_dirs "")
-set(cmakelist_include_paths "")
-file(STRINGS ${CMAKE_SOURCE_DIR}/modules/init.txt INIT_FILE_ENTRIES REGEX "^[^#\n].*")
-foreach(entry ${INIT_FILE_ENTRIES})
-    if (${entry} STREQUAL "")
-        continue()
-    endif()
-    if (IS_DIRECTORY "${CMAKE_SOURCE_DIR}/modules/${entry}")
-        if (EXISTS "${CMAKE_SOURCE_DIR}/modules/${entry}/CMakeLists.txt")
-            list(APPEND cmakelist_include_paths "${CMAKE_SOURCE_DIR}/modules/${entry}/CMakeLists.txt")
-            message(STATUS "Adding module CMakeLists.txt to build: ${CMAKE_SOURCE_DIR}/modules/${entry}/CMakeLists.txt")
-            continue()
-        endif()
-        file(GLOB_RECURSE module_files
-            "${CMAKE_SOURCE_DIR}/modules/${entry}/*.cpp"
-            "${CMAKE_SOURCE_DIR}/modules/${entry}/*.h")
-        list(APPEND module_include_dirs "${CMAKE_SOURCE_DIR}/modules/${entry}")
-        list(APPEND APP_SOURCES ${module_files})
-        message(STATUS "Adding module files to build: ${module_files}")
-    elseif (${entry} MATCHES "\.cpp")
-        list(APPEND APP_SOURCES "${CMAKE_SOURCE_DIR}/modules/${entry}")
-        message(STATUS "Adding module files to build: ${CMAKE_SOURCE_DIR}/modules/${entry}")
-    endif()
-endforeach()
-
-add_executable(xi_map
-    ${APP_SOURCES}
-    ${resource})
-
-add_library(xi_map_settings INTERFACE)
-target_include_directories(xi_map_settings INTERFACE
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}
+xi_add_library(xi_map_core ${MAP_CORE_SOURCES})
+add_dependencies(xi_map_core enum_codegen)
+target_include_directories(xi_map_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(xi_map_core
+    PUBLIC
+        xi_data_core
+        ${MAP_ONLY_EXTERNAL_LIBS}
 )
 
-target_link_libraries(xi_map_settings INTERFACE
-    ${SHARED_EXTERNAL_LIBS}
-    ${MAP_ONLY_EXTERNAL_LIBS}
-    project_options
-)
-
-if(TRACY_ENABLE)
-    target_link_libraries(xi_map_settings INTERFACE TracyClient)
-    target_compile_definitions(xi_map_settings INTERFACE TRACY_ENABLE)
-endif()
-
-function(configure_map_lib target)
-    add_dependencies(${target} data_codegen)
-    target_link_libraries(${target}
-        PUBLIC
-            xi_map_settings
-        PRIVATE
-            project_warnings
-    )
+# The group libraries and xi_map_core all link each other, so the split buys parallel
+# compilation, not isolation.
+function(xi_add_map_group_library target)
+    add_library(${target} STATIC ${ARGN})
+    add_dependencies(${target} enum_codegen)
+    target_link_libraries(${target} PUBLIC xi_map_core PRIVATE project_warnings)
+    target_link_libraries(xi_map_core PUBLIC ${target})
+    xi_reuse_pch(${target} xi_map_core)
 endfunction()
 
-add_library(xi_map_lua STATIC ${LUA_SOURCES})
-configure_map_lib(xi_map_lua)
-
-add_library(xi_map_battle STATIC
+xi_add_map_group_library(xi_map_lua ${LUA_SOURCES})
+xi_add_map_group_library(xi_map_battle
     ${UTIL_SOURCES}
     ${ITEM_SOURCES}
     ${ACTION_SOURCES}
     ${AI_SOURCES}
-    ${DATA_SOURCES}
+    ${DATA_MAP_SOURCES}
     ${ENUMS_SOURCES}
+    ${TRANSPORTS_SOURCES}
 )
-configure_map_lib(xi_map_battle)
+xi_add_map_group_library(xi_map_entities ${ENTITY_SOURCES})
+xi_add_map_group_library(xi_map_packets_c2s ${PACKET_C2S_SOURCES})
+xi_add_map_group_library(xi_map_packets_s2c ${PACKET_S2C_SOURCES})
 
-add_library(xi_map_entities STATIC ${ENTITY_SOURCES})
-configure_map_lib(xi_map_entities)
-
-add_library(xi_map_packets_c2s STATIC ${PACKET_C2S_SOURCES})
-configure_map_lib(xi_map_packets_c2s)
-
-add_library(xi_map_packets_s2c STATIC ${PACKET_S2C_SOURCES})
-configure_map_lib(xi_map_packets_s2c)
-
-add_library(xi_map_core STATIC ${MAP_CORE_SOURCES})
-configure_map_lib(xi_map_core)
-
-set(MAP_GROUP_LIBS
-    xi_map_lua
-    xi_map_battle
-    xi_map_entities
-    xi_map_packets_c2s
-    xi_map_packets_s2c
-)
-target_link_libraries(xi_map_core PUBLIC ${MAP_GROUP_LIBS})
-foreach(group_lib ${MAP_GROUP_LIBS})
-    target_link_libraries(${group_lib} PUBLIC xi_map_core)
-endforeach()
-
-add_library(xi_map_lib INTERFACE)
-target_link_libraries(xi_map_lib INTERFACE
-    xi_map_settings
-    xi_map_core
-    ${MAP_GROUP_LIBS}
-)
-
-if(PCH_ENABLE)
-    set(MAP_PCH ${CMAKE_CURRENT_SOURCE_DIR}/pch.h)
-    target_precompile_headers(xi_map_core PRIVATE ${MAP_PCH})
-    target_precompile_headers(xi_map_lua         REUSE_FROM xi_map_core)
-    target_precompile_headers(xi_map_battle      REUSE_FROM xi_map_core)
-    target_precompile_headers(xi_map_entities    REUSE_FROM xi_map_core)
-    target_precompile_headers(xi_map_packets_c2s REUSE_FROM xi_map_core)
-    target_precompile_headers(xi_map_packets_s2c REUSE_FROM xi_map_core)
-    target_precompile_headers(xi_map_lib         INTERFACE ${MAP_PCH})
-endif()
-
-foreach(entry ${cmakelist_include_paths})
-    if (${entry} STREQUAL "")
-        continue()
-    endif()
-    include("${entry}")
-endforeach()
-
-if(WIN32)
-    set_target_properties(xi_map PROPERTIES OUTPUT_NAME xi_map)
-endif()
-
-target_include_directories(xi_map
-    PUBLIC
-        ${module_include_dirs}
-)
-
-target_link_libraries(xi_map
-    PUBLIC
-        xi_map_lib)
-
-if (APPLE)
-    disable_lto(xi_map)
-endif()
-
-set_target_output_directory(xi_map)
+target_include_directories(xi_map PRIVATE ${module_include_dirs})
+target_link_libraries(xi_map PRIVATE xi_map_core)
+xi_precompile_headers(xi_map) # its own: module code can add defines the shared PCH never saw
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT xi_map)
 
 if(TRACY_ENABLE)
-    target_link_libraries(xi_map PRIVATE TracyClient)
     set_target_properties(xi_map PROPERTIES OUTPUT_NAME xi_map_tracy)
-    message(STATUS "TRACY_ENABLE: xi_map will be output as xi_map_tracy")
-endif(TRACY_ENABLE)
+endif()
+
+foreach(entry ${module_cmakelists})
+    include("${entry}")
+endforeach()

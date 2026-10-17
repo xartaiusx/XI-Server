@@ -4,13 +4,7 @@
 require('modules/module_utils')
 -----------------------------------
 
-local moduleName = 'toau_sword'
-
-if xi.module.isContentEnabled('WOTG') then
-    return { name = moduleName }
-end
-
-local m = Module:new(moduleName)
+local m = Module:new('toau_sword', xi.pre(xi.expansion.WOTG))
 
 -----------------------------------
 -- Fast Blade
@@ -72,13 +66,21 @@ m:addOverride('xi.actions.weaponskills.flat_blade.onUseWeaponSkill', function(pl
     local damage, criticalHit, tpHits, extraHits = xi.weaponskills.doPhysicalWeaponskill(player, target, wsID, params, tp, action, primary, taChar)
 
     -- Handle status effect
-    if math.randomInt(1, 100) <= xi.weaponskills.fTP(tp, { 50, 75, 100 }) then
-        local effectId      = xi.effect.STUN
-        local actionElement = xi.element.THUNDER
-        local power         = 1
-        local skillType     = xi.skill.SWORD
-        local resist        = xi.combat.magicHitRate.calculateResistRate(player, target, 0, skillType, 0, actionElement, 0, effectId, 0)
-        local duration      = math.floor(4 * resist)
+    local effectId      = xi.effect.STUN
+    local actionElement = xi.element.THUNDER
+    local power         = 1
+    local maccParams    =
+    {
+        effectId       = effectId,
+        magicalElement = actionElement,
+        skillType      = xi.skill.SWORD,
+        bonusMacc      = xi.weaponskills.fTP(tp, { 25, 50, 100 }),
+    }
+
+    local resistanceRate = xi.combat.magicHitRate.calculateResistRate(player, target, maccParams)
+
+    if xi.data.statusEffect.isResistRateSuccessfull(effectId, resistanceRate, 0) then
+        local duration = math.floor(4 * resistanceRate)
 
         xi.weaponskills.handleWeaponskillEffect(player, target, effectId, actionElement, damage, power, duration)
     end
@@ -255,10 +257,10 @@ end)
 -- Atonement
 -----------------------------------
 m:addOverride('xi.actions.weaponskills.atonement.onUseWeaponSkill', function(player, target, wsID, tp, primary, action, taChar)
-    local params      = {}
-    params.numHits    = 2
-    params.ftpMod     = { 1.00, 1.50, 2.00 } -- 1x Enmity @ 1000 TP, 1.5x Enmity @ 2000 TP, 2x Enmity @ 3000 TP
-    params.enmityMult = utils.clamp(xi.weaponskills.fTP(tp, params.ftpMod), 1, 2) -- Enmity multiplier based on fTP, clamped between 1 and 2.
+    local params   = {}
+    params.numHits = 2
+    params.ftpMod  = { 1.00, 1.50, 2.00 }
+
     -- 1000 TP: 9% CE + 11% VE, 2000 TP: 11% CE + 14% VE, 3000 TP: 20% CE + 25% VE
     local cePercent = xi.weaponskills.fTP(tp, { 0.09, 0.11, 0.20 })
     local vePercent = xi.weaponskills.fTP(tp, { 0.11, 0.14, 0.25 })
@@ -352,13 +354,21 @@ m:addOverride('xi.actions.weaponskills.death_blossom.onUseWeaponSkill', function
     local damage, criticalHit, tpHits, extraHits = xi.weaponskills.doPhysicalWeaponskill(player, target, wsID, params, tp, action, primary, taChar)
 
     -- Handle status effect
-    if math.randomInt(1, 100) <= xi.weaponskills.fTP(tp, { 50, 75, 100 }) then
-        local effectId      = xi.effect.MAGIC_EVASION_DOWN
-        local actionElement = xi.element.THUNDER
-        local power         = 10
-        local skillType     = xi.skill.SWORD
-        local resist        = xi.combat.magicHitRate.calculateResistRate(player, target, 0, skillType, 0, actionElement, 0, effectId, 0)
-        local duration      = math.floor(60 * resist)
+    local effectId      = xi.effect.MAGIC_EVASION_DOWN
+    local actionElement = xi.element.THUNDER
+    local power         = 10
+    local maccParams    =
+    {
+        effectId       = effectId,
+        magicalElement = actionElement,
+        skillType      = xi.skill.SWORD,
+        bonusMacc      = xi.weaponskills.fTP(tp, { 25, 50, 100 }),
+    }
+
+    local resistanceRate = xi.combat.magicHitRate.calculateResistRate(player, target, maccParams)
+
+    if xi.data.statusEffect.isResistRateSuccessfull(effectId, resistanceRate, 1) then
+        local duration = math.floor(60 * resistanceRate)
 
         xi.weaponskills.handleWeaponskillEffect(player, target, effectId, actionElement, damage, power, duration)
     end
@@ -382,5 +392,3 @@ m:addOverride('xi.actions.weaponskills.expiacion.onUseWeaponSkill', function(pla
     local damage, criticalHit, tpHits, extraHits = xi.weaponskills.doPhysicalWeaponskill(player, target, wsID, params, tp, action, primary, taChar)
     return tpHits, extraHits, criticalHit, damage
 end)
-
-return m

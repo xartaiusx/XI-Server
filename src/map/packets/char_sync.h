@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,17 +19,20 @@
 ===========================================================================
 */
 
-#ifndef _CCHARSYNCPACKET_H
-#define _CCHARSYNCPACKET_H
+#pragma once
 
 #include "basic.h"
 
 class CCharEntity;
 
+enum class CharSyncRecipient : uint8_t
+{
+    Self,
+    Others,
+};
+
 class CCharSyncPacket : public CBasicPacket
 {
 public:
-    CCharSyncPacket(CCharEntity* PChar);
+    explicit CCharSyncPacket(CCharEntity* PChar, CharSyncRecipient recipient = CharSyncRecipient::Self);
 };
-
-#endif

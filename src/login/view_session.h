@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2023 LandSandBoat Dev Teams
@@ -58,6 +58,10 @@ protected:
     }
 
     void handle_error(std::error_code ec, std::shared_ptr<handler_session> self) override;
+
+public:
+    // follows the client's lobby key counter on every reply it gets
+    void do_write(std::size_t length) override;
 
 private:
     ipc::Channel<zmq::message_t> dealerChannel_;

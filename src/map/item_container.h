@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,8 +19,7 @@
 ===========================================================================
 */
 
-#ifndef _CITEMCONTAINER_H
-#define _CITEMCONTAINER_H
+#pragma once
 
 #include "common/cbasetypes.h"
 #include "common/logging.h"
@@ -61,10 +60,12 @@ enum CONTAINER_ID : uint8
 #define ERROR_SLOTID       255
 DECLARE_FORMAT_AS_UNDERLYING(CONTAINER_ID);
 
+class CCharEntity;
+
 class CItemContainer
 {
 public:
-    CItemContainer(uint16 LocationID);
+    CItemContainer(uint16 LocationID, const CCharEntity* owner = nullptr);
     ~CItemContainer();
 
     uint16 GetID() const;
@@ -101,13 +102,28 @@ public:
         }
     }
 
+    // first item matching pred, or nullptr
+    template <typename F>
+    auto FindItem(F pred) -> CItem*
+    {
+        for (uint8 SlotID = 0; SlotID <= m_size; ++SlotID)
+        {
+            if (m_ItemList[SlotID] && pred(m_ItemList[SlotID].get()))
+            {
+                return m_ItemList[SlotID].get();
+            }
+        }
+
+        return nullptr;
+    }
+
 private:
     uint16 m_id;
     uint16 m_buff; // This appears to be the "usable" amount of your storage. You can have a locker size of 30, but a "buff" of 0 when it is out of use.
     uint8  m_size;
     uint8  m_count;
 
+    const CCharEntity* owner_;
+
     std::array<std::unique_ptr<CItem>, MAX_CONTAINER_SIZE + 1> m_ItemList{};
 };
-
-#endif

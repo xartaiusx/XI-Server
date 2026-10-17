@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2023 LandSandBoat Dev Teams
@@ -67,7 +67,7 @@ enum class login_result : uint8_t
     LOGIN_ERROR_TRUST_TOKEN_INVALID = 0x13,
 };
 
-constexpr std::array<uint8, 3> SupportedXiloaderVersion = { 2, 1, 0 };
+constexpr std::array<uint8, 3> SupportedXiloaderVersion = { 2, 2, 0 };
 
 // NOTE: This collection of flags is 64-bits wide!
 enum AUTH_COMPONENTS
@@ -136,7 +136,7 @@ protected:
         // Most errors are extremely noisy, any connection that's been dropped (Such as port scanners) will log an error
     }
 
-    void do_write(std::size_t length);
+    void do_write(std::size_t length) override;
 
 private:
     ipc::Channel<zmq::message_t> dealerChannel_;

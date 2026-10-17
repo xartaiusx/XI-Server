@@ -53,6 +53,19 @@ end
 function CSimulation:seed()
 end
 
+---Read a server setting by its fully qualified key
+---@param key string Setting key, e.g. 'map.EXP_RETAIN'
+---@return boolean|number|string
+function CSimulation:getSetting(key)
+end
+
+---Override a server setting for the duration of the test, restored automatically afterwards
+---@param key string Setting key, e.g. 'map.EXP_RETAIN'
+---@param value boolean|number|string
+---@return nil
+function CSimulation:setSetting(key, value)
+end
+
 ---Advances the steady clock.
 ---@param seconds integer
 ---@return nil
@@ -86,4 +99,11 @@ end
 ---@param slotId integer
 ---@return CTestEntity[]
 function CSimulation:getSpawnSlot(zoneId, slotId)
+end
+
+---Sets the percent chance a slotted mob wins its slot's roll
+---@param entity CBaseEntity
+---@param chance integer
+---@return nil
+function CSimulation:setSlotChance(entity, chance)
 end

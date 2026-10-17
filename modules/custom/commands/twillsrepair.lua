@@ -2,6 +2,8 @@
 -- func: twillsrepair
 -- desc: Runs one explicit, reviewable Twills repair surface.
 -----------------------------------
+require('modules/module_utils')
+-----------------------------------
 ---@type TCommand
 local commandObj = {}
 
@@ -156,4 +158,4 @@ commandObj.onTrigger = function(player, operation, mode)
     end
 end
 
-return commandObj
+xi.module.registerCommand('twillsrepair', commandObj)

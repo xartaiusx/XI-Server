@@ -29,6 +29,7 @@ end
 
 zoneObject.onInitialize = function(zone)
     xi.server.setExplorerMoogles(ID.npc.EXPLORER_MOOGLE)
+    zone:registerCuboidTriggerArea(493, -12.7, -6.6, -16.4, 9.8, 0.1, 1.8) -- Boat boarding area
 end
 
 zoneObject.onZoneIn = function(player, prevZone)
@@ -40,12 +41,12 @@ zoneObject.onZoneIn = function(player, prevZone)
         player:getZPos() == 0
     then
         if
-            player:hasKeyItem(xi.ki.FERRY_TICKET) and
+            player:hasKeyItem(xi.keyItem.FERRY_TICKET) and
             (prevZone == xi.zone.SHIP_BOUND_FOR_MHAURA or
             prevZone == xi.zone.OPEN_SEA_ROUTE_TO_MHAURA or
             prevZone == xi.zone.SHIP_BOUND_FOR_MHAURA_PIRATES)
         then
-            cs = { 202, -1, bit.bor(xi.cutsceneFlag.UNKNOWN_1, xi.cutsceneFlag.NO_PCS) }
+            cs = { 202, -1, bit.bor(xi.cutsceneFlag.RESET_CAMERA, xi.cutsceneFlag.NO_PCS) }
             player:setPos(14.960, -3.430, 18.423, 192)
         else
             player:setPos(0.003, -6.252, 117.971, 65)
@@ -59,7 +60,7 @@ zoneObject.onConquestUpdate = function(zone, updatetype, influence, owner, ranki
     xi.conquest.onConquestUpdate(zone, updatetype, influence, owner, ranking, isConquestAlliance)
 end
 
-zoneObject.onTransportEvent = function(player, prevZoneId, transportId)
+zoneObject.onTransportEvent = function(player, prevZoneId, transportName)
     if player:isInEvent() then
         return
     end
@@ -70,29 +71,29 @@ zoneObject.onTransportEvent = function(player, prevZoneId, transportId)
     then
         if
             xi.settings.main.ENABLE_TOAU == 1 and
-            player:hasKeyItem(xi.ki.BOARDING_PERMIT) and
-            player:hasKeyItem(xi.ki.FERRY_TICKET)
+            player:hasKeyItem(xi.keyItem.BOARDING_PERMIT) and
+            player:hasKeyItem(xi.keyItem.FERRY_TICKET)
         then
             player:startEvent(200, {
                 isHidden = true,
                 flags    = bit.bor(
-                    xi.cutsceneFlag.UNKNOWN_1,
+                    xi.cutsceneFlag.RESET_CAMERA,
                     xi.cutsceneFlag.NO_PCS,
-                    xi.cutsceneFlag.UNKNOWN_7
+                    xi.cutsceneFlag.NO_IDLE_WAIT
                 ),
             })
         else
             player:startEvent(204)
-            player:messageSpecial(ID.text.DO_NOT_POSSESS, xi.ki.BOARDING_PERMIT)
+            player:messageSpecial(ID.text.DO_NOT_POSSESS, xi.keyItem.BOARDING_PERMIT)
         end
     else
-        if player:hasKeyItem(xi.ki.FERRY_TICKET) then
+        if player:hasKeyItem(xi.keyItem.FERRY_TICKET) then
             player:startEvent(200, {
                 isHidden = true,
                 flags    = bit.bor(
-                    xi.cutsceneFlag.UNKNOWN_1,
+                    xi.cutsceneFlag.RESET_CAMERA,
                     xi.cutsceneFlag.NO_PCS,
-                    xi.cutsceneFlag.UNKNOWN_7
+                    xi.cutsceneFlag.NO_IDLE_WAIT
                 ),
             })
         else

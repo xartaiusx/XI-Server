@@ -24,6 +24,7 @@
 #include "aman.h"
 #include "entities/char_entity.h"
 #include "enums/msg_std.h"
+#include "packets/c2s/validation.h"
 #include "packets/char_status.h"
 #include "packets/char_sync.h"
 #include "packets/s2c/0x009_message.h"
@@ -50,6 +51,12 @@ void GP_CLI_COMMAND_CONFIG::process(MapSession* PSession, CCharEntity* PChar) co
     {
         updated                       = true;
         PChar->playerConfig.InviteFlg = value;
+
+        // seeking a party and accepting requests are mutually exclusive
+        if (value)
+        {
+            PChar->playerConfig.RecruitFlg = false;
+        }
     }
 
     // Flag set if the client is away. (/away)
@@ -121,6 +128,11 @@ void GP_CLI_COMMAND_CONFIG::process(MapSession* PSession, CCharEntity* PChar) co
     {
         updated                        = true;
         PChar->playerConfig.RecruitFlg = value;
+
+        if (value)
+        {
+            PChar->playerConfig.InviteFlg = false;
+        }
     }
 
     // Retail replies with these packets even if no changes were made.

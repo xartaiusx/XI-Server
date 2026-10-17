@@ -10,7 +10,7 @@ local quest = Quest:new(xi.questLog.BASTOK, xi.quest.id.bastok.THE_CURSE_COLLECT
 
 quest.reward =
 {
-    fame     = 30,
+    fame     = 40,
     fameArea = xi.fameArea.BASTOK,
     item     = xi.item.POISON_CESTI,
 }
@@ -49,7 +49,7 @@ quest.sections =
             onEventFinish =
             {
                 [251] = function(player, csid, option, npc)
-                    npcUtil.giveKeyItem(player, xi.ki.CURSEPAPER)
+                    npcUtil.giveKeyItem(player, xi.keyItem.CURSEPAPER)
                     quest:begin(player)
                 end,
             },
@@ -79,7 +79,7 @@ quest.sections =
             {
                 [252] = function(player, csid, option, npc)
                     if quest:complete(player) then
-                        player:delKeyItem(xi.ki.CURSEPAPER)
+                        player:delKeyItem(xi.keyItem.CURSEPAPER)
                     end
                 end,
             },

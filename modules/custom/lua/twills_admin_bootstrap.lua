@@ -13,12 +13,11 @@ require('scripts/globals/missions')
 require('scripts/globals/quests')
 require('scripts/globals/teleports')
 require('scripts/globals/moghouse')
-require('scripts/globals/chocobo_raising')
+require('scripts/globals/hobbies/chocobo_raising/chocobo_raising')
 require('scripts/globals/assault/data')
 require('scripts/globals/roe_records')
 require('scripts/globals/deeds')
 -----------------------------------
-local m = Module:new('twills_admin_bootstrap')
 local contentRegistry = require('modules/custom/lua/twills_content_parity_registry')
 
 local adminName = 'Twills'
@@ -57,52 +56,52 @@ local commandHelpers =
 
 local requiredKeyItems =
 {
-    xi.ki.LIMIT_BREAKER,
-    xi.ki.JOB_BREAKER,
-    xi.ki.MASTER_BREAKER,
-    xi.ki.HEART_OF_THE_BUSHIN,
-    xi.ki.AIRSHIP_PASS,
-    xi.ki.AIRSHIP_PASS_FOR_KAZHAM,
-    xi.ki.CHOCOBO_LICENSE,
-    xi.ki.ARCHDUCAL_AUDIENCE_PERMIT,
-    xi.ki.TENSHODO_MEMBERS_CARD,
-    xi.ki.WHITE_CARD,
-    xi.ki.MONARCH_LINN_PATROL_PERMIT,
-    xi.ki.BOARDING_PERMIT,
-    xi.ki.RUNIC_PORTAL_USE_PERMIT,
-    xi.ki.PURE_WHITE_FEATHER,
-    xi.ki.MEDAL_OF_ALTANA,
-    xi.ki.LUNAR_ABYSSITE1,
-    xi.ki.LUNAR_ABYSSITE2,
-    xi.ki.LUNAR_ABYSSITE3,
-    xi.ki.PRIMAL_GLOW,
-    xi.ki.ADOULINIAN_CHARTER_PERMIT,
-    xi.ki.KAZHAM_WARP_RUNE,
-    xi.ki.GARDENIA_PASS,
-    xi.ki.GPS_CRYSTAL,
-    xi.ki.SYNERGY_CRUCIBLE,
-    xi.ki.MOG_PATIO_DESIGN_DOCUMENT,
-    xi.ki.TRAINERS_WHISTLE,
-    xi.ki.CHOCOBO_COMPANION,
-    xi.ki.STORY_OF_AN_IMPATIENT_CHOCOBO,
-    xi.ki.STORY_OF_A_CURIOUS_CHOCOBO,
-    xi.ki.STORY_OF_A_HAPPY_CHOCOBO,
-    xi.ki.WINDURST_TRUST_PERMIT,
-    xi.ki.BASTOK_TRUST_PERMIT,
-    xi.ki.SAN_DORIA_TRUST_PERMIT,
-    xi.ki.RHAPSODY_IN_WHITE,
-    xi.ki.RHAPSODY_IN_UMBER,
-    xi.ki.RHAPSODY_IN_AZURE,
-    xi.ki.RHAPSODY_IN_CRIMSON,
-    xi.ki.RHAPSODY_IN_EMERALD,
-    xi.ki.RHAPSODY_IN_MAUVE,
-    xi.ki.RHAPSODY_IN_FUCHSIA,
-    xi.ki.RHAPSODY_IN_PUCE,
-    xi.ki.RHAPSODY_IN_OCHRE,
-    xi.ki.SCINTILLATING_RHAPSODY,
-    xi.ki.PRIMER_ON_MARTIAL_TECHNIQUES,
-    xi.ki.TREATISE_ON_MARTIAL_TECHNIQUES,
-    xi.ki.CIPHER_BRACELET,
+    xi.keyItem.LIMIT_BREAKER,
+    xi.keyItem.JOB_BREAKER,
+    xi.keyItem.MASTER_BREAKER,
+    xi.keyItem.HEART_OF_THE_BUSHIN,
+    xi.keyItem.AIRSHIP_PASS,
+    xi.keyItem.AIRSHIP_PASS_FOR_KAZHAM,
+    xi.keyItem.CHOCOBO_LICENSE,
+    xi.keyItem.ARCHDUCAL_AUDIENCE_PERMIT,
+    xi.keyItem.TENSHODO_MEMBERS_CARD,
+    xi.keyItem.WHITE_CARD,
+    xi.keyItem.MONARCH_LINN_PATROL_PERMIT,
+    xi.keyItem.BOARDING_PERMIT,
+    xi.keyItem.RUNIC_PORTAL_USE_PERMIT,
+    xi.keyItem.PURE_WHITE_FEATHER,
+    xi.keyItem.MEDAL_OF_ALTANA,
+    xi.keyItem.LUNAR_ABYSSITE1,
+    xi.keyItem.LUNAR_ABYSSITE2,
+    xi.keyItem.LUNAR_ABYSSITE3,
+    xi.keyItem.PRIMAL_GLOW,
+    xi.keyItem.ADOULINIAN_CHARTER_PERMIT,
+    xi.keyItem.KAZHAM_WARP_RUNE,
+    xi.keyItem.GARDENIA_PASS,
+    xi.keyItem.GPS_CRYSTAL,
+    xi.keyItem.SYNERGY_CRUCIBLE,
+    xi.keyItem.MOG_PATIO_DESIGN_DOCUMENT,
+    xi.keyItem.TRAINERS_WHISTLE,
+    xi.keyItem.CHOCOBO_COMPANION,
+    xi.keyItem.STORY_OF_AN_IMPATIENT_CHOCOBO,
+    xi.keyItem.STORY_OF_A_CURIOUS_CHOCOBO,
+    xi.keyItem.STORY_OF_A_HAPPY_CHOCOBO,
+    xi.keyItem.WINDURST_TRUST_PERMIT,
+    xi.keyItem.BASTOK_TRUST_PERMIT,
+    xi.keyItem.SAN_DORIA_TRUST_PERMIT,
+    xi.keyItem.RHAPSODY_IN_WHITE,
+    xi.keyItem.RHAPSODY_IN_UMBER,
+    xi.keyItem.RHAPSODY_IN_AZURE,
+    xi.keyItem.RHAPSODY_IN_CRIMSON,
+    xi.keyItem.RHAPSODY_IN_EMERALD,
+    xi.keyItem.RHAPSODY_IN_MAUVE,
+    xi.keyItem.RHAPSODY_IN_FUCHSIA,
+    xi.keyItem.RHAPSODY_IN_PUCE,
+    xi.keyItem.RHAPSODY_IN_OCHRE,
+    xi.keyItem.SCINTILLATING_RHAPSODY,
+    xi.keyItem.PRIMER_ON_MARTIAL_TECHNIQUES,
+    xi.keyItem.TREATISE_ON_MARTIAL_TECHNIQUES,
+    xi.keyItem.CIPHER_BRACELET,
 }
 
 local gobbieBagQuests =
@@ -614,7 +613,7 @@ local function isLongTimeKeyItem(name, id)
 end
 
 local function getLongTimeKeyItems()
-    return collectNamedIds(xi.ki, isLongTimeKeyItem)
+    return collectNamedIds(xi.keyItem, isLongTimeKeyItem)
 end
 
 local function countLongTimeKeyItems(player, predicate)
@@ -622,7 +621,7 @@ local function countLongTimeKeyItems(player, predicate)
     local total = 0
     local missing = {}
 
-    for _, entry in ipairs(collectNamedIds(xi.ki, predicate)) do
+    for _, entry in ipairs(collectNamedIds(xi.keyItem, predicate)) do
         total = total + 1
         if player:hasKeyItem(entry.id) then
             found = found + 1
@@ -640,7 +639,7 @@ local function countGateGroup(player, groupName)
     local missing = {}
 
     for _, name in ipairs(longTimeGateGroups[groupName] or {}) do
-        local id = xi.ki[name]
+        local id = xi.keyItem[name]
         if id ~= nil then
             total = total + 1
             if player:hasKeyItem(id) then
@@ -1487,4 +1486,4 @@ xi.twills_admin.repairGear = repairSupportedGear
 xi.twills_admin.contentRegistry = contentRegistry
 xi.twills_admin.trustAllianceAccessVar = trustAllianceAccessVar
 
-return m
+return xi.twills_admin

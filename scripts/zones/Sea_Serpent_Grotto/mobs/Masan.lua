@@ -2,20 +2,8 @@
 -- Area: Sea Serpent Grotto
 --   NM: Masan
 -----------------------------------
-local ID = zones[xi.zone.SEA_SERPENT_GROTTO]
------------------------------------
 ---@type TMobEntity
 local entity = {}
-
-entity.spawnPoints =
-{
-    { x =  1.178, y =  10.799, z =  178.807 }
-}
-
-entity.phList =
-{
-    [ID.mob.MASAN - 3] = ID.mob.MASAN, -- Confirmed on retail
-}
 
 entity.onMobInitialize = function(mob)
     mob:setMobMod(xi.mobMod.ADD_EFFECT, 1)

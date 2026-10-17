@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -19,8 +19,7 @@
 ===========================================================================
 */
 
-#ifndef _CITEMFURNISHING_H
-#define _CITEMFURNISHING_H
+#pragma once
 
 #include "common/cbasetypes.h"
 
@@ -158,5 +157,3 @@ private:
     uint16                  height_{};
     FurnishingPlacement     placement_{ FurnishingPlacement::Floor };
 };
-
-#endif

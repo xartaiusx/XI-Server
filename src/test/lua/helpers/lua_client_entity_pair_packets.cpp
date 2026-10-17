@@ -36,6 +36,7 @@
 #include "test_char.h"
 #include "test_common.h"
 #include "utils/charutils.h"
+#include "utils/zoneutils.h"
 
 CLuaClientEntityPairPackets::CLuaClientEntityPairPackets(CLuaClientEntityPair* parent)
 : parent_(parent)
@@ -113,7 +114,8 @@ void CLuaClientEntityPairPackets::sendZonePackets()
     // TestChar holds the actual CCharEntity, while parent_ is the Lua wrapper
     // that also needs its internal pointer updated to the newly loaded entity
     testChar->setBlowfish(BLOWFISH_PENDING_ZONE);
-    testChar->setEntity(charutils::LoadChar(parent_->engine()->scheduler(), parent_->engine()->config(), testChar->charId()));
+    testChar->setEntity(charutils::LoadChar(testChar->charId()));
+    zoneutils::EnsureZoneLoaded(parent_->engine()->scheduler(), parent_->engine()->config(), testChar->entity()->loc.destination);
     parent_->setEntity(testChar->entity());
 
     // Send LOGIN packet to begin zone-in sequence
@@ -271,8 +273,7 @@ auto CLuaClientEntityPairPackets::guildList(uint16 packetId) const -> sol::table
 
 void CLuaClientEntityPairPackets::clear() const
 {
-    const auto testChar = parent_->testChar();
-    testChar->entity()->clearPacketList();
+    parent_->testChar()->clearPackets();
 }
 
 void CLuaClientEntityPairPackets::Register()

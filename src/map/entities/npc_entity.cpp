@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -22,6 +22,7 @@
 #include "npc_entity.h"
 
 #include "ai/ai_container.h"
+#include "zone.h"
 
 /************************************************************************
  *                                                                       *
@@ -112,6 +113,16 @@ bool CNpcEntity::alwaysRelevant() const
 void CNpcEntity::setAlwaysRelevant(bool alwaysRelevant)
 {
     alwaysRelevant_ = alwaysRelevant;
+}
+
+auto CNpcEntity::contentDisabled() const -> bool
+{
+    return contentDisabled_;
+}
+
+void CNpcEntity::setContentDisabled(bool contentDisabled)
+{
+    contentDisabled_ = contentDisabled;
 }
 
 bool CNpcEntity::isWideScannable()

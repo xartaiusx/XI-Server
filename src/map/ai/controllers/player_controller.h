@@ -1,4 +1,4 @@
-﻿/*
+/*
 ===========================================================================
 
   Copyright (c) 2010-2015 Darkstar Dev Teams
@@ -35,7 +35,7 @@ public:
     auto Tick(timer::time_point tick) -> Task<void> override;
     auto Cast(EntityId target, SpellID spellid) -> bool override;
     auto Engage(const EntityId& target) -> bool override;
-    auto ChangeTarget(uint16 targid) -> bool override;
+    auto ChangeTarget(const EntityId& target) -> bool override;
     auto Disengage() -> bool override;
     auto WeaponSkill(EntityId target, uint16 wsid) -> bool override;
     auto Ability(EntityId target, uint16 abilityid) -> bool override;
@@ -44,6 +44,7 @@ public:
 
     auto getLastAttackTime() -> timer::time_point;
     void setLastAttackTime(timer::time_point);
+    void setEngageLockedUntil(timer::time_point);
 
     auto getLastSpellFinishedTime() -> timer::time_point;
     void setLastSpellFinishedTime(timer::time_point);
@@ -57,6 +58,7 @@ public:
 
 protected:
     timer::time_point m_lastAttackTime{ timer::now() };
+    timer::time_point m_engageLockedUntil{};
     timer::time_point m_spellFinishedTime{ timer::now() };
     timer::time_point m_errMsgTime{ timer::now() };
     CWeaponSkill*     m_lastWeaponSkill{ nullptr };
