@@ -37,8 +37,12 @@ namespace certificateHelpers
 // Creates <name>.key and <name>.cert only when neither path exists.
 inline void generateSelfSignedCert(const std::string& name = "login", const bool ellipticCurve = false)
 {
-    const auto keyFile  = name + ".key";
-    const auto certFile = name + ".cert";
+    const auto keyFile   = name + ".key";
+    const auto certFile  = name + ".cert";
+    auto       closeFile = [](FILE* file) noexcept
+    {
+        fclose(file);
+    };
 
     // symlink_status also detects dangling credential links. Never replace an
     // existing path or attempt to repair credential material during startup.
@@ -52,8 +56,8 @@ inline void generateSelfSignedCert(const std::string& name = "login", const bool
             throw std::runtime_error(fmt::format("Existing {} and {} must be a complete readable credential pair; no files were changed", keyFile, certFile));
         }
 
-        const auto keyInput  = std::unique_ptr<FILE, decltype(&fclose)>(fopen(keyFile.c_str(), "rb"), fclose);
-        const auto certInput = std::unique_ptr<FILE, decltype(&fclose)>(fopen(certFile.c_str(), "rb"), fclose);
+        const auto keyInput  = std::unique_ptr<FILE, decltype(closeFile)>(fopen(keyFile.c_str(), "rb"), closeFile);
+        const auto certInput = std::unique_ptr<FILE, decltype(closeFile)>(fopen(certFile.c_str(), "rb"), closeFile);
         if (!keyInput || !certInput)
         {
             throw std::runtime_error(fmt::format("Cannot read existing {} and {}; no files were changed", keyFile, certFile));
@@ -121,7 +125,7 @@ inline void generateSelfSignedCert(const std::string& name = "login", const bool
     }
 
     // Exclusive creation also refuses paths introduced after the checks above.
-    auto keyOutput = std::unique_ptr<FILE, decltype(&fclose)>(fopen(keyFile.c_str(), "wbx"), fclose);
+    auto keyOutput = std::unique_ptr<FILE, decltype(closeFile)>(fopen(keyFile.c_str(), "wbx"), closeFile);
     if (!keyOutput || PEM_write_PrivateKey(keyOutput.get(), pkey.get(), nullptr, nullptr, 0, nullptr, nullptr) != 1)
     {
         throw std::runtime_error(fmt::format("Failed to create {}; existing paths were not replaced", keyFile));
@@ -131,7 +135,7 @@ inline void generateSelfSignedCert(const std::string& name = "login", const bool
         throw std::runtime_error(fmt::format("Failed to close {}", keyFile));
     }
 
-    auto certOutput = std::unique_ptr<FILE, decltype(&fclose)>(fopen(certFile.c_str(), "wbx"), fclose);
+    auto certOutput = std::unique_ptr<FILE, decltype(closeFile)>(fopen(certFile.c_str(), "wbx"), closeFile);
     if (!certOutput || PEM_write_X509(certOutput.get(), x509.get()) != 1)
     {
         throw std::runtime_error(fmt::format("Failed to create {}; existing paths were not replaced", certFile));
