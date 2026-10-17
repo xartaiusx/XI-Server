@@ -14,6 +14,7 @@
 #include "enums/chat_message_type.h"
 #include "item_container.h"
 #include "items/item.h"
+#include "items/transactions/item_claim.h"
 #include "items/transactions/synth.h"
 #include "lua/lua_base_entity.h"
 #include "lua/luautils.h"
@@ -519,7 +520,34 @@ auto stageItem(CCharEntity* PChar, uint16 itemId, uint32 quantity) -> bool
         return true;
     }
 
-    if (charutils::AddItem(PChar, LOC_INVENTORY, itemId, quantity, true) == ERROR_SLOTID)
+    auto transaction = ItemClaimTransaction::start(PChar);
+    if (!transaction)
+    {
+        return false;
+    }
+
+    uint32 remaining = quantity;
+    while (remaining > 0)
+    {
+        auto item = xi::items::spawn(itemId);
+        if (!item || item->getStackSize() == 0)
+        {
+            ShowWarningFmt("Mochirii CraftQA: cannot stage unknown item {} for {}", itemId, PChar->getName());
+            return false;
+        }
+
+        const auto stackQuantity = std::min(remaining, item->getStackSize());
+        item->setQuantity(stackQuantity);
+        if (!transaction->give(LOC_INVENTORY, std::move(item), Silence::Yes))
+        {
+            ShowWarningFmt("Mochirii CraftQA: failed to stage item {} x{} for {}", itemId, quantity, PChar->getName());
+            return false;
+        }
+
+        remaining -= stackQuantity;
+    }
+
+    if (!transaction->commit())
     {
         ShowWarningFmt("Mochirii CraftQA: failed to stage item {} x{} for {}", itemId, quantity, PChar->getName());
         return false;
@@ -568,7 +596,7 @@ auto chooseSlot(CItemContainer* inv, uint16 itemId, std::array<uint8, MAX_CONTAI
     for (const auto slotId : inv->SearchItems(itemId))
     {
         const auto* item = inv->GetItem(slotId);
-        if (item && !item->isBusy() && !item->isSubType(ITEM_LOCKED) && item->getQuantity() > slotUse[slotId])
+        if (item && !item->isBusy() && item->getQuantity() > slotUse[slotId])
         {
             slotUse[slotId]++;
             return slotId;
@@ -697,7 +725,13 @@ auto archiveRecipeResults(CCharEntity* PChar, const Recipe& recipe) -> uint8
             const auto quantity = sourceItem->getQuantity();
             if (resultSaved)
             {
-                charutils::UpdateItem(PChar, LOC_INVENTORY, slotId, -static_cast<int32>(quantity), true);
+                auto transaction = ItemClaimTransaction::start(PChar);
+                if (!transaction || !transaction->take(LOC_INVENTORY, slotId, quantity) || !transaction->commit())
+                {
+                    logEvidence(PChar, &recipe, "archive_deferred", resultId, quantity, "duplicate result could not be claimed or removed");
+                    continue;
+                }
+
                 logEvidence(PChar, &recipe, "discard_duplicate_result", resultId, quantity, "one saved copy already exists outside active inventory");
                 continue;
             }
