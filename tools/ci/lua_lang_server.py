@@ -149,7 +149,7 @@ if os.path.exists(f"./lua-language-server.{os_to_asset.get(current_os)}"):
         with tarfile.open(
             f"./lua-language-server.{os_to_asset.get(current_os)}", "r:gz"
         ) as tar_ref:
-            tar_ref.extractall("./lua-language-server")
+            tar_ref.extractall("./lua-language-server", filter="data")
     print("Language server extracted successfully.")
 else:
     print("The downloaded file does not exist.")
