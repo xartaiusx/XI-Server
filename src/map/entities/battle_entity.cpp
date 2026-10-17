@@ -4101,7 +4101,7 @@ bool CBattleEntity::hasEnmityEXPENSIVE() const
                                      return;
                                  }
                                  // Account for charmed mobs attacking normal mobs, etc
-                                 if (PMob->battleTarget().ActIndex == targid && PMob->allegiance != allegiance)
+                                 if (PMob->battleTarget() == this && PMob->allegiance != allegiance)
                                  {
                                      isTargeted = true;
                                      return;

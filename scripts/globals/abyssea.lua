@@ -15,7 +15,7 @@ xi.abyssea.getCruorAward = function(player, amount)
         local atmaEffect = player:getStatusEffect(xi.effect.ATMA, atmaSlot)
         if
             atmaEffect ~= nil and
-            atmaEffect:getPower() == xi.ki.ATMA_OF_THE_ROYAL_LINEAGE
+            atmaEffect:getPower() == xi.keyItem.ATMA_OF_THE_ROYAL_LINEAGE
         then
             multiplier = 1.2
             break
