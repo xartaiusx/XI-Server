@@ -42,8 +42,6 @@ class HXIClient:
 
     def login(self):
         self.ssl_context = ssl.create_default_context()
-        self.ssl_context.minimum_version = ssl.TLSVersion.TLSv1_3
-        self.ssl_context.maximum_version = ssl.TLSVersion.TLSv1_3
 
         # Only local development may use the server's untrusted self-signed certificate.
         if self.server in ("localhost", "127.0.0.1", "::1"):
@@ -131,6 +129,9 @@ class HXIClient:
         self.stop_map_listener()
 
     def login_connect(self, ssl_context):
+        # Enforce the protocol at the socket boundary, including direct callers.
+        ssl_context.minimum_version = ssl.TLSVersion.TLSv1_3
+        ssl_context.maximum_version = ssl.TLSVersion.TLSv1_3
         server_address = (self.server, 54231)
         print("Starting up login connection over TLS on %s port %s" % server_address)
         self.login_sock = ssl_context.wrap_socket(
