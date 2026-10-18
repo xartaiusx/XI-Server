@@ -31,8 +31,70 @@
 #include <stdexcept>
 #include <string>
 
+#ifdef _WIN32
+#include <windows.h>
+
+#include <fcntl.h>
+#include <io.h>
+#include <sddl.h>
+#else
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 namespace certificateHelpers
 {
+
+// Restrict access atomically at creation, never by chmod after writing a key.
+// Existing paths (including links) are refused, and ownership passes to FILE.
+inline auto openExclusivePrivateFile(const std::string& path) -> FILE*
+{
+#ifdef _WIN32
+    const std::filesystem::path nativePath(path);
+    PSECURITY_DESCRIPTOR        descriptor = nullptr;
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorA("D:P(A;;FA;;;OW)", SDDL_REVISION_1, &descriptor, nullptr))
+    {
+        return nullptr;
+    }
+    SECURITY_ATTRIBUTES attributes{ sizeof(SECURITY_ATTRIBUTES), descriptor, FALSE };
+    const auto          handle = CreateFileW(nativePath.c_str(), GENERIC_WRITE, 0, &attributes, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+    LocalFree(descriptor);
+    if (handle == INVALID_HANDLE_VALUE)
+    {
+        return nullptr;
+    }
+    DWORD flags = 0;
+    if (!GetVolumeInformationByHandleW(handle, nullptr, 0, nullptr, nullptr, &flags, nullptr, 0) || (flags & FILE_PERSISTENT_ACLS) == 0)
+    {
+        CloseHandle(handle);
+        return nullptr;
+    }
+    const int fd = _open_osfhandle(reinterpret_cast<intptr_t>(handle), _O_WRONLY | _O_BINARY | _O_NOINHERIT);
+    if (fd == -1)
+    {
+        CloseHandle(handle);
+        return nullptr;
+    }
+    FILE* file = _fdopen(fd, "wb");
+    if (file == nullptr)
+    {
+        _close(fd);
+    }
+#else
+    const int fd = open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, S_IRUSR | S_IWUSR);
+    if (fd == -1)
+    {
+        return nullptr;
+    }
+    FILE* file = fdopen(fd, "wb");
+    if (file == nullptr)
+    {
+        close(fd);
+    }
+#endif
+    return file;
+}
 
 // Creates <name>.key and <name>.cert only when neither path exists.
 inline void generateSelfSignedCert(const std::string& name = "login", const bool ellipticCurve = false)
@@ -125,7 +187,7 @@ inline void generateSelfSignedCert(const std::string& name = "login", const bool
     }
 
     // Exclusive creation also refuses paths introduced after the checks above.
-    auto keyOutput = std::unique_ptr<FILE, decltype(closeFile)>(fopen(keyFile.c_str(), "wbx"), closeFile);
+    auto keyOutput = std::unique_ptr<FILE, decltype(closeFile)>(openExclusivePrivateFile(keyFile), closeFile);
     if (!keyOutput || PEM_write_PrivateKey(keyOutput.get(), pkey.get(), nullptr, nullptr, 0, nullptr, nullptr) != 1)
     {
         throw std::runtime_error(fmt::format("Failed to create {}; existing paths were not replaced", keyFile));
@@ -135,7 +197,7 @@ inline void generateSelfSignedCert(const std::string& name = "login", const bool
         throw std::runtime_error(fmt::format("Failed to close {}", keyFile));
     }
 
-    auto certOutput = std::unique_ptr<FILE, decltype(closeFile)>(fopen(certFile.c_str(), "wbx"), closeFile);
+    auto certOutput = std::unique_ptr<FILE, decltype(closeFile)>(openExclusivePrivateFile(certFile), closeFile);
     if (!certOutput || PEM_write_X509(certOutput.get(), x509.get()) != 1)
     {
         throw std::runtime_error(fmt::format("Failed to create {}; existing paths were not replaced", certFile));

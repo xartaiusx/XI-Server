@@ -98,6 +98,7 @@ target_link_libraries(xi_common
     PUBLIC
         ${SHARED_EXTERNAL_LIBS}
         project_options
+        $<$<PLATFORM_ID:Windows>:advapi32>
 )
 
 # tracy.cpp replaces global operator new/delete, so every consumer must agree on Tracy.

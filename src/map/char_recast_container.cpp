@@ -102,7 +102,7 @@ void CCharRecastContainer::Del(RECASTTYPE type, Recast id)
  *                                                                       *
  ************************************************************************/
 
-void CCharRecastContainer::DeleteByIndex(RECASTTYPE type, uint8 index)
+void CCharRecastContainer::DeleteByIndex(RECASTTYPE type, std::size_t index)
 {
     RecastList_t* PRecastList = GetRecastList(type);
     if (type == RECAST_ABILITY)

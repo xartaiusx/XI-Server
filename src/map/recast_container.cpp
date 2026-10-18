@@ -186,7 +186,7 @@ void CRecastContainer::Del(RECASTTYPE type, Recast id)
  *                                                                       *
  ************************************************************************/
 
-void CRecastContainer::DeleteByIndex(RECASTTYPE type, uint8 index)
+void CRecastContainer::DeleteByIndex(RECASTTYPE type, std::size_t index)
 {
     RecastList_t* PRecastList = GetRecastList(type);
     if (type == RECAST_ABILITY)
