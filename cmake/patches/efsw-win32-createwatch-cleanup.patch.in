@@ -2,5 +2,5 @@ diff --git a/src/efsw/WatcherWin32.cpp b/src/efsw/WatcherWin32.cpp
 --- a/src/efsw/WatcherWin32.cpp
 +++ b/src/efsw/WatcherWin32.cpp
 @@ -265 +265 @@ WatcherStructWin32* CreateWatch( LPCWSTR szDirectory, bool recursive, DWORD bufferSize,
--	efSAFE_DELETE( pWatch->Watch );
-+	efSAFE_DELETE( pWatch );
+-@EFSW_TAB@efSAFE_DELETE( pWatch->Watch );
++@EFSW_TAB@efSAFE_DELETE( pWatch );

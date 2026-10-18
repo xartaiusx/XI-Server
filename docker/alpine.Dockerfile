@@ -74,6 +74,7 @@ apk --update-cache add \
     ninja-build \
     ninja-is-really-ninja \
     openssl-dev \
+    patch \
     python3-dev \
     zeromq-dev \
     zlib-dev \

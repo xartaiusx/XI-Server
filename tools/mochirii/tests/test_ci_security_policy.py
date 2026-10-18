@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
+import re
+import subprocess
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -290,17 +293,66 @@ class CodeScanningCoverageTests(unittest.TestCase):
         )
         self.assertIn('set(ERRORS "/WX")', warnings)
 
+    def test_fmt_uses_the_normal_library_not_an_unused_module_target(self) -> None:
+        facade = (self.repo / "ext/CMakeLists.txt").read_text()
+        package = re.search(r"CPMAddPackage\(\s+NAME fmt\s.*?\n\)", facade, re.DOTALL)
+        self.assertIsNotNone(package)
+        self.assertIn("GIT_TAG 12.2.0", package[0])
+        self.assertIn('OPTIONS "FMT_MODULE OFF"', package[0])
+        self.assertIn(
+            "set(CMAKE_CXX_SCAN_FOR_MODULES OFF)",
+            (self.repo / "CMakeLists.txt").read_text(),
+        )
+        common = (self.repo / "src/common/CMakeLists.txt").read_text()
+        shared = re.search(r"set\(\s*SHARED_EXTERNAL_LIBS\s.*?\n\)", facade, re.DOTALL)
+        self.assertIsNotNone(shared)
+        self.assertIn("fmt::fmt", shared[0])
+        self.assertIn("${SHARED_EXTERNAL_LIBS}", common)
+
     def test_pinned_watcher_failure_patch_owns_its_cache_and_cleanup(self) -> None:
         facade = (self.repo / "ext/CMakeLists.txt").read_text()
-        patch = (
-            self.repo / "cmake/patches/efsw-win32-createwatch-cleanup.patch"
+        template = (
+            self.repo / "cmake/patches/efsw-win32-createwatch-cleanup.patch.in"
         ).read_text()
+        self.assertNotIn("\t", template)
+        patch = template.replace("@EFSW_TAB@", "\t")
         self.assertIn(
             "set(efsw_revision 22f17a0bcdf3a4edf61f8b14328391463389e548)", facade
         )
         self.assertIn(
-            'set(efsw_cleanup_patch "${CMAKE_SOURCE_DIR}/cmake/patches/efsw-win32-createwatch-cleanup.patch")',
+            'set(efsw_cleanup_patch "${CMAKE_CURRENT_BINARY_DIR}/patches/efsw-win32-createwatch-cleanup.patch")',
             facade,
+        )
+        self.assertIn("string(ASCII 9 EFSW_TAB)", facade)
+        self.assertIn("@ONLY NEWLINE_STYLE LF", facade)
+        generation = re.search(
+            r"set\(efsw_cleanup_patch .*?(?=file\(SHA256)", facade, re.DOTALL
+        )
+        self.assertIsNotNone(generation)
+        with TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            script = directory / "render.cmake"
+            script.write_text(
+                f'set(CMAKE_SOURCE_DIR "{self.repo.as_posix()}")\n' + generation[0]
+            )
+            result = subprocess.run(
+                [
+                    "cmake",
+                    "-P",
+                    str(script),
+                ],
+                cwd=directory,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            rendered = directory / "patches/efsw-win32-createwatch-cleanup.patch"
+            self.assertEqual(rendered.read_bytes(), patch.encode())
+        self.assertEqual(
+            hashlib.sha256(patch.encode()).hexdigest(),
+            "cccb03672f0af3abc267671cba70c51bb0a5c4c2300a3f53b0257a0d121d6d4b",
         )
         self.assertIn('file(SHA256 "${efsw_cleanup_patch}" efsw_patch_hash)', facade)
         self.assertIn(
@@ -320,6 +372,16 @@ class CodeScanningCoverageTests(unittest.TestCase):
             changed,
             ["-\tefSAFE_DELETE( pWatch->Watch );", "+\tefSAFE_DELETE( pWatch );"],
         )
+
+    def test_patch_is_a_build_only_dependency_in_both_container_images(self) -> None:
+        for image in ("ubuntu", "alpine"):
+            with self.subTest(image=image):
+                source = (self.repo / f"docker/{image}.Dockerfile").read_text()
+                base, later = source.split("FROM base AS staging", 1)
+                staging = later.split("# Install secondary dependencies as user.", 1)[0]
+                package = r"(?m)^    patch \\$"
+                self.assertNotRegex(base, package)
+                self.assertRegex(staging, package)
 
     def test_windows_metric_queries_native_calls_not_file_presence(self) -> None:
         pack_root = self.repo / ".github/codeql/security-coverage"

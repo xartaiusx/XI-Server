@@ -17,6 +17,8 @@
 #include "map/packets/basic.h"
 #include "map/utils/moduleutils.h"
 
+#include <fmt/chrono.h>
+
 #include <chrono>
 #include <filesystem>
 #include <fstream>

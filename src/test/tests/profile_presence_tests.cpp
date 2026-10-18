@@ -20,6 +20,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -30,7 +31,7 @@ namespace
 
 constexpr uint32 kAccountId = 1234;
 
-enum class Fault
+enum class Fault : std::uint8_t
 {
     None,
     OpenStatus,

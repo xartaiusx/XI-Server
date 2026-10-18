@@ -94,6 +94,7 @@ CPMAddPackage(
     GITHUB_REPOSITORY fmtlib/fmt
     GIT_TAG 12.2.0
     SYSTEM ON
+    OPTIONS "FMT_MODULE OFF"
 ) # defines: fmt::fmt
 
 CPMAddPackage(
@@ -166,7 +167,14 @@ CPMAddPackage(
 
 # Keep the pinned Win32 failure-cleanup fix in its own reproducible cache entry.
 set(efsw_revision 22f17a0bcdf3a4edf61f8b14328391463389e548)
-set(efsw_cleanup_patch "${CMAKE_SOURCE_DIR}/cmake/patches/efsw-win32-createwatch-cleanup.patch")
+set(efsw_cleanup_patch "${CMAKE_CURRENT_BINARY_DIR}/patches/efsw-win32-createwatch-cleanup.patch")
+string(ASCII 9 EFSW_TAB)
+configure_file(
+    "${CMAKE_SOURCE_DIR}/cmake/patches/efsw-win32-createwatch-cleanup.patch.in"
+    "${efsw_cleanup_patch}"
+    @ONLY NEWLINE_STYLE LF
+)
+unset(EFSW_TAB)
 file(SHA256 "${efsw_cleanup_patch}" efsw_patch_hash)
 string(SHA256 efsw_cache_key "${efsw_revision}:${efsw_patch_hash}")
 CPMAddPackage(

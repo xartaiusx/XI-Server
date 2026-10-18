@@ -193,11 +193,25 @@ toolchain change. The Glaze interface facade also retains upstream's three
 real-MSVC-only C++ conformance options; clang-cl never inherits those options.
 Only `/MP` is restricted to the real MSVC driver; warnings-as-errors are retained.
 
+The first supported-toolchain candidate passed native compiler/SDK preflight but
+failed CMake generation before CodeQL initialization: fmt12.2.0 auto-enabled its
+optional module for clang-cl, while CMake3.31.6 has no MSVC-frontend Clang module
+scanner. The pinned dependency now explicitly sets `FMT_MODULE OFF`. Mochirii
+uses fmt's headers and `fmt::fmt`, not module imports; both remain unchanged.
+This disables an unused dependency target, not CodeQL source scanning, query
+suites, compiler diagnostics or first-party coverage requirements.
+
 The pinned efsw revision's Windows failed-watch cleanup deletes the allocated
 watcher, not its null borrowed parent. A repository-owned one-line patch is
 applied through native CPM `PATCHES`; the revision and patch-content digest
 derive a separate cache key, preserving prior caches and preventing stale patch
-reuse. Fault injection of the exact pinned function bodies with mock Windows
+reuse. Both are unchanged when its tab-free tracked template is rendered through native
+`configure_file(@ONLY NEWLINE_STYLE LF)`. The rendered patch is byte-identical
+to the previously validated patch; both container staging images explicitly
+install `patch` as a build-only dependency. No sanity-check exemption is needed.
+The full Linux no-PCH trace also requires PacketCap's direct `fmt/chrono.h`
+include for its existing timestamp formatter; no format or capture behavior changes.
+Fault injection of the exact pinned function bodies with mock Windows
 APIs reproduced all three original failure leaks and verified corrected cleanup
 plus unchanged success ownership. That is native Linux source-level proof, not
 native Windows API or heap measurement; fresh Windows builds remain required.
@@ -242,4 +256,6 @@ Primary contracts:
 [Windows2022 runner image](https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md),
 [pinned developer-environment inputs](https://github.com/TheMrMilchmann/setup-msvc-dev/blob/368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9/action.yaml),
 [native CMake clang-cl C++23 selection](https://github.com/Kitware/CMake/blob/v3.31.6/Modules/Compiler/Clang.cmake#L230-L238),
+[fmt12.2 optional module contract](https://github.com/fmtlib/fmt/blob/12.2.0/CMakeLists.txt#L47-L79),
+[CMake3.31 Clang frontend module support](https://github.com/Kitware/CMake/blob/v3.31.6/Modules/Compiler/Clang-CXX.cmake#L29-L67),
 [Glaze9 MSVC interface contract](https://github.com/stephenberry/glaze/blob/v9.0.0/CMakeLists.txt#L21-L41).
