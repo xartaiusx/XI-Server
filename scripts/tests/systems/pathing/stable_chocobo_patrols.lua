@@ -10,20 +10,43 @@ describe('Stable chocobo patrols', function()
         { zone = xi.zone.WINDURST_WOODS,     id = 17764417, minX = 121.0, maxX = 128.3, minZ = -111.2, maxZ = -102.2 },
     }
 
+    local firstPoint = { x = 11.348, y = 2.201, z = -87.631, wait = 2900 }
+    ---@type CBaseEntity?
+    local headingNpc = nil
+
+    after_each(function()
+        if headingNpc then
+            headingNpc:clearPath()
+            headingNpc:setPos(firstPoint.x, firstPoint.y, firstPoint.z, 0)
+            headingNpc:setLocalVar('point', 1)
+            headingNpc:pathThrough({ firstPoint }, xi.path.flag.PATROL)
+            headingNpc:continuePath()
+            headingNpc = nil
+        end
+    end)
+
     it('turns to heading 0 when it picks the point it stands on', function()
         local player = xi.test.world:spawnPlayer({ zone = xi.zone.SOUTHERN_SAN_DORIA })
         stub('math.randomInt', 1)
 
-        -- Wherever it starts, it walks to its first point and then keeps picking it.
-        local npc    = player.entities:get(17719338)
+        -- Native arrival allows a small residual, so establish the exact self-point fixture.
+        local npc = player.entities:get(17719338)
+        headingNpc = npc
+        npc:clearPath()
+        npc:setPos(firstPoint.x, firstPoint.y, firstPoint.z, 128)
+        npc:setLocalVar('point', 1)
+        npc:pathThrough({ firstPoint }, xi.path.flag.PATROL)
+        npc:continuePath()
+        assert(npc:getRotPos() == 128, 'The turn must not be pre-satisfied')
+
         local turned = false
         for _ = 1, 60 do
             xi.test.world:skipTime(1)
 
             local pos = npc:getPos()
             if
-                math.abs(pos.x - 11.348) < 0.01 and
-                math.abs(pos.z - -87.631) < 0.01 and
+                math.abs(pos.x - firstPoint.x) < 0.01 and
+                math.abs(pos.z - firstPoint.z) < 0.01 and
                 npc:getRotPos() == 0
             then
                 turned = true
@@ -31,7 +54,9 @@ describe('Stable chocobo patrols', function()
             end
         end
 
-        assert(turned, string.format('Expected heading 0 at the first point, got %d', npc:getRotPos()))
+        local pos = npc:getPos()
+        assert(turned, string.format('Expected first point (%.3f, %.3f) and heading 0, got (%.6f, %.6f) and heading %d',
+            firstPoint.x, firstPoint.z, pos.x, pos.z, npc:getRotPos()))
     end)
 
     for _, walker in ipairs(walkers) do
