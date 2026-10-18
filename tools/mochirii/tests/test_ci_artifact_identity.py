@@ -102,5 +102,79 @@ class ContainerArtifactIdentityTests(unittest.TestCase):
         )
 
 
+class PreviousArtifactSelectorTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        workflows = REPO / ".github" / "workflows"
+        cls.jobs = {}
+        for name, job in (
+            ("runner_test.yml", "Runner_Test"),
+            ("docker_test.yml", "Docker_Test"),
+        ):
+            cls.jobs[name] = yaml.safe_load((workflows / name).read_text())["jobs"][job]
+
+    def test_previous_download_selectors_are_event_exclusive(self) -> None:
+        for name, job in self.jobs.items():
+            with self.subTest(workflow=name):
+                download = next(
+                    step
+                    for step in job["steps"]
+                    if step.get("name") == "Download previous artifact"
+                )
+                inputs = download["with"]
+                self.assertEqual(
+                    inputs["run_id"], "${{ github.event.workflow_run.id }}"
+                )
+                self.assertEqual(
+                    inputs["commit"],
+                    "${{ github.event_name == 'workflow_dispatch' && github.sha || '' }}",
+                )
+                self.assertFalse({"pr", "branch", "ref"}.intersection(inputs))
+
+    def test_downloads_keep_full_source_identity(self) -> None:
+        for name, job in self.jobs.items():
+            with self.subTest(workflow=name):
+                checkout = next(
+                    step
+                    for step in job["steps"]
+                    if step.get("uses", "").startswith("actions/checkout@")
+                )
+                self.assertEqual(checkout["with"]["ref"], "${{ " + SOURCE_SHA + " }}")
+        runner_download = next(
+            step
+            for step in self.jobs["runner_test.yml"]["steps"]
+            if step.get("name") == "Download previous artifact"
+        )
+        self.assertEqual(
+            runner_download["with"]["name"],
+            "${{ format('LSB_{0}_{1}_{2}', runner.os, inputs.build_type, "
+            + SOURCE_SHA
+            + ") }}",
+        )
+        self.assertEqual(
+            self.jobs["docker_test.yml"]["env"]["artifact_name"],
+            "${{ format('LSB_{0}_image_{1}', inputs.os, " + SOURCE_SHA + ") }}",
+        )
+
+    def test_same_run_download_paths_remain_separate(self) -> None:
+        conditions = {
+            "runner_test.yml": (
+                "${{ github.event_name == 'pull_request' || inputs.same_run_artifact }}"
+            ),
+            "docker_test.yml": "${{ github.event_name == 'pull_request' }}",
+        }
+        for name, job in self.jobs.items():
+            with self.subTest(workflow=name):
+                download = next(
+                    step
+                    for step in job["steps"]
+                    if step.get("name") == "Download artifact"
+                )
+                self.assertEqual(download["if"], conditions[name])
+                self.assertTrue(
+                    download["uses"].startswith("actions/download-artifact@")
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

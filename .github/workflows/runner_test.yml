@@ -167,7 +167,7 @@ jobs:
         with:
           workflow: build.yml
           run_id: ${{ github.event.workflow_run.id }}
-          commit: ${{ github.event.workflow_run.head_sha || github.sha }}
+          commit: ${{ github.event_name == 'workflow_dispatch' && github.sha || '' }}
           name: ${{ format('LSB_{0}_{1}_{2}', runner.os, inputs.build_type, github.event.workflow_run.head_sha || github.sha) }}
 
       - name: Prepare executables

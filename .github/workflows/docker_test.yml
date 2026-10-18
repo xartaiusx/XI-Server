@@ -76,7 +76,7 @@ jobs:
         with:
           workflow: build.yml
           run_id: ${{ github.event.workflow_run.id }}
-          commit: ${{ github.event.workflow_run.head_sha || github.sha }}
+          commit: ${{ github.event_name == 'workflow_dispatch' && github.sha || '' }}
           name: ${{ env.artifact_name }}
           path: ${{ runner.temp }}
 
