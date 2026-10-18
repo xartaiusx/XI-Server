@@ -199,6 +199,7 @@ auto list(const uint32 accountId, const std::string_view directory, const uint16
         auto info = ProfFileInfo{
             .time = rset->get<uint32>("updated"),
             .size = rset->get<uint32>("size"),
+            .name = {},
         };
         const auto name = rset->get<std::string>("name");
         std::memcpy(info.name, name.data(), std::min(name.size(), sizeof(info.name) - 1));

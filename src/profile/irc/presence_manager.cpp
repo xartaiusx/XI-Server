@@ -255,9 +255,10 @@ void PresenceManager::notify(const uint32 subjectAccountId, const uint32 recipie
     }
 
     auto notice = FriendStatusNotice{
-        .friendAccountId = subjectAccountId,
-        .listIndex       = listIndex,
-        .timestamp       = nextTimestamp(),
+        .friendAccountId   = subjectAccountId,
+        .listIndex         = listIndex,
+        .timestamp         = nextTimestamp(),
+        .activeCharacterId = std::nullopt,
     };
 
     if (const auto subject = status(subjectAccountId); subject && visible)

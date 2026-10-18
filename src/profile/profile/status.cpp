@@ -57,11 +57,17 @@ auto loadMyStatus(const Context& context) -> ProfileAnswer
 {
     const auto status = context.presence.status(context.accountId).value_or(PresenceManager::Status{});
     return ProfileAnswer().add(MyStatus{
+        .ActiveHandleNameNum   = 0,
         .bCharacterActive      = status.inGame,
         .ActiveCharacterSlot   = status.characterSlot,
         .bReceiveOnlineMessage = status.receiveMessages,
         .ContentsClass         = Content::FFXI,
         .OpenStat              = static_cast<uint8>(static_cast<uint8>(status.openStatus) + 1),
+        .FriendAuthMode        = 0,
+        .LastLoginTime         = 0,
+        .LastLogoutTime        = 0,
+        .unused10              = {},
+        .checksum              = 0,
     });
 }
 

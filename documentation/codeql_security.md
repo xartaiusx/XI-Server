@@ -222,6 +222,10 @@ members (`Hide`, `Holes`, `Route`, `Members`) at declaration. This preserves the
 existing empty states when an aggregate omits them, retains aggregate layout and
 the separate wire-schema contract, and satisfies the same strict Windows warning
 without changing compiler flags or expanding every aggregate call site.
+Profile call sites likewise explicitly retain their already-zero reserved fields,
+arrays and checksums, and empty optional/callback members. Packed protocol type
+definitions are unchanged. All 16 profile translation units pass the same strict
+missing-member diagnostic without precompiled headers after the focused fix.
 Fault injection of the exact pinned function bodies with mock Windows
 APIs reproduced all three original failure leaks and verified corrected cleanup
 plus unchanged success ownership. That is native Linux source-level proof, not

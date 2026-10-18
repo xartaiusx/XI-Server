@@ -109,9 +109,12 @@ public:
     auto head() const -> ProfRecvAns
     {
         return {
-            .code  = answerCode,
-            .error = error_,
-            .size  = static_cast<uint32>(body_.size()),
+            .code      = answerCode,
+            .error     = error_,
+            .padding02 = 0,
+            .size      = static_cast<uint32>(body_.size()),
+            .realIp    = 0,
+            .unused0C  = {},
         };
     }
 

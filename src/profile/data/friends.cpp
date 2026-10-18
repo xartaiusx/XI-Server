@@ -170,15 +170,23 @@ auto load(const uint32 accountId) -> ErrorOr<std::vector<FriendInfo>>
 
         // same as retail: kind 1, Group 0xE, no characters
         auto& entry = entries.emplace_back(FriendInfo{
-            .op         = friendOpSet,
-            .isBlack    = rset->get<bool>("blacklist"),
-            .kind       = 1,
-            .handleId   = friendAccountId,
-            .Group      = 0xE,
-            .bTemporary = rset->get<bool>("pending"),
-            .Num        = rset->get<uint8>("list_index"),
-            .Order      = rset->get<uint8>("display_order"),
-            .PolId      = friendAccountId,
+            .op                 = friendOpSet,
+            .isBlack            = rset->get<bool>("blacklist"),
+            .kind               = 1,
+            .handleNumber       = 0,
+            .handleId           = friendAccountId,
+            .Group              = 0xE,
+            .unknown61          = 0,
+            .bTemporary         = rset->get<bool>("pending"),
+            .unknown63          = 0,
+            .Num                = rset->get<uint8>("list_index"),
+            .Order              = rset->get<uint8>("display_order"),
+            .result             = 0,
+            .padding0B          = 0,
+            .padding0C          = 0,
+            .PolId              = friendAccountId,
+            .handleName         = {},
+            .CharacterPrimitive = {},
         });
 
         const auto name = rset->get<std::string>("name");
@@ -270,6 +278,7 @@ auto visibleFriends(const uint32 accountId) -> ErrorOr<std::vector<Friend>>
             .accountId  = rset->get<uint32>("friend_accid"),
             .listIndex  = rset->get<uint8>("my_index"),
             .theirIndex = rset->get<uint8>("their_index"),
+            .playing    = std::nullopt,
         });
 
         if (!rset->isNull("playing"))

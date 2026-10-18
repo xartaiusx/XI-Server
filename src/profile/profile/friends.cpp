@@ -51,7 +51,7 @@ auto loadFriendList(Context& context) -> ProfileAnswer
         presence.sendFriendsTo(accountId);
     };
 
-    return ProfileAnswer().add(ProfCount{ .count = static_cast<uint32>(entries->size()) }).addAll(*entries);
+    return ProfileAnswer().add(ProfCount{ .count = static_cast<uint32>(entries->size()), .padding04 = 0 }).addAll(*entries);
 }
 
 auto storeFriendList(Context& context, const std::span<const uint8> body) -> Maybe<ProfileAnswer>
@@ -131,7 +131,7 @@ auto storeFriendList(Context& context, const std::span<const uint8> body) -> May
         }
     };
 
-    return ProfileAnswer().add(ProfCount{ .count = static_cast<uint32>(count) }).addAll(entries).add(ProfTrailer{ .unused00 = trailer->unused00 });
+    return ProfileAnswer().add(ProfCount{ .count = static_cast<uint32>(count), .padding04 = 0 }).addAll(entries).add(ProfTrailer{ .unused00 = trailer->unused00, .checksum = 0 });
 }
 
 } // namespace profile

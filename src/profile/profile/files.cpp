@@ -165,11 +165,11 @@ auto getFileList(const Context& context, const std::span<const uint8> body) -> M
 
     if (!isMessageList && maxEntries == 0)
     {
-        return ProfileAnswer().add(ProfCount{ .count = static_cast<uint32>(entries->size()) });
+        return ProfileAnswer().add(ProfCount{ .count = static_cast<uint32>(entries->size()), .padding04 = 0 });
     }
 
     auto answer = ProfileAnswer();
-    answer.add(ProfCount{ .count = static_cast<uint32>(entries->size()) }).addAll(*entries);
+    answer.add(ProfCount{ .count = static_cast<uint32>(entries->size()), .padding04 = 0 }).addAll(*entries);
 
     // an empty file list has no checksum, the message list always does
     if (isMessageList || !entries->empty())

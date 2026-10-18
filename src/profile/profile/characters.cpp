@@ -52,9 +52,9 @@ auto loadHandleNameList(const Context& context) -> ProfileAnswer
         name = characters->front().name;
     }
 
-    auto handle = HandleNameInfo{ .Id = context.accountId };
+    auto handle = HandleNameInfo{ .Num = 0, .Order = 0, .OpenLevel = 0, .padding03 = 0, .unknown04 = 0, .Id = context.accountId, .Name = {}, .unused20 = {} };
     std::memcpy(handle.Name, name.data(), std::min(name.size(), sizeof(handle.Name) - 1));
-    return ProfileAnswer().add(ProfCount{ .count = 1 }).add(handle);
+    return ProfileAnswer().add(ProfCount{ .count = 1, .padding04 = 0 }).add(handle);
 }
 
 // the client matches its character by key, else it shows as PlayOnline only
@@ -74,13 +74,20 @@ auto loadCharacterList(const Context& context) -> ProfileAnswer
         const auto index = static_cast<uint8>(characterInfos.size());
 
         auto info = CharacterInfo{
-            .index             = index,
-            .Order             = index,
-            .bAttached         = index < handleSlots,
-            .ContentsClass     = Content::FFXI,
-            .code              = { '0', '0' },
-            .ContentsUserSubId = characterKey(character.id),
-            .ContentsUserId    = character.id,
+            .index                          = index,
+            .Order                          = index,
+            .world                          = 0,
+            .padding03                      = 0,
+            .bAttached                      = index < handleSlots,
+            .HandleNumber                   = 0,
+            .CharacterIndexOfHandleNameList = 0,
+            .padding07                      = 0,
+            .ContentsClass                  = Content::FFXI,
+            .code                           = { '0', '0' },
+            .ContentsUserSubId              = characterKey(character.id),
+            .ContentsUserId                 = character.id,
+            .Name                           = {},
+            .Info                           = {},
         };
 
         if (info.bAttached)
@@ -92,7 +99,7 @@ auto loadCharacterList(const Context& context) -> ProfileAnswer
         characterInfos.push_back(info);
     }
 
-    return ProfileAnswer().add(ProfCount{ .count = static_cast<uint32>(characterInfos.size()) }).addAll(characterInfos);
+    return ProfileAnswer().add(ProfCount{ .count = static_cast<uint32>(characterInfos.size()), .padding04 = 0 }).addAll(characterInfos);
 }
 
 // FFXI passes the key from the search server

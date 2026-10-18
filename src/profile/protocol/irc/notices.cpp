@@ -75,7 +75,7 @@ auto friendStatusNotice(const FriendStatusNotice& notice) -> std::string
     const auto connected = notice.status != 0;
     const auto playing   = connected && notice.activeCharacterId.has_value();
 
-    auto extended = FriendStatExtended{ .flags = kExtendedStatus };
+    auto extended = FriendStatExtended{ .flags = kExtendedStatus, .padding01 = {} };
     if (playing)
     {
         extended.flags |= kExtendedCharacter;
@@ -86,6 +86,8 @@ auto friendStatusNotice(const FriendStatusNotice& notice) -> std::string
     if (playing)
     {
         const auto slot = sqPolCharacterPrimitive{
+            .bValid            = 0,
+            .__SystemReserved  = 0,
             .ContentsClass     = Content::FFXI,
             .ContentsUserSubId = characterKey(*notice.activeCharacterId),
             .ContentsUserId    = *notice.activeCharacterId,
@@ -98,17 +100,35 @@ auto friendStatusNotice(const FriendStatusNotice& notice) -> std::string
     const auto text = base64EncodeUnpadded(payload);
 
     auto header = FriendStatNotice{
-        .SenderPolId       = notice.friendAccountId ^ kMessagePolIdMask,
-        .Status            = static_cast<uint8>(notice.status + 1),
-        .active            = static_cast<uint8>(playing),
-        .hasExtended       = 1,
-        .listIndex         = notice.listIndex,
-        .__SystemAgeOfData = notice.timestamp,
-        .Length            = static_cast<uint32>(text.size() + 1),
-        .Type              = static_cast<uint16>(MessageType::FriendStatus),
-        .bIsOnline         = 1,
-        .bValid            = 1,
-        .bPolproRequest    = 1,
+        .SenderPolId          = notice.friendAccountId ^ kMessagePolIdMask,
+        .ReceiverPolId        = 0,
+        .connected            = 0,
+        .Status               = static_cast<uint8>(notice.status + 1),
+        .active               = static_cast<uint8>(playing),
+        .Purpose              = 0,
+        .ContentsClass        = {},
+        .unused16             = 0,
+        .handleNumber         = 0,
+        .hasExtended          = 1,
+        .unused1A             = 0,
+        .legacyBlock          = 0,
+        .listIndex            = notice.listIndex,
+        .unused1D             = {},
+        .udpPortSlot          = 0,
+        .unused24             = {},
+        .__SystemAgeOfData    = notice.timestamp,
+        .Length               = static_cast<uint32>(text.size() + 1),
+        .SenderHandleNumber   = 0,
+        .ReceiverHandleNumber = 0,
+        .DataType             = 0,
+        .Type                 = static_cast<uint16>(MessageType::FriendStatus),
+        .Code                 = 0,
+        .bIsOnline            = 1,
+        .bValid               = 1,
+        .ContentsId           = 0,
+        .bPolproRequest       = 1,
+        .__bSystemReserved    = 0,
+        .__SystemReserved     = 0,
     };
 
     if (connected)
@@ -123,15 +143,35 @@ auto friendStatusNotice(const FriendStatusNotice& notice) -> std::string
 auto profileAvailableNotice(const uint16 udpPortSlot) -> std::string
 {
     const auto header = FriendStatNotice{
-        .SenderPolId    = kMessagePolIdMask,
-        .ReceiverPolId  = kMessagePolIdMask,
-        .connected      = 1,
-        .handleNumber   = kNoHandle,
-        .legacyBlock    = 1,
-        .listIndex      = kNoHandle,
-        .udpPortSlot    = udpPortSlot,
-        .Type           = static_cast<uint16>(MessageType::FriendStatus),
-        .bPolproRequest = 1,
+        .SenderPolId          = kMessagePolIdMask,
+        .ReceiverPolId        = kMessagePolIdMask,
+        .connected            = 1,
+        .Status               = 0,
+        .active               = 0,
+        .Purpose              = 0,
+        .ContentsClass        = {},
+        .unused16             = 0,
+        .handleNumber         = kNoHandle,
+        .hasExtended          = 0,
+        .unused1A             = 0,
+        .legacyBlock          = 1,
+        .listIndex            = kNoHandle,
+        .unused1D             = {},
+        .udpPortSlot          = udpPortSlot,
+        .unused24             = {},
+        .__SystemAgeOfData    = 0,
+        .Length               = 0,
+        .SenderHandleNumber   = 0,
+        .ReceiverHandleNumber = 0,
+        .DataType             = 0,
+        .Type                 = static_cast<uint16>(MessageType::FriendStatus),
+        .Code                 = 0,
+        .bIsOnline            = 0,
+        .bValid               = 0,
+        .ContentsId           = 0,
+        .bPolproRequest       = 1,
+        .__bSystemReserved    = 0,
+        .__SystemReserved     = 0,
     };
 
     return base64Encode(asBytes(header));

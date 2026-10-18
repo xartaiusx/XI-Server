@@ -85,7 +85,7 @@ auto bodyLimit(const ProfRequest request) -> std::size_t
 
 ProfileSession::ProfileSession(Stream& stream, std::string peer, const uint32 accountId, PresenceManager& presence)
 : stream_(stream)
-, context_{ .peer = std::move(peer), .presence = presence, .accountId = accountId }
+, context_{ .peer = std::move(peer), .presence = presence, .accountId = accountId, .afterAnswer = {} }
 , sessionValue_(std::random_device{}())
 {
 }
@@ -99,6 +99,8 @@ auto ProfileSession::run() -> Task<void>
 
     const auto openAnswer = ProfOpenAns{
         .code         = openAnswerCode,
+        .error        = 0,
+        .unused02     = {},
         .sessionValue = sessionValue_,
     };
 
