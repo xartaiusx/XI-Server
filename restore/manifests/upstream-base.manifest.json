@@ -3,9 +3,9 @@
   "remote": "https://github.com/LandSandBoat/server.git",
   "branch": "base",
   "previousSnapshot": "b9cb1ab4f1e48b3affa9ce4b17ef6340fb81f2be",
-  "currentSnapshot": "f6c97ffa4bdd0bd7a70f3cf5ea1cba68d2fd2f60",
-  "commitCount": 1956,
-  "changedFileCount": 7252,
+  "currentSnapshot": "19caf2f2ffd293ca91751b4698b648f327c908a0",
+  "commitCount": 1959,
+  "changedFileCount": 7254,
   "appliedWith": "Three-way integration using the verified previousSnapshot as explicit base; downstream squash-linear history retained.",
   "reason": "The recorded accepted upstream snapshot is authoritative because public history uses squash merges.",
   "verifiedOverlaps": [
