@@ -58,7 +58,8 @@ inline auto openExclusivePrivateFile(const std::string& path) -> FILE*
         return nullptr;
     }
     SECURITY_ATTRIBUTES attributes{ sizeof(SECURITY_ATTRIBUTES), descriptor, FALSE };
-    const auto          handle = CreateFileW(nativePath.c_str(), GENERIC_WRITE, 0, &attributes, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+    // CREATE_NEW alone can follow a dangling link and create its target.
+    const auto handle = CreateFileW(nativePath.c_str(), GENERIC_WRITE, 0, &attributes, CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
     LocalFree(descriptor);
     if (handle == INVALID_HANDLE_VALUE)
     {
