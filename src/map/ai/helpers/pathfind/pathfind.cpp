@@ -318,6 +318,9 @@ auto CPathFind::FollowPath(const timer::time_point tick, const float stepCap) ->
         budget = std::min(budget, std::max(0.0f, toDestination - distanceFromPoint_));
     }
 
+    bool abortedRoamLeg = false;
+    bool movedThisTick  = false;
+
     // Use the whole tick's movement, even past several waypoints.
     while (!path_.consumed())
     {
@@ -364,9 +367,41 @@ auto CPathFind::FollowPath(const timer::time_point tick, const float stepCap) ->
             return 0.0f;
         }();
 
-        const float moved = pathfind::stepTowards(ownerPos, targetPoint.position, budget, stopShort);
+        float moved = 0.0f;
+        if (roamRegion_ && (!recoveringToRegion_ || roamRegion_->contains(ownerPos.x, ownerPos.z)))
+        {
+            // Byte-sized headings can drift outside an otherwise valid planned leg.
+            // Validate the actual segment before moving; an outside owner may still recover in.
+            auto nextPosition        = ownerPos;
+            moved                    = pathfind::stepTowards(nextPosition, targetPoint.position, budget, stopShort);
+            const float flatDistance = distance(ownerPos, nextPosition, true);
+            if (flatDistance > 0.0f)
+            {
+                const Vector3 direction{ .x = (nextPosition.x - ownerPos.x) / flatDistance, .y = 0.0f, .z = (nextPosition.z - ownerPos.z) / flatDistance };
+                if (!roamRegion_->contains(nextPosition.x, nextPosition.z) ||
+                    roamRegion_->clampToRegion(ownerPos, direction, flatDistance) < flatDistance)
+                {
+                    // Let the controller sample another roam leg instead of retrying a blocked step.
+                    Clear();
+                    onPoint_       = false;
+                    abortedRoamLeg = true;
+                    break;
+                }
+            }
+            ownerPos = nextPosition;
+        }
+        else
+        {
+            moved = pathfind::stepTowards(ownerPos, targetPoint.position, budget, stopShort);
+        }
         distanceMoved_ += moved;
         budget -= moved;
+        movedThisTick = movedThisTick || moved > 0.0f;
+    }
+
+    if (abortedRoamLeg && !movedThisTick)
+    {
+        return;
     }
 
     // Movement counter for the client's animation.
@@ -382,7 +417,7 @@ auto CPathFind::FollowPath(const timer::time_point tick, const float stepCap) ->
     ownerPos.moving %= 0x2000;
     owner_->markPositionDirty();
 
-    if (path_.consumed())
+    if (!abortedRoamLeg && path_.consumed())
     {
         // FinishedPath fires onPathComplete only at the true end, not on a chunk, turn or patrol continuation.
         FinishedPath();
