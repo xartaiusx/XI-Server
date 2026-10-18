@@ -30,7 +30,7 @@ describe('Command and submap requests', function()
     local function requestCommands()
         local packet = ffi.new('uint8_t[12]')
         packet[8] = 1
-        player.packets:send(0x01C, packet, ffi.sizeof(packet))
+        player.packets:send(0x01C, packet, assert(ffi.sizeof(packet)))
     end
 
     local function setBoundary(value)
@@ -38,13 +38,13 @@ describe('Command and submap requests', function()
         packet[4] = 1 -- SUBMAPCHANGE_STATE::General
         packet[6] = value % 256
         packet[7] = math.floor(value / 256)
-        player.packets:send(0x0F2, packet, ffi.sizeof(packet))
+        player.packets:send(0x0F2, packet, assert(ffi.sizeof(packet)))
         player.packets:clear()
     end
 
     local function expectBoundary(expected)
         local request = ffi.new('uint8_t[4]')
-        player.packets:send(0x0EB, request, ffi.sizeof(request))
+        player.packets:send(0x0EB, request, assert(ffi.sizeof(request)))
         local matching = responses(0x10E)
         assert(#matching == 1, 'Expected exactly one submap response')
         local packet = matching[1]
