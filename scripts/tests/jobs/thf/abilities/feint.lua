@@ -3,6 +3,7 @@ describe('Feint effect gain boundary', function()
     local player
     ---@type CTestEntity
     local mob
+    local previousNoMove
 
     before_each(function()
         player = xi.test.world:spawnPlayer(
@@ -14,19 +15,40 @@ describe('Feint effect gain boundary', function()
         stub('xi.combat.physicalHitRate.getPhysicalHitRate', 1.0)
         mob = player.entities:moveTo('Wild_Rabbit')
         mob:respawn()
+        previousNoMove = mob:getMobMod(xi.mobMod.NO_MOVE)
+        mob:setMobMod(xi.mobMod.NO_MOVE, 1)
+        -- Spawn already starts a roam path; cancel it before advancing the zone.
+        mob:clearPath()
         mob:setUnkillable(true)
+        assert(not mob:hasStatusEffect(xi.effect.EVASION_DOWN), 'Fresh target has evasion down')
+        assert(mob:getMod(xi.mod.TREASURE_HUNTER_PROC) == 0, 'Fresh target has a Feint bonus')
     end)
 
     after_each(function()
+        if player then
+            player:removeListener('FEINT_CONTACT_BOUNDARY')
+        end
+
         if mob then
             mob:removeListener('FEINT_GAIN_BOUNDARY')
             mob:delStatusEffect(xi.effect.EVASION_DOWN)
             mob:setUnkillable(false)
+            if previousNoMove ~= nil then
+                mob:setMobMod(xi.mobMod.NO_MOVE, previousNoMove)
+            end
+
             mob:respawn()
         end
     end)
 
     local function applyFeint()
+        local contacted = false
+        player:addListener('MELEE_SWING_HIT', 'FEINT_CONTACT_BOUNDARY', function(attacker, target)
+            if target:getID() == mob:getID() then
+                contacted = true
+            end
+        end)
+
         player:addStatusEffect(xi.effect.FEINT,
         {
             power    = 150,
@@ -36,8 +58,10 @@ describe('Feint effect gain boundary', function()
         })
         player.actions:engage(mob)
         xi.test.world:tickEntity(player)
+        assert(player:isEngaged(), 'Feint fixture did not engage')
         -- The native attack state waits three seconds before its first swing.
         xi.test.world:skipTime(4)
+        assert(contacted, 'Feint fixture did not land its first native swing')
     end
 
     it('keeps the ordinary treasure hunter bonus on the gained effect', function()

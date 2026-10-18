@@ -14,12 +14,21 @@ coverage policy.
   alerts without replacing broad current no-build discovery. A separate cheap
   Python lane refreshes `:analyze/language:python`. No category is hidden or
   deleted; native `--sarif-category` generation preserves matching semantics.
-- Both C++ categories use the existing Ubuntu26.04/GCC15 CI toolchain. Configure
-  CMake first so enum, IPC, data schema and dependency headers exist. The traced
+- Both Linux C++ categories use the existing Ubuntu26.04/GCC15 CI toolchain. Configure
+  CMake and generate enum/IPC/dependency headers before initialization. Native
+  schema validation builds common/data libraries and runs only after tracer
+  initialization in both manual lanes, so no first-party bootstrap object is
+  reused untraced. No-build analysis needs no native schema executable. The traced
   category then compiles all six native targets with a fresh Debug build, no
   PCH/IPO/compiler cache, and the existing custom/era/example modules plus the
   optional packet-capture source. That module is enabled **only in ephemeral CI**;
   this workflow never starts a server or enables live packet capture.
+- A fifth, separately named Windows2025/MSVC manual category traces only
+  `xi_connect` and `xi_profile` plus their common dependencies. It reuses the
+  pinned native Windows build toolchain, generated-header steps and fresh
+  uncached/no-PCH Debug context. Existing four categories/check names and full
+  query suites are unchanged. The local probe is added with the native `+`
+  query input so it cannot replace configured security/quality queries.
 - Checkout does not persist credentials. Permissions remain actions/contents
   read and security-events write; no privileged PR event or secrets are added.
 - `CODEQL_ACTION_FILE_COVERAGE_ON_PRS=true` keeps native file baselines on PRs.
@@ -47,6 +56,26 @@ checked-out synthetic merge commit, not merely the PR head. Raw SARIF is never
 rewritten to fabricate provenance. Absence of compiler-error metric rows is
 accepted as zero only after independently verifying that the native telemetry
 query executed in the candidate analysis logs.
+
+The focused Windows gate additionally requires one native metric row from
+`.github/codeql/windows-security-coverage/WindowsPrivateFileCalls.ql`, with value8.
+The metric counts distinct required call-target names **inside the extracted
+`certificateHelpers::openExclusivePrivateFile` AST in `cert_helpers.h`**:
+SDDL conversion, exclusive `CreateFileW`, volume ACL support, `CloseHandle`,
+`LocalFree`, `_open_osfhandle`, `_fdopen`, and descriptor-close failure handling
+with `_close`. Missing/duplicate/malformed metrics, fewer than eight families,
+missing login/profile/Windows-common source extraction, or compiler/error
+diagnostics fail closed. This is branch extraction evidence, not a claim that
+every runtime failure path has executed. The local query pack pins
+`codeql/cpp-all`12.2.0, matching the inspected CodeQL2.27.2 query sources; native
+pack resolution, query compilation and the Windows metric must be proved by
+the actual candidate run, not mocked SARIF or source review.
+
+Linux does not require this Windows metric. The focused Windows lane does not
+apply the Linux40-unit recovery minimum, since it intentionally does not build
+map/search/world/tests; it still reports its complete native baseline and every
+missing file without exclusions or a reduced denominator. File inventories
+across categories and this specific positive API metric are separate evidence.
 
 The report retains every missing baseline path and separates the existing
 vendor/generated denominator from first-party counts. It also reports diagnostic
@@ -128,13 +157,15 @@ results corroborate them; never remove active validation to silence those notes.
 No alert dismissal, suppression, core exclusion or denominator reduction is
 part of this gate.
 
-1. Run the targeted coverage/policy tests, then fresh no-build and traced scans
-   on one immutable candidate. Inspect raw diagnostics and recover all40 units.
+1. Run the targeted coverage/policy tests, then fresh no-build, full Linux traced
+   and focused Windows traced scans on one immutable candidate. Inspect raw
+   diagnostics, recover all40 Linux units, verify native compiler-error query
+   execution and require the Windows AST metric8.
 2. Review remaining header gaps individually and compare the union of current
    categories; never claim100% by dropping baseline files or treating a source
    archive as extraction. If critical Windows-only implementation remains outside
-   analyzed preprocessor branches, add a focused Windows traced category before
-   claiming that implementation covered. Six resource constant headers alone do
+   analyzed preprocessor branches, do not claim those covered merely because the
+   new private-file metric passes. Six resource constant headers alone do
    not justify three additional expensive full-platform scan builds.
 3. Reconcile every finding against current fully extracted code. Preserve real
    fixes/tests; do not dismiss none-mode findings merely because manual differs.
@@ -148,5 +179,6 @@ Primary contracts:
 [raw file baseline](https://docs.github.com/en/code-security/tutorials/customize-code-scanning/analyze-code),
 [REST SARIF subset](https://docs.github.com/en/rest/code-scanning/code-scanning),
 [pinned PR baseline control](https://github.com/github/codeql-action/blob/6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee/src/init.ts#L304),
+[pinned native metric shape](https://github.com/github/codeql/blob/a7057b836bf29767461026718b14d20790b9085f/cpp/ql/src/Summary/LinesOfCode.ql),
 [native extracted-file query](https://github.com/github/codeql/blob/main/cpp/ql/src/Diagnostics/ExtractedFiles.ql),
 [no-build diagnostic behavior](https://github.com/github/codeql/blob/main/cpp/ql/src/Diagnostics/ExtractionWarnings.ql).

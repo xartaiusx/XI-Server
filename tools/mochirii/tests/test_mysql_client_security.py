@@ -28,6 +28,11 @@ CONNECTION = {
     "port": 33307,
     "password": 'synthetic-"pass\\word\nwith\ttab',
 }
+# Independent public fixture: neither file contents nor the oracle use the serializer.
+PUBLIC_OPTIONS = (
+    b'[client]\nhost="synthetic-host"\nport=33307\n'
+    b'user="synthetic-user"\npassword="synthetic-\\"pass\\\\word\\nwith\\ttab"\n'
+)
 
 
 def load_dbtool(*names, **namespace):
@@ -52,11 +57,7 @@ def load_dbtool(*names, **namespace):
 class SerializationTests(unittest.TestCase):
     def test_exact_options_and_escaping(self):
         content = client.serialize_options(**CONNECTION)
-        self.assertEqual(
-            content,
-            b'[client]\nhost="synthetic-host"\nport=33307\n'
-            b'user="synthetic-user"\npassword="synthetic-\\"pass\\\\word\\nwith\\ttab"\n',
-        )
+        self.assertEqual(content, PUBLIC_OPTIONS)
 
     def test_invalid_fields_and_ports_are_rejected_without_values(self):
         for change in (
@@ -246,7 +247,7 @@ class TransportTests(unittest.TestCase):
             prefix="mysql-public-negative-fixture-"
         ) as root:
             path = Path(root) / "client.cnf"
-            path.write_bytes(client.serialize_options(**CONNECTION))
+            path.write_bytes(PUBLIC_OPTIONS)
             actual_run = subprocess.run
             with patch.object(
                 client.subprocess, "run", wraps=actual_run
@@ -265,7 +266,7 @@ class TransportTests(unittest.TestCase):
             prefix="mysql-public-acl-fixture-"
         ) as temporary:
             path = Path(temporary) / "client.cnf"
-            path.write_bytes(client.serialize_options(**CONNECTION))
+            path.write_bytes(PUBLIC_OPTIONS)
             path.chmod(0o600)
             subprocess.run(
                 ["chmod", "+a", "everyone allow read", str(path)],
@@ -287,7 +288,7 @@ class ExistingOptionTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.root.chmod(0o700)
         self.path = self.root / "client.cnf"
-        self.path.write_bytes(client.serialize_options(**CONNECTION))
+        self.path.write_bytes(PUBLIC_OPTIONS)
         self.path.chmod(0o600)
 
     @unittest.skipUnless(
@@ -364,8 +365,8 @@ class ExistingOptionTests(unittest.TestCase):
                 (b"", 0o600),
                 (b"x" * 16385, 0o600),
                 (b"wrong", 0o600),
-                (client.serialize_options(**CONNECTION), 0o644),
-                (client.serialize_options(**CONNECTION), 0o700),
+                (PUBLIC_OPTIONS, 0o644),
+                (PUBLIC_OPTIONS, 0o700),
             ):
                 self.path.write_bytes(data)
                 self.path.chmod(mode)

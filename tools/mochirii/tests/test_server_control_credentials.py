@@ -12,6 +12,11 @@ from unittest.mock import patch
 from tools import mysql_client as client
 from tools.mochirii.tests import test_wsl_server_status as status_tests
 
+PUBLIC_OPTIONS = (
+    b'[client]\nhost="127.0.0.1"\nport=3306\n'
+    b'user="public-fixture"\npassword="public-fixture-only"\n'
+)
+
 
 @unittest.skipUnless(sys.platform.startswith("linux"), "Canonical Linux controls")
 class PrivateSourceTests(unittest.TestCase):
@@ -27,7 +32,7 @@ class PrivateSourceTests(unittest.TestCase):
             "port": 3306,
             "password": "public-fixture-only",
         }
-        self.path.write_bytes(client.serialize_options(**self.connection))
+        self.path.write_bytes(PUBLIC_OPTIONS)
         self.path.chmod(0o600)
 
     def test_actual_private_source_fd_closes_on_return_and_parse_failure(self):

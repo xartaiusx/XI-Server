@@ -8,6 +8,9 @@ from unittest.mock import patch
 
 from tools.mochirii.codeql_coverage import (
     CPP_RECOVERY_PATHS,
+    WINDOWS_SECURITY_APIS,
+    WINDOWS_SECURITY_METRIC,
+    WINDOWS_SECURITY_PATHS,
     analyze_sarif,
     load_sarif,
     repository_path,
@@ -73,6 +76,38 @@ def analyze(data: dict, required: tuple[str, ...] = (CRITICAL,)) -> dict:
     )
 
 
+def windows_sarif() -> dict:
+    data = sarif()
+    run = data["runs"][0]
+    run["invocations"][0]["toolExecutionNotifications"] = [
+        notification(identifier, path)
+        for path in WINDOWS_SECURITY_PATHS
+        for identifier in (
+            "cli/expected-extracted-files/cpp",
+            "cpp/diagnostics/successfully-extracted-files",
+        )
+    ]
+    run["properties"] = {
+        "metricResults": [
+            {
+                "rule": {"id": WINDOWS_SECURITY_METRIC},
+                "value": len(WINDOWS_SECURITY_APIS),
+            }
+        ]
+    }
+    return data
+
+
+def analyze_windows(data: dict) -> dict:
+    return analyze_sarif(
+        data,
+        language="cpp",
+        category=CATEGORY,
+        source_sha=SHA,
+        require_windows_security=True,
+    )
+
+
 class NativeCodeQLCoverageTests(unittest.TestCase):
     def test_valid_native_inventory_is_deterministic(self) -> None:
         data = sarif()
@@ -91,6 +126,86 @@ class NativeCodeQLCoverageTests(unittest.TestCase):
         self.assertTrue(all(path.endswith(".cpp") for path in CPP_RECOVERY_PATHS))
         self.assertIn(CRITICAL, CPP_RECOVERY_PATHS)
         self.assertIn("modules/tools/packetcap/packetcap.cpp", CPP_RECOVERY_PATHS)
+
+    def test_windows_requires_positive_native_api_metric_not_header_presence(
+        self,
+    ) -> None:
+        data = windows_sarif()
+        report = analyze_windows(data)
+        self.assertEqual(report["gate"], "passed")
+        self.assertEqual(report["expected_files"], len(WINDOWS_SECURITY_PATHS))
+        self.assertEqual(report["missing_required_cpp"], [])
+        self.assertEqual(
+            report["windows_private_file"]["observed_api_family_counts"], [8]
+        )
+        # Source-file presence alone cannot establish the _WIN32 AST branch.
+        del data["runs"][0]["properties"]
+        self.assertEqual(analyze_windows(data)["gate"], "failed")
+
+    def test_windows_preserves_unextracted_baseline_and_requires_its_sources(
+        self,
+    ) -> None:
+        data = windows_sarif()
+        notes = data["runs"][0]["invocations"][0]["toolExecutionNotifications"]
+        notes.append(notification("cli/expected-extracted-files/cpp", CRITICAL))
+        report = analyze_windows(data)
+        self.assertEqual(report["gate"], "passed")
+        self.assertEqual(report["missing_files"], [CRITICAL])
+        self.assertEqual(report["expected_files"], len(WINDOWS_SECURITY_PATHS) + 1)
+        notes.pop(-2)
+        report = analyze_windows(data)
+        self.assertEqual(report["gate"], "failed")
+        self.assertEqual(
+            report["windows_private_file"]["missing_required_sources"],
+            [WINDOWS_SECURITY_PATHS[-1]],
+        )
+
+    def test_windows_incomplete_duplicate_and_invalid_api_counts_fail(self) -> None:
+        for count in range(len(WINDOWS_SECURITY_APIS)):
+            with self.subTest(count=count):
+                data = windows_sarif()
+                data["runs"][0]["properties"]["metricResults"][0]["value"] = count
+                self.assertEqual(analyze_windows(data)["gate"], "failed")
+        data = windows_sarif()
+        metrics = data["runs"][0]["properties"]["metricResults"]
+        metrics.append(copy.deepcopy(metrics[0]))
+        self.assertEqual(analyze_windows(data)["gate"], "failed")
+        for value in (True, False, -1, 9, 8.0, "8", float("nan"), None):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                data = windows_sarif()
+                data["runs"][0]["properties"]["metricResults"][0]["value"] = value
+                analyze_windows(data)
+
+    def test_windows_and_linux_recovery_gates_are_not_conflated(self) -> None:
+        self.assertEqual(analyze(sarif())["gate"], "passed")
+        for language, required in (("python", ()), ("cpp", CPP_RECOVERY_PATHS)):
+            with self.subTest(language=language), self.assertRaises(ValueError):
+                analyze_sarif(
+                    windows_sarif(),
+                    language=language,
+                    category=CATEGORY,
+                    source_sha=SHA,
+                    required_paths=required,
+                    require_windows_security=True,
+                )
+
+    def test_windows_compiler_and_error_diagnostics_still_fail_closed(self) -> None:
+        for source in ("metric", "diagnostic"):
+            with self.subTest(source=source):
+                data = windows_sarif()
+                run = data["runs"][0]
+                if source == "metric":
+                    run["properties"]["metricResults"].append(
+                        {"ruleId": "cpp/telemetry/compiler-errors", "value": 1}
+                    )
+                else:
+                    run["invocations"][0]["toolExecutionNotifications"].append(
+                        {
+                            "descriptor": {"id": "cpp/diagnostics/extraction-warnings"},
+                            "level": "error",
+                        }
+                    )
+                self.assertEqual(analyze_windows(data)["gate"], "failed")
 
     def test_alert_or_archive_location_does_not_prove_extraction(self) -> None:
         data = sarif()

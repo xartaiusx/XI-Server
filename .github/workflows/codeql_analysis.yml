@@ -16,9 +16,12 @@ on:
 jobs:
   analyze:
     # Preserve the existing required check names when extending the matrix.
-    name: Analyze (${{ matrix.language }}, ${{ matrix.build-mode }})${{ matrix.legacy && ' legacy' || '' }}
+    name: Analyze (${{ matrix.language }}, ${{ matrix.build-mode }})${{ matrix.legacy && ' legacy' || '' }}${{ matrix.windows_security && ' Windows security' || '' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
     env:
       CODEQL_ACTION_FILE_COVERAGE_ON_PRS: "true"
     permissions:
@@ -48,6 +51,11 @@ jobs:
             runner: ubuntu-latest
             legacy: true
             category: .github/workflows/codeql_analysis.yml:analyze/language:python
+          - language: cpp
+            build-mode: manual
+            runner: windows-2025
+            windows_security: true
+            category: .github/workflows/codeql_analysis.yml:analyze/build-mode:manual/language:cpp/platform:windows-security
 
     steps:
     - name: Checkout repository
@@ -61,7 +69,7 @@ jobs:
         python-version: '3.14'
 
     - name: Install Dependencies
-      if: matrix.language == 'cpp'
+      if: matrix.language == 'cpp' && runner.os == 'Linux'
       run: |
         sudo apt-get update
         sudo apt-get install --assume-yes --no-install-recommends --quiet \
@@ -71,8 +79,18 @@ jobs:
         echo "CXX=/usr/bin/g++-15" >> "$GITHUB_ENV"
         python -m pip install jinja2 jsonschema ruamel.yaml
 
+    - name: Setup MSVC
+      if: matrix.windows_security
+      uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4
+      with:
+        arch: x64
+
+    - name: Install Windows codegen dependencies
+      if: matrix.windows_security
+      run: python -m pip install jinja2 jsonschema ruamel.yaml
+
     - name: Configure C++ extraction context
-      if: matrix.language == 'cpp'
+      if: matrix.language == 'cpp' && runner.os == 'Linux'
       run: |
         # CI-only configuration: never enable packet capture on a live server.
         python - <<'PY'
@@ -85,7 +103,18 @@ jobs:
           -DCACHE_BINARY:FILEPATH= \
           -DCMAKE_C_COMPILER_LAUNCHER:STRING= \
           -DCMAKE_CXX_COMPILER_LAUNCHER:STRING=
-        cmake --build build --target enum_codegen data_schema_generate --parallel 4
+        cmake --build build --target enum_codegen --parallel 4
+
+    - name: Configure Windows security extraction context
+      if: matrix.windows_security
+      run: |
+        cmake -G Ninja -S . -B build --fresh \
+          -DCMAKE_BUILD_TYPE=Debug -DPCH_ENABLE=OFF -DENABLE_IPO=OFF \
+          -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded \
+          -DCACHE_BINARY:FILEPATH= \
+          -DCMAKE_C_COMPILER_LAUNCHER:STRING= \
+          -DCMAKE_CXX_COMPILER_LAUNCHER:STRING=
+        cmake --build build --target enum_codegen --parallel 4
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
@@ -95,12 +124,24 @@ jobs:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
         config-file: ./.github/codeql/codeql-config.yml
+        # '+' supplements, never replaces, the full configured query suites.
+        queries: ${{ matrix.windows_security && '+./.github/codeql/windows-security-coverage' || '' }}
 
-    - if: matrix.build-mode == 'manual'
+    - name: Build traced schema context
+      if: matrix.build-mode == 'manual'
+      run: |
+        # This also compiles common/data libraries: keep every native object under tracing.
+        cmake --build build --target data_schema_generate --parallel 4
+
+    - if: matrix.build-mode == 'manual' && !matrix.windows_security
       name: Trace all server targets and modules
       run: |
         # Fresh objects, no compiler cache/PCH: every compilation must be traced.
         cmake --build build --target xi_connect xi_map xi_profile xi_search xi_world xi_test --parallel 4
+
+    - name: Trace Windows TLS and private-file targets
+      if: matrix.windows_security
+      run: cmake --build build --target xi_connect xi_profile --parallel 4
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4
@@ -119,13 +160,13 @@ jobs:
           --language '${{ matrix.language }}' \
           --category '${{ matrix.category }}' \
           --source-sha "$GITHUB_SHA" \
-          ${{ matrix.build-mode == 'manual' && '--require-cpp-recovery' || '' }}
+          ${{ matrix.windows_security && '--require-windows-security' || (matrix.build-mode == 'manual' && '--require-cpp-recovery' || '') }}
 
     - name: Preserve raw SARIF and coverage evidence
       if: always()
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
-        name: CodeQL_raw_${{ matrix.language }}_${{ matrix.build-mode }}_${{ matrix.legacy && 'legacy_' || '' }}${{ github.sha }}
+        name: CodeQL_raw_${{ matrix.language }}_${{ matrix.build-mode }}_${{ matrix.legacy && 'legacy_' || '' }}${{ matrix.windows_security && 'windows-security_' || '' }}${{ github.sha }}
         path: |
           sarif-results/${{ matrix.language }}.sarif
           ${{ runner.temp }}/codeql-coverage-${{ matrix.language }}-${{ matrix.build-mode }}.json

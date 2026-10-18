@@ -13,6 +13,24 @@ from urllib.parse import unquote, urlsplit
 
 MAX_SARIF_BYTES = 64 * 1024 * 1024
 
+WINDOWS_SECURITY_METRIC = "mochirii/telemetry/windows-private-file-calls"
+WINDOWS_SECURITY_APIS = (
+    "ConvertStringSecurityDescriptorToSecurityDescriptorA",
+    "CreateFileW",
+    "GetVolumeInformationByHandleW",
+    "CloseHandle",
+    "LocalFree",
+    "_open_osfhandle",
+    "_fdopen",
+    "_close",
+)
+WINDOWS_SECURITY_PATHS = (
+    "src/common/cert_helpers.h",
+    "src/common/debug_windows.cpp",
+    "src/login/connect_application.cpp",
+    "src/profile/profile_application.cpp",
+)
+
 # Exact unextracted C++ translation units in analysis 1975798551 at main02c.
 # This is a minimum recovery gate, not a coverage denominator or an exclusion.
 CPP_RECOVERY_PATHS = (
@@ -132,6 +150,7 @@ def analyze_sarif(
     category: str,
     source_sha: str,
     required_paths: tuple[str, ...] = (),
+    require_windows_security: bool = False,
 ) -> dict:
     if (
         not isinstance(data, dict)
@@ -145,6 +164,8 @@ def analyze_sarif(
         r"[0-9a-f]{40}", source_sha
     ):
         raise ValueError("Invalid language or source SHA")
+    if require_windows_security and (language != "cpp" or required_paths):
+        raise ValueError("Windows security and full C++ recovery are separate gates")
     prefix = "py" if language == "python" else "cpp"
     coverage_prefixes = {"py"} if language == "python" else {"cpp", "c"}
     expected_ids = {
@@ -156,6 +177,7 @@ def analyze_sarif(
     expected, extracted = set(), set()
     diagnostics, findings = [], Counter()
     compiler_errors = 0
+    windows_api_counts = []
     tool_versions = set()
     for run in data["runs"]:
         driver = run["tool"]["driver"]
@@ -231,6 +253,15 @@ def analyze_sarif(
                 ):
                     raise ValueError("Invalid compiler error metric")
                 compiler_errors += value
+            elif identifier == WINDOWS_SECURITY_METRIC:
+                value = metric.get("value")
+                if (
+                    not isinstance(value, int)
+                    or isinstance(value, bool)
+                    or not 0 <= value <= len(WINDOWS_SECURITY_APIS)
+                ):
+                    raise ValueError("Invalid Windows private-file API metric")
+                windows_api_counts.append(value)
         components = [driver, *run["tool"].get("extensions", [])]
         rules = {
             rule["id"]: rule
@@ -258,7 +289,19 @@ def analyze_sarif(
     missing_required = sorted(set(required_paths) - extracted)
     if missing_required:
         failures.append("Required C++ translation units were not extracted")
-    if required_paths and (
+    missing_windows = (
+        sorted(set(WINDOWS_SECURITY_PATHS) - extracted)
+        if require_windows_security
+        else []
+    )
+    if require_windows_security:
+        if missing_windows:
+            failures.append("Required Windows security sources were not extracted")
+        if windows_api_counts != [len(WINDOWS_SECURITY_APIS)]:
+            failures.append(
+                "Missing or incomplete native Windows private-file API coverage"
+            )
+    if (required_paths or require_windows_security) and (
         compiler_errors or any(item["level"] == "error" for item in diagnostics)
     ):
         failures.append("Traced extraction has compiler errors or error diagnostics")
@@ -273,6 +316,13 @@ def analyze_sarif(
         "first_party_extracted_files": len(first_party & extracted),
         "missing_files": sorted(expected - extracted),
         "missing_required_cpp": missing_required,
+        "windows_private_file": {
+            "required": require_windows_security,
+            "metric_id": WINDOWS_SECURITY_METRIC,
+            "expected_api_families": list(WINDOWS_SECURITY_APIS),
+            "observed_api_family_counts": windows_api_counts,
+            "missing_required_sources": missing_windows,
+        },
         "files": [
             {"path": path, "expected": path in expected, "extracted": path in extracted}
             for path in sorted(expected | extracted)
@@ -336,9 +386,14 @@ def main() -> int:
     parser.add_argument("--category", required=True)
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--require-cpp-recovery", action="store_true")
+    parser.add_argument("--require-windows-security", action="store_true")
     args = parser.parse_args()
-    if args.require_cpp_recovery and args.language != "cpp":
-        parser.error("--require-cpp-recovery requires --language cpp")
+    if (
+        args.require_cpp_recovery or args.require_windows_security
+    ) and args.language != "cpp":
+        parser.error("C++ recovery and Windows security gates require --language cpp")
+    if args.require_cpp_recovery and args.require_windows_security:
+        parser.error("Windows security and full C++ recovery are separate gates")
     try:
         verify_checkout_sha(args.source_sha)
         report = analyze_sarif(
@@ -347,6 +402,7 @@ def main() -> int:
             category=args.category,
             source_sha=args.source_sha,
             required_paths=CPP_RECOVERY_PATHS if args.require_cpp_recovery else (),
+            require_windows_security=args.require_windows_security,
         )
         report["source_proof"] = "verified-checkout-head"
     except (

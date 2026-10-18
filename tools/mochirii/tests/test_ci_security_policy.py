@@ -5,6 +5,11 @@ from pathlib import Path
 
 import yaml
 
+from tools.mochirii.codeql_coverage import (
+    WINDOWS_SECURITY_APIS,
+    WINDOWS_SECURITY_METRIC,
+)
+
 
 class CodeScanningCoverageTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -47,22 +52,89 @@ class CodeScanningCoverageTests(unittest.TestCase):
             ".github/workflows/codeql_analysis.yml:analyze/build-mode:none/language:python",
             ".github/workflows/codeql_analysis.yml:analyze/language:cpp",
             ".github/workflows/codeql_analysis.yml:analyze/language:python",
+            ".github/workflows/codeql_analysis.yml:analyze/build-mode:manual/language:cpp/platform:windows-security",
         }
         self.assertEqual({entry["category"] for entry in entries}, expected_categories)
-        self.assertEqual(len(entries), 4)
+        self.assertEqual(len(entries), 5)
         for entry in entries:
-            if entry["language"] == "cpp":
+            if entry.get("windows_security"):
+                self.assertEqual(entry["runner"], "windows-2025")
+                self.assertEqual(
+                    (entry["language"], entry["build-mode"]), ("cpp", "manual")
+                )
+            elif entry["language"] == "cpp":
                 self.assertEqual(entry["runner"], "ubuntu-26.04")
-            if entry["build-mode"] == "manual":
+            if entry["build-mode"] == "manual" and not entry.get("windows_security"):
                 self.assertTrue(entry["category"].endswith(":analyze/language:cpp"))
             if entry.get("legacy"):
                 self.assertEqual(entry["language"], "python")
                 self.assertTrue(entry["category"].endswith(":analyze/language:python"))
         self.assertEqual(
             job["name"],
-            "Analyze (${{ matrix.language }}, ${{ matrix.build-mode }})${{ matrix.legacy && ' legacy' || '' }}",
+            "Analyze (${{ matrix.language }}, ${{ matrix.build-mode }})${{ matrix.legacy && ' legacy' || '' }}${{ matrix.windows_security && ' Windows security' || '' }}",
         )
         self.assertEqual(job["env"]["CODEQL_ACTION_FILE_COVERAGE_ON_PRS"], "true")
+
+    def test_windows_lane_is_focused_uncached_and_extends_full_queries(self) -> None:
+        job = self.workflow["jobs"]["analyze"]
+        steps = {step.get("name"): step for step in job["steps"]}
+        self.assertEqual(job["defaults"]["run"]["shell"], "bash")
+        self.assertEqual(
+            steps["Setup MSVC"]["uses"],
+            "TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9",
+        )
+        self.assertEqual(steps["Setup MSVC"]["with"], {"arch": "x64"})
+        configure = steps["Configure Windows security extraction context"]["run"]
+        for flag in (
+            "--fresh",
+            "-DPCH_ENABLE=OFF",
+            "-DCACHE_BINARY:FILEPATH=",
+            "-DCMAKE_CXX_COMPILER_LAUNCHER:STRING=",
+            "-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded",
+        ):
+            self.assertIn(flag, configure)
+        self.assertIn("--target enum_codegen --parallel 4", configure)
+        self.assertNotIn("data_schema_generate", configure)
+        self.assertEqual(
+            steps["Trace Windows TLS and private-file targets"]["run"].strip(),
+            "cmake --build build --target xi_connect xi_profile --parallel 4",
+        )
+        self.assertIn(
+            "!matrix.windows_security",
+            steps["Trace all server targets and modules"]["if"],
+        )
+        self.assertEqual(
+            steps["Initialize CodeQL"]["with"]["queries"],
+            "${{ matrix.windows_security && '+./.github/codeql/windows-security-coverage' || '' }}",
+        )
+        self.assertIn(
+            "--require-windows-security",
+            steps["Check raw coverage and diagnostics"]["run"],
+        )
+        self.assertIn(
+            "matrix.windows_security && '--require-windows-security'",
+            steps["Check raw coverage and diagnostics"]["run"],
+        )
+        self.assertTrue(
+            all("sccache" not in step.get("uses", "") for step in job["steps"])
+        )
+
+    def test_windows_metric_queries_native_calls_not_file_presence(self) -> None:
+        pack_root = self.repo / ".github/codeql/windows-security-coverage"
+        manifest = yaml.safe_load((pack_root / "qlpack.yml").read_text())
+        self.assertEqual(manifest["dependencies"], {"codeql/cpp-all": "12.2.0"})
+        query = (pack_root / "WindowsPrivateFileCalls.ql").read_text()
+        self.assertIn("@kind metric", query)
+        self.assertIn(f"@id {WINDOWS_SECURITY_METRIC}", query)
+        self.assertIn("select count(string api |", query)
+        self.assertIn(
+            'hasQualifiedName("certificateHelpers", "openExclusivePrivateFile")', query
+        )
+        self.assertIn('getRelativePath() = "src/common/cert_helpers.h"', query)
+        self.assertIn("call.getTarget().getName() = api", query)
+        self.assertEqual(len(WINDOWS_SECURITY_APIS), 8)
+        for name in WINDOWS_SECURITY_APIS:
+            self.assertEqual(query.count(f'"{name}"'), 1)
 
     def test_traced_build_is_complete_uncached_and_unprivileged(self) -> None:
         job = self.workflow["jobs"]["analyze"]
@@ -80,6 +152,18 @@ class CodeScanningCoverageTests(unittest.TestCase):
         ):
             self.assertIn(flag, configure)
         self.assertIn("g++-15", steps["Install Dependencies"]["run"])
+        self.assertIn("--target enum_codegen --parallel 4", configure)
+        self.assertNotIn("data_schema_generate", configure)
+        schema = steps["Build traced schema context"]
+        self.assertEqual(schema["if"], "matrix.build-mode == 'manual'")
+        self.assertIn("--target data_schema_generate --parallel 4", schema["run"])
+        names = [step.get("name") for step in job["steps"]]
+        self.assertLess(names.index("Initialize CodeQL"), names.index(schema["name"]))
+        for trace in (
+            "Trace all server targets and modules",
+            "Trace Windows TLS and private-file targets",
+        ):
+            self.assertLess(names.index(schema["name"]), names.index(trace))
         build = steps["Trace all server targets and modules"]["run"]
         self.assertIn(
             "--target xi_connect xi_map xi_profile xi_search xi_world xi_test", build
@@ -111,6 +195,10 @@ class CodeScanningCoverageTests(unittest.TestCase):
         )
         self.assertIn("${{ github.sha }}", upload["with"]["name"])
         self.assertIn("${{ matrix.legacy && 'legacy_' || '' }}", upload["with"]["name"])
+        self.assertIn(
+            "${{ matrix.windows_security && 'windows-security_' || '' }}",
+            upload["with"]["name"],
+        )
         self.assertEqual(upload["with"]["if-no-files-found"], "error")
         self.assertIn(
             "--require-cpp-recovery",
