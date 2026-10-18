@@ -309,7 +309,7 @@ def fetch_credentials():
     )
 
 
-def fetch_versions():
+def fetch_versions(load_files=True):
     global current_client, release_version, release_client
 
     current_client = None
@@ -325,6 +325,10 @@ def fetch_versions():
     release_client = default_settings["login"]["CLIENT_VER"]
     current_client = settings["login"]["CLIENT_VER"]
     preflight_client_version()
+
+    # Fresh setup must preflight before CREATE DATABASE without enumerating it.
+    if not load_files:
+        return
 
     if db_ver and release_version:
         fetch_files(True)
@@ -1565,8 +1569,7 @@ def main():
                 return
             elif "setup" == arg1:
                 if len(sys.argv) > 2 and str(sys.argv[2]) == database:
-                    fetch_versions()
-                    preflight_client_version()
+                    fetch_versions(load_files=False)
                     query = f"CREATE DATABASE {database} CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"
 
                     result = run_mysql(

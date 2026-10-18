@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 
 from tools.mochirii.codeql_coverage import (
+    COMPILER_ERRORS_METRIC,
     WINDOWS_SECURITY_APIS,
     WINDOWS_SECURITY_METRIC,
 )
@@ -105,7 +106,7 @@ class CodeScanningCoverageTests(unittest.TestCase):
         )
         self.assertEqual(
             steps["Initialize CodeQL"]["with"]["queries"],
-            "${{ matrix.windows_security && '+./.github/codeql/windows-security-coverage' || '' }}",
+            "${{ matrix.language == 'cpp' && '+./.github/codeql/security-coverage' || '' }}",
         )
         self.assertIn(
             "--require-windows-security",
@@ -120,8 +121,9 @@ class CodeScanningCoverageTests(unittest.TestCase):
         )
 
     def test_windows_metric_queries_native_calls_not_file_presence(self) -> None:
-        pack_root = self.repo / ".github/codeql/windows-security-coverage"
+        pack_root = self.repo / ".github/codeql/security-coverage"
         manifest = yaml.safe_load((pack_root / "qlpack.yml").read_text())
+        self.assertEqual(manifest["name"], "mochirii/security-coverage")
         self.assertEqual(manifest["dependencies"], {"codeql/cpp-all": "12.2.0"})
         query = (pack_root / "WindowsPrivateFileCalls.ql").read_text()
         self.assertIn("@kind metric", query)
@@ -135,6 +137,21 @@ class CodeScanningCoverageTests(unittest.TestCase):
         self.assertEqual(len(WINDOWS_SECURITY_APIS), 8)
         for name in WINDOWS_SECURITY_APIS:
             self.assertEqual(query.count(f'"{name}"'), 1)
+
+    def test_shared_compiler_metric_includes_native_error_and_fatal_classes(
+        self,
+    ) -> None:
+        query = (
+            self.repo / ".github/codeql/security-coverage/CompilerErrorsTotal.ql"
+        ).read_text()
+        self.assertIn("@kind metric", query)
+        self.assertIn(f"@id {COMPILER_ERRORS_METRIC}", query)
+        self.assertIn("select count(Diagnostic diagnostic |", query)
+        self.assertIn(
+            "diagnostic instanceof CompilerError or diagnostic instanceof CompilerCatastrophe",
+            query,
+        )
+        self.assertNotIn("CompilerDiscretionaryError", query)
 
     def test_traced_build_is_complete_uncached_and_unprivileged(self) -> None:
         job = self.workflow["jobs"]["analyze"]

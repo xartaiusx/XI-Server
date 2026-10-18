@@ -18,6 +18,29 @@ unsupported inputs fail closed. The executable receives
 part of this contract. See the [MariaDB client option
 reference](https://mariadb.com/docs/server/clients-and-utilities/mariadb-client/mariadb-command-line-client).
 
+Oracle MySQL still reads its login-path file with `--defaults-file` (and even
+`--no-defaults`), potentially overriding the approved connection. Every native
+child therefore receives `MYSQL_TEST_LOGIN_FILE=/dev/null` on POSIX or the
+drive-root DOS null device on Windows, for example `R:\NUL`. The Windows drive
+comes from the existing `GetSystemDirectoryW`-based executable path, not an
+environment variable or fixed drive assumption. Require an ASCII letter/colon
+drive and rooted remainder; reject relative, UNC, extended or malformed paths.
+All inherited login-file environment case variants are
+removed first, and the parent environment remains unchanged. No ambient login
+file is opened or copied, and no unsupported MariaDB flag or client-flavor probe
+is needed. A bare `nul` risks relative-path fallback, while `\\.\NUL` loses its
+dot component in MySQL's filename normalizer. The drive-root form instead
+selects the exact local DOS device without a current-directory dependency.
+See MySQL's [option-file handling
+contract](https://dev.mysql.com/doc/refman/8.4/en/option-file-options.html) and
+the [8.4.8 login-file
+loader](https://github.com/mysql/mysql-server/blob/mysql-8.4.8/mysys/my_default.cc#L1593-L1612),
+its [directory
+normalization](https://github.com/mysql/mysql-server/blob/mysql-8.4.8/mysys/mf_pack.cc#L71-L165),
+and Microsoft's [system-directory
+API](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getsystemdirectoryw)
+and [reserved DOS device names](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file).
+
 Passwords must not appear in child arguments, shell commands, inherited
 password-bearing environment variables, diagnostics, or reports. The wrapper
 uses a bounded native subprocess without a shell and closes transport handles
@@ -153,6 +176,11 @@ rewrite its credential target, or create a `.bak` copy. Reject a required
 linked-setting rewrite in preflight before SQL mutations. Do not lower
 `VER_LOCK` or treat preserving the setting as client-compatibility proof.
 
+Fresh setup performs that client preflight before `CREATE DATABASE` without
+enumerating the not-yet-created database. Normal source/database inventory
+loading follows successful creation; a rejected client preflight must not
+create the schema.
+
 Before any separately authorized live migration, require a fresh encrypted
 backup and isolated restore proof, an unchanged durable Twills baseline, and
 the canonical DB-only/manual-start lifecycle gate. Historical restore
@@ -171,7 +199,8 @@ git diff --check
 ```
 
 Tests must cover serialization/injection bounds, absence of password-bearing
-arguments/environment, descriptor cleanup and timeout, strict existing-file
+arguments/environment, absolute child-only login-file isolation including
+inherited case variants, descriptor cleanup and timeout, strict existing-file
 privacy/content rejection, blocked plaintext backups, and linked-setting
 preservation before SQL mutation. Native Windows/macOS checks require their
 own runners; Linux mocks do not establish native ACL behavior. CI alone may

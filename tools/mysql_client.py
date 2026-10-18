@@ -6,6 +6,7 @@ import errno
 import argparse
 import hmac
 import math
+import ntpath
 import os
 import pathlib
 import re
@@ -65,18 +66,31 @@ def _child_environment():
         "MYSQL_TCP_PORT",
         "MYSQL_USER",
         "MYSQL_PWD",
+        "MYSQL_TEST_LOGIN_FILE",
         "MARIADB_HOST",
         "MARIADB_PORT",
         "MARIADB_USER",
         "MARIADB_PWD",
     }
-    return {
+    environment = {
         key: value
         for key, value in os.environ.items()
         if "PASSWORD" not in key.upper()
         and not key.upper().endswith("_PWD")
         and key.upper() not in connection_keys
     }
+    # MySQL reads login paths even with --defaults-file; MariaDB ignores this input.
+    # A drive-root DOS device survives MySQL's dot-component path normalization.
+    if sys.platform == "win32":
+        drive, remainder = ntpath.splitdrive(_windows_powershell())
+        if not re.fullmatch(r"[A-Za-z]:", drive) or not remainder.startswith(
+            ("\\", "/")
+        ):
+            raise MySQLClientError("Windows null-device isolation is unavailable.")
+        environment["MYSQL_TEST_LOGIN_FILE"] = drive + r"\NUL"
+    else:
+        environment["MYSQL_TEST_LOGIN_FILE"] = "/dev/null"
+    return environment
 
 
 def _check_darwin_acl(fd):

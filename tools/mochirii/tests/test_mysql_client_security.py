@@ -5,6 +5,7 @@ import ctypes
 import errno
 import fileinput
 import json
+import ntpath
 import os
 from pathlib import Path
 import re
@@ -86,8 +87,78 @@ class SerializationTests(unittest.TestCase):
             "MARIADB_PWD": "pass",
             "OTHER_PASSWORD": "pass",
         }
-        with patch.dict(os.environ, environment, clear=True):
-            self.assertEqual(client._child_environment(), {"PATH": "synthetic-safe"})
+        with patch.dict(os.environ, environment, clear=True), patch.object(
+            client,
+            "_windows_powershell",
+            return_value=r"R:\Windows\System32\powershell.exe",
+        ):
+            self.assertEqual(
+                client._child_environment(),
+                {
+                    "PATH": "synthetic-safe",
+                    "MYSQL_TEST_LOGIN_FILE": (
+                        r"R:\NUL" if sys.platform == "win32" else "/dev/null"
+                    ),
+                },
+            )
+
+    def test_login_file_override_is_absolute_and_child_only(self):
+        environment = {
+            "PATH": "synthetic-safe",
+            "MYSQL_TEST_LOGIN_FILE": "synthetic-parent-login-file",
+            "mysql_test_login_file": "synthetic-lowercase-login-file",
+            "MySQL_Test_Login_File": "synthetic-mixed-case-login-file",
+        }
+        unchanged = environment.copy()
+        for platform, powershell, expected in (
+            ("linux", "unused", "/dev/null"),
+            ("darwin", "unused", "/dev/null"),
+            ("win32", r"R:\Windows\System32\powershell.exe", r"R:\NUL"),
+            ("win32", r"z:\Windows\System32\powershell.exe", r"z:\NUL"),
+        ):
+            with self.subTest(platform=platform), patch.object(
+                sys, "platform", platform
+            ), patch.object(os, "environ", environment), patch.object(
+                client, "_windows_powershell", return_value=powershell
+            ) as native_path:
+                self.assertEqual(
+                    client._child_environment(),
+                    {"PATH": "synthetic-safe", "MYSQL_TEST_LOGIN_FILE": expected},
+                )
+                self.assertEqual(dict(os.environ), unchanged)
+                if platform == "win32":
+                    native_path.assert_called_once_with()
+                    # No dot component for Oracle's cleanup_dirname to remove.
+                    self.assertEqual(ntpath.normpath(expected), expected)
+                    self.assertRegex(expected, r"^[A-Za-z]:\\NUL$")
+                else:
+                    native_path.assert_not_called()
+
+    def test_invalid_windows_system_drive_stops_before_native_launch(self):
+        for powershell in (
+            "",
+            "powershell.exe",
+            r"C:relative\powershell.exe",
+            r"\Windows\System32\powershell.exe",
+            r"\\server\share\powershell.exe",
+            r"\\.\C:\Windows\powershell.exe",
+            r"\\?\C:\Windows\powershell.exe",
+            r"1:\Windows\powershell.exe",
+            r"Å:\Windows\powershell.exe",
+        ):
+            with self.subTest(powershell=powershell), patch.object(
+                sys, "platform", "win32"
+            ), patch.object(
+                client, "_windows_powershell", return_value=powershell
+            ), patch.object(
+                client, "_options_source"
+            ) as source, patch.object(
+                client.subprocess, "run"
+            ) as run:
+                source.return_value.__enter__.return_value = ("synthetic-options", ())
+                with self.assertRaises(client.MySQLClientError):
+                    client.run_mysql("mysql", [], **CONNECTION)
+                run.assert_not_called()
 
 
 class TransportTests(unittest.TestCase):
@@ -135,8 +206,11 @@ class TransportTests(unittest.TestCase):
             "import json,os,stat,sys; "
             "p=sys.argv[1].split('=',1)[1]; "
             "f=os.open(p,os.O_RDONLY); b=os.read(f,20000); "
+            "n=os.open(os.environ['MYSQL_TEST_LOGIN_FILE'],os.O_RDONLY); "
+            "isolated=os.read(n,1)==b''; os.close(n); "
             "print(json.dumps({'valid':b.startswith(b'[client]\\n'),"
             "'private':stat.S_IMODE(os.fstat(f).st_mode)==384,"
+            "'login_file_is_null':isolated,"
             "'password_env':'XI_NETWORK_SQL_PASSWORD' in os.environ})); os.close(f)"
         )
         actual_run = subprocess.run
@@ -145,7 +219,11 @@ class TransportTests(unittest.TestCase):
             return actual_run([sys.executable, "-c", program, *arguments[1:]], **kwargs)
 
         with patch.object(client.subprocess, "run", surrogate), patch.dict(
-            os.environ, {"XI_NETWORK_SQL_PASSWORD": "synthetic-env-password"}
+            os.environ,
+            {
+                "XI_NETWORK_SQL_PASSWORD": "synthetic-env-password",
+                "MYSQL_TEST_LOGIN_FILE": "synthetic-parent-login-file",
+            },
         ):
             result = client.run_mysql(
                 "synthetic-client", ["-e", "SELECT 1"], **CONNECTION
@@ -153,7 +231,12 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual(
             json.loads(result.stdout),
-            {"valid": True, "private": True, "password_env": False},
+            {
+                "valid": True,
+                "private": True,
+                "login_file_is_null": True,
+                "password_env": False,
+            },
         )
 
     @unittest.skipUnless(sys.platform.startswith("linux"), "Linux memfd contract")
@@ -232,6 +315,14 @@ class TransportTests(unittest.TestCase):
                 return actual_run(arguments, **kwargs)
             self.assertEqual(arguments[1], f"--defaults-file={path}")
             self.assertNotIn("pass_fds", kwargs)
+            self.assertEqual(
+                kwargs["env"]["MYSQL_TEST_LOGIN_FILE"],
+                (
+                    ntpath.splitdrive(client._windows_powershell())[0] + r"\NUL"
+                    if sys.platform == "win32"
+                    else "/dev/null"
+                ),
+            )
             return subprocess.CompletedProcess(
                 arguments, 0, "native-private-fixture-pass", ""
             )

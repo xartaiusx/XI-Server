@@ -27,8 +27,9 @@ coverage policy.
   `xi_connect` and `xi_profile` plus their common dependencies. It reuses the
   pinned native Windows build toolchain, generated-header steps and fresh
   uncached/no-PCH Debug context. Existing four categories/check names and full
-  query suites are unchanged. The local probe is added with the native `+`
-  query input so it cannot replace configured security/quality queries.
+  query suites are unchanged. The shared local coverage pack is added to every
+  C++ lane with the native `+` query input so it cannot replace configured
+  security/quality queries.
 - Checkout does not persist credentials. Permissions remain actions/contents
   read and security-events write; no privileged PR event or secrets are added.
 - `CODEQL_ACTION_FILE_COVERAGE_ON_PRS=true` keeps native file baselines on PRs.
@@ -53,12 +54,26 @@ Raw pre-upload SARIF can omit `versionControlProvenance`; the CLI independently
 verifies checkout `HEAD` against the requested source SHA, which is `GITHUB_SHA`
 in CI. Any SARIF provenance present must match. PR scans therefore bind to the
 checked-out synthetic merge commit, not merely the PR head. Raw SARIF is never
-rewritten to fabricate provenance. Absence of compiler-error metric rows is
-accepted as zero only after independently verifying that the native telemetry
-query executed in the candidate analysis logs.
+rewritten to fabricate provenance.
+
+Every C++ report requires exactly one native numeric row from
+`.github/codeql/security-coverage/CompilerErrorsTotal.ql`. Its global count includes
+the pinned native `CompilerError` (severity4) and `CompilerCatastrophe` (severity5)
+classes. Missing, duplicate, noninteger, boolean or negative totals fail closed;
+missing execution evidence is never converted to zero. Both manual lanes require
+an actual zero, while no-build discovery retains positive totals for review
+without changing its breadth. The original grouped compiler-error telemetry is
+preserved separately as `compiler_error_groups_sum`; `compiler_errors` is the
+explicit native total, or null when unavailable. Suppressible discretionary
+diagnostics (severity3), warnings and notes remain visible and reviewable; a zero
+error/fatal count is not proof of complete parsing or security cleanliness.
+The numeric-only query returns one row even when its count is zero. The native
+CLI exports summary metrics into `run.properties.metricResults`; actual zero
+serialization and query execution must still be verified in the fresh candidate
+raw SARIF. Fixture tests or resolved-query/rule metadata cannot substitute for it.
 
 The focused Windows gate additionally requires one native metric row from
-`.github/codeql/windows-security-coverage/WindowsPrivateFileCalls.ql`, with value8.
+`.github/codeql/security-coverage/WindowsPrivateFileCalls.ql`, with value8.
 The metric counts distinct required call-target names **inside the extracted
 `certificateHelpers::openExclusivePrivateFile` AST in `cert_helpers.h`**:
 SDDL conversion, exclusive `CreateFileW`, volume ACL support, `CloseHandle`,
@@ -68,11 +83,13 @@ missing login/profile/Windows-common source extraction, or compiler/error
 diagnostics fail closed. This is branch extraction evidence, not a claim that
 every runtime failure path has executed. The local query pack pins
 `codeql/cpp-all`12.2.0, matching the inspected CodeQL2.27.2 query sources; native
-pack resolution, query compilation and the Windows metric must be proved by
-the actual candidate run, not mocked SARIF or source review.
+pack resolution, query compilation, explicit compiler-error zero and the Windows
+metric must be proved by the actual candidate run, not mocked SARIF or source
+review.
 
-Linux does not require this Windows metric. The focused Windows lane does not
-apply the Linux40-unit recovery minimum, since it intentionally does not build
+The shared pack runs on all C++ lanes, but Linux does not require its Windows
+metric to be8. The focused Windows lane does not apply the Linux40-unit recovery
+minimum, since it intentionally does not build
 map/search/world/tests; it still reports its complete native baseline and every
 missing file without exclusions or a reduced denominator. File inventories
 across categories and this specific positive API metric are separate evidence.
@@ -159,8 +176,8 @@ part of this gate.
 
 1. Run the targeted coverage/policy tests, then fresh no-build, full Linux traced
    and focused Windows traced scans on one immutable candidate. Inspect raw
-   diagnostics, recover all40 Linux units, verify native compiler-error query
-   execution and require the Windows AST metric8.
+   diagnostics, recover all40 Linux units, require an explicit native compiler-error
+   zero in both manual lanes, and require the Windows AST metric8.
 2. Review remaining header gaps individually and compare the union of current
    categories; never claim100% by dropping baseline files or treating a source
    archive as extraction. If critical Windows-only implementation remains outside
@@ -180,5 +197,7 @@ Primary contracts:
 [REST SARIF subset](https://docs.github.com/en/rest/code-scanning/code-scanning),
 [pinned PR baseline control](https://github.com/github/codeql-action/blob/6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee/src/init.ts#L304),
 [pinned native metric shape](https://github.com/github/codeql/blob/a7057b836bf29767461026718b14d20790b9085f/cpp/ql/src/Summary/LinesOfCode.ql),
+[pinned native diagnostic classes](https://github.com/github/codeql/blob/a7057b836bf29767461026718b14d20790b9085f/cpp/ql/lib/semmle/code/cpp/Diagnostics.qll),
+[native summary-metric export](https://codeql.github.com/docs/codeql-overview/codeql-changelog/codeql-cli-2.5.3/),
 [native extracted-file query](https://github.com/github/codeql/blob/main/cpp/ql/src/Diagnostics/ExtractedFiles.ql),
 [no-build diagnostic behavior](https://github.com/github/codeql/blob/main/cpp/ql/src/Diagnostics/ExtractionWarnings.ql).

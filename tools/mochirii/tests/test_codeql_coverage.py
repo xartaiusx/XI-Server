@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from tools.mochirii.codeql_coverage import (
+    COMPILER_ERRORS_METRIC,
     CPP_RECOVERY_PATHS,
     WINDOWS_SECURITY_APIS,
     WINDOWS_SECURITY_METRIC,
@@ -65,6 +66,9 @@ def sarif() -> dict:
                     }
                 ],
                 "results": [],
+                "properties": {
+                    "metricResults": [{"ruleId": COMPILER_ERRORS_METRIC, "value": 0}]
+                },
             }
         ],
     }
@@ -87,14 +91,12 @@ def windows_sarif() -> dict:
             "cpp/diagnostics/successfully-extracted-files",
         )
     ]
-    run["properties"] = {
-        "metricResults": [
-            {
-                "rule": {"id": WINDOWS_SECURITY_METRIC},
-                "value": len(WINDOWS_SECURITY_APIS),
-            }
-        ]
-    }
+    run["properties"]["metricResults"].append(
+        {
+            "rule": {"id": WINDOWS_SECURITY_METRIC},
+            "value": len(WINDOWS_SECURITY_APIS),
+        }
+    )
     return data
 
 
@@ -114,6 +116,7 @@ class NativeCodeQLCoverageTests(unittest.TestCase):
         self.assertEqual(analyze(data), analyze(copy.deepcopy(data)))
         report = analyze(data)
         self.assertEqual(report["gate"], "passed")
+        self.assertEqual(report["compiler_errors"], 0)
         self.assertEqual(report["expected_files"], 1)
         self.assertEqual(report["extracted_expected_files"], 1)
         self.assertEqual(
@@ -127,6 +130,67 @@ class NativeCodeQLCoverageTests(unittest.TestCase):
         self.assertIn(CRITICAL, CPP_RECOVERY_PATHS)
         self.assertIn("modules/tools/packetcap/packetcap.cpp", CPP_RECOVERY_PATHS)
 
+    def test_native_compiler_error_metric_must_execute_even_when_zero(self) -> None:
+        data = sarif()
+        del data["runs"][0]["properties"]
+        # Rule discovery is not evidence that the native query executed.
+        data["runs"][0]["tool"]["driver"]["rules"].append(
+            {"id": COMPILER_ERRORS_METRIC}
+        )
+        for required in ((), (CRITICAL,)):
+            with self.subTest(required=required):
+                report = analyze(data, required)
+                self.assertEqual(report["gate"], "failed")
+                self.assertIsNone(report["compiler_errors"])
+        data = sarif()
+        metrics = data["runs"][0]["properties"]["metricResults"]
+        metrics.append(copy.deepcopy(metrics[0]))
+        self.assertEqual(analyze(data, ())["gate"], "failed")
+        data = windows_sarif()
+        data["runs"][0]["properties"]["metricResults"].pop(0)
+        report = analyze_windows(data)
+        self.assertEqual(report["gate"], "failed")
+        self.assertIsNone(report["compiler_errors"])
+        self.assertEqual(
+            report["windows_private_file"]["observed_api_family_counts"], [8]
+        )
+
+    def test_native_compiler_error_metric_requires_nonnegative_integer(self) -> None:
+        for value in (True, False, -1, 0.0, "0", float("nan"), float("inf"), None):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                data = sarif()
+                data["runs"][0]["properties"]["metricResults"][0]["value"] = value
+                analyze(data, ())
+
+    def test_nonzero_native_errors_block_both_manual_lanes_but_remain_in_none(
+        self,
+    ) -> None:
+        data = sarif()
+        data["runs"][0]["properties"]["metricResults"][0]["value"] = 3
+        report = analyze(data, ())
+        self.assertEqual(report["gate"], "passed")
+        self.assertEqual(report["compiler_errors"], 3)
+        self.assertEqual(analyze(data)["gate"], "failed")
+        data = windows_sarif()
+        data["runs"][0]["properties"]["metricResults"][0]["value"] = 3
+        self.assertEqual(analyze_windows(data)["gate"], "failed")
+
+    def test_discretionary_diagnostics_are_not_hidden_by_zero_error_metric(
+        self,
+    ) -> None:
+        data = sarif()
+        data["runs"][0]["invocations"][0]["toolExecutionNotifications"].append(
+            {
+                "descriptor": {"id": "cpp/diagnostics/extraction-warnings"},
+                "level": "warning",
+                "message": {"text": "Discretionary diagnostic remains reviewable"},
+            }
+        )
+        report = analyze(data)
+        self.assertEqual(report["compiler_errors"], 0)
+        self.assertEqual(report["diagnostics"][0]["level"], "warning")
+        self.assertIn("Discretionary", report["diagnostics"][0]["message"])
+
     def test_windows_requires_positive_native_api_metric_not_header_presence(
         self,
     ) -> None:
@@ -139,7 +203,7 @@ class NativeCodeQLCoverageTests(unittest.TestCase):
             report["windows_private_file"]["observed_api_family_counts"], [8]
         )
         # Source-file presence alone cannot establish the _WIN32 AST branch.
-        del data["runs"][0]["properties"]
+        data["runs"][0]["properties"]["metricResults"].pop()
         self.assertEqual(analyze_windows(data)["gate"], "failed")
 
     def test_windows_preserves_unextracted_baseline_and_requires_its_sources(
@@ -164,16 +228,16 @@ class NativeCodeQLCoverageTests(unittest.TestCase):
         for count in range(len(WINDOWS_SECURITY_APIS)):
             with self.subTest(count=count):
                 data = windows_sarif()
-                data["runs"][0]["properties"]["metricResults"][0]["value"] = count
+                data["runs"][0]["properties"]["metricResults"][-1]["value"] = count
                 self.assertEqual(analyze_windows(data)["gate"], "failed")
         data = windows_sarif()
         metrics = data["runs"][0]["properties"]["metricResults"]
-        metrics.append(copy.deepcopy(metrics[0]))
+        metrics.append(copy.deepcopy(metrics[-1]))
         self.assertEqual(analyze_windows(data)["gate"], "failed")
         for value in (True, False, -1, 9, 8.0, "8", float("nan"), None):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 data = windows_sarif()
-                data["runs"][0]["properties"]["metricResults"][0]["value"] = value
+                data["runs"][0]["properties"]["metricResults"][-1]["value"] = value
                 analyze_windows(data)
 
     def test_windows_and_linux_recovery_gates_are_not_conflated(self) -> None:
@@ -354,11 +418,9 @@ class NativeCodeQLCoverageTests(unittest.TestCase):
                 data = sarif()
                 run = data["runs"][0]
                 if source == "metric":
-                    run["properties"] = {
-                        "metricResults": [
-                            {"ruleId": "cpp/telemetry/compiler-errors", "value": 3}
-                        ]
-                    }
+                    run["properties"]["metricResults"].append(
+                        {"ruleId": "cpp/telemetry/compiler-errors", "value": 3}
+                    )
                 else:
                     run["invocations"][0]["toolExecutionNotifications"].append(
                         {
@@ -435,6 +497,7 @@ class NativeCodeQLCoverageTests(unittest.TestCase):
     def test_python_uses_its_native_diagnostic_prefix(self) -> None:
         data = sarif()
         run = data["runs"][0]
+        del run["properties"]
         run["invocations"][0]["toolExecutionNotifications"] = [
             notification("py/baseline/expected-extracted-files", "tools/dbtool.py"),
             notification(
@@ -445,6 +508,7 @@ class NativeCodeQLCoverageTests(unittest.TestCase):
             data, language="python", category=CATEGORY, source_sha=SHA
         )
         self.assertEqual(report["gate"], "passed")
+        self.assertIsNone(report["compiler_errors"])
 
     def test_modern_cli_baseline_ids_match_the_pinned_action_contract(self) -> None:
         for language, baseline, extracted in (

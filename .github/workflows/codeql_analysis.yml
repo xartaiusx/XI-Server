@@ -125,7 +125,7 @@ jobs:
         build-mode: ${{ matrix.build-mode }}
         config-file: ./.github/codeql/codeql-config.yml
         # '+' supplements, never replaces, the full configured query suites.
-        queries: ${{ matrix.windows_security && '+./.github/codeql/windows-security-coverage' || '' }}
+        queries: ${{ matrix.language == 'cpp' && '+./.github/codeql/security-coverage' || '' }}
 
     - name: Build traced schema context
       if: matrix.build-mode == 'manual'

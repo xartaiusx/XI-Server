@@ -13,6 +13,7 @@ from urllib.parse import unquote, urlsplit
 
 MAX_SARIF_BYTES = 64 * 1024 * 1024
 
+COMPILER_ERRORS_METRIC = "mochirii/telemetry/compiler-errors-total"
 WINDOWS_SECURITY_METRIC = "mochirii/telemetry/windows-private-file-calls"
 WINDOWS_SECURITY_APIS = (
     "ConvertStringSecurityDescriptorToSecurityDescriptorA",
@@ -176,7 +177,8 @@ def analyze_sarif(
     }
     expected, extracted = set(), set()
     diagnostics, findings = [], Counter()
-    compiler_errors = 0
+    grouped_compiler_errors = 0
+    compiler_error_totals = []
     windows_api_counts = []
     tool_versions = set()
     for run in data["runs"]:
@@ -252,7 +254,12 @@ def analyze_sarif(
                     or value < 0
                 ):
                     raise ValueError("Invalid compiler error metric")
-                compiler_errors += value
+                grouped_compiler_errors += value
+            elif identifier == COMPILER_ERRORS_METRIC:
+                value = metric.get("value")
+                if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                    raise ValueError("Invalid native compiler error total metric")
+                compiler_error_totals.append(value)
             elif identifier == WINDOWS_SECURITY_METRIC:
                 value = metric.get("value")
                 if (
@@ -289,6 +296,8 @@ def analyze_sarif(
     missing_required = sorted(set(required_paths) - extracted)
     if missing_required:
         failures.append("Required C++ translation units were not extracted")
+    if language == "cpp" and len(compiler_error_totals) != 1:
+        failures.append("Missing or duplicate native compiler error total metric")
     missing_windows = (
         sorted(set(WINDOWS_SECURITY_PATHS) - extracted)
         if require_windows_security
@@ -302,7 +311,9 @@ def analyze_sarif(
                 "Missing or incomplete native Windows private-file API coverage"
             )
     if (required_paths or require_windows_security) and (
-        compiler_errors or any(item["level"] == "error" for item in diagnostics)
+        grouped_compiler_errors
+        or compiler_error_totals != [0]
+        or any(item["level"] == "error" for item in diagnostics)
     ):
         failures.append("Traced extraction has compiler errors or error diagnostics")
     return {
@@ -327,7 +338,10 @@ def analyze_sarif(
             {"path": path, "expected": path in expected, "extracted": path in extracted}
             for path in sorted(expected | extracted)
         ],
-        "compiler_errors": compiler_errors,
+        "compiler_error_groups_sum": grouped_compiler_errors,
+        "compiler_errors": (
+            compiler_error_totals[0] if len(compiler_error_totals) == 1 else None
+        ),
         "diagnostics": sorted(
             diagnostics, key=lambda item: (item["id"], item["level"], item["message"])
         ),
