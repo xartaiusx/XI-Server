@@ -13,13 +13,17 @@ import urllib.request
 
 import platform
 
+if not __package__:
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from tools.mysql_client import MySQLClientError, run_mysql
+
 
 # Pre-flight sanity checks
 def preflight_exit():
     # If double clicked on Windows: pause with an input so the user can read the error...
     if os.name == "nt" and "PROMPT" not in os.environ:
         input("Press ENTER to continue...")
-    exit(-1)
+    sys.exit(-1)
 
 
 # - git should installed and available
@@ -49,7 +53,7 @@ if (
     not subprocess.call(
         ["git", "-C", server_dir_path, "status"],
         stderr=subprocess.STDOUT,
-        stdout=open(os.devnull, "w"),
+        stdout=subprocess.DEVNULL,
     )
     == 0
 ):
@@ -159,10 +163,8 @@ def populate_settings():
                             current_settings[key] = val
 
                         settings[filename_key] = current_settings
-            except Exception as e:
-                print_red("Error fetching settings.")
-                print(e)
-                return False
+            except Exception:
+                raise RuntimeError("Error fetching settings.") from None
 
     for filename in os.listdir(from_server_path("settings/default")):
         full_path = from_server_path("settings/default")
@@ -172,12 +174,6 @@ def populate_settings():
     for filename in os.listdir(from_server_path("settings")):
         full_path = from_server_path("settings")
         load_into_dict(os.path.join(full_path, filename), settings)
-
-    # DEBUG:
-    # for k, v in settings.items():
-    #     for ik, iv in v.items():
-    #         print(f"| {k} | {ik} | {iv} |")
-    # exit()
 
     return settings, default_settings
 
@@ -193,12 +189,17 @@ player_data = [
     "accounts_files.sql",
     "accounts_friends.sql",
     "accounts_messages.sql",
+    "accounts_parties.sql",
     "accounts_profile.sql",
+    "accounts_sessions.sql",
     "accounts_totp.sql",
+    "accounts_trust_tokens.sql",
     "auction_house_items.sql",
     "auction_house.sql",
     "audit_bazaar.sql",
+    "audit_chat.sql",
     "audit_dbox.sql",
+    "audit_gm.sql",
     "audit_trade.sql",
     "audit_vendor.sql",
     "char_blacklist.sql",
@@ -219,6 +220,7 @@ player_data = [
     "char_pet.sql",
     "char_points.sql",
     "char_profile.sql",
+    "char_recast.sql",
     "char_skills.sql",
     "char_spells.sql",
     "char_stats.sql",
@@ -274,34 +276,21 @@ colorama.init(autoreset=True)
 
 # Redirect errors through this to hide annoying password warning
 def fetch_errors(query, result):
-    for line in result.stderr.splitlines():
-        # Safe to ignore this warning
-        if "Using a password on the command line interface can be insecure" in line:
-            continue
-
-        # If the output line begins with ERROR, print it in red and exit
-        if line.startswith("ERROR"):
-            print_red("Encountered error while executing SQL query:")
-            print_red(query)
-            print_red("Error:")
-            print_red(line)
-            print_red("Exiting...")
-            exit(-1)
+    if result.returncode:
+        print_red(
+            "Native database command failed; SQL and connection details are withheld."
+        )
+        sys.exit(1)
 
 
 def db_query(query):
-    result = subprocess.run(
-        [
-            f"{mysql_bin}mysql{exe}",
-            f"-h{host}",
-            f"-P{str(port)}",
-            f"-u{login}",
-            f"-p{password}",
-            database,
-            f"-e {query}",
-        ],
-        capture_output=True,
-        text=True,
+    result = run_mysql(
+        f"{mysql_bin}mysql{exe}",
+        [database, "-e", query],
+        host=host,
+        user=login,
+        port=port,
+        password=password,
     )
     fetch_errors(query, result)
     return result
@@ -335,6 +324,7 @@ def fetch_versions():
 
     release_client = default_settings["login"]["CLIENT_VER"]
     current_client = settings["login"]["CLIENT_VER"]
+    preflight_client_version()
 
     if db_ver and release_version:
         fetch_files(True)
@@ -356,13 +346,18 @@ def fetch_configs():
                         if key == "auto_backup":
                             auto_backup = int(value)
                         if key == "auto_update_client":
-                            auto_update_client = bool(value)
+                            if not isinstance(value, bool):
+                                raise ValueError(
+                                    "auto_update_client must be a YAML boolean."
+                                )
+                            auto_update_client = value
                         if key == "db_ver":
                             db_ver = value
         else:
             write_configs()
-    except Exception as e:
-        print(e)
+    except (OSError, ValueError, TypeError, yaml.YAMLError):
+        print_red("Invalid database-tool configuration; no database changes were made.")
+        sys.exit(1)
 
 
 def write_configs():
@@ -456,26 +451,41 @@ def fetch_files(express=False):
         break
     backups.sort()
     import_files.sort()
-    try:
-        import_files.append(
-            import_files.pop(import_files.index(from_server_path("sql/triggers.sql")))
-        )
-    except Exception:
-        pass
+    triggers = from_server_path("sql/triggers.sql")
+    if triggers in import_files:
+        import_files.remove(triggers)
+        import_files.append(triggers)
     fetch_module_files()
+
+
+def preflight_client_version(update_client=None):
+    """Never replace or rewrite a linked private login settings file."""
+    if update_client is None:
+        update_client = auto_update_client
+    if (
+        update_client
+        and current_client != release_client
+        and release_client
+        and os.path.islink(from_server_path("settings/login.lua"))
+    ):
+        raise MySQLClientError(
+            "Client-version update would modify linked settings; approve a separate "
+            "credential-safe settings change before database mutations."
+        )
 
 
 def write_version(silent=False):
     global db_ver
     update_client = auto_update_client
-    if not silent and current_client != release_client:
+    if auto_update_client and not silent and current_client != release_client:
         update_client = input("Update client version? [y/N] ").lower() == "y"
     update_client = update_client and release_client
+    preflight_client_version(update_client)
     db_ver = release_version
     write_configs()
     if os.path.exists(from_server_path("settings/login.lua")):
         try:
-            if current_client != release_client:
+            if update_client and current_client != release_client:
                 for line in fileinput.input(
                     from_server_path("settings/login.lua"), inplace=True
                 ):
@@ -488,10 +498,12 @@ def write_version(silent=False):
             if update_client:
                 print_green("Updated client version!")
             fetch_versions()
-        except Exception as e:
+        except (OSError, ValueError):
             fileinput.close()
             print_red("Error writing version.")
-            print(e)
+            raise MySQLClientError(
+                "Unable to update client-version settings."
+            ) from None
 
 
 def import_file(file):
@@ -526,7 +538,7 @@ def connect():
             print_red(
                 "Incorrect mysql_login or mysql_password, update settings/network.lua."
             )
-            quit()
+            sys.exit(1)
         elif err.errno == mariadb.constants.ERR.ER_BAD_DB_ERROR:
             print_red("Database " + database + " does not exist.")
             if (
@@ -537,26 +549,23 @@ def connect():
             ):
                 query = f"CREATE DATABASE {database} CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"
 
-                result = subprocess.run(
-                    [
-                        f"{mysql_bin}mysql{exe}",
-                        f"-h{host}",
-                        f"-P{str(port)}",
-                        f"-u{login}",
-                        f"-p{password}",
-                        f"-e {query}",
-                    ],
-                    capture_output=True,
-                    text=True,
+                preflight_client_version()
+                result = run_mysql(
+                    f"{mysql_bin}mysql{exe}",
+                    ["-e", query],
+                    host=host,
+                    user=login,
+                    port=port,
+                    password=password,
                 )
                 fetch_errors(query, result)
                 setup_db()
                 connect()
             else:
-                quit()
+                sys.exit(0)
         else:
-            print_red(str(err))
-            quit()
+            print_red("Database connection failed; connection details are withheld.")
+            sys.exit(1)
         return False
     return True
 
@@ -567,10 +576,11 @@ def close():
         cur.close()
         db.close()
     time.sleep(0.5)
-    quit()
+    sys.exit(0)
 
 
 def setup_db():
+    preflight_client_version()
     fetch_files()
     for sql_file in import_files:
         import_file(sql_file)
@@ -579,43 +589,15 @@ def setup_db():
 
 
 def backup_db(silent=False, lite=False):
-    if silent or input("Would you like to backup your database? [y/N] ").lower() == "y":
-        if not silent:
-            lite = (
-                input("Would you like to only backup protected tables? [y/N] ").lower()
-                == "y"
-            )
-        dumpcmd = [
-            f"{mysql_bin}mysqldump{exe}",
-            "--hex-blob",
-            "--add-drop-trigger",
-            f"-h{host}",
-            f"-P{str(port)}",
-            f"-u{login}",
-            f"-p{password}",
-            database,
-        ]
-        if lite:
-            tables = []
-            for table in player_data:
-                tables.append(table[:-4])
-            dumpcmd.extend(tables)
-            outfile_path = f"{server_dir_path}/sql/backups/{database}-{time.strftime('%Y%m%d-%H%M%S')}-lite.sql"
-        else:
-            if db_ver:
-                outfile_path = f"{server_dir_path}/sql/backups/{database}-{time.strftime('%Y%m%d-%H%M%S')}-{db_ver}.sql"
-            else:
-                outfile_path = f"{server_dir_path}/sql/backups/{database}-{time.strftime('%Y%m%d-%H%M%S')}-full.sql"
-        with open(outfile_path, "w") as outfile:
-            result = subprocess.run(
-                dumpcmd,
-                stdout=outfile,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            fetch_errors("Dumping database", result)
-            print_green("Database saved!")
-            time.sleep(0.5)
+    if (
+        not silent
+        and input("Would you like to backup your database? [y/N] ").lower() != "y"
+    ):
+        return
+    raise MySQLClientError(
+        "Plaintext database backups are disabled. Use the reviewed canonical encrypted "
+        "capture outside Git with an existing encryption key; existing backups are preserved."
+    )
 
 
 def express_update(silent=False):
@@ -624,6 +606,7 @@ def express_update(silent=False):
 
 def update_db(silent=False, express=False):
     global express_enabled
+    preflight_client_version()
     if not silent or auto_backup:
         backup_db(silent, auto_backup == 2)
     if not express:
@@ -708,6 +691,7 @@ def adjust_auto_update_client():
 
 
 def run_all_migrations(silent=False):
+    preflight_client_version()
     migrations_needed = []
     print_green("Checking migrations...")
     for migration in migrations:
@@ -1041,7 +1025,9 @@ def flag_character_for_rename(charname):
         (charid,),
     )
     db.commit()
-    print_green(f'Flagged "{charname}" (charid {charid}) for a forced rename at next login.')
+    print_green(
+        f'Flagged "{charname}" (charid {charid}) for a forced rename at next login.'
+    )
 
 
 def flag_character_for_race_change(charname):
@@ -1066,7 +1052,9 @@ def flag_character_for_race_change(charname):
         (charid,),
     )
     db.commit()
-    print_green(f'Made "{charname}" (charid {charid}) race change eligible for 14 days.')
+    print_green(
+        f'Made "{charname}" (charid {charid}) race change eligible for 14 days.'
+    )
 
 
 def flag_character_dialog(question, fn):
@@ -1079,11 +1067,15 @@ def flag_character_dialog(question, fn):
 
 
 def flag_character_for_rename_dialog():
-    flag_character_dialog("Which character to flag for a forced rename?", flag_character_for_rename)
+    flag_character_dialog(
+        "Which character to flag for a forced rename?", flag_character_for_rename
+    )
 
 
 def flag_character_for_race_change_dialog():
-    flag_character_dialog("Which character to make race change eligible?", flag_character_for_race_change)
+    flag_character_dialog(
+        "Which character to make race change eligible?", flag_character_for_race_change
+    )
 
 
 def player_admin_menu():
@@ -1094,7 +1086,10 @@ def player_admin_menu():
         "Player Administration",
         {
             "1": ["Flag character for forced rename", flag_character_for_rename_dialog],
-            "2": ["Grant character race change eligibility", flag_character_for_race_change_dialog],
+            "2": [
+                "Grant character race change eligibility",
+                flag_character_for_race_change_dialog,
+            ],
             "q": ["Quit to main menu", NOOP],
         },
     )
@@ -1213,11 +1208,9 @@ def launch_using_zone_settings():
 
     zoneip = result.stdout.split("\n")[1]
 
-    result = db_query(
-        f"""
+    result = db_query(f"""
         SELECT DISTINCT zoneport from zone_settings ORDER BY zoneport ASC;
-        """
-    )
+        """)
 
     ports = result.stdout.split("\n")[1:-1]
 
@@ -1280,16 +1273,28 @@ def update_submodules():
 
 
 def update_sql_from_db(table_name):
+    if (
+        not isinstance(table_name, str)
+        or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", table_name)
+        or f"{table_name.casefold()}.sql" in player_data
+        or table_name.casefold() == "triggers"
+    ):
+        raise MySQLClientError("Only public static-table sources may be exported.")
+    source_path = from_server_path(f"sql/{table_name}.sql")
+    if os.path.islink(source_path) or not os.path.isfile(source_path):
+        raise MySQLClientError("An existing regular static-table source is required.")
     try:
+        # Validate the public source before reading any database rows.
+        with open(source_path, "r", encoding="utf-8") as file:
+            sql_lines = file.readlines()
+        declaration = rf"\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?{re.escape(table_name)}`?\s*\("
+        if not any(re.match(declaration, line, re.IGNORECASE) for line in sql_lines):
+            raise MySQLClientError(
+                "The source must declare the requested static table."
+            )
         # Fetch all rows from the specified table
         cur.execute(f"SELECT * FROM {table_name};")
         rows = cur.fetchall()
-
-        # Read the SQL file
-        with open(
-            from_server_path(f"sql/{table_name}.sql"), "r", encoding="utf-8"
-        ) as file:
-            sql_lines = file.readlines()
 
         sql_variables = {}
         updated_lines = []
@@ -1386,13 +1391,13 @@ def update_sql_from_db(table_name):
                 updated_lines.append(line)
 
         # Write the updated content back to the file
-        with open(
-            from_server_path(f"sql/{table_name}.sql"), "w", encoding="utf-8"
-        ) as file:
+        with open(source_path, "w", encoding="utf-8") as file:
             file.writelines(updated_lines)
 
-    except Exception as e:
-        print_red(f"Error: {e}")
+    except Exception:
+        raise MySQLClientError(
+            "Unable to update the public static-table source."
+        ) from None
 
 
 def dump_table(table_name=None, silent=False):
@@ -1419,6 +1424,7 @@ def dump_all_tables(silent=False):
 
 def validate_yaml_data():
     import tempfile
+
     with tempfile.TemporaryDirectory() as tmp:
         rc = subprocess.call(
             [sys.executable, "-m", "tools.codegen", tmp, "--validate"],
@@ -1504,7 +1510,10 @@ def tasks_menu():
             ],
             "d": ["Dump Table", dump_table],
             "a": ["Dump All Tables", dump_all_tables],
-            "w": ["Add Windows Defender exclusions (speeds up start-up)", add_windows_defender_exclusions],
+            "w": [
+                "Add Windows Defender exclusions (speeds up start-up)",
+                add_windows_defender_exclusions,
+            ],
             "q": ["Quit to main menu", NOOP],
         },
     )
@@ -1556,19 +1565,17 @@ def main():
                 return
             elif "setup" == arg1:
                 if len(sys.argv) > 2 and str(sys.argv[2]) == database:
+                    fetch_versions()
+                    preflight_client_version()
                     query = f"CREATE DATABASE {database} CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"
 
-                    result = subprocess.run(
-                        [
-                            f"{mysql_bin}mysql{exe}",
-                            f"-h{host}",
-                            f"-P{str(port)}",
-                            f"-u{login}",
-                            f"-p{password}",
-                            f"-e {query}",
-                        ],
-                        capture_output=True,
-                        text=True,
+                    result = run_mysql(
+                        f"{mysql_bin}mysql{exe}",
+                        ["-e", query],
+                        host=host,
+                        user=login,
+                        port=port,
+                        password=password,
                     )
                     fetch_errors(query, result)
                     fetch_versions()
@@ -1615,6 +1622,9 @@ def main():
                 options = {**append, **options}
 
             present_menu(title, options)
+    except MySQLClientError as error:
+        print_red(str(error))
+        sys.exit(1)
     except KeyboardInterrupt:
         try:
             sys.exit(0)

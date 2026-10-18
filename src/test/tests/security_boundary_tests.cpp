@@ -11,11 +11,79 @@
 ===========================================================================
 */
 
+#include "map/ai/helpers/gambits_container.h"
 #include "map/entities/battle_entity.h"
+#include "map/entities/char_entity.h"
+#include "map/entities/trust_entity.h"
+#include "map/enums/four_cc.h"
 #include "map/monstrosity.h"
+#include "map/packets/s2c/0x038_schedulor.h"
+#include "map/packets/s2c/0x039_mapschedulor.h"
 #include "map/recast_container.h"
 
+#include "common/database.h"
+
 #include <catch2/catch_test_macros.hpp>
+
+#include <array>
+#include <cstddef>
+#include <limits>
+#include <stdexcept>
+#include <string>
+
+TEST_CASE("Scheduler FOURCC packets preserve exactly four bytes", "[security][packets][fourcc]")
+{
+    CBattleEntity owner;
+    CBattleEntity target;
+    owner.id      = 1;
+    owner.targid  = 0x400;
+    target.id     = 2;
+    target.targid = 0x401;
+
+    const std::array<std::string, 3> codes{ "sp00", std::string("\0\x80\xff\x01", 4), std::string("a\0bc", 4) };
+    for (const auto& code : codes)
+    {
+        GP_SERV_COMMAND_SCHEDULOR    scheduler(&owner, &target, code);
+        GP_SERV_COMMAND_MAPSCHEDULOR mapScheduler(&owner, code);
+        GP_SERV_COMMAND_MAPSCHEDULOR noEntity(nullptr, code);
+
+        CHECK(scheduler.getType() == 0x038);
+        CHECK(mapScheduler.getType() == 0x039);
+        CHECK(scheduler.ref<uint32>(0x04) == owner.id);
+        CHECK(scheduler.ref<uint32>(0x08) == target.id);
+        CHECK(scheduler.ref<uint16>(0x10) == owner.targid);
+        CHECK(scheduler.ref<uint16>(0x12) == target.targid);
+        CHECK(mapScheduler.ref<uint32>(0x04) == owner.id);
+        CHECK(mapScheduler.ref<uint32>(0x08) == owner.id);
+        CHECK(mapScheduler.ref<uint16>(0x10) == owner.targid);
+        CHECK(mapScheduler.ref<uint16>(0x12) == owner.targid);
+        CHECK(noEntity.ref<uint32>(0x04) == 0);
+        CHECK(noEntity.ref<uint32>(0x08) == 0);
+
+        constexpr auto schedulerOffset = sizeof(GP_SERV_HEADER) + offsetof(GP_SERV_COMMAND_SCHEDULOR::PacketData, id);
+        constexpr auto mapOffset       = sizeof(GP_SERV_HEADER) + offsetof(GP_SERV_COMMAND_MAPSCHEDULOR::PacketData, id);
+        for (std::size_t i = 0; i < code.size(); ++i)
+        {
+            CHECK(scheduler.ref<uint8>(schedulerOffset + i) == static_cast<uint8>(code[i]));
+            CHECK(mapScheduler.ref<uint8>(mapOffset + i) == static_cast<uint8>(code[i]));
+            CHECK(noEntity.ref<uint8>(mapOffset + i) == static_cast<uint8>(code[i]));
+        }
+    }
+
+    GP_SERV_COMMAND_SCHEDULOR enumScheduler(&owner, &target, FourCC::FadeOut);
+    CHECK(enumScheduler.ref<FourCC>(0x0C) == FourCC::FadeOut);
+}
+
+TEST_CASE("Scheduler FOURCC packets reject invalid byte counts", "[security][packets][fourcc]")
+{
+    CBattleEntity owner;
+    CBattleEntity target;
+    for (const auto& code : std::array<std::string, 5>{ "", "a", "ab", "abc", "abcde" })
+    {
+        CHECK_THROWS_AS(GP_SERV_COMMAND_SCHEDULOR(&owner, &target, code), std::invalid_argument);
+        CHECK_THROWS_AS(GP_SERV_COMMAND_MAPSCHEDULOR(&owner, code), std::invalid_argument);
+    }
+}
 
 TEST_CASE("Monipulator conversion rejects null and invalid dynamic types", "[security][monstrosity]")
 {
@@ -41,4 +109,89 @@ TEST_CASE("Ability recast indices do not truncate at the byte boundary", "[secur
     CHECK(recasts.at(0).RecastTime == 60s);
     CHECK(recasts.at(255).RecastTime == 60s);
     CHECK(recasts.at(256).RecastTime == 0s);
+}
+
+TEST_CASE("Missing gambit cooldown abilities do not dereference null", "[security][gambits]")
+{
+    // A raw PC's destructor writes history. Intercept the complete fixture
+    // lifetime rather than allowing a unit test to touch the configured database.
+    class FixtureDatabase final : public db::Database
+    {
+    public:
+        FixtureDatabase()
+        : previous_(&db::getDatabase())
+        {
+            db::setDatabase(this);
+        }
+
+        ~FixtureDatabase() override
+        {
+            db::setDatabase(previous_);
+        }
+
+        FixtureDatabase(const FixtureDatabase&)            = delete;
+        FixtureDatabase& operator=(const FixtureDatabase&) = delete;
+        FixtureDatabase(FixtureDatabase&&)                 = delete;
+        FixtureDatabase& operator=(FixtureDatabase&&)      = delete;
+
+        auto execute(const std::string& query, const std::vector<db::BoundValue>&) -> std::unique_ptr<db::ResultSet> override
+        {
+            queries.push_back(query);
+            return {};
+        }
+
+        auto executeBulk(const std::string& query, const std::vector<db::BoundValue>& params) -> std::unique_ptr<db::ResultSet> override
+        {
+            return execute(query, params);
+        }
+
+        auto getSchema() -> std::string override
+        {
+            return "fixture";
+        }
+
+        auto getVersion() -> std::string override
+        {
+            return "fixture";
+        }
+
+        auto getDriverVersion() -> std::string override
+        {
+            return "fixture";
+        }
+
+        std::vector<std::string> queries;
+
+    private:
+        db::Database* previous_;
+    } database;
+
+    {
+        CCharEntity master;
+        master.health.hp = 1;
+        master.status    = xi::Status::Normal;
+        CTrustEntity      trust(&master, 0, IsPassiveTrust::No);
+        gambits::Gambit_t gambit;
+        gambit.target_selector = gambits::G_TARGET::SELF;
+        gambit.predicate_groups.emplace_back(
+            gambits::G_LOGIC::AND,
+            std::vector<gambits::Predicate_t>{
+                { gambits::G_CONDITION::JA_ON_COOLDOWN, std::numeric_limits<uint16>::max() },
+            });
+        auto* controller = static_cast<CTrustController*>(trust.PAI->GetController());
+        REQUIRE_FALSE(controller->m_GambitsContainer->AddGambit(gambit).empty());
+
+        asio::io_context context;
+        bool             completed = false;
+        asio::co_spawn(context, controller->m_GambitsContainer->Tick(timer::now()), [&](std::exception_ptr exception)
+                       {
+                           CHECK_FALSE(exception);
+                           completed = true;
+                       });
+        context.run();
+        CHECK(completed);
+        CHECK_FALSE(trust.PAI->IsEngaged());
+    }
+    REQUIRE(database.queries.size() == 1);
+    CHECK(database.queries.front().starts_with("INSERT INTO char_history SET "));
 }

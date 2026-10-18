@@ -20,7 +20,6 @@ def needs_to_run(cur):
 
 
 def migrate(cur, db):
-    pass
     try:
         cur.execute(
             "ALTER TABLE char_storage MODIFY satchel tinyint(2) unsigned NOT NULL DEFAULT '0';"

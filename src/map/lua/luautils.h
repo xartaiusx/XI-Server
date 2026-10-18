@@ -282,7 +282,7 @@ struct ZoneEntityRecords
 
 void PopulateIDLookupsByZone(Maybe<xi::ZoneId> maybeZoneId = std::nullopt, const ZoneEntityRecords& preloaded = {});
 
-void SendEntityVisualPacket(uint32 npcId, const char* command);
+void SendEntityVisualPacket(uint32 npcId, const std::string& command);
 void InitInteractionGlobal();
 auto GetZone(xi::ZoneId zoneId) -> CZone*;
 auto GetItemByID(uint32 itemId) -> const CItem*;

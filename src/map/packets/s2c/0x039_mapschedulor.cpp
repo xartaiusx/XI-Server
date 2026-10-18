@@ -23,8 +23,15 @@
 
 #include "entities/base_entity.h"
 
-GP_SERV_COMMAND_MAPSCHEDULOR::GP_SERV_COMMAND_MAPSCHEDULOR(const CBaseEntity* PEntity, const char type[4])
+#include <stdexcept>
+
+GP_SERV_COMMAND_MAPSCHEDULOR::GP_SERV_COMMAND_MAPSCHEDULOR(const CBaseEntity* PEntity, std::string_view type)
 {
+    if (type.size() != 4)
+    {
+        throw std::invalid_argument("FOURCC must contain exactly four bytes.");
+    }
+
     auto& packet = this->data();
 
     if (PEntity)
@@ -35,5 +42,5 @@ GP_SERV_COMMAND_MAPSCHEDULOR::GP_SERV_COMMAND_MAPSCHEDULOR(const CBaseEntity* PE
         packet.ActIndexTar  = PEntity->targid;
     }
 
-    std::memcpy(&packet.id, type, 4);
+    std::memcpy(&packet.id, type.data(), type.size());
 }

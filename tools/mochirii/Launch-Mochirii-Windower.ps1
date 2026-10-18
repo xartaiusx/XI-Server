@@ -18,9 +18,9 @@ trap {
     @{
         Timestamp = Get-Date -Format 'yyyy-MM-ddTHH:mm:ssK'
         Stage = $stage
-        Error = $_.Exception.Message
+        Error = 'Mochirii Windower launch failed; inspect the failed stage without logging credential values.'
     } | ConvertTo-Json | Set-Content -Encoding UTF8 -LiteralPath $failureLog
-    Write-Error $_
+    Write-Error 'Mochirii Windower launch failed. See the redacted stage report.' -ErrorAction Continue
     exit 1
 }
 
@@ -66,8 +66,8 @@ $redacted = @{
     Profile = 'Mochirii'
     Windower = $windowerExe
     Xiloader = $xiloaderExe
-    Server = $secret.server
-    Username = $secret.username
+    Server = '[redacted]'
+    Username = '[redacted]'
     Password = '[redacted]'
     WindowerArgs = '-p Mochirii'
     XiloaderArgs = 'profile-managed --json [runtime secret]'

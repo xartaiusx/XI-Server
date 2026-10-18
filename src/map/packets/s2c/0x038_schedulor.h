@@ -23,6 +23,8 @@
 
 #include "base.h"
 
+#include <string_view>
+
 enum class FourCC : uint32_t;
 class CBaseEntity;
 
@@ -39,5 +41,5 @@ public:
     };
 
     GP_SERV_COMMAND_SCHEDULOR(const CBaseEntity* PEntity, const CBaseEntity* PTarget, FourCC anim);
-    GP_SERV_COMMAND_SCHEDULOR(const CBaseEntity* PEntity, const CBaseEntity* PTarget, const char anim[4]);
+    GP_SERV_COMMAND_SCHEDULOR(const CBaseEntity* PEntity, const CBaseEntity* PTarget, std::string_view anim);
 };

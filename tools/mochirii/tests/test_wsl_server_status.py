@@ -425,7 +425,8 @@ for service, listeners in ports.items():
             self.write_executable(self.script_root / filename, source)
         self.write_executable(
             self.script_root / "prepare-mariadb-client-config.sh",
-            f"#!/bin/sh\nprintf '%s\\n' '{self.defaults_path}'\n",
+            '#!/bin/sh\nif [ "$1" = "--check" ]; then exit 0; fi\n'
+            'if [ "$1" = "--" ]; then shift; exec "$@"; fi\nexit 2\n',
         )
 
     @staticmethod
@@ -500,7 +501,7 @@ for service, listeners in ports.items():
             self.assertGreater(pid, 0)
         published = json.loads(self.state_file.read_text())
         self.assertEqual(set(published["services"]), set(XI_SERVICES))
-        self.assertFalse(self.defaults_path.exists())
+        self.assertTrue(self.defaults_path.exists())
 
     def test_partial_start_rolls_back_profile_and_all_other_services(self) -> None:
         self.prepare_profile_links()
@@ -521,7 +522,7 @@ for service, listeners in ports.items():
         )
         self.assertFalse(self.state_file.exists())
         self.assertNotIn("Mochirii XI server is up.", result.stdout)
-        self.assertFalse(self.defaults_path.exists())
+        self.assertTrue(self.defaults_path.exists())
 
     def test_full_stop_continues_after_individual_service_failure(self) -> None:
         self.write_state(WslServerStatusTests.running_state())

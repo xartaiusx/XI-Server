@@ -51,10 +51,7 @@ def remove_real_names(authors):
             to_remove.add(name)
 
     for name in to_remove:
-        try:
-            authors.remove(name)
-        except:
-            pass
+        authors.discard(name)
 
 
 if len(sys.argv) < 3:
@@ -116,10 +113,7 @@ with open(f"changelog-{today}.md", "w") as file:
         authors_string = username
         if len(authors) > 1:
             # Since the authors_string starts with the submitting user, we can remove it from the set
-            try:
-                authors.remove(username)
-            except:
-                pass
+            authors.discard(username)
 
             authors_string += ", "
             authors_string += ", ".join(authors)

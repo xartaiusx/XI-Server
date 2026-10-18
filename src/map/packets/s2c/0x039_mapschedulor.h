@@ -23,6 +23,8 @@
 
 #include "base.h"
 
+#include <string_view>
+
 class CBaseEntity;
 
 // https://github.com/atom0s/XiPackets/tree/main/world/server/0x0039
@@ -40,5 +42,5 @@ public:
         uint16_t ActIndexTar;  // PS2: ActIndexTar
     };
 
-    GP_SERV_COMMAND_MAPSCHEDULOR(const CBaseEntity* PEntity, const char type[4]);
+    GP_SERV_COMMAND_MAPSCHEDULOR(const CBaseEntity* PEntity, std::string_view type);
 };

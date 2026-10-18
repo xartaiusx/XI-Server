@@ -1,4 +1,5 @@
 import argparse
+import sys
 
 # 2 arguments:
 # 1. The file path of the input file
@@ -120,7 +121,8 @@ def cpp_type_to_lua_type(type_str):
         case "std::vector<std::vector<std::string>>":
             return "table"
         case "std::vector<std::vector<std::vector<uint8>>>":
-            return
+            return "table"
+    return None
 
 
 input_lines = []
@@ -172,7 +174,7 @@ for line in trailing_return_function_lines:
     if " -> " not in line:
         print("Error: auto function does not use '->' to specify return type!")
         print(f"    {line}")
-        exit(1)
+        sys.exit(1)
 
     print(f"    {line}")
 

@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-import importlib
 import mariadb
 import os
 import platform
@@ -13,6 +12,7 @@ import threading
 
 from mariadb.constants import *
 from queue import Queue, Empty
+from tools.mysql_client import run_mysql
 
 TEN_MINUTES_IN_SECONDS = 600
 CHECK_INTERVAL_SECONDS = 2.5
@@ -101,23 +101,18 @@ def connect():
             print("Database " + database + " does not exist.")
             close(-1)
         else:
-            print(str(err))
+            print("Database connection failed; connection details are withheld.")
             close(-1)
 
 
 def db_query(query):
-    result = subprocess.run(
-        [
-            f"mysql",
-            f"-h{host}",
-            f"-P{str(port)}",
-            f"-u{login}",
-            f"-p{password}",
-            database,
-            f"-e {query}",
-        ],
-        capture_output=True,
-        text=True,
+    result = run_mysql(
+        "mysql",
+        [database, "-e", query],
+        host=host,
+        user=login,
+        port=port,
+        password=password,
     )
     return result
 
@@ -158,15 +153,13 @@ def setup_test_character():
         cur.execute("REPLACE INTO char_stats (charid, mjob) VALUES(1, 1);")
 
         # Place near some Robber Crabs in Kuftal Tunnel
-        cur.execute(
-            "UPDATE chars SET \
+        cur.execute("UPDATE chars SET \
             pos_zone = 174, \
             pos_prevzone = 174, \
             pos_x = 55, \
             pos_y = -9, \
             pos_z = -140 \
-        WHERE charid = 1;"
-        )
+        WHERE charid = 1;")
 
         # Set GodMode
         cur.execute(
@@ -176,7 +169,7 @@ def setup_test_character():
         db.commit()
 
         return 0
-    except:
+    except mariadb.Error:
         print("An error occurred.")
         return -1
 

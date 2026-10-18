@@ -1069,7 +1069,7 @@ void CLuaBaseEntity::entityVisualPacket(const std::string& command, const sol::o
         PNpc                       = PLuaBaseEntity->m_PBaseEntity;
     }
 
-    static_cast<CCharEntity*>(m_PBaseEntity)->pushPacket<GP_SERV_COMMAND_MAPSCHEDULOR>(PNpc, command.c_str());
+    static_cast<CCharEntity*>(m_PBaseEntity)->pushPacket<GP_SERV_COMMAND_MAPSCHEDULOR>(PNpc, command);
 }
 
 /************************************************************************
@@ -1079,7 +1079,7 @@ void CLuaBaseEntity::entityVisualPacket(const std::string& command, const sol::o
  *  Notes   :
  ************************************************************************/
 
-void CLuaBaseEntity::entityAnimationPacket(const char* command, const sol::object& target)
+void CLuaBaseEntity::entityAnimationPacket(const std::string& command, const sol::object& target)
 {
     CBaseEntity* PTarget = nullptr;
     if (target != sol::lua_nil)

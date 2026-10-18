@@ -1,4 +1,5 @@
 import socket
+import sys
 import ssl
 import re
 import time
@@ -116,12 +117,12 @@ class HXIClient:
             self.connected = True
         elif result == 0x02:
             print("Failed to login. Invalid username or password.")
-            exit(-1)
+            sys.exit(-1)
         else:
             print(
                 f"Failed to login. Code: {result})",
             )
-            exit(-1)
+            sys.exit(-1)
 
     def logout(self):
         self.connected = False
@@ -310,7 +311,7 @@ class HXIClient:
         except Exception as ex:
             print(f"Error communicating lobby 0xA2 packet. Error: {status_code}")
             print(ex)
-            exit(-1)
+            sys.exit(-1)
         if self.debug_packets:
             print(f"0xA2: received {data}")
         try:
@@ -323,7 +324,7 @@ class HXIClient:
         except Exception as ex:
             print(f"Error unpacking gameserver handoff data.")
             print(ex)
-            exit(-1)
+            sys.exit(-1)
 
         self.map_server = (self.zone_ip, self.zone_port)
         self.search_server = (self.search_ip, self.search_port)
@@ -352,7 +353,7 @@ class HXIClient:
                     continue
                 else:
                     print(e)
-                    exit(-1)
+                    sys.exit(-1)
             else:
                 self.parse_incoming_packet(data)
 

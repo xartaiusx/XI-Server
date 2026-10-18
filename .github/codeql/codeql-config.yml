@@ -1,5 +1,7 @@
 name: "codeql config"
 
+# Keep both suites in every no-build and traced-build category. Coverage
+# accounting reports vendor/generated paths separately; it never drops core code.
 # Details on CodeQL's query packs refer to : https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
 queries:
   - uses: security-extended

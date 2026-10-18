@@ -1,14 +1,3 @@
-# For most projects, this workflow file will not need changing; you simply need
-# to commit it to your repository.
-#
-# You may wish to alter this file to override the set of languages analyzed,
-# or to provide custom queries or build logic.
-#
-# ******** NOTE ********
-# We have attempted to detect the languages in your repository. Please check
-# the `language` matrix defined below to confirm you have the correct set of
-# supported CodeQL languages.
-#
 name: CodeQL Analysis
 
 on:
@@ -26,9 +15,12 @@ on:
 
 jobs:
   analyze:
-    name: Analyze
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Preserve the existing required check names when extending the matrix.
+    name: Analyze (${{ matrix.language }}, ${{ matrix.build-mode }})${{ matrix.legacy && ' legacy' || '' }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    env:
+      CODEQL_ACTION_FILE_COVERAGE_ON_PRS: "true"
     permissions:
       actions: read
       contents: read
@@ -40,19 +32,60 @@ jobs:
         include:
           - language: cpp
             build-mode: none
+            runner: ubuntu-26.04
+            category: .github/workflows/codeql_analysis.yml:analyze/build-mode:none/language:cpp
+          - language: cpp
+            build-mode: manual
+            runner: ubuntu-26.04
+            # Refresh historical alerts with the fully traced compiler context.
+            category: .github/workflows/codeql_analysis.yml:analyze/language:cpp
           - language: python
             build-mode: none
-        # CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby' ]
-        # Learn more about CodeQL language support at https://aka.ms/codeql-docs/language-support
+            runner: ubuntu-latest
+            category: .github/workflows/codeql_analysis.yml:analyze/build-mode:none/language:python
+          - language: python
+            build-mode: none
+            runner: ubuntu-latest
+            legacy: true
+            category: .github/workflows/codeql_analysis.yml:analyze/language:python
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        persist-credentials: false
+
+    - name: Setup Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      with:
+        python-version: '3.14'
 
     - name: Install Dependencies
+      if: matrix.language == 'cpp'
       run: |
         sudo apt-get update
-        sudo apt-get install -y software-properties-common cmake ninja-build libmariadb-dev-compat libluajit-5.1-dev libzmq3-dev zlib1g-dev libssl-dev binutils-dev libzstd-dev libdwarf-dev
+        sudo apt-get install --assume-yes --no-install-recommends --quiet \
+          g++-15 cmake ninja-build libmariadb-dev-compat libluajit-5.1-dev \
+          libzmq3-dev zlib1g-dev libssl-dev binutils-dev libzstd-dev libdwarf-dev
+        echo "CC=/usr/bin/gcc-15" >> "$GITHUB_ENV"
+        echo "CXX=/usr/bin/g++-15" >> "$GITHUB_ENV"
+        python -m pip install jinja2 jsonschema ruamel.yaml
+
+    - name: Configure C++ extraction context
+      if: matrix.language == 'cpp'
+      run: |
+        # CI-only configuration: never enable packet capture on a live server.
+        python - <<'PY'
+        from pathlib import Path
+        Path("modules/init.txt").write_text("custom\nera/lua\nexample\ntools/packetcap\n")
+        PY
+        "$CXX" --version
+        cmake -G Ninja -S . -B build --fresh \
+          -DCMAKE_BUILD_TYPE=Debug -DPCH_ENABLE=OFF -DENABLE_IPO=OFF \
+          -DCACHE_BINARY:FILEPATH= \
+          -DCMAKE_C_COMPILER_LAUNCHER:STRING= \
+          -DCMAKE_CXX_COMPILER_LAUNCHER:STRING=
+        cmake --build build --target enum_codegen data_schema_generate --parallel 4
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
@@ -61,34 +94,43 @@ jobs:
         trap-caching: false
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
-        # If you wish to specify custom queries, you can do so here or in a config file.
-        # By default, queries listed here will override any specified in a config file.
-        # Prefix the list here with "+" to use these queries and those in the config file.
         config-file: ./.github/codeql/codeql-config.yml
-        
-    # Autobuild attempts to build any compiled languages  (C/C++, C#, or Java).
-    # If this step fails, then you should remove it and run the build manually (see below)
-    # - name: Autobuild
-    #   uses: github/codeql-action/autobuild@v4
-
-    # ℹ️ Command-line programs to run using the OS shell.
-    # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
-
-    #   If the Autobuild fails above, remove it and uncomment the following three lines. 
-    #   modify them (or add more) to build your code if your project, please refer to the EXAMPLE below for guidance.
 
     - if: matrix.build-mode == 'manual'
-      name: Configure and Build
+      name: Trace all server targets and modules
       run: |
-        cmake -G Ninja -S . -B build
-        cmake --build build -j4
+        # Fresh objects, no compiler cache/PCH: every compilation must be traced.
+        cmake --build build --target xi_connect xi_map xi_profile xi_search xi_world xi_test --parallel 4
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4
       with:
-        # https://josh-ops.com/posts/github-codeql-ignore-files/
-        upload: false # disable the upload here - we will upload in a different action
+        upload: false
         output: sarif-results
+        category: ${{ matrix.category }}
+
+    - name: Check raw coverage and diagnostics
+      env:
+        COVERAGE_OUTPUT: ${{ runner.temp }}/codeql-coverage-${{ matrix.language }}-${{ matrix.build-mode }}.json
+      run: |
+        python tools/mochirii/codeql_coverage.py \
+          --sarif sarif-results/${{ matrix.language }}.sarif \
+          --output "$COVERAGE_OUTPUT" \
+          --language '${{ matrix.language }}' \
+          --category '${{ matrix.category }}' \
+          --source-sha "$GITHUB_SHA" \
+          ${{ matrix.build-mode == 'manual' && '--require-cpp-recovery' || '' }}
+
+    - name: Preserve raw SARIF and coverage evidence
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      with:
+        name: CodeQL_raw_${{ matrix.language }}_${{ matrix.build-mode }}_${{ matrix.legacy && 'legacy_' || '' }}${{ github.sha }}
+        path: |
+          sarif-results/${{ matrix.language }}.sarif
+          ${{ runner.temp }}/codeql-coverage-${{ matrix.language }}-${{ matrix.build-mode }}.json
+        if-no-files-found: error
+        retention-days: 7
 
     - name: Filter SARIF
       uses: zbazztian/filter-sarif@30183a0a595e8a890f1624ebba3788ce5b58711b # master as of 2022-07-26

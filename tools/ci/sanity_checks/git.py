@@ -103,7 +103,7 @@ for hash, lines in get_commit_messages().items():
         # [^ ]*\.    : Any number characters that are NOT a space, ending in a period character.
         # [a-z]{1,3} : 1-3 entries of characters a-z. This is looking for file extensions.
         # $          : End of string.
-        for match in re.finditer(r"^update [^ ]*\.[a-z]{1,3}$", line.lower()):
+        if re.search(r"^update [^ ]*\.[a-z]{1,3}$", line.lower()):
             print_error(
                 hash,
                 lines,

@@ -1545,7 +1545,7 @@ void PopulateIDLookupsByZone(Maybe<xi::ZoneId> maybeZoneId, const ZoneEntityReco
 }
 
 // temporary solution for geysers in Dangruf_Wadi
-void SendEntityVisualPacket(const uint32 npcId, const char* command)
+void SendEntityVisualPacket(const uint32 npcId, const std::string& command)
 {
     TracyZoneScoped;
 

@@ -3856,10 +3856,12 @@ bool CBattleEntity::OnAttack(CAttackState& state, action_t& action)
                 {
                     if (PTarget->StatusEffectContainer->AddStatusEffect(xi::StatusEffect::EvasionDown, static_cast<uint16>(xi::StatusEffect::EvasionDown), PFeintEffect->GetPower(), 3s, 30s))
                     {
-                        auto PEffect = PTarget->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::EvasionDown);
-
-                        // When Feint's evasion down effect is on, the target can get "debuffed" with TREASURE_HUNTER_PROC +25% * level above first on Feint
-                        PEffect->addMod(xi::Mod::TREASURE_HUNTER_PROC, PFeintEffect->GetSubPower());
+                        // Gain callbacks can remove the new effect before AddStatusEffect returns.
+                        if (auto* PEffect = PTarget->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::EvasionDown))
+                        {
+                            // When Feint's evasion down effect is on, the target can get "debuffed" with TREASURE_HUNTER_PROC +25% * level above first on Feint
+                            PEffect->addMod(xi::Mod::TREASURE_HUNTER_PROC, PFeintEffect->GetSubPower());
+                        }
                     }
                     StatusEffectContainer->DelStatusEffect(xi::StatusEffect::Feint);
                 }

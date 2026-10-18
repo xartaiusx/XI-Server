@@ -48,7 +48,6 @@ for credential in profile.cert profile.key; do
   fi
 done
 
-MYSQL_DEFAULTS=""
 STATE_TEMP=""
 START_ATTEMPTED=false
 
@@ -56,9 +55,6 @@ cleanup() {
   local result=$?
   trap - EXIT
 
-  if [[ -n "$MYSQL_DEFAULTS" ]]; then
-    rm -f "$MYSQL_DEFAULTS"
-  fi
   if [[ -n "$STATE_TEMP" ]]; then
     rm -f "$STATE_TEMP"
   fi
@@ -80,9 +76,8 @@ cleanup() {
 }
 
 trap cleanup EXIT
-MYSQL_DEFAULTS="$($SCRIPT_DIR/prepare-mariadb-client-config.sh)"
+"$SCRIPT_DIR/prepare-mariadb-client-config.sh" --check
 mkdir -p "$LOG_ROOT" "$SERVER_ROOT/log" "$(dirname "$STATE_FILE")"
-mysql_args=(--defaults-extra-file="$MYSQL_DEFAULTS")
 
 enforce_manual_start() {
   local service
@@ -103,13 +98,13 @@ echo "Starting MariaDB..."
 systemctl start mariadb.service >/dev/null
 
 for _ in {1..30}; do
-  if mariadb "${mysql_args[@]}" -h127.0.0.1 -P3306 -e "SELECT 1;" >/dev/null 2>&1; then
+  if "$SCRIPT_DIR/prepare-mariadb-client-config.sh" -- mariadb -e "SELECT 1;" >/dev/null 2>&1; then
     break
   fi
   sleep 1
 done
 
-mariadb "${mysql_args[@]}" -h127.0.0.1 -P3306 -e "
+"$SCRIPT_DIR/prepare-mariadb-client-config.sh" -- mariadb -e "
 UPDATE xidb.zone_settings SET zoneip='127.0.0.1' WHERE zoneip <> '127.0.0.1';
 UPDATE xidb.zone_settings SET zoneport=55030 WHERE zoneport <> 55030;
 "

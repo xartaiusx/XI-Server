@@ -45,7 +45,7 @@ def find_clang_format():
                         major_version = int(version_match.group(1))
                         if major_version == 22:
                             return executable
-            except:
+            except (OSError, subprocess.SubprocessError, UnicodeError):
                 continue
 
     print("Error: clang-format version 22 not found!")

@@ -109,7 +109,7 @@ public:
     void injectPacket(const std::string& filename); // Send the character a packet kept in a file
     void injectActionPacket(uint32 inTargetID, uint16 inCategory, uint16 inAnimationID, uint16 inInfo, uint16 inReaction, uint16 inMessage, uint16 inActionParam, uint16 inParam) const;
     void entityVisualPacket(const std::string& command, const sol::object& entity) const;
-    void entityAnimationPacket(const char* command, const sol::object& target);
+    void entityAnimationPacket(const std::string& command, const sol::object& target);
     void sendDebugPacket(const sol::table& packetData);
     void sendLinkshellConcierge(const sol::table& data) const;
     void sendChocoboRace(const sol::table& race) const;

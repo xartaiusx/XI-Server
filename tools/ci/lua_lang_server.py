@@ -7,6 +7,7 @@ import json
 import subprocess
 import re
 import argparse
+import sys
 from collections import defaultdict
 
 parser = argparse.ArgumentParser(
@@ -90,15 +91,6 @@ def generate_spec_file(file):
                         f"Warning: {function_name} is defined but not registered in {file}"
                     )
 
-
-# TODO:
-# # Find all files ending in *.cpp in the lua bindings directory
-# for root, dirs, files in os.walk(lua_bindings_cpp_path):
-#     for file in files:
-#         if file.endswith(".cpp"):
-#             generate_spec_file(os.path.join(root, file))
-#
-# exit()
 
 current_os = platform.system()
 print(f"Current OS: {current_os}")
@@ -189,7 +181,7 @@ with open("./check.json", "r") as file:
 if len(parsed_data) == 0:
     print("No errors found, removing check.json and exiting.")
     os.remove("./check.json")
-    exit()
+    sys.exit(0)
 
 
 def get_committer(file, line):

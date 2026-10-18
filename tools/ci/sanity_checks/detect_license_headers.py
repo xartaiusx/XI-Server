@@ -49,7 +49,8 @@ def main():
                 if not check_header(file):
                     print("Incorrect header in file: " + file)
                     bad_headers = True
+    return 1 if bad_headers else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

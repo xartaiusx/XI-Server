@@ -12,7 +12,7 @@ for file in "${targets[@]}"; do
     [[ -f $file && $file == *.py ]] || continue
 
     # Run tools and capture output
-    pylint_output=$(pylint --errors-only "$file" 2>&1 || true)
+    pylint_output=$(PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}" python -m pylint --errors-only "$file" 2>&1 || true)
     black_output=$(black --check --diff --quiet "$file" 2>&1 || true)
 
     # Check if there were issues

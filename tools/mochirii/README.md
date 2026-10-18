@@ -58,9 +58,11 @@ and installed into `Windower\addons\MochiriiScreenshotQA`.
 - Tracked systemd templates live in `systemd`; `/etc/systemd/system` contains
   deployed copies.
 - Persistent credentials live only under
-  `C:\Github Repo's\FFXI\FFXI Creds`. The MariaDB helper creates a mode-600
-  temporary client config in `/run/mochirii` because MariaDB correctly rejects
-  option files presented as world-writable by the Windows mount.
+  `C:\Github Repo's\FFXI\FFXI Creds`. The MariaDB helper validates the existing
+  source's Windows file/parent ACL metadata and transports bounded connection
+  options through an anonymous mode-600 memory descriptor. It creates no named
+  credential copy and places no password in native arguments or environment.
+  See [database security](../../documentation/database_security.md).
 
 ## Canonical Runtime Lifecycle
 

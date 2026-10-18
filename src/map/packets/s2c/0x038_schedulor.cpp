@@ -23,6 +23,8 @@
 
 #include "entities/base_entity.h"
 
+#include <stdexcept>
+
 GP_SERV_COMMAND_SCHEDULOR::GP_SERV_COMMAND_SCHEDULOR(const CBaseEntity* PEntity, const CBaseEntity* PTarget, FourCC anim)
 {
     auto& packet = this->data();
@@ -34,8 +36,13 @@ GP_SERV_COMMAND_SCHEDULOR::GP_SERV_COMMAND_SCHEDULOR(const CBaseEntity* PEntity,
     packet.ActIndexTar  = PTarget->targid;
 }
 
-GP_SERV_COMMAND_SCHEDULOR::GP_SERV_COMMAND_SCHEDULOR(const CBaseEntity* PEntity, const CBaseEntity* PTarget, const char anim[4])
+GP_SERV_COMMAND_SCHEDULOR::GP_SERV_COMMAND_SCHEDULOR(const CBaseEntity* PEntity, const CBaseEntity* PTarget, std::string_view anim)
 {
+    if (anim.size() != 4)
+    {
+        throw std::invalid_argument("FOURCC must contain exactly four bytes.");
+    }
+
     auto& packet = this->data();
 
     packet.UniqueNoCas  = PEntity->id;
@@ -43,5 +50,5 @@ GP_SERV_COMMAND_SCHEDULOR::GP_SERV_COMMAND_SCHEDULOR(const CBaseEntity* PEntity,
     packet.ActIndexCast = PEntity->targid;
     packet.ActIndexTar  = PTarget->targid;
 
-    std::memcpy(&packet.id, anim, 4);
+    std::memcpy(&packet.id, anim.data(), anim.size());
 }

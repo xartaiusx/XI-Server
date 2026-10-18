@@ -64,7 +64,7 @@ def main():
         detect_files(sys.argv[1], mode)
     else:
         print("Usage: python bom_checker.py <file or dir>")
-        exit(-1)
+        sys.exit(-1)
 
     if len(files_to_convert) > 0:
         from_enc = "utf-8-sig"

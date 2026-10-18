@@ -39,7 +39,7 @@ def migrate(cur, db):
                     db.commit()
                 except mariadb.Error as err:
                     print("Something went wrong: {}".format(err))
-            except:
+            except Exception:
                 efile.write(
                     "[extend_mission_log] Error reading missions in chars table for charid: "
                     + str(charid)

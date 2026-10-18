@@ -16,22 +16,6 @@ import zmq
 import struct
 import cbor2
 
-context = zmq.Context()
-sock = context.socket(zmq.DEALER)
-
-ip_str = "127.0.0.1"
-port = 54003
-
-ip_bytes = socket.inet_aton(ip_str)
-(ip_int,) = struct.unpack("!I", ip_bytes)
-ipp = ip_int | (port << 32)
-ipp_bytes = struct.pack("!Q", ipp)
-
-print(f"Connecting to endpoint: {ip_str}:{port}")
-
-sock.setsockopt(zmq.ROUTING_ID, ipp_bytes)
-sock.connect("tcp://127.0.0.1:54003")
-
 
 def print_help():
     print("You must provide a message to send.")
@@ -58,9 +42,24 @@ def build_chat_packet(gm_flag, zone, sender, msg):
 
 
 def send_server_message(msg):
-    print(f"Sending '{msg}'")
-    buffer = build_chat_packet(1, 0, "", msg)
-    sock.send(buffer)
+    ip_str = "127.0.0.1"
+    port = 54003
+    ip_bytes = socket.inet_aton(ip_str)
+    (ip_int,) = struct.unpack("!I", ip_bytes)
+    ipp = ip_int | (port << 32)
+    ipp_bytes = struct.pack("!Q", ipp)
+
+    with zmq.Context() as context:
+        with context.socket(zmq.DEALER) as sock:
+            sock.setsockopt(zmq.IMMEDIATE, 1)
+            sock.setsockopt(zmq.SNDTIMEO, 5000)
+            sock.setsockopt(zmq.LINGER, 1000)
+            print(f"Connecting to endpoint: {ip_str}:{port}")
+            sock.setsockopt(zmq.ROUTING_ID, ipp_bytes)
+            sock.connect("tcp://127.0.0.1:54003")
+            print(f"Sending '{msg}'")
+            buffer = build_chat_packet(1, 0, "", msg)
+            sock.send(buffer)
 
 
 def main():

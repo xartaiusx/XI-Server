@@ -16,12 +16,12 @@ class util:
     def memcpy(src, src_offset, dst, dst_offset, count):
         try:
             src_bytes = util.to_bytes(src[src_offset:])
-        except:
+        except TypeError:
             src_bytes = src
 
         try:
             dst_bytes = util.to_bytes(dst[dst_offset:])
-        except:
+        except TypeError:
             dst_bytes = dst
 
         for idx in range(count):

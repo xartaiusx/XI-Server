@@ -1293,7 +1293,7 @@ auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const G
             case G_CONDITION::JA_ON_COOLDOWN:
             {
                 auto* PAbility = ability::GetAbility(static_cast<ABILITY>(predicate.condition_arg));
-                predicateResults.push_back(PAbility->getRecastTime() > 0s);
+                predicateResults.push_back(PAbility && PAbility->getRecastTime() > 0s);
                 continue;
             }
             case G_CONDITION::LVL_LT:

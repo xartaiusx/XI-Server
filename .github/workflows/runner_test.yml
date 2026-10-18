@@ -151,6 +151,56 @@ jobs:
           echo "${{ runner.os == 'Windows' && '.venv/Scripts' || '.venv/bin' }}" >> $GITHUB_PATH
           echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
 
+      - name: Prepare public CI database option file (Windows)
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fixtureRoot = Join-Path $env:RUNNER_TEMP ('mochirii-mysql-ci-' + [guid]::NewGuid().ToString('N'))
+          $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+          $directorySecurity = [System.Security.AccessControl.DirectorySecurity]::new()
+          $directorySecurity.SetOwner($identity)
+          $directorySecurity.SetAccessRuleProtection($true, $false)
+          $directorySecurity.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($identity, 'FullControl', 'Allow'))
+          $directory = [System.IO.DirectoryInfo]::new($fixtureRoot)
+          [System.IO.FileSystemAclExtensions]::Create($directory, $directorySecurity)
+          $fixturePath = Join-Path $fixtureRoot 'client.cnf'
+          $fileSecurity = [System.Security.AccessControl.FileSecurity]::new()
+          $fileSecurity.SetOwner($identity)
+          $fileSecurity.SetAccessRuleProtection($true, $false)
+          $fileSecurity.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($identity, 'FullControl', 'Allow'))
+          $file = [System.IO.FileInfo]::new($fixturePath)
+          $stream = [System.IO.FileSystemAclExtensions]::Create($file, [System.IO.FileMode]::CreateNew, [System.Security.AccessControl.FileSystemRights]::FullControl, [System.IO.FileShare]::None, 4096, [System.IO.FileOptions]::None, $fileSecurity)
+          try {
+            # Public, disposable CI fixture only; never derive this from workstation settings.
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes("[client]`nhost=`"127.0.0.1`"`nport=3306`nuser=`"xiadmin`"`npassword=`"password`"`n")
+            $stream.Write($bytes, 0, $bytes.Length)
+          } finally {
+            $stream.Dispose()
+          }
+          "MOCHIRII_MYSQL_OPTIONS_FILE=$fixturePath" >> $env:GITHUB_ENV
+
+      - name: Prepare public CI database option file (macOS)
+        if: ${{ runner.os == 'macOS' }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import tempfile
+          from tools.mysql_client import serialize_options
+          root = Path(tempfile.mkdtemp(prefix='mochirii-mysql-ci-', dir=os.environ['RUNNER_TEMP']))
+          root.chmod(0o700)
+          path = root / 'client.cnf'
+          fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+          with os.fdopen(fd, 'wb') as stream:
+              stream.write(serialize_options('127.0.0.1', 'xiadmin', 3306, 'password'))
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env:
+              env.write(f'MOCHIRII_MYSQL_OPTIONS_FILE={path}\n')
+          PY
+
+      - name: Verify native database credential transport
+        run: python -m unittest tools.mochirii.tests.test_mysql_client_security
+
       - name: Generate codegen Lua enums
         run: python -m tools.codegen "$RUNNER_TEMP/codegen-out"
 
