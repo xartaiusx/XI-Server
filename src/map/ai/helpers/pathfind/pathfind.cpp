@@ -569,7 +569,8 @@ auto CPathFind::FindRandomPath(const position_t& start, float maxRadius, uint8 m
         if (target)
         {
             turnPoints_.push_back(*target);
-            recoveringToRegion_ = true;
+            // Only an outside owner may bypass region clipping to return.
+            recoveringToRegion_ = !region->contains(owner_->position().x, owner_->position().z);
         }
     }
 

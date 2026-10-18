@@ -38,13 +38,15 @@ namespace
 class FlatNavMesh final : public NavMesh
 {
 public:
-    explicit FlatNavMesh(Maybe<position_t> firstCorner = {})
+    explicit FlatNavMesh(Maybe<position_t> firstCorner = {}, bool rejectLocalSteps = false)
     : firstCorner_(firstCorner)
+    , rejectLocalSteps_(rejectLocalSteps)
     {
     }
 
-    auto findPath(const position_t&, const position_t& end, float, AvoidLinks) -> Maybe<PathResult> override
+    auto findPath(const position_t&, const position_t& end, float, AvoidLinks avoidLinks) -> Maybe<PathResult> override
     {
+        avoidsLinks_ = static_cast<bool>(avoidLinks);
         if (firstCorner_)
         {
             return PathResult{ { pathpoint_t{ *firstCorner_, 0s, false }, pathpoint_t{ end, 0s, false } }, false };
@@ -79,12 +81,24 @@ public:
 
     auto moveAlongSurface(const position_t&, const position_t& end, position_t& result) const -> bool override
     {
+        if (rejectLocalSteps_)
+        {
+            return false;
+        }
+
         result = end;
         return true;
     }
 
+    auto avoidsLinks() const -> bool
+    {
+        return avoidsLinks_;
+    }
+
 private:
     Maybe<position_t> firstCorner_;
+    bool              rejectLocalSteps_{};
+    bool              avoidsLinks_{};
 };
 
 class StubOwner final : public pathfind::PathOwner
@@ -233,7 +247,9 @@ TEST_CASE("pathfind: a roam leg never crosses out of its region", "[pathfind][re
                 continue;
             }
 
-            REQUIRE(legStaysInside(region, ownerPtr->position(), pathFind.GetDestination()));
+            const auto& destination = pathFind.GetDestination();
+            INFO("iteration=" << i << " start=(" << start.x << "," << start.z << ") destination=(" << destination.x << "," << destination.z << ")");
+            REQUIRE(legStaysInside(region, ownerPtr->position(), destination));
         }
     }
 }
@@ -251,6 +267,7 @@ TEST_CASE("pathfind: a region mob that cannot sample a leg walks back onto its r
 
     // the failed sample turns into a walk to a point inside, not cut at the outline
     REQUIRE(pathFind.RoamAround(stranded, 10.0f, 1, 1, xi::RoamFlag::None, &region));
+    CHECK_FALSE(navMesh.avoidsLinks());
     const auto destination = pathFind.GetDestination();
     CHECK(region.contains(destination.x, destination.z));
     CHECK_FALSE(region.contains(ownerPtr->position().x, ownerPtr->position().z));
@@ -260,6 +277,31 @@ TEST_CASE("pathfind: a region mob that cannot sample a leg walks back onto its r
         pathFind.FollowPath(timer::time_point{} + 400ms * tick);
     }
     CHECK(region.contains(ownerPtr->position().x, ownerPtr->position().z));
+}
+
+TEST_CASE("pathfind: an inside fallback leg retains region clipping", "[pathfind][region]")
+{
+    const auto region = squareWithHole();
+    // Region containment is XZ-only. A two-yalm height difference ensures every
+    // sampled fallback target passes the separate three-dimensional isNear gate.
+    const position_t start{ 39.0f, -12.0f, 50.0f, 0, 0 };
+    const position_t corner{ 61.0f, -12.0f, 50.0f, 0, 0 };
+
+    // Exhaust local samples, then make the fallback navmesh leg cross the hole.
+    // Its first corner is fixed, independent of the randomly sampled final point.
+    FlatNavMesh navMesh(corner, true);
+    auto        owner    = std::make_unique<StubOwner>(start, navMesh);
+    auto*       ownerPtr = owner.get();
+    CPathFind   pathFind(std::move(owner));
+    REQUIRE(pathFind.RoamAround(start, 30.0f, 1, 1, xi::RoamFlag::None, &region));
+
+    const auto& destination = pathFind.GetDestination();
+    CHECK(navMesh.avoidsLinks());
+    CHECK(destination.x > start.x);
+    CHECK(destination.x < 40.0f);
+    CHECK(destination.z == start.z);
+    CHECK_FALSE(pathFind.IsPathDirect());
+    REQUIRE(legStaysInside(region, ownerPtr->position(), destination));
 }
 
 TEST_CASE("pathfind: intermediate roam steps stay inside a valid deck leg", "[pathfind][region]")
