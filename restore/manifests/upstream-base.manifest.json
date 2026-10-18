@@ -3,8 +3,8 @@
   "remote": "https://github.com/LandSandBoat/server.git",
   "branch": "base",
   "previousSnapshot": "b9cb1ab4f1e48b3affa9ce4b17ef6340fb81f2be",
-  "currentSnapshot": "3f87da547362ff764cd23d339c4a1ad5e425e0ef",
-  "commitCount": 1945,
+  "currentSnapshot": "f6c97ffa4bdd0bd7a70f3cf5ea1cba68d2fd2f60",
+  "commitCount": 1956,
   "changedFileCount": 7252,
   "appliedWith": "Three-way integration using the verified previousSnapshot as explicit base; downstream squash-linear history retained.",
   "reason": "The recorded accepted upstream snapshot is authoritative because public history uses squash merges.",
@@ -86,7 +86,7 @@
     "src/world/http_server.cpp",
     "tools/ci/startup_checks.py"
   ],
-  "capturedAt": "2026-10-17",
+  "capturedAt": "2026-10-18",
   "preservation": "The interrupted August integration, its rejected hunks, source history, and working binaries are preserved outside Git.",
   "runtimeBoundary": "Production database and installed client remain unchanged; current upstream client/profile compatibility gates require separate runtime acceptance."
 }
