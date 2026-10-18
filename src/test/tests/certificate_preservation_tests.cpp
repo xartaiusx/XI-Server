@@ -19,11 +19,13 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
 #include <type_traits>
+#include <vector>
 
 namespace
 {
@@ -101,6 +103,38 @@ static_assert(!std::is_move_assignable_v<CertificateFixture>);
 
 } // namespace
 
+TEST_CASE("New certificate files restrict access and refuse replacement", "[certificate][security]")
+{
+    CertificateFixture fixture;
+    auto               closeFile = [](FILE* file) noexcept
+    {
+        fclose(file);
+    };
+    auto file = std::unique_ptr<FILE, decltype(closeFile)>(certificateHelpers::openExclusivePrivateFile(fixture.key().string()), closeFile);
+    REQUIRE(file != nullptr);
+#ifdef _WIN32
+    const auto handle = reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(file.get())));
+    DWORD      needed = 0;
+    GetKernelObjectSecurity(handle, DACL_SECURITY_INFORMATION, nullptr, 0, &needed);
+    REQUIRE(needed > 0);
+    std::vector<unsigned char> descriptor(needed);
+    REQUIRE(GetKernelObjectSecurity(handle, DACL_SECURITY_INFORMATION, descriptor.data(), needed, &needed));
+    char* text = nullptr;
+    REQUIRE(ConvertSecurityDescriptorToStringSecurityDescriptorA(descriptor.data(), SDDL_REVISION_1, DACL_SECURITY_INFORMATION, &text, nullptr));
+    const std::string permissions(text);
+    LocalFree(text);
+    CHECK(permissions == "D:P(A;;FA;;;OW)");
+#else
+    CHECK(std::filesystem::status(fixture.key()).permissions() ==
+          (std::filesystem::perms::owner_read | std::filesystem::perms::owner_write));
+#endif
+
+    REQUIRE(fputs("synthetic fixture\n", file.get()) >= 0);
+    REQUIRE(fclose(file.release()) == 0);
+    CHECK(certificateHelpers::openExclusivePrivateFile(fixture.key().string()) == nullptr);
+    CHECK(CertificateFixture::read(fixture.key()) == "synthetic fixture\n");
+}
+
 TEST_CASE("Certificate startup preserves existing material and links", "[certificate][preservation]")
 {
     CertificateFixture fixture;
@@ -137,6 +171,7 @@ TEST_CASE("Certificate startup preserves existing material and links", "[certifi
             SKIP("Host does not permit test symlink creation");
         }
 
+        CHECK(certificateHelpers::openExclusivePrivateFile(fixture.key().string()) == nullptr);
         REQUIRE_THROWS_AS(certificateHelpers::generateSelfSignedCert(fixture.name()), std::runtime_error);
         CHECK(std::filesystem::is_symlink(fixture.key()));
         CHECK(std::filesystem::read_symlink(fixture.key()) == missingTarget);

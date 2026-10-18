@@ -5165,8 +5165,8 @@ void DoWildCardToEntity(CCharEntity* PCaster, CCharEntity* PTarget, const uint8 
  ************************************************************************/
 bool DoRandomDealToEntity(CCharEntity* PChar, CBattleEntity* PTarget)
 {
-    std::vector<uint16> resetCandidateList;
-    std::vector<uint16> activeCooldownList;
+    std::vector<std::size_t> resetCandidateList;
+    std::vector<std::size_t> activeCooldownList;
 
     if (PChar == nullptr || PTarget == nullptr)
     {
@@ -5177,7 +5177,7 @@ bool DoRandomDealToEntity(CCharEntity* PChar, CBattleEntity* PTarget)
     RecastList_t* recastList = PTarget->PRecastContainer->GetRecastList(RECAST_ABILITY);
 
     // Get position of abilites and add to the 2 lists
-    for (uint8 i = 0; i < recastList->size(); ++i)
+    for (std::size_t i = 0; i < recastList->size(); ++i)
     {
         Recast_t* recast = &recastList->at(i);
 

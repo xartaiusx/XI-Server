@@ -111,7 +111,7 @@ void GMCallContainer::processCall(const CCharEntity* PChar) const
     for (const auto& packet : sortedPackets)
     {
         std::size_t offset = 0;
-        for (uint8_t block = 0; block < packet.blkNum && offset < sizeof(packet.Data); ++block)
+        for (std::size_t block = 0; block < packet.blkNum && offset < sizeof(packet.Data); ++block)
         {
             if (offset + sizeof(FFGpGMReportBlockHdr) > sizeof(packet.Data))
             {

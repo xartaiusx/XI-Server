@@ -69,6 +69,7 @@ xi_add_executable(xi_test testserver.rc
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/entity_list_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/item_container_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/rng_runtime_tests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/security_boundary_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/trust_full_alliance_tests.cpp
     # Keep the production Twills lifecycle hooks in the executable so their
     # static module registration is retained and exercised by Lua tests.

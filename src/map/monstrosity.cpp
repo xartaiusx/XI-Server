@@ -1345,12 +1345,12 @@ void monstrosity::CalculateStats(CCharEntity* PChar)
 
 auto monstrosity::AsMonipulator(const CBattleEntity* PEntity) -> const CCharEntity*
 {
-    if (PEntity->objtype != TYPE_PC)
+    const auto* PChar = dynamic_cast<const CCharEntity*>(PEntity);
+    if (PChar == nullptr || PChar->objtype != TYPE_PC)
     {
         return nullptr;
     }
 
-    const auto* PChar = static_cast<const CCharEntity*>(PEntity);
     if (PChar->m_PMonstrosity == nullptr)
     {
         return nullptr;
@@ -1379,7 +1379,8 @@ auto monstrosity::CanAssist(const CBattleEntity* PInitiator, const CCharEntity* 
         return true;
     }
 
-    return (static_cast<const CCharEntity*>(PSource)->m_PMonstrosity != nullptr) == (PTarget->m_PMonstrosity != nullptr);
+    const auto* PChar = dynamic_cast<const CCharEntity*>(PSource);
+    return PChar != nullptr && (PChar->m_PMonstrosity != nullptr) == (PTarget->m_PMonstrosity != nullptr);
 }
 
 auto monstrosity::GetSpeciesJobs(const CCharEntity* PChar) -> SpeciesJobs

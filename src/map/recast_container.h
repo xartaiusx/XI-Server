@@ -26,6 +26,7 @@
 #include "enums/loot_recast.h"
 #include "enums/recast.h"
 
+#include <cstddef>
 #include <vector>
 
 enum RECASTTYPE
@@ -64,7 +65,7 @@ public:
 
     virtual void Del(RECASTTYPE type);
     virtual void Del(RECASTTYPE type, Recast id);
-    virtual void DeleteByIndex(RECASTTYPE type, uint8 index);
+    virtual void DeleteByIndex(RECASTTYPE type, std::size_t index);
     bool         Has(RECASTTYPE type, Recast id);
     bool         HasLootRecast(LootRecastID id);
     bool         HasRecast(RECASTTYPE type, Recast id, timer::duration recast);

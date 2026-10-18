@@ -39,7 +39,7 @@ namespace
 
 // MH1F: 20x24 grid with a 8x18 unusable rectangle (x 6..13, z 0..17)
 // MH2F: 20x26 grid, no exclusions.
-auto isValidFloorCell(const uint8 cx, const uint8 cz, const bool is2F) -> bool
+auto isValidFloorCell(const std::size_t cx, const std::size_t cz, const bool is2F) -> bool
 {
     if (is2F)
     {
@@ -75,9 +75,9 @@ auto rotatedSize(const CItemFurnishing* PItem, const uint8 v) -> std::pair<uint8
 // Given packet anchor point for furniture and server-side dimensions, ensure the whole footprint fits in legitimate cells.
 auto footprintInGrid(const uint8 ax, const uint8 az, const uint8 sx, const uint8 sz, const bool is2F) -> bool
 {
-    for (uint8 cx = ax; cx < ax + sx; ++cx)
+    for (std::size_t cx = ax; cx < std::size_t{ ax } + sx; ++cx)
     {
-        for (uint8 cz = az; cz < az + sz; ++cz)
+        for (std::size_t cz = az; cz < std::size_t{ az } + sz; ++cz)
         {
             if (!isValidFloorCell(cx, cz, is2F))
             {

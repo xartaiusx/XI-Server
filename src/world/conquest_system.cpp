@@ -237,7 +237,7 @@ void ConquestSystem::updateWeekConquest()
         ShowError("updateWeekConquest: no influence rows returned");
     }
 
-    for (uint8 regionId = 0; regionId < influences.size(); ++regionId)
+    for (std::size_t regionId = 0; regionId < influences.size(); ++regionId)
     {
         const auto& influence = influences[regionId];
 
