@@ -61,7 +61,11 @@ describe('Scheduler FOURCC packets', function()
                 player.packets:clear()
                 local ok, err = pcall(emitter.send, command)
                 assert(not ok, 'Invalid FOURCC length was accepted')
-                assert(tostring(err):find('FOURCC must contain exactly four bytes.', 1, true), 'Unexpected FOURCC rejection')
+                -- LuaJIT may translate a propagated native exception to this
+                -- fixed message; Sol's exception wrapper preserves what().
+                local message = tostring(err)
+                assert(message == 'C++ exception' or message:find('FOURCC must contain exactly four bytes.', 1, true),
+                    string.format('Unexpected FOURCC rejection (type=%d, bytes=%d): %s', emitter.packetType, #command, message))
                 assert(#player.packets:getIncoming() == 0, 'Rejected FOURCC emitted a packet')
             end
         end

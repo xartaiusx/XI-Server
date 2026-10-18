@@ -1,7 +1,6 @@
 """Synthetic-only native-client transport and mutation-preflight regressions."""
 
 import ast
-import contextlib
 import ctypes
 import errno
 import fileinput
@@ -290,6 +289,66 @@ class ExistingOptionTests(unittest.TestCase):
         self.path = self.root / "client.cnf"
         self.path.write_bytes(client.serialize_options(**CONNECTION))
         self.path.chmod(0o600)
+
+    @unittest.skipUnless(
+        sys.platform.startswith("linux"),
+        "Actual Linux fd cleanup; not native Darwin ACL proof",
+    )
+    def test_actual_existing_option_fds_close_reverse_order_on_all_exits(self):
+        # Native Linux descriptors exercise both allocation branches; ACLs are mocked.
+        native_open, native_close = os.open, os.close
+        expected = self.path.read_bytes()
+        for platform, outcome in (
+            ("darwin", "normal"),
+            ("darwin", "validation_failure"),
+            ("darwin", "consumer_failure"),
+            ("win32", "normal"),
+            ("win32", "validation_failure"),
+            ("win32", "consumer_failure"),
+        ):
+            opened, closed = [], []
+            expected_count = 2 if platform == "darwin" else 1
+
+            def observed_open(*args, **kwargs):
+                fd = native_open(*args, **kwargs)
+                opened.append(fd)
+                return fd
+
+            def observed_close(fd):
+                closed.append(fd)
+                native_close(fd)
+
+            with self.subTest(platform=platform, outcome=outcome), patch.object(
+                sys, "platform", platform
+            ), patch.object(client, "_check_darwin_acl"), patch.object(
+                client, "_check_windows_privacy"
+            ), patch.object(
+                os, "O_BINARY", 0, create=True
+            ), patch.object(
+                os, "open", observed_open
+            ), patch.object(
+                os, "close", observed_close
+            ):
+                if outcome == "validation_failure":
+                    with self.assertRaises(client.MySQLClientError):
+                        with client._existing_options(
+                            str(self.path), b"mismatched-public-fixture"
+                        ):
+                            self.fail("invalid content reached consumer")
+                elif outcome == "consumer_failure":
+                    with self.assertRaisesRegex(RuntimeError, "^public-consumer-stop$"):
+                        with client._existing_options(str(self.path), expected):
+                            raise RuntimeError("public-consumer-stop")
+                else:
+                    with client._existing_options(str(self.path), expected):
+                        self.assertEqual(len(opened), expected_count)
+                        for fd in opened:
+                            os.fstat(fd)
+            self.assertEqual(len(opened), expected_count)
+            self.assertEqual(closed, list(reversed(opened)))
+            for fd in opened:
+                with self.assertRaises(OSError):
+                    os.fstat(fd)
 
     @unittest.skipIf(sys.platform == "win32", "POSIX fixture permission contract")
     def test_owner_only_file_acceptance_and_content_permissions_bounds(self):

@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from tools import mysql_client as client
 from tools.mochirii.tests import test_wsl_server_status as status_tests
@@ -29,6 +29,40 @@ class PrivateSourceTests(unittest.TestCase):
         }
         self.path.write_bytes(client.serialize_options(**self.connection))
         self.path.chmod(0o600)
+
+    def test_actual_private_source_fd_closes_on_return_and_parse_failure(self):
+        native_open, native_close = os.open, os.close
+        for outcome in ("normal", "parse_failure"):
+            opened, closed = [], []
+
+            def observed_open(*args, **kwargs):
+                fd = native_open(*args, **kwargs)
+                opened.append(fd)
+                return fd
+
+            def observed_close(fd):
+                closed.append(fd)
+                native_close(fd)
+
+            with self.subTest(outcome=outcome), patch.object(
+                os, "open", observed_open
+            ), patch.object(os, "close", observed_close):
+                if outcome == "parse_failure":
+                    with patch.object(
+                        client,
+                        "_parse_client_options",
+                        side_effect=client.MySQLClientError("public-parse-stop"),
+                    ), self.assertRaises(client.MySQLClientError):
+                        client._read_private_linux_options(str(self.path))
+                else:
+                    self.assertEqual(
+                        client._read_private_linux_options(str(self.path)),
+                        self.connection,
+                    )
+            self.assertEqual(len(opened), 1)
+            self.assertEqual(closed, opened)
+            with self.assertRaises(OSError):
+                os.fstat(opened[0])
 
     def test_private_source_preflight_never_launches_or_creates_copy(self):
         with patch.object(client.subprocess, "run") as run:
