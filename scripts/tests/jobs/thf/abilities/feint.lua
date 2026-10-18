@@ -36,6 +36,8 @@ describe('Feint effect gain boundary', function()
         })
         player.actions:engage(mob)
         xi.test.world:tickEntity(player)
+        -- The native attack state waits three seconds before its first swing.
+        xi.test.world:skipTime(4)
     end
 
     it('keeps the ordinary treasure hunter bonus on the gained effect', function()
