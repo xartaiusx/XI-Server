@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 from typing import Any, Callable
 
-from jinja2 import Environment, FileSystemLoader, StrictUndefined
+from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
 
 ROOT: Path = Path(__file__).resolve().parents[2]
 ENUMS_DIR: Path = ROOT / "data" / "enums"
@@ -11,6 +11,7 @@ TEMPLATES_DIR: Path = Path(__file__).resolve().parent / "templates"
 
 ENV: Environment = Environment(
     loader=FileSystemLoader(TEMPLATES_DIR),
+    autoescape=select_autoescape(),
     undefined=StrictUndefined,
     trim_blocks=True,
     lstrip_blocks=True,
@@ -68,4 +69,3 @@ def write_if_changed(path: Path, content: str) -> None:
         return
     path.write_text(content, encoding="utf-8")
     print(f"wrote {path}")
-

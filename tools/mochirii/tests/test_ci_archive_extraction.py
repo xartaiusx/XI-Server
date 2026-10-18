@@ -42,7 +42,7 @@ class LanguageServerArchiveTests(unittest.TestCase):
             archive.addfile(member, io.BytesIO(content))
         buffer.seek(0)
         with tarfile.open(fileobj=buffer, mode="r") as archive:
-            archive.extractall(destination, **self.extraction_options)
+            archive.extractall(destination, filter="data")
 
     def test_regular_release_member_extracts(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -42,17 +42,17 @@ class HXIClient:
 
     def login(self):
         self.ssl_context = ssl.create_default_context()
-        self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         self.ssl_context.minimum_version = ssl.TLSVersion.TLSv1_3
         self.ssl_context.maximum_version = ssl.TLSVersion.TLSv1_3
 
-        # TODO: load CA cert chain from windows/linux. For now, ignore remote verification.
-        self.ssl_context.check_hostname = False
-        self.ssl_context.verify_mode = ssl.CERT_NONE
+        # Only local development may use the server's untrusted self-signed certificate.
+        if self.server in ("localhost", "127.0.0.1", "::1"):
+            self.ssl_context.check_hostname = False
+            self.ssl_context.verify_mode = ssl.CERT_NONE
 
         self.login_connect(self.ssl_context)
 
-        LOGIN_ATTEMPT = 0x10 # from src/login/auth_session.h
+        LOGIN_ATTEMPT = 0x10  # from src/login/auth_session.h
 
         json_data = {}
         json_data.update({"username": self.username})
@@ -63,7 +63,7 @@ class HXIClient:
         json_data.update({"command": LOGIN_ATTEMPT})
 
         json_string = json.dumps(json_data)
-        json_len    = len(json_string)
+        json_len = len(json_string)
 
         data = bytearray(json_len)
 
@@ -75,13 +75,15 @@ class HXIClient:
         self.login_sock.close()
 
         # https://stackoverflow.com/a/40060181
-        maybe_json_reply = in_data.decode('utf8').replace("'", '"')
+        maybe_json_reply = in_data.decode("utf8").replace("'", '"')
 
-        loaded_json = json.loads(maybe_json_reply) # this can throw JSONDecodeError or UnicodeDecodeError. Should we handle this? do we care?
+        loaded_json = json.loads(
+            maybe_json_reply
+        )  # this can throw JSONDecodeError or UnicodeDecodeError. Should we handle this? do we care?
 
-        result       = 0x00
+        result = 0x00
         session_hash = []
-        account_id   = 0
+        account_id = 0
 
         if "result" in loaded_json and type(loaded_json["result"]) == int:
             result = loaded_json["result"]
@@ -97,7 +99,7 @@ class HXIClient:
             self.account_id = account_id
             print("Account ID: " + str(self.account_id))
 
-            self.sessionHash = ''.join(map(chr, session_hash))
+            self.sessionHash = "".join(map(chr, session_hash))
 
             # Connect
             self.lobby_data_connect()
