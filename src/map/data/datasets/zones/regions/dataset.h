@@ -36,7 +36,7 @@ struct RegionData
 {
     std::string             Name;
     RegionRing              Outer;
-    std::vector<RegionRing> Holes;
+    std::vector<RegionRing> Holes{};
 };
 
 using Regions = std::vector<RegionData>;

@@ -217,6 +217,11 @@ repository's Dockerfile alone cannot update that external image. Windows clang-c
 also requires the crash reason's already-empty optional `detail` member to be
 explicitly initialized under the retained warnings-as-errors policy. This does
 not alter crash-report contents or suppress a diagnostic.
+The data records also explicitly default their previously empty optional/sequence
+members (`Hide`, `Holes`, `Route`, `Members`) at declaration. This preserves their
+existing empty states when an aggregate omits them, retains aggregate layout and
+the separate wire-schema contract, and satisfies the same strict Windows warning
+without changing compiler flags or expanding every aggregate call site.
 Fault injection of the exact pinned function bodies with mock Windows
 APIs reproduced all three original failure leaks and verified corrected cleanup
 plus unchanged success ownership. That is native Linux source-level proof, not

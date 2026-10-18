@@ -61,7 +61,7 @@ struct TransportPhaseData
     uint32                         Start{}; // seconds into the cycle
     uint32                         End{};
     std::vector<TransportMoveData> Moves{};
-    std::optional<uint32>          Hide; // seconds into the phase after which the client stops drawing it
+    std::optional<uint32>          Hide{}; // seconds into the phase after which the client stops drawing it
 };
 
 struct TransportData
