@@ -363,20 +363,35 @@ describe('Manaclipper mobs', function()
         xi.zones.Manaclipper.Zone.onZoneTick(zone)
 
         local moved = false
-        for _ = 1, 500 do
+        local previousPositions = {}
+        for _, mob in ipairs(mobs) do
+            previousPositions[mob:getID()] = mob:getPos()
+        end
+
+        for tick = 1, 500 do
             xi.test.world:tick()
             for _, mob in ipairs(mobs) do
                 xi.test.world:tickEntity(mob)
                 mob.assert:isSpawned()
 
                 local position = mob:getPos()
-                assert(isInsideDeck(position), 'mob walked outside the deck region')
+                local previous = previousPositions[mob:getID()]
+                local spawn = mob:getSpawnPos()
+                assert(isInsideDeck(position), string.format(
+                    'mob walked outside the deck region: id=%d name=%s tick=%d ' ..
+                    'previous=(%.6f,%.6f,%.6f) current=(%.6f,%.6f,%.6f) ' ..
+                    'spawn=(%.6f,%.6f,%.6f) rotation=%d following=%s engaged=%s navigable=%s',
+                    mob:getID(), mob:getName(), tick,
+                    previous.x, previous.y, previous.z, position.x, position.y, position.z,
+                    spawn.x, spawn.y, spawn.z, mob:getRotPos(), tostring(mob:isFollowingPath()),
+                    tostring(mob:isEngaged()), tostring(zone:isNavigablePoint(position))))
                 assert(position.y >= -3.7 and position.y <= -2.5, 'mob walked off the deck')
 
-                local spawn = mob:getSpawnPos()
                 if math.abs(position.x - spawn.x) + math.abs(position.z - spawn.z) > 1 then
                     moved = true
                 end
+
+                previousPositions[mob:getID()] = position
             end
         end
 

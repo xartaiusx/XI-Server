@@ -324,6 +324,8 @@ local packets =
     {
         test = function(player, mob)
             stub('xi.combat.physicalHitRate.getPhysicalHitRate', 1.0)
+            -- This packet contract exercises a successful stun, not its resistance roll.
+            stub('xi.combat.magicHitRate.calculateResistRate', 1.0)
             player:changeJob(xi.job.DNC)
             player:setLevel(99)
             player:addItem(xi.item.TERPSICHORE_99)
