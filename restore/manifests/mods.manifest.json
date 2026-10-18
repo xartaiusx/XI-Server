@@ -5,9 +5,10 @@
   "downloads": [
     {
       "name": "xiloader",
-      "version": "v2.1.1",
-      "source": "https://github.com/LandSandBoat/xiloader/releases/tag/v2.1.1",
-      "md5": "44fe5f23bf76e4e847946b5b76f1e061",
+      "version": "v2.2.0",
+      "source": "https://github.com/LandSandBoat/xiloader/releases/tag/v2.2.0",
+      "md5": "f441225bb9eadfe5322296e7a14ecf15",
+      "sha256": "aec6c0686cf3b2fe65247b818fe44f89fb18fc175e8ebd3ba3b7cf099988f504",
       "gitSafe": false
     },
     {

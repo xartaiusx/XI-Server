@@ -155,7 +155,7 @@ LONG WINAPI unhandledExceptionFilter(PEXCEPTION_POINTERS info)
 
         // The filter runs on the faulting thread's stack, so an ordinary unwind here
         // includes the fault frames (unlike a POSIX signal handler on an alt stack).
-        tombstone::write({ .kind = exceptionName(code), .dumpLocation = dumpPath },
+        tombstone::write({ .kind = exceptionName(code), .detail = std::nullopt, .dumpLocation = dumpPath },
                          cpptrace::generate_trace(),
                          mainTrace);
     }

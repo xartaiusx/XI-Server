@@ -5,11 +5,10 @@ import io
 import json
 import re
 import subprocess
-import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest import mock
+from unittest import TestCase, main, mock
 
 import yaml
 
@@ -20,7 +19,7 @@ from tools.mochirii.codeql_coverage import (
 )
 
 
-class CodeScanningCoverageTests(unittest.TestCase):
+class CodeScanningCoverageTests(TestCase):
     def setUp(self) -> None:
         self.repo = Path(__file__).resolve().parents[3]
         self.workflow = yaml.safe_load(
@@ -383,6 +382,40 @@ class CodeScanningCoverageTests(unittest.TestCase):
                 self.assertNotRegex(base, package)
                 self.assertRegex(staging, package)
 
+    def test_schema_job_declares_patch_before_cmake_configuration(self) -> None:
+        workflow = yaml.safe_load(
+            (self.repo / ".github/workflows/pr_checks.yml").read_text()
+        )
+        job = workflow["jobs"]["Data_Validation"]
+        self.assertEqual(
+            job["container"]["image"],
+            "${{ vars.DEVTOOLS_IMAGE || 'ghcr.io/landsandboat/devtools:ubuntu' }}",
+        )
+        names = [step.get("name") for step in job["steps"]]
+        install = next(
+            step
+            for step in job["steps"]
+            if step.get("name") == "Install schema compiler dependencies"
+        )
+        self.assertEqual(install["if"], "steps.changed.outputs.touched == 'true'")
+        self.assertLess(
+            names.index(install["name"]), names.index("Configure schema compiler")
+        )
+        self.assertIn("if ! command -v patch >/dev/null 2>&1; then", install["run"])
+        self.assertIn("sudo apt-get update", install["run"])
+        self.assertIn(
+            "sudo apt-get install --assume-yes --no-install-recommends --quiet patch",
+            install["run"],
+        )
+        self.assertTrue(install["run"].rstrip().endswith("command -v patch"))
+
+    def test_windows_crash_reason_explicitly_initializes_optional_detail(self) -> None:
+        source = (self.repo / "src/common/debug_windows.cpp").read_text()
+        self.assertIn(
+            "{ .kind = exceptionName(code), .detail = std::nullopt, .dumpLocation = dumpPath }",
+            source,
+        )
+
     def test_windows_metric_queries_native_calls_not_file_presence(self) -> None:
         pack_root = self.repo / ".github/codeql/security-coverage"
         manifest = yaml.safe_load((pack_root / "qlpack.yml").read_text())
@@ -488,4 +521,4 @@ class CodeScanningCoverageTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    main()

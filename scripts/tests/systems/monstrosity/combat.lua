@@ -4,24 +4,32 @@ local helpers = require('scripts.tests.systems.monstrosity.helpers')
 describe('Monstrosity combat', function()
     ---@type CClientEntityPair
     local player
+    ---@type CTestEntity?
+    local mob
+    local previousNoMove
+    local previousUnkillable
 
     -- Melee for a fixed span against a target that never fights back or dies.
     -- The harness swings at three quarters of the real delay.
     local function fight(family, seconds)
         helpers.becomeSpecies(player, family, family, 1)
 
-        local mob = player.entities:moveTo('Wild_Rabbit')
+        mob = player.entities:moveTo('Wild_Rabbit')
         mob:respawn()
+        previousNoMove     = mob:getMobMod(xi.mobMod.NO_MOVE)
+        previousUnkillable = mob:getUnkillable()
+        mob:setMobMod(xi.mobMod.NO_MOVE, 1)
+        -- Respawn starts a roam path; cancel it before advancing the zone.
+        mob:clearPath()
         mob:setUnkillable(true)
         mob:setAutoAttackEnabled(false)
         mob:setMobAbilityEnabled(false)
+        player.entities:moveTo(mob:getID())
         player:setTP(0)
         player.packets:clear()
         player.actions:engage(mob)
 
         for _ = 1, seconds do
-            -- The target roams
-            player.entities:moveTo(mob:getID())
             xi.test.world:skipTime(1)
             xi.test.world:tickEntity(player)
         end
@@ -49,7 +57,28 @@ describe('Monstrosity combat', function()
     end
 
     before_each(function()
+        mob                = nil
+        previousNoMove     = nil
+        previousUnkillable = nil
+
         player = helpers.spawnMonipulator(xi.zone.WEST_RONFAURE)
+    end)
+
+    after_each(function()
+        if mob then
+            -- Controller toggles survive respawn, so restore the ordinary dummy behavior.
+            mob:setAutoAttackEnabled(true)
+            mob:setMobAbilityEnabled(true)
+            if previousUnkillable ~= nil then
+                mob:setUnkillable(previousUnkillable)
+            end
+
+            if previousNoMove ~= nil then
+                mob:setMobMod(xi.mobMod.NO_MOVE, previousNoMove)
+            end
+
+            mob:respawn()
+        end
     end)
 
     -- Retail swings twice a round, right fist then left.

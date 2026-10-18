@@ -188,6 +188,15 @@ jobs:
           key: data-schema-cpm-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'ext/CMakeLists.txt') }}
           restore-keys: data-schema-cpm-${{ runner.os }}-
 
+      - name: Install schema compiler dependencies
+        if: steps.changed.outputs.touched == 'true'
+        run: |
+          if ! command -v patch >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --assume-yes --no-install-recommends --quiet patch
+          fi
+          command -v patch
+
       - name: Configure schema compiler
         if: steps.changed.outputs.touched == 'true'
         run: |

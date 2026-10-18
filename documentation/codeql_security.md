@@ -211,6 +211,12 @@ to the previously validated patch; both container staging images explicitly
 install `patch` as a build-only dependency. No sanity-check exemption is needed.
 The full Linux no-PCH trace also requires PacketCap's direct `fmt/chrono.h`
 include for its existing timestamp formatter; no format or capture behavior changes.
+The PR schema job consumes an external devtools image, so it independently
+installs the same native `patch` build prerequisite when absent; rebuilding this
+repository's Dockerfile alone cannot update that external image. Windows clang-cl
+also requires the crash reason's already-empty optional `detail` member to be
+explicitly initialized under the retained warnings-as-errors policy. This does
+not alter crash-report contents or suppress a diagnostic.
 Fault injection of the exact pinned function bodies with mock Windows
 APIs reproduced all three original failure leaks and verified corrected cleanup
 plus unchanged success ownership. That is native Linux source-level proof, not

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import re
 import sys
 import tempfile
 import unittest
@@ -18,6 +20,29 @@ SPEC.loader.exec_module(verify)
 
 
 class VerifyRestoreTests(unittest.TestCase):
+    def test_xiloader_manifest_matches_supported_server_version(self) -> None:
+        repo = MODULE_PATH.parents[3]
+        manifest = json.loads(
+            (repo / "restore/manifests/mods.manifest.json").read_text()
+        )
+        loader = next(
+            item for item in manifest["downloads"] if item["name"] == "xiloader"
+        )
+        header = (repo / "src/login/auth_session.h").read_text()
+        supported = re.search(
+            r"SupportedXiloaderVersion\s*=\s*\{\s*(\d+),\s*(\d+),\s*(\d+)\s*\}",
+            header,
+        )
+        self.assertIsNotNone(supported)
+        version = "v" + ".".join(supported.groups())
+        self.assertEqual(loader["version"], version)
+        self.assertEqual(
+            loader["source"],
+            "https://github.com/LandSandBoat/xiloader/releases/tag/" + version,
+        )
+        self.assertRegex(loader["sha256"], r"^[0-9a-f]{64}$")
+        self.assertIs(loader["gitSafe"], False)
+
     def test_sensitive_word_in_lua_source_name_is_not_an_artifact(self) -> None:
         with patch.object(
             verify,
