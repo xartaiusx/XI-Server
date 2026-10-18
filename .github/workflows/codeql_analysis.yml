@@ -53,7 +53,7 @@ jobs:
             category: .github/workflows/codeql_analysis.yml:analyze/language:python
           - language: cpp
             build-mode: manual
-            runner: windows-2025
+            runner: windows-2022
             windows_security: true
             category: .github/workflows/codeql_analysis.yml:analyze/build-mode:manual/language:cpp/platform:windows-security
 
@@ -84,6 +84,42 @@ jobs:
       uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4
       with:
         arch: x64
+        vs-path: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise'
+        toolset: '14.44'
+        sdk: '10.0.26100.0'
+
+    - name: Verify Windows security toolchain
+      if: matrix.windows_security
+      run: |
+        python - <<'PY'
+        import json
+        import ntpath
+        import os
+        from pathlib import Path
+        import re
+        import subprocess
+
+        compiler = Path("C:/Program Files/LLVM/bin/clang-cl.exe")
+        visual_studio = "C:/Program Files/Microsoft Visual Studio/2022/Enterprise"
+        if not compiler.is_file():
+            raise SystemExit("Required clang-cl executable is missing")
+        if ntpath.normcase(ntpath.normpath(os.environ.get("VSINSTALLDIR", ""))) != ntpath.normcase(ntpath.normpath(visual_studio)):
+            raise SystemExit("Unexpected Visual Studio developer environment")
+        toolset = os.environ.get("VCToolsVersion", "").rstrip("/\\")
+        if not re.fullmatch(r"14\.44\.\d+", toolset):
+            raise SystemExit("Required MSVC14.44 toolset is not selected")
+        sdk = os.environ.get("WindowsSDKVersion", "").rstrip("/\\")
+        if sdk != "10.0.26100.0":
+            raise SystemExit("Required Windows SDK10.0.26100.0 is not selected")
+        version = subprocess.run([str(compiler), "--version"], check=True, capture_output=True, text=True, timeout=15)
+        if len(version.stdout) + len(version.stderr) > 32768:
+            raise SystemExit("Compiler version output exceeds its bound")
+        if not re.search(r"clang version 20\.1\.8(?:\s|$)", version.stdout):
+            raise SystemExit("Required clang-cl20.1.8 is not selected")
+        if not re.search(r"^Target: x86_64-pc-windows-msvc(?:[0-9.]+)?$", version.stdout, re.MULTILINE):
+            raise SystemExit("Required Windows x64 compiler target is not selected")
+        print(json.dumps({"compiler": str(compiler), "version": "20.1.8", "target": "x86_64-pc-windows-msvc", "visual_studio": visual_studio, "toolset": toolset, "windows_sdk": sdk, "image": os.environ.get("ImageOS"), "image_version": os.environ.get("ImageVersion")}))
+        PY
 
     - name: Install Windows codegen dependencies
       if: matrix.windows_security
@@ -109,11 +145,59 @@ jobs:
       if: matrix.windows_security
       run: |
         cmake -G Ninja -S . -B build --fresh \
+          -DCMAKE_C_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang-cl.exe" \
+          -DCMAKE_CXX_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang-cl.exe" \
           -DCMAKE_BUILD_TYPE=Debug -DPCH_ENABLE=OFF -DENABLE_IPO=OFF \
           -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded \
           -DCACHE_BINARY:FILEPATH= \
           -DCMAKE_C_COMPILER_LAUNCHER:STRING= \
           -DCMAKE_CXX_COMPILER_LAUNCHER:STRING=
+
+    - name: Verify Windows security CMake context
+      if: matrix.windows_security
+      run: |
+        python - <<'PY'
+        import json
+        import ntpath
+        from pathlib import Path
+        import re
+        import shlex
+
+        root = Path.cwd()
+        build = root / "build"
+        expected_compiler = ntpath.normcase("C:\\Program Files\\LLVM\\bin\\clang-cl.exe")
+        for language in ("C", "CXX"):
+            files = list((build / "CMakeFiles").glob(f"*/CMake{language}Compiler.cmake"))
+            if len(files) != 1:
+                raise SystemExit("Missing or ambiguous native CMake compiler context")
+            values = dict(re.findall(rf'^set\(CMAKE_{language}_(COMPILER|COMPILER_ID|COMPILER_VERSION|COMPILER_FRONTEND_VARIANT) "([^"\n]*)"\)$', files[0].read_text(), re.MULTILINE))
+            if ntpath.normcase(ntpath.normpath(values.get("COMPILER", ""))) != expected_compiler:
+                raise SystemExit("CMake selected an unexpected compiler path")
+            if any(values.get(key) != value for key, value in {"COMPILER_ID": "Clang", "COMPILER_VERSION": "20.1.8", "COMPILER_FRONTEND_VARIANT": "MSVC"}.items()):
+                raise SystemExit("CMake selected an unexpected compiler identity")
+        commands_file = build / "compile_commands.json"
+        if not 0 < commands_file.stat().st_size <= 16777216:
+            raise SystemExit("Native compilation database exceeds its bound")
+        commands = json.loads(commands_file.read_text())
+        if not isinstance(commands, list):
+            raise SystemExit("Invalid native compilation database")
+        checked = 0
+        for entry in commands:
+            source = Path(entry["file"])
+            try:
+                relative = source.resolve().relative_to(root)
+            except ValueError:
+                continue
+            if relative.parts[0] not in {"src", "modules"} or source.suffix not in {".cpp", ".cc", ".cxx", ".c++"}:
+                continue
+            standards = [arg for arg in shlex.split(entry["command"], posix=False) if re.match(r"[-/](?:clang:)?-?std[:=]", arg)]
+            if standards != ["-clang:-std=c++23"]:
+                raise SystemExit("First-party C++ compilation is not explicitly C++23")
+            checked += 1
+        if not checked:
+            raise SystemExit("No first-party C++ compilation context was verified")
+        print(json.dumps({"compiler_id": "Clang", "version": "20.1.8", "frontend": "MSVC", "standard_flag": "-clang:-std=c++23", "first_party_commands": checked}))
+        PY
         cmake --build build --target enum_codegen --parallel 4
 
     # Initializes the CodeQL tools for scanning.

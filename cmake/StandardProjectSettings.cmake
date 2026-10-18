@@ -47,7 +47,7 @@ if(MSVC)
         _CRT_NONSTDC_NO_DEPRECATE # no C4996 for POSIX names such as strdup and fileno
     )
     add_compile_options(
-        /MP     # the Visual Studio generator passes many files per cl.exe; Ninja ignores it
+        $<$<CXX_COMPILER_ID:MSVC>:/MP> # clang-cl does not support MSVC's parallel compiler driver
         /bigobj # sol2 template instantiations overflow the default section limit
         /utf-8  # fmt's sources contain non-ASCII literals
     )

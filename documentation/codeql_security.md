@@ -23,10 +23,18 @@ coverage policy.
   PCH/IPO/compiler cache, and the existing custom/era/example modules plus the
   optional packet-capture source. That module is enabled **only in ephemeral CI**;
   this workflow never starts a server or enables live packet capture.
-- A fifth, separately named Windows2025/MSVC manual category traces only
-  `xi_connect` and `xi_profile` plus their common dependencies. It reuses the
-  pinned native Windows build toolchain, generated-header steps and fresh
-  uncached/no-PCH Debug context. Existing four categories/check names and full
+- A fifth, separately named Windows2022/clang-cl20.1.8 manual category traces only
+  `xi_connect` and `xi_profile` plus their common dependencies. The pinned setup
+  action selects the explicit VS2022 Enterprise path, MSVC14.44 library/toolset
+  and Windows SDK10.0.26100.0
+  environment; a bounded native preflight rejects missing/wrong compilers,
+  developer environments, toolsets or x64 targets without fallback. Both C/C++
+  compiler paths are explicit. Before any native build/tracing, the generated
+  CMake compiler contexts must prove Clang20.1.8/MSVC frontend/exact paths and
+  every first-party C++ compilation command must use `-clang:-std=c++23`, never
+  `c++latest`/C++26. CMake3.31.6 supplies that native standard flag for clang-cl17+.
+  The normal native MSVC Build lane is unchanged. Generated-header steps and the
+  fresh uncached/no-PCH Debug context remain. Existing four categories/check names and full
   query suites are unchanged. The shared local coverage pack is added to every
   C++ lane with the native `+` query input so it cannot replace configured
   security/quality queries.
@@ -174,6 +182,35 @@ results corroborate them; never remove active validation to silence those notes.
 No alert dismissal, suppression, core exclusion or denominator reduction is
 part of this gate.
 
+The earlier d297 Windows2025 job actually used the VS2026 image20261007.264.1
+and MSVC14.51, outside CodeQL's documented Microsoft-extension range (VS2022).
+Its native build and Windows API metric8 passed, but34 compiler errors and17
+aborted extractor invocations failed the gate. Those results are diagnostic,
+not security acceptance. Clang-cl20.1.8 lies within both CodeQL's documented
+Clang range and Glaze9's tested Clang18+ range; C++23 extraction is still beta,
+so fresh native zero-error/Windows8 proof is mandatory, not inferred from this
+toolchain change. The Glaze interface facade also retains upstream's three
+real-MSVC-only C++ conformance options; clang-cl never inherits those options.
+Only `/MP` is restricted to the real MSVC driver; warnings-as-errors are retained.
+
+The pinned efsw revision's Windows failed-watch cleanup deletes the allocated
+watcher, not its null borrowed parent. A repository-owned one-line patch is
+applied through native CPM `PATCHES`; the revision and patch-content digest
+derive a separate cache key, preserving prior caches and preventing stale patch
+reuse. Fault injection of the exact pinned function bodies with mock Windows
+APIs reproduced all three original failure leaks and verified corrected cleanup
+plus unchanged success ownership. That is native Linux source-level proof, not
+native Windows API or heap measurement; fresh Windows builds remain required.
+
+Profile presence registration now removes a newly inserted or newly published
+session if status lookup or friend announcement throws before returning the
+cleanup ID. A previously registered session is retained if an exception occurs
+before replacement publication. Four native fault-injection cases cover initial
+lookup, announcement, successful replacement/stale sign-off and failed replacement
+recovery using unopened sessions and an in-memory database. Normal coroutine
+frame lifetime is not itself a demonstrated dangling-pointer defect; the fixed
+exception path is a separate ownership failure.
+
 1. Run the targeted coverage/policy tests, then fresh no-build, full Linux traced
    and focused Windows traced scans on one immutable candidate. Inspect raw
    diagnostics, recover all40 Linux units, require an explicit native compiler-error
@@ -200,4 +237,9 @@ Primary contracts:
 [pinned native diagnostic classes](https://github.com/github/codeql/blob/a7057b836bf29767461026718b14d20790b9085f/cpp/ql/lib/semmle/code/cpp/Diagnostics.qll),
 [native summary-metric export](https://codeql.github.com/docs/codeql-overview/codeql-changelog/codeql-cli-2.5.3/),
 [native extracted-file query](https://github.com/github/codeql/blob/main/cpp/ql/src/Diagnostics/ExtractedFiles.ql),
-[no-build diagnostic behavior](https://github.com/github/codeql/blob/main/cpp/ql/src/Diagnostics/ExtractionWarnings.ql).
+[no-build diagnostic behavior](https://github.com/github/codeql/blob/main/cpp/ql/src/Diagnostics/ExtractionWarnings.ql),
+[supported compiler/language ranges](https://codeql.github.com/docs/codeql-overview/supported-languages-and-frameworks/),
+[Windows2022 runner image](https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md),
+[pinned developer-environment inputs](https://github.com/TheMrMilchmann/setup-msvc-dev/blob/368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9/action.yaml),
+[native CMake clang-cl C++23 selection](https://github.com/Kitware/CMake/blob/v3.31.6/Modules/Compiler/Clang.cmake#L230-L238),
+[Glaze9 MSVC interface contract](https://github.com/stephenberry/glaze/blob/v9.0.0/CMakeLists.txt#L21-L41).

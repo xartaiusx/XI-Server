@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import io
+import json
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest import mock
 
 import yaml
 
@@ -59,7 +64,7 @@ class CodeScanningCoverageTests(unittest.TestCase):
         self.assertEqual(len(entries), 5)
         for entry in entries:
             if entry.get("windows_security"):
-                self.assertEqual(entry["runner"], "windows-2025")
+                self.assertEqual(entry["runner"], "windows-2022")
                 self.assertEqual(
                     (entry["language"], entry["build-mode"]), ("cpp", "manual")
                 )
@@ -84,7 +89,15 @@ class CodeScanningCoverageTests(unittest.TestCase):
             steps["Setup MSVC"]["uses"],
             "TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9",
         )
-        self.assertEqual(steps["Setup MSVC"]["with"], {"arch": "x64"})
+        self.assertEqual(
+            steps["Setup MSVC"]["with"],
+            {
+                "arch": "x64",
+                "vs-path": r"C:\Program Files\Microsoft Visual Studio\2022\Enterprise",
+                "toolset": "14.44",
+                "sdk": "10.0.26100.0",
+            },
+        )
         configure = steps["Configure Windows security extraction context"]["run"]
         for flag in (
             "--fresh",
@@ -92,10 +105,30 @@ class CodeScanningCoverageTests(unittest.TestCase):
             "-DCACHE_BINARY:FILEPATH=",
             "-DCMAKE_CXX_COMPILER_LAUNCHER:STRING=",
             "-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded",
+            '-DCMAKE_C_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang-cl.exe"',
+            '-DCMAKE_CXX_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang-cl.exe"',
         ):
             self.assertIn(flag, configure)
-        self.assertIn("--target enum_codegen --parallel 4", configure)
+        self.assertNotIn("cmake --build", configure)
         self.assertNotIn("data_schema_generate", configure)
+        context = steps["Verify Windows security CMake context"]["run"]
+        self.assertIn(
+            "PY\ncmake --build build --target enum_codegen --parallel 4", context
+        )
+        names = [step.get("name") for step in job["steps"]]
+        for before, after in (
+            ("Setup MSVC", "Verify Windows security toolchain"),
+            (
+                "Verify Windows security toolchain",
+                "Configure Windows security extraction context",
+            ),
+            (
+                "Configure Windows security extraction context",
+                "Verify Windows security CMake context",
+            ),
+            ("Verify Windows security CMake context", "Initialize CodeQL"),
+        ):
+            self.assertLess(names.index(before), names.index(after))
         self.assertEqual(
             steps["Trace Windows TLS and private-file targets"]["run"].strip(),
             "cmake --build build --target xi_connect xi_profile --parallel 4",
@@ -118,6 +151,174 @@ class CodeScanningCoverageTests(unittest.TestCase):
         )
         self.assertTrue(
             all("sccache" not in step.get("uses", "") for step in job["steps"])
+        )
+
+    def _inline_script(self, name: str) -> str:
+        step = next(
+            step
+            for step in self.workflow["jobs"]["analyze"]["steps"]
+            if step.get("name") == name
+        )
+        self.assertEqual(step["if"], "matrix.windows_security")
+        return step["run"].split("python - <<'PY'\n", 1)[1].split("\nPY", 1)[0]
+
+    def test_windows_toolchain_preflight_rejects_fallbacks(self) -> None:
+        script = self._inline_script("Verify Windows security toolchain")
+        environment = {
+            "VSINSTALLDIR": "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/",
+            "VCToolsVersion": "14.44.35207",
+            "WindowsSDKVersion": "10.0.26100.0\\",
+        }
+        output = "clang version 20.1.8\nTarget: x86_64-pc-windows-msvc\n"
+        cases = (
+            ({}, output, True, True),
+            ({}, output, False, False),
+            (
+                {
+                    "VSINSTALLDIR": "C:/Program Files/Microsoft Visual Studio/18/Enterprise"
+                },
+                output,
+                True,
+                False,
+            ),
+            ({"VCToolsVersion": "14.51.36231"}, output, True, False),
+            ({"WindowsSDKVersion": "10.0.22621.0\\"}, output, True, False),
+            ({"WindowsSDKVersion": ""}, output, True, False),
+            ({}, output.replace("20.1.8", "21.1.0"), True, False),
+            ({}, output.replace("x86_64", "aarch64"), True, False),
+            ({}, output + "x" * 32768, True, False),
+        )
+        for changed, version, exists, accepted in cases:
+            with self.subTest(
+                changed=changed, exists=exists, accepted=accepted
+            ), mock.patch.dict(
+                "os.environ", environment | changed, clear=True
+            ), mock.patch(
+                "pathlib.Path.is_file", return_value=exists
+            ), mock.patch(
+                "subprocess.run", return_value=mock.Mock(stdout=version, stderr="")
+            ) as run, redirect_stdout(
+                io.StringIO()
+            ):
+                if accepted:
+                    exec(compile(script, "<toolchain-preflight>", "exec"), {})
+                    self.assertEqual(run.call_args.kwargs["timeout"], 15)
+                    self.assertTrue(run.call_args.kwargs["check"])
+                else:
+                    with self.assertRaises(SystemExit):
+                        exec(compile(script, "<toolchain-preflight>", "exec"), {})
+
+    def test_windows_cmake_context_rejects_wrong_compiler_or_standard(self) -> None:
+        script = self._inline_script("Verify Windows security CMake context")
+        values = {
+            "COMPILER": "C:/Program Files/LLVM/bin/clang-cl.exe",
+            "COMPILER_ID": "Clang",
+            "COMPILER_VERSION": "20.1.8",
+            "COMPILER_FRONTEND_VARIANT": "MSVC",
+        }
+        cases = (
+            ({}, ["-clang:-std=c++23"], "src", True),
+            (
+                {"COMPILER": "C:/other/clang-cl.exe"},
+                ["-clang:-std=c++23"],
+                "src",
+                False,
+            ),
+            ({"COMPILER_ID": "MSVC"}, ["-clang:-std=c++23"], "src", False),
+            ({"COMPILER_VERSION": "21.1.0"}, ["-clang:-std=c++23"], "src", False),
+            ({"COMPILER_FRONTEND_VARIANT": "GNU"}, ["-clang:-std=c++23"], "src", False),
+            ({}, ["-std:c++latest"], "src", False),
+            ({}, ["-clang:-std=c++26"], "src", False),
+            ({}, [], "src", False),
+            ({}, ["-clang:-std=c++23", "-std:c++latest"], "src", False),
+            ({}, ["-clang:-std=c++23"], "ext", False),
+        )
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            build = root / "build"
+            compiler_context = build / "CMakeFiles/3.31.6"
+            compiler_context.mkdir(parents=True)
+            for changed, standards, folder, accepted in cases:
+                with self.subTest(changed=changed, standards=standards, folder=folder):
+                    for language in ("C", "CXX"):
+                        (
+                            compiler_context / f"CMake{language}Compiler.cmake"
+                        ).write_text(
+                            "\n".join(
+                                f'set(CMAKE_{language}_{key} "{value}")'
+                                for key, value in (values | changed).items()
+                            )
+                        )
+                    (build / "compile_commands.json").write_text(
+                        json.dumps(
+                            [
+                                {
+                                    "file": str(root / folder / "sample.cpp"),
+                                    "command": "clang-cl.exe " + " ".join(standards),
+                                }
+                            ]
+                        )
+                    )
+                    with mock.patch(
+                        "pathlib.Path.cwd", return_value=root
+                    ), redirect_stdout(io.StringIO()):
+                        if accepted:
+                            exec(compile(script, "<cmake-context>", "exec"), {})
+                        else:
+                            with self.assertRaises(SystemExit):
+                                exec(compile(script, "<cmake-context>", "exec"), {})
+            (compiler_context / "CMakeCCompiler.cmake").unlink()
+            with mock.patch("pathlib.Path.cwd", return_value=root), self.assertRaises(
+                SystemExit
+            ):
+                exec(compile(script, "<cmake-context>", "exec"), {})
+
+    def test_vendor_flags_are_real_msvc_only_without_warning_weakening(self) -> None:
+        settings = (self.repo / "cmake/StandardProjectSettings.cmake").read_text()
+        self.assertEqual(settings.count("/MP"), 1)
+        self.assertIn("$<$<CXX_COMPILER_ID:MSVC>:/MP>", settings)
+        glaze = (self.repo / "ext/CMakeLists.txt").read_text()
+        for flag in ("/Zc:preprocessor", "/permissive-", "/Zc:lambda"):
+            self.assertEqual(
+                glaze.count(f"$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:{flag}>"), 1
+            )
+        self.assertNotIn("Qunused-arguments", settings + glaze)
+        warnings = (self.repo / "cmake/CompilerWarnings.cmake").read_text()
+        self.assertIn(
+            'option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" TRUE)',
+            warnings,
+        )
+        self.assertIn('set(ERRORS "/WX")', warnings)
+
+    def test_pinned_watcher_failure_patch_owns_its_cache_and_cleanup(self) -> None:
+        facade = (self.repo / "ext/CMakeLists.txt").read_text()
+        patch = (
+            self.repo / "cmake/patches/efsw-win32-createwatch-cleanup.patch"
+        ).read_text()
+        self.assertIn(
+            "set(efsw_revision 22f17a0bcdf3a4edf61f8b14328391463389e548)", facade
+        )
+        self.assertIn(
+            'set(efsw_cleanup_patch "${CMAKE_SOURCE_DIR}/cmake/patches/efsw-win32-createwatch-cleanup.patch")',
+            facade,
+        )
+        self.assertIn('file(SHA256 "${efsw_cleanup_patch}" efsw_patch_hash)', facade)
+        self.assertIn(
+            'string(SHA256 efsw_cache_key "${efsw_revision}:${efsw_patch_hash}")',
+            facade,
+        )
+        self.assertIn("GIT_TAG ${efsw_revision}", facade)
+        self.assertIn("CUSTOM_CACHE_KEY ${efsw_cache_key}", facade)
+        self.assertIn('PATCHES "${efsw_cleanup_patch}"', facade)
+        self.assertEqual(patch.count("@@"), 2)
+        changed = [
+            line
+            for line in patch.splitlines()
+            if line.startswith(("+", "-")) and not line.startswith(("+++", "---"))
+        ]
+        self.assertEqual(
+            changed,
+            ["-\tefSAFE_DELETE( pWatch->Watch );", "+\tefSAFE_DELETE( pWatch );"],
         )
 
     def test_windows_metric_queries_native_calls_not_file_presence(self) -> None:
@@ -169,6 +370,7 @@ class CodeScanningCoverageTests(unittest.TestCase):
         ):
             self.assertIn(flag, configure)
         self.assertIn("g++-15", steps["Install Dependencies"]["run"])
+        self.assertNotIn("clang-cl", configure)
         self.assertIn("--target enum_codegen --parallel 4", configure)
         self.assertNotIn("data_schema_generate", configure)
         schema = steps["Build traced schema context"]

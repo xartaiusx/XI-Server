@@ -61,26 +61,40 @@ auto PresenceManager::signOn(const uint32 accountId, const SessionHash& sessionH
 {
     const auto [entry, signedOn] = online_.try_emplace(accountId);
     auto& online                 = entry->second;
+    auto  published              = false;
 
-    // restore the saved status so invisible stays invisible
-    if (signedOn)
+    try
     {
-        online.status.openStatus = accounts::openStatus(accountId).value_or(OpenStatus::Invisible);
-    }
+        // restore the saved status so invisible stays invisible
+        if (signedOn)
+        {
+            online.status.openStatus = accounts::openStatus(accountId).value_or(OpenStatus::Invisible);
+        }
 
-    if (online.session != nullptr)
+        if (online.session != nullptr)
+        {
+            online.session->close();
+        }
+
+        online.session     = session;
+        published          = true;
+        online.sessionHash = sessionHash;
+        online.signOnId    = ++lastSignOnId_;
+
+        // the new client reports its character again
+        online.status = Status{ .openStatus = online.status.openStatus, .receiveMessages = online.status.receiveMessages };
+        announce(accountId);
+        return online.signOnId;
+    }
+    catch (...)
     {
-        online.session->close();
+        // No cleanup ID reached the caller. Never retain this session's pointer.
+        if (signedOn || published)
+        {
+            online_.erase(entry);
+        }
+        throw;
     }
-
-    online.session     = session;
-    online.sessionHash = sessionHash;
-    online.signOnId    = ++lastSignOnId_;
-
-    // the new client reports its character again
-    online.status = Status{ .openStatus = online.status.openStatus, .receiveMessages = online.status.receiveMessages };
-    announce(accountId);
-    return online.signOnId;
 }
 
 void PresenceManager::signOff(const uint32 accountId, const uint64 signOnId)

@@ -148,6 +148,11 @@ CPMAddPackage(
 if(glaze_ADDED)
     add_library(glaze_glaze INTERFACE)
     add_library(glaze::glaze ALIAS glaze_glaze)
+    target_compile_options(glaze_glaze INTERFACE
+        $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/Zc:preprocessor>
+        $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/permissive->
+        $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/Zc:lambda>
+    )
     target_compile_features(glaze_glaze INTERFACE cxx_std_23)
     target_include_directories(glaze_glaze SYSTEM INTERFACE ${glaze_SOURCE_DIR}/include/)
 endif()
@@ -159,10 +164,17 @@ CPMAddPackage(
     SYSTEM ON
 ) # defines: argparse
 
+# Keep the pinned Win32 failure-cleanup fix in its own reproducible cache entry.
+set(efsw_revision 22f17a0bcdf3a4edf61f8b14328391463389e548)
+set(efsw_cleanup_patch "${CMAKE_SOURCE_DIR}/cmake/patches/efsw-win32-createwatch-cleanup.patch")
+file(SHA256 "${efsw_cleanup_patch}" efsw_patch_hash)
+string(SHA256 efsw_cache_key "${efsw_revision}:${efsw_patch_hash}")
 CPMAddPackage(
     NAME efsw
     GITHUB_REPOSITORY SpartanJ/efsw
-    GIT_TAG 22f17a0bcdf3a4edf61f8b14328391463389e548 # master
+    GIT_TAG ${efsw_revision}
+    CUSTOM_CACHE_KEY ${efsw_cache_key}
+    PATCHES "${efsw_cleanup_patch}"
     SYSTEM ON
     OPTIONS
         "VERBOSE OFF"

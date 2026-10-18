@@ -75,6 +75,7 @@ xi_add_executable(xi_test testserver.rc
     # static module registration is retained and exercised by Lua tests.
     ${CMAKE_SOURCE_DIR}/modules/custom/cpp/twills_admin.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/pathfind_region_tests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/profile_presence_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/roam_region_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/transport_voyage_tests.cpp
 )
@@ -90,7 +91,7 @@ target_link_libraries(xi_test_lib
         ${TEST_ONLY_EXTERNAL_LIBS}
 )
 
-target_link_libraries(xi_test PRIVATE xi_test_lib Catch2::Catch2)
+target_link_libraries(xi_test PRIVATE xi_test_lib xi_profile_lib Catch2::Catch2)
 xi_precompile_headers(xi_test)
 
 if(TRACY_ENABLE)
