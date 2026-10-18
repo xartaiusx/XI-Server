@@ -38,8 +38,18 @@ namespace
 class FlatNavMesh final : public NavMesh
 {
 public:
+    explicit FlatNavMesh(Maybe<position_t> firstCorner = {})
+    : firstCorner_(firstCorner)
+    {
+    }
+
     auto findPath(const position_t&, const position_t& end, float, AvoidLinks) -> Maybe<PathResult> override
     {
+        if (firstCorner_)
+        {
+            return PathResult{ { pathpoint_t{ *firstCorner_, 0s, false }, pathpoint_t{ end, 0s, false } }, false };
+        }
+
         return PathResult{ { pathpoint_t{ end, 0s, false } }, false };
     }
 
@@ -72,6 +82,9 @@ public:
         result = end;
         return true;
     }
+
+private:
+    Maybe<position_t> firstCorner_;
 };
 
 class StubOwner final : public pathfind::PathOwner
@@ -100,6 +113,12 @@ public:
 
     auto markPositionDirty() -> void override
     {
+        ++dirtyMarks_;
+    }
+
+    auto dirtyMarks() const -> int
+    {
+        return dirtyMarks_;
     }
 
     auto baseSpeed() const -> uint8 override
@@ -138,6 +157,12 @@ public:
 
     auto onPathComplete() -> void override
     {
+        ++completedPaths_;
+    }
+
+    auto completedPaths() const -> int
+    {
+        return completedPaths_;
     }
 
     auto name() const -> const std::string& override
@@ -159,6 +184,8 @@ private:
     position_t  position_;
     NavMesh&    navMesh_;
     std::string name_{ "stub" };
+    int         completedPaths_{};
+    int         dirtyMarks_{};
 };
 
 auto squareWithHole() -> RoamRegion
@@ -227,4 +254,48 @@ TEST_CASE("pathfind: a region mob that cannot sample a leg walks back onto its r
     const auto destination = pathFind.GetDestination();
     CHECK(region.contains(destination.x, destination.z));
     CHECK_FALSE(region.contains(ownerPtr->position().x, ownerPtr->position().z));
+
+    for (int tick = 0; tick < 256 && !region.contains(ownerPtr->position().x, ownerPtr->position().z); ++tick)
+    {
+        pathFind.FollowPath(timer::time_point{} + 400ms * tick);
+    }
+    CHECK(region.contains(ownerPtr->position().x, ownerPtr->position().z));
+}
+
+TEST_CASE("pathfind: intermediate roam steps stay inside a valid deck leg", "[pathfind][region]")
+{
+    const RoamRegion::Ring deck{
+        { -11.15f, -3.0f, -5.81f }, { -9.66f, -3.0f, -10.61f }, { -9.78f, -3.0f, -15.83f }, { -4.79f, -3.0f, -18.21f }, { 0.13f, -3.0f, -16.25f }, { 4.65f, -3.0f, -17.67f }, { 9.99f, -3.0f, -15.77f }, { 9.51f, -3.0f, -10.79f }, { 11.18f, -3.0f, -6.05f }, { 10.05f, -3.0f, 3.86f }, { 0.04f, -3.0f, 1.60f }, { -9.95f, -3.0f, 3.68f }
+    };
+    const RoamRegion region(deck, {});
+    const position_t start{ 11.119022369f, -3.0f, -5.956564426f, 0, 0 };
+    const position_t corner{ 10.056821823f, -3.0f, 3.358835459f, 0, 0 };
+    REQUIRE(legStaysInside(region, start, corner));
+
+    // A valid navmesh corner near the deck edge must be safe at every movement tick,
+    // not just at its endpoints. The later destination may be any sampled roam point.
+    FlatNavMesh navMesh(corner);
+    auto        owner    = std::make_unique<StubOwner>(start, navMesh);
+    auto*       ownerPtr = owner.get();
+    CPathFind   pathFind(std::move(owner));
+    REQUIRE(pathFind.RoamAround(start, 10.0f, 1, 1, xi::RoamFlag::None, &region));
+
+    for (int tick = 0; tick < 4; ++tick)
+    {
+        const auto previousMoving     = ownerPtr->position().moving;
+        const auto previousDirtyMarks = ownerPtr->dirtyMarks();
+        pathFind.FollowPath(timer::time_point{} + 400ms * tick);
+        const auto& position = ownerPtr->position();
+        INFO("tick=" << tick << " x=" << position.x << " z=" << position.z);
+        REQUIRE(region.contains(position.x, position.z));
+        if (tick == 3)
+        {
+            CHECK(position.moving == previousMoving);
+            CHECK(ownerPtr->dirtyMarks() == previousDirtyMarks);
+        }
+    }
+    CHECK_FALSE(pathFind.IsFollowingPath());
+    CHECK_FALSE(pathFind.OnPoint());
+    CHECK(ownerPtr->completedPaths() == 0);
+    CHECK(distance(start, ownerPtr->position(), true) > 1.0f);
 }
