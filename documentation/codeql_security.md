@@ -47,7 +47,10 @@ coverage policy.
   as ordinary MSVC builds without overriding CMake's default libraries.
   Before initialization, a syntax-only native GNU-driver probe requires both
   `__cplusplus` and `_MSVC_LANG` to equal 202302L, and checks `expected`,
-  `optional`, `span`, `string_view` and a defaulted comparison. No production
+  `optional`, `span`, `string_view` and a defaulted comparison. The actual
+  `common/macros.h` is its first include, with alias-address assertions against
+  `_stricmp` under strict warnings, so CRT declaration ordering is also checked.
+  No production
   object from this probe is reused. This native proof does not establish
   extractor compatibility: only the unchanged raw coverage, zero compiler-error
   and eight-family API gates can accept the actual CodeQL result.
@@ -219,6 +222,16 @@ are retained diagnostic results, not acceptance; aggregate extractor language
 telemetry does not establish the mode of every translation unit. The GNU
 frontend candidate keeps the same compiler version, Windows ABI, SDK/toolset
 and exact C++23 mode while avoiding the CL-driver argument-translation path.
+
+The first GNU-frontend Windows trace then failed native compilation on two
+deprecated `strcmpi` calls in authentication, before SARIF existed. The existing
+comparison portability block now maps both Windows aliases to Microsoft's
+documented equivalent preferred [`_stricmp`](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strcmpi?view=msvc-170).
+It includes `<cstring>` before defining aliases, preventing a macro from
+rewriting the UCRT's own deprecated declarations. POSIX aliases remain
+`strcasecmp`; null-terminated, locale-sensitive comparison and authentication
+decisions are unchanged. No warning suppression or replacement comparison
+algorithm is introduced. Actual native Windows proof remains required.
 
 The first supported-toolchain candidate passed native compiler/SDK preflight but
 failed CMake generation before CodeQL initialization: fmt12.2.0 auto-enabled its

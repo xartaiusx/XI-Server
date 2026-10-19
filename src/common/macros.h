@@ -22,6 +22,7 @@
 #pragma once
 
 #include <cstdlib>
+#include <cstring>
 #include <utility>
 
 static_assert(sizeof(void*) == 8, "Only 64-bit builds are supported");
@@ -105,8 +106,11 @@ static_assert(sizeof(void*) == 8, "Only 64-bit builds are supported");
     if (_rset && _rset->rowsCount())   \
         while (_rset->next())
 
-// string case comparison for *nix portability
-#if !defined(_MSC_VER)
+// String case comparison portability; CRT declarations must precede these aliases.
+#if defined(_MSC_VER)
+#define strcmpi _stricmp
+#define stricmp _stricmp
+#else
 #define strcmpi strcasecmp
 #define stricmp strcasecmp
 #endif

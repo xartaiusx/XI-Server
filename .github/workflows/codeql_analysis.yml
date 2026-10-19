@@ -218,10 +218,13 @@ jobs:
         # Syntax-only proof: never reuse a first-party object built before tracing.
         with TemporaryDirectory(prefix="cxx23-proof-", dir=build) as temporary:
             probe = Path(temporary) / "language.cpp"
-            probe.write_text('''#include <expected>
+            probe.write_text('''#include "common/macros.h"
+        #include <expected>
         #include <optional>
         #include <span>
         #include <string_view>
+        static_assert(&strcmpi == &_stricmp);
+        static_assert(&stricmp == &_stricmp);
         static_assert(__cplusplus == 202302L);
         static_assert(_MSVC_LANG == 202302L);
         struct Comparison { constexpr bool operator==(const Comparison&) const = default; };
@@ -231,7 +234,7 @@ jobs:
         static_assert(std::span<const int>{}.empty());
         static_assert(std::string_view{"C++23"}.size() == 5);
         ''', encoding="utf-8")
-            result = subprocess.run([compilers["CXX"], f"--target={target}", "-std=c++23", "-fsyntax-only", "-Werror", "-Wall", "-Wextra", "--", str(probe)], check=True, capture_output=True, text=True, timeout=30)
+            result = subprocess.run([compilers["CXX"], f"--target={target}", "-std=c++23", "-fsyntax-only", "-Werror", "-Wall", "-Wextra", "-I", str(root / "src"), "--", str(probe)], check=True, capture_output=True, text=True, timeout=30)
             if len(result.stdout) + len(result.stderr) > 32768:
                 raise SystemExit("Native C++23 proof output exceeds its bound")
         print(json.dumps({"compiler_id": "Clang", "version": "20.1.8", "frontend": "GNU", "simulate_id": "MSVC", "target": target, "standard_flag": "-std=c++23", "cplusplus": 202302, "msvc_lang": 202302, "first_party_commands": checked}))

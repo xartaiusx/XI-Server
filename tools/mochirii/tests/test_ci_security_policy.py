@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import io
 import json
@@ -333,6 +334,8 @@ class CodeScanningCoverageTests(TestCase):
                                     "-Werror",
                                     "-Wall",
                                     "-Wextra",
+                                    "-I",
+                                    str(root / "src"),
                                     "--",
                                 ],
                             )
@@ -418,6 +421,38 @@ class CodeScanningCoverageTests(TestCase):
                         check=False,
                     )
                     self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_case_insensitive_aliases_follow_crt_declarations(self) -> None:
+        header = (self.repo / "src/common/macros.h").read_text()
+        self.assertLess(
+            header.index("#include <cstring>"), header.index("#define strcmpi")
+        )
+        self.assertIn(
+            """#if defined(_MSC_VER)
+#define strcmpi _stricmp
+#define stricmp _stricmp
+#else
+#define strcmpi strcasecmp
+#define stricmp strcasecmp
+#endif""",
+            header,
+        )
+        script = self._inline_script("Verify Windows security CMake context")
+        probes = [
+            node
+            for node in ast.walk(ast.parse(script))
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "write_text"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "probe"
+        ]
+        self.assertEqual(len(probes), 1)
+        source = ast.literal_eval(probes[0].args[0])
+        self.assertTrue(source.startswith('#include "common/macros.h"\n'))
+        self.assertIn("static_assert(&strcmpi == &_stricmp);", source)
+        self.assertIn("static_assert(&stricmp == &_stricmp);", source)
+        self.assertNotIn("_CRT_NONSTDC_NO_DEPRECATE", source + header)
 
     def test_vendor_flags_are_real_msvc_only_without_warning_weakening(self) -> None:
         settings = (self.repo / "cmake/StandardProjectSettings.cmake").read_text()
