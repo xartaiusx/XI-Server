@@ -144,9 +144,30 @@ jobs:
     - name: Configure Windows security extraction context
       if: matrix.windows_security
       run: |
+        # Use the native CL spelling without changing the C++23 language mode.
+        python - <<'PY'
+        import os
+        from pathlib import Path
+
+        override = Path(os.environ["RUNNER_TEMP"]) / "mochirii-codeql-cxx23.cmake"
+        with override.open("x", encoding="utf-8", newline="\n") as output:
+            output.write('''if(NOT WIN32 OR NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+            OR NOT CMAKE_CXX_COMPILER_VERSION STREQUAL "20.1.8"
+            OR NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+            message(FATAL_ERROR "Unexpected Windows security compiler context")
+        endif()
+        foreach(kind STANDARD EXTENSION)
+            if(NOT CMAKE_CXX23_${kind}_COMPILE_OPTION STREQUAL "-clang:-std=c++23")
+                message(FATAL_ERROR "Unexpected stock C++23 compiler option")
+            endif()
+            set(CMAKE_CXX23_${kind}_COMPILE_OPTION "/std:c++23preview")
+        endforeach()
+        ''')
+        PY
         cmake -G Ninja -S . -B build --fresh \
           -DCMAKE_C_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang-cl.exe" \
           -DCMAKE_CXX_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang-cl.exe" \
+          -DCMAKE_PROJECT_server_INCLUDE:FILEPATH="$RUNNER_TEMP/mochirii-codeql-cxx23.cmake" \
           -DCMAKE_BUILD_TYPE=Debug -DPCH_ENABLE=OFF -DENABLE_IPO=OFF \
           -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded \
           -DCACHE_BINARY:FILEPATH= \
@@ -162,6 +183,8 @@ jobs:
         from pathlib import Path
         import re
         import shlex
+        import subprocess
+        from tempfile import TemporaryDirectory
 
         root = Path.cwd()
         build = root / "build"
@@ -191,12 +214,31 @@ jobs:
             if relative.parts[0] not in {"src", "modules"} or source.suffix not in {".cpp", ".cc", ".cxx", ".c++"}:
                 continue
             standards = [arg for arg in shlex.split(entry["command"], posix=False) if re.match(r"[-/](?:clang:)?-?std[:=]", arg)]
-            if standards != ["-clang:-std=c++23"]:
+            if standards != ["/std:c++23preview"]:
                 raise SystemExit("First-party C++ compilation is not explicitly C++23")
             checked += 1
         if not checked:
             raise SystemExit("No first-party C++ compilation context was verified")
-        print(json.dumps({"compiler_id": "Clang", "version": "20.1.8", "frontend": "MSVC", "standard_flag": "-clang:-std=c++23", "first_party_commands": checked}))
+        # Syntax-only proof: never reuse a first-party object built before tracing.
+        with TemporaryDirectory(prefix="cxx23-proof-", dir=build) as temporary:
+            probe = Path(temporary) / "language.cpp"
+            probe.write_text('''#include <expected>
+        #include <optional>
+        #include <span>
+        #include <string_view>
+        static_assert(__cplusplus == 202302L);
+        static_assert(_MSVC_LANG == 202302L);
+        struct Comparison { constexpr bool operator==(const Comparison&) const = default; };
+        static_assert(Comparison{} == Comparison{});
+        static_assert(std::expected<int, int>{42}.value() == 42);
+        static_assert(std::optional<int>{42}.value() == 42);
+        static_assert(std::span<const int>{}.empty());
+        static_assert(std::string_view{"C++23"}.size() == 5);
+        ''', encoding="utf-8")
+            result = subprocess.run(["C:/Program Files/LLVM/bin/clang-cl.exe", "/nologo", "/Zs", "/WX", "/W4", "/EHsc", "/std:c++23preview", "--", str(probe)], check=True, capture_output=True, text=True, timeout=30)
+            if len(result.stdout) + len(result.stderr) > 32768:
+                raise SystemExit("Native C++23 proof output exceeds its bound")
+        print(json.dumps({"compiler_id": "Clang", "version": "20.1.8", "frontend": "MSVC", "standard_flag": "/std:c++23preview", "cplusplus": 202302, "msvc_lang": 202302, "first_party_commands": checked}))
         PY
         cmake --build build --target enum_codegen --parallel 4
 

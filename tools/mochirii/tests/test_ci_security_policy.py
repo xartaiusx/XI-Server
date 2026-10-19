@@ -109,6 +109,7 @@ class CodeScanningCoverageTests(TestCase):
             "-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded",
             '-DCMAKE_C_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang-cl.exe"',
             '-DCMAKE_CXX_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang-cl.exe"',
+            '-DCMAKE_PROJECT_server_INCLUDE:FILEPATH="$RUNNER_TEMP/mochirii-codeql-cxx23.cmake"',
         ):
             self.assertIn(flag, configure)
         self.assertNotIn("cmake --build", configure)
@@ -219,21 +220,25 @@ class CodeScanningCoverageTests(TestCase):
             "COMPILER_FRONTEND_VARIANT": "MSVC",
         }
         cases = (
-            ({}, ["-clang:-std=c++23"], "src", True),
+            ({}, ["/std:c++23preview"], "src", True),
             (
                 {"COMPILER": "C:/other/clang-cl.exe"},
-                ["-clang:-std=c++23"],
+                ["/std:c++23preview"],
                 "src",
                 False,
             ),
-            ({"COMPILER_ID": "MSVC"}, ["-clang:-std=c++23"], "src", False),
-            ({"COMPILER_VERSION": "21.1.0"}, ["-clang:-std=c++23"], "src", False),
-            ({"COMPILER_FRONTEND_VARIANT": "GNU"}, ["-clang:-std=c++23"], "src", False),
+            ({"COMPILER_ID": "MSVC"}, ["/std:c++23preview"], "src", False),
+            ({"COMPILER_VERSION": "21.1.0"}, ["/std:c++23preview"], "src", False),
+            ({"COMPILER_FRONTEND_VARIANT": "GNU"}, ["/std:c++23preview"], "src", False),
+            ({}, ["-clang:-std=c++23"], "src", False),
             ({}, ["-std:c++latest"], "src", False),
+            ({}, ["/std:c++latest"], "src", False),
             ({}, ["-clang:-std=c++26"], "src", False),
             ({}, [], "src", False),
-            ({}, ["-clang:-std=c++23", "-std:c++latest"], "src", False),
-            ({}, ["-clang:-std=c++23"], "ext", False),
+            ({}, ["/std:c++23preview", "-clang:-std=c++23"], "src", False),
+            ({}, ["/std:c++23preview", "/std:c++latest"], "src", False),
+            ({}, ["/std:c++23preview", "/std:c++23preview"], "src", False),
+            ({}, ["/std:c++23preview"], "ext", False),
         )
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -261,19 +266,109 @@ class CodeScanningCoverageTests(TestCase):
                             ]
                         )
                     )
-                    with mock.patch(
-                        "pathlib.Path.cwd", return_value=root
-                    ), redirect_stdout(io.StringIO()):
+                    with mock.patch("pathlib.Path.cwd", return_value=root), mock.patch(
+                        "subprocess.run", return_value=mock.Mock(stdout="", stderr="")
+                    ) as run, redirect_stdout(io.StringIO()):
                         if accepted:
                             exec(compile(script, "<cmake-context>", "exec"), {})
+                            self.assertEqual(run.call_args.kwargs["timeout"], 30)
+                            self.assertTrue(run.call_args.kwargs["check"])
+                            arguments = run.call_args.args[0]
+                            self.assertEqual(
+                                arguments[:-1],
+                                [
+                                    "C:/Program Files/LLVM/bin/clang-cl.exe",
+                                    "/nologo",
+                                    "/Zs",
+                                    "/WX",
+                                    "/W4",
+                                    "/EHsc",
+                                    "/std:c++23preview",
+                                    "--",
+                                ],
+                            )
+                            self.assertFalse(Path(arguments[-1]).exists())
+                            for failure in (
+                                subprocess.CalledProcessError(1, arguments),
+                                subprocess.TimeoutExpired(arguments, 30),
+                            ):
+                                run.side_effect = failure
+                                with self.assertRaises(type(failure)):
+                                    exec(compile(script, "<cmake-context>", "exec"), {})
+                            run.side_effect = None
+                            run.return_value.stdout = "x" * 32769
+                            with self.assertRaises(SystemExit):
+                                exec(compile(script, "<cmake-context>", "exec"), {})
                         else:
                             with self.assertRaises(SystemExit):
                                 exec(compile(script, "<cmake-context>", "exec"), {})
+                            run.assert_not_called()
             (compiler_context / "CMakeCCompiler.cmake").unlink()
             with mock.patch("pathlib.Path.cwd", return_value=root), self.assertRaises(
                 SystemExit
             ):
                 exec(compile(script, "<cmake-context>", "exec"), {})
+
+    def test_windows_cxx23_override_is_narrow_and_preserves_the_language(self) -> None:
+        script = self._inline_script("Configure Windows security extraction context")
+        context = self._inline_script("Verify Windows security CMake context")
+        for proof in (
+            "__cplusplus == 202302L",
+            "_MSVC_LANG == 202302L",
+            "operator==(const Comparison&) const = default",
+            "std::expected<int, int>",
+            "std::optional<int>",
+            "std::span<const int>",
+            "std::string_view",
+        ):
+            self.assertIn(proof, context)
+        values = {
+            "WIN32": "TRUE",
+            "CMAKE_CXX_COMPILER_ID": "Clang",
+            "CMAKE_CXX_COMPILER_VERSION": "20.1.8",
+            "CMAKE_CXX_COMPILER_FRONTEND_VARIANT": "MSVC",
+            "CMAKE_CXX23_STANDARD_COMPILE_OPTION": "-clang:-std=c++23",
+            "CMAKE_CXX23_EXTENSION_COMPILE_OPTION": "-clang:-std=c++23",
+        }
+        cases = (
+            ({}, True),
+            ({"WIN32": "FALSE"}, False),
+            ({"CMAKE_CXX_COMPILER_ID": "MSVC"}, False),
+            ({"CMAKE_CXX_COMPILER_VERSION": "21.1.0"}, False),
+            ({"CMAKE_CXX_COMPILER_FRONTEND_VARIANT": "GNU"}, False),
+            ({"CMAKE_CXX23_STANDARD_COMPILE_OPTION": "/std:c++latest"}, False),
+            ({"CMAKE_CXX23_EXTENSION_COMPILE_OPTION": "-std=c++26"}, False),
+            ({"CMAKE_CXX23_STANDARD_COMPILE_OPTION": ""}, False),
+        )
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with mock.patch.dict("os.environ", {"RUNNER_TEMP": temporary}):
+                exec(compile(script, "<cmake-override>", "exec"), {})
+            override = root / "mochirii-codeql-cxx23.cmake"
+            for changed, accepted in cases:
+                with self.subTest(changed=changed):
+                    probe = root / "verify.cmake"
+                    probe.write_text(
+                        "\n".join(
+                            f'set({key} "{value}")'
+                            for key, value in (values | changed).items()
+                        )
+                        + f'\ninclude("{override.as_posix()}")\n'
+                        + """foreach(kind STANDARD EXTENSION)
+                        if(NOT CMAKE_CXX23_${kind}_COMPILE_OPTION STREQUAL "/std:c++23preview")
+                            message(FATAL_ERROR "C++23 option was not replaced exactly")
+                        endif()
+                        endforeach()
+                        """
+                    )
+                    result = subprocess.run(
+                        ["cmake", "-P", str(probe)],
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode == 0, accepted, result.stderr)
 
     def test_vendor_flags_are_real_msvc_only_without_warning_weakening(self) -> None:
         settings = (self.repo / "cmake/StandardProjectSettings.cmake").read_text()

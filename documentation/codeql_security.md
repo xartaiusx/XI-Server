@@ -31,8 +31,19 @@ coverage policy.
   developer environments, toolsets or x64 targets without fallback. Both C/C++
   compiler paths are explicit. Before any native build/tracing, the generated
   CMake compiler contexts must prove Clang20.1.8/MSVC frontend/exact paths and
-  every first-party C++ compilation command must use `-clang:-std=c++23`, never
-  `c++latest`/C++26. CMake3.31.6 supplies that native standard flag for clang-cl17+.
+  every first-party C++ compilation command must use exactly
+  `/std:c++23preview`, never `c++latest`/C++26 or a conflicting forwarded flag.
+  A CI-only named-project include replaces CMake3.31.6's stock
+  `-clang:-std=c++23` standard/extension options after compiler detection,
+  rejecting an unexpected compiler or stock option. The normal project build
+  configuration is unchanged. LLVM20.1.8's [driver tests](https://github.com/llvm/llvm-project/blob/llvmorg-20.1.8/clang/test/Driver/cl-options.c#L555-L559)
+  prove that the native CL spelling selects C++23 while `c++latest` selects
+  C++26. Before initialization, a syntax-only native probe requires both
+  `__cplusplus` and `_MSVC_LANG` to equal 202302L, and checks `expected`,
+  `optional`, `span`, `string_view` and a defaulted comparison. No production
+  object from this probe is reused. This native proof does not establish
+  extractor compatibility: only the unchanged raw coverage, zero compiler-error
+  and eight-family API gates can accept the actual CodeQL result.
   The normal native MSVC Build lane is unchanged. Generated-header steps and the
   fresh uncached/no-PCH Debug context remain. Existing four categories/check names and full
   query suites are unchanged. The shared local coverage pack is added to every
@@ -271,6 +282,7 @@ Primary contracts:
 [Windows2022 runner image](https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md),
 [pinned developer-environment inputs](https://github.com/TheMrMilchmann/setup-msvc-dev/blob/368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9/action.yaml),
 [native CMake clang-cl C++23 selection](https://github.com/Kitware/CMake/blob/v3.31.6/Modules/Compiler/Clang.cmake#L230-L238),
+[named-project include timing](https://cmake.org/cmake/help/v3.31/command/project.html#code-injection),
 [fmt12.2 optional module contract](https://github.com/fmtlib/fmt/blob/12.2.0/CMakeLists.txt#L47-L79),
 [CMake3.31 Clang frontend module support](https://github.com/Kitware/CMake/blob/v3.31.6/Modules/Compiler/Clang-CXX.cmake#L29-L67),
 [Glaze9 MSVC interface contract](https://github.com/stephenberry/glaze/blob/v9.0.0/CMakeLists.txt#L21-L41).
