@@ -15,6 +15,21 @@ zero diagnostic metric, is not proof that a crashed extractor produced an AST.
 Required source and API coverage must also pass. This is a fail-closed supplement,
 not a claim to recognize every possible future extractor failure message.
 
+The Glaze9.0.0 compatibility candidate pins the same official
+[release revision](https://github.com/stephenberry/glaze/commit/d78832c82289c61a9315bfbc35332cec9f4e93ca)
+and uses a separate revision/patch-content-bound CPM cache; old caches remain
+untouched. Its patch names only the invented context/iterator/endpoint template
+parameters at three declaration/definition pairs. Context and iterator still
+forward, the endpoint stays by value, and `noexcept`, inline decorations and all
+parsing bodies remain unchanged. JSON's options predicate remains before the
+context concept in the single leading conjunction, preserving the
+[associated constraint order](https://eel.is/c++draft/temp.constr.decl).
+This is a local compatibility evaluation, not a claimed upstream fix. Local
+MSVC19.51 native success and failed local CodeQL experiments do not establish
+the approved hosted MSVC19.44 result: its exact raw-zero/AST/source/API acceptance
+and every other lane remain required. Native regression coverage exercises all
+three forms, forwarding, truncation/depth limits and bounded streaming skips.
+
 ## Preserved analysis contracts
 
 - Keep `security-extended` and `security-and-quality`, the existing `ext/**` and

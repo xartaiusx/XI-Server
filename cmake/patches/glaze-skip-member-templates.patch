@@ -1,0 +1,54 @@
+diff --git a/include/glaze/beve/skip.hpp b/include/glaze/beve/skip.hpp
+--- a/include/glaze/beve/skip.hpp
++++ b/include/glaze/beve/skip.hpp
+@@ -16,6 +16,7 @@
+    struct skip_value<BEVE>
+    {
+-      template <auto Opts>
+-      inline static void op(is_context auto&& ctx, auto&& it, auto end) noexcept;
++      template <auto Opts, class Ctx, class It, class End>
++         requires(is_context<Ctx>)
++      inline static void op(Ctx&& ctx, It&& it, End end) noexcept;
+    };
+
+@@ -306,3 +307,4 @@
+-   template <auto Opts>
+-   inline void skip_value<BEVE>::op(is_context auto&& ctx, auto&& it, auto end) noexcept
++   template <auto Opts, class Ctx, class It, class End>
++      requires(is_context<Ctx>)
++   inline void skip_value<BEVE>::op(Ctx&& ctx, It&& it, End end) noexcept
+    {
+diff --git a/include/glaze/json/skip.hpp b/include/glaze/json/skip.hpp
+--- a/include/glaze/json/skip.hpp
++++ b/include/glaze/json/skip.hpp
+@@ -18,8 +18,8 @@
+-      template <auto Opts>
+-         requires(not Opts.comments)
+-      GLZ_ALWAYS_INLINE static void op(is_context auto&& ctx, auto&& it, auto end) noexcept;
++      template <auto Opts, class Ctx, class It, class End>
++         requires((not Opts.comments) && is_context<Ctx>)
++      GLZ_ALWAYS_INLINE static void op(Ctx&& ctx, It&& it, End end) noexcept;
+
+-      template <auto Opts>
+-         requires(bool(Opts.comments))
+-      GLZ_ALWAYS_INLINE static void op(is_context auto&& ctx, auto&& it, auto end) noexcept;
++      template <auto Opts, class Ctx, class It, class End>
++         requires((bool(Opts.comments)) && is_context<Ctx>)
++      GLZ_ALWAYS_INLINE static void op(Ctx&& ctx, It&& it, End end) noexcept;
+    };
+@@ -322,4 +322,4 @@
+-   template <auto Opts>
+-      requires(not Opts.comments)
+-   GLZ_ALWAYS_INLINE void skip_value<JSON>::op(is_context auto&& ctx, auto&& it, auto end) noexcept
++   template <auto Opts, class Ctx, class It, class End>
++      requires((not Opts.comments) && is_context<Ctx>)
++   GLZ_ALWAYS_INLINE void skip_value<JSON>::op(Ctx&& ctx, It&& it, End end) noexcept
+    {
+@@ -441,4 +441,4 @@
+-   template <auto Opts>
+-      requires(bool(Opts.comments))
+-   GLZ_ALWAYS_INLINE void skip_value<JSON>::op(is_context auto&& ctx, auto&& it, auto end) noexcept
++   template <auto Opts, class Ctx, class It, class End>
++      requires((bool(Opts.comments)) && is_context<Ctx>)
++   GLZ_ALWAYS_INLINE void skip_value<JSON>::op(Ctx&& ctx, It&& it, End end) noexcept
+    {

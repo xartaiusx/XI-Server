@@ -140,10 +140,18 @@ if(earcut_hpp_ADDED) # header-only
 endif()
 
 # Glaze's own CMake project wants CMake 3.31, so expose its headers without adding it.
+# Keep 9.0.0; isolate the signature-only compatibility evaluation from its old cache.
+set(glaze_revision d78832c82289c61a9315bfbc35332cec9f4e93ca)
+set(glaze_skip_patch "${CMAKE_SOURCE_DIR}/cmake/patches/glaze-skip-member-templates.patch")
+file(SHA256 "${glaze_skip_patch}" glaze_patch_hash)
+string(SHA256 glaze_cache_key "${glaze_revision}:${glaze_patch_hash}")
 CPMAddPackage(
     NAME glaze
+    VERSION 9.0.0
     GITHUB_REPOSITORY stephenberry/glaze
-    GIT_TAG v9.0.0
+    GIT_TAG ${glaze_revision}
+    CUSTOM_CACHE_KEY ${glaze_cache_key}
+    PATCHES "${glaze_skip_patch}"
     DOWNLOAD_ONLY ON
 )
 if(glaze_ADDED)
