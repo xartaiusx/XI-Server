@@ -57,6 +57,7 @@ endif()
 # object files in a static library.
 xi_add_executable(xi_test testserver.rc
     ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/asio_work_result_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/bitset_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/certificate_preservation_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/data_binding_tests.cpp

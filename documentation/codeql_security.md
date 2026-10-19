@@ -275,6 +275,20 @@ defines `--alternative_tokens`. LLVM20.1.8's
 defines the MSVC-compatible absence being preserved. No dependency version,
 standard, runtime behavior, query or coverage denominator changes here.
 
+ASIO remains at the verified 1.38.0 source commit
+`03cf5f86a780dd102f1cdd3a59d1244d12143e46`, with only the maintainer's
+[non-invocable work-result correction](https://github.com/chriskohlhoff/asio/commit/f71a59e0673c4c4b3c936225ac36baabb3ba8db7)
+backported. The empty primary template and `void_t` specialization preserve
+valid callable results while making invalid substitution fail cleanly. The
+existing CPM patch mechanism keys a separate source cache by revision and
+patch content, preserving the unpatched cache. No newer mutex, scheduler,
+executor layout or unrelated ASIO changes are imported. A registered native
+regression checks value/void/non-callable substitution and queued, exactly-once
+type-erased execution, increasing the complete native case count from 110 to
+111. Local reproduction removed the ASIO diagnostics; fresh full CI extraction
+and native regression execution remain required and are not implied by that
+diagnostic result.
+
 The first supported-toolchain candidate passed native compiler/SDK preflight but
 failed CMake generation before CodeQL initialization: fmt12.2.0 auto-enabled its
 optional module for clang-cl, while CMake3.31.6 has no MSVC-frontend Clang module

@@ -1,0 +1,15 @@
+diff --git a/include/asio/detail/work_dispatcher.hpp b/include/asio/detail/work_dispatcher.hpp
+--- a/include/asio/detail/work_dispatcher.hpp
++++ b/include/asio/detail/work_dispatcher.hpp
+@@ -43,5 +43,10 @@
+-template <typename Function>
++template <typename Function, typename = void>
+ struct work_result
++{
++};
++
++template <typename Function>
++struct work_result<Function, void_t<result_of_t<decay_t<Function>()>>>
+ {
+   typedef decay_t<result_of_t<decay_t<Function>()>> type;
+ };

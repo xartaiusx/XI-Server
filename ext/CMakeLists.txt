@@ -228,11 +228,19 @@ if(pcg-cpp_ADDED) # pcg-cpp does not include cmake
     target_include_directories(pcg-cpp SYSTEM INTERFACE ${pcg-cpp_SOURCE_DIR}/include/)
 endif()
 
+# Backport only https://github.com/chriskohlhoff/asio/commit/f71a59e0673c4c4b3c936225ac36baabb3ba8db7.
+# Keep ASIO 1.38.0 and preserve its unpatched cache in a separate, content-hashed entry.
+set(asio_revision 03cf5f86a780dd102f1cdd3a59d1244d12143e46)
+set(asio_work_result_patch "${CMAKE_SOURCE_DIR}/cmake/patches/asio-work-result-sfinae.patch")
+file(SHA256 "${asio_work_result_patch}" asio_patch_hash)
+string(SHA256 asio_cache_key "${asio_revision}:${asio_patch_hash}")
 CPMAddPackage(
     NAME asio
     VERSION 1.38.0
     GITHUB_REPOSITORY chriskohlhoff/asio
-    GIT_TAG asio-1-38-0 # asio uses non-standard version tag, we must specify GIT_TAG
+    GIT_TAG ${asio_revision}
+    CUSTOM_CACHE_KEY ${asio_cache_key}
+    PATCHES "${asio_work_result_patch}"
 ) #defines asio
 
 # ASIO doesn't use CMake, we have to configure it manually. Extra notes for using on Windows:
