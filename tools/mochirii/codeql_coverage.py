@@ -179,6 +179,7 @@ def analyze_sarif(
     diagnostics, findings = [], Counter()
     grouped_compiler_errors = 0
     compiler_error_totals = []
+    failed_extractor_notifications = 0
     windows_api_counts = []
     tool_versions = set()
     for run in data["runs"]:
@@ -236,11 +237,39 @@ def analyze_sarif(
                 }:
                     extracted.update(location_paths(note, artifacts))
                 else:
+                    message = note.get("message", {}).get("text", "")
+                    if not isinstance(message, str):
+                        raise ValueError("Invalid diagnostic message")
+                    # Detect native extractor failure before display truncation,
+                    # even if no CompilerError row survived the aborted parse.
+                    if language == "cpp" and identifier in (
+                        "cpp/diagnostics/failed-extractor-invocations",
+                        "c/diagnostics/failed-extractor-invocations",
+                    ):
+                        failed_extractor_notifications += 1
+                    elif language == "cpp" and identifier in (
+                        "cpp/diagnostics/extraction-warnings",
+                        "c/diagnostics/extraction-warnings",
+                    ):
+                        if (
+                            "internal error: assertion failed at:" in message.lower()
+                            or (
+                                any(
+                                    int(match[1]) != 0
+                                    for match in re.finditer(
+                                        r"Extractor exiting with code ([+-]?\d+)",
+                                        message,
+                                        re.IGNORECASE,
+                                    )
+                                )
+                            )
+                        ):
+                            failed_extractor_notifications += 1
                     diagnostics.append(
                         {
                             "id": identifier,
                             "level": level,
-                            "message": note.get("message", {}).get("text", "")[:4096],
+                            "message": message[:4096],
                         }
                     )
         for metric in run.get("properties", {}).get("metricResults", []):
@@ -313,6 +342,7 @@ def analyze_sarif(
     if (required_paths or require_windows_security) and (
         grouped_compiler_errors
         or compiler_error_totals != [0]
+        or failed_extractor_notifications
         or any(item["level"] == "error" for item in diagnostics)
     ):
         failures.append("Traced extraction has compiler errors or error diagnostics")
@@ -339,6 +369,7 @@ def analyze_sarif(
             for path in sorted(expected | extracted)
         ],
         "compiler_error_groups_sum": grouped_compiler_errors,
+        "failed_extractor_notifications": failed_extractor_notifications,
         "compiler_errors": (
             compiler_error_totals[0] if len(compiler_error_totals) == 1 else None
         ),

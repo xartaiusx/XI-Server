@@ -5,6 +5,16 @@ an empty API `warning`, or zero rated high findings does not prove complete sour
 analysis or absence of unrated quality findings. No alert is suppressed by this
 coverage policy.
 
+For both compiler-traced acceptance lanes, a failed-extractor invocation is a
+failure regardless of its notification level. The native numeric compiler/fatal
+metric and all existing error diagnostics remain mandatory. Known native
+extractor assertion and nonzero-exit messages in extraction warnings are checked
+before the report's display truncation; ordinary discretionary warnings remain
+visible without being reclassified. A database-create exit of zero, or even a
+zero diagnostic metric, is not proof that a crashed extractor produced an AST.
+Required source and API coverage must also pass. This is a fail-closed supplement,
+not a claim to recognize every possible future extractor failure message.
+
 ## Preserved analysis contracts
 
 - Keep `security-extended` and `security-and-quality`, the existing `ext/**` and

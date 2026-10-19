@@ -191,6 +191,88 @@ class NativeCodeQLCoverageTests(unittest.TestCase):
         self.assertEqual(report["diagnostics"][0]["level"], "warning")
         self.assertIn("Discretionary", report["diagnostics"][0]["message"])
 
+    def test_failed_extractor_notifications_block_both_manual_lanes(self) -> None:
+        for factory, evaluate in ((sarif, analyze), (windows_sarif, analyze_windows)):
+            for prefix in ("cpp", "c"):
+                for level in ("none", "note", "warning", "error"):
+                    for indexed in (False, True):
+                        with self.subTest(
+                            lane=evaluate.__name__,
+                            prefix=prefix,
+                            level=level,
+                            indexed=indexed,
+                        ):
+                            data = factory()
+                            run = data["runs"][0]
+                            identifier = (
+                                f"{prefix}/diagnostics/failed-extractor-invocations"
+                            )
+                            descriptor = {"id": identifier}
+                            if indexed:
+                                run["tool"]["driver"]["notifications"] = [
+                                    {"id": identifier}
+                                ]
+                                descriptor = {"index": 0}
+                            run["invocations"][0]["toolExecutionNotifications"].append(
+                                {"descriptor": descriptor, "level": level}
+                            )
+                            report = evaluate(data)
+                            self.assertEqual(report["compiler_errors"], 0)
+                            self.assertEqual(report["gate"], "failed")
+
+    def test_native_extractor_failure_text_cannot_hide_in_truncated_warnings(
+        self,
+    ) -> None:
+        messages = (
+            ("Internal error: assertion failed at: declarator.c:3182", True),
+            ("INTERNAL ERROR: ASSERTION FAILED AT: declarator.c:3182", True),
+            ("Extractor exiting with code 4", True),
+            ("Extractor exiting with code -1", True),
+            ("Extractor exiting with code 0\nExtractor exiting with code +4", True),
+            ("x" * 4096 + "Extractor exiting with code 4", True),
+            (
+                "x" * 4096 + "Internal error: assertion failed at: declarator.c:3182",
+                True,
+            ),
+            ("Extractor exiting with code 0", False),
+            ("Discretionary diagnostic remains reviewable", False),
+            ("Ordinary compiler warning about an assertion helper", False),
+        )
+        for factory, evaluate in ((sarif, analyze), (windows_sarif, analyze_windows)):
+            for prefix in ("cpp", "c"):
+                for message_index, (message, failed) in enumerate(messages):
+                    for indexed in (False, True):
+                        with self.subTest(
+                            lane=evaluate.__name__,
+                            prefix=prefix,
+                            message_index=message_index,
+                            indexed=indexed,
+                        ):
+                            data = factory()
+                            run = data["runs"][0]
+                            identifier = f"{prefix}/diagnostics/extraction-warnings"
+                            descriptor = {"id": identifier}
+                            if indexed:
+                                run["tool"]["driver"]["notifications"] = [
+                                    {"id": identifier}
+                                ]
+                                descriptor = {"index": 0}
+                            run["invocations"][0]["toolExecutionNotifications"].append(
+                                {
+                                    "descriptor": descriptor,
+                                    "level": "warning",
+                                    "message": {"text": message},
+                                }
+                            )
+                            report = evaluate(data)
+                            self.assertEqual(report["compiler_errors"], 0)
+                            self.assertEqual(
+                                report["gate"], "failed" if failed else "passed"
+                            )
+                            self.assertEqual(
+                                report["failed_extractor_notifications"], int(failed)
+                            )
+
     def test_windows_requires_positive_native_api_metric_not_header_presence(
         self,
     ) -> None:
