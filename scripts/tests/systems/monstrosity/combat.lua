@@ -8,6 +8,7 @@ describe('Monstrosity combat', function()
     local mob
     local previousNoMove
     local previousUnkillable
+    local previousLizardKiller
 
     -- Melee for a fixed span against a target that never fights back or dies.
     -- The harness swings at three quarters of the real delay.
@@ -18,6 +19,12 @@ describe('Monstrosity combat', function()
         mob:respawn()
         previousNoMove     = mob:getMobMod(xi.mobMod.NO_MOVE)
         previousUnkillable = mob:getUnkillable()
+
+        -- Beasts naturally intimidate Lizards; this fixture measures melee, not Killer effects.
+        previousLizardKiller = mob:getMod(xi.mod.LIZARD_KILLER)
+        mob:setMod(xi.mod.LIZARD_KILLER, 0)
+        assert(mob:getMod(xi.mod.LIZARD_KILLER) == 0, 'cadence dummy retains Lizard Killer')
+
         mob:setMobMod(xi.mobMod.NO_MOVE, 1)
         -- Respawn starts a roam path; cancel it before advancing the zone.
         mob:clearPath()
@@ -27,6 +34,8 @@ describe('Monstrosity combat', function()
         player.entities:moveTo(mob:getID())
         player:setTP(0)
         player.packets:clear()
+        assert(not player:hasStatusEffect(xi.effect.DOUBT), 'cadence player has Doubt')
+        assert(not player:hasStatusEffect(xi.effect.INTIMIDATE), 'cadence player has Intimidate')
         player.actions:engage(mob)
 
         for _ = 1, seconds do
@@ -61,6 +70,8 @@ describe('Monstrosity combat', function()
         previousNoMove     = nil
         previousUnkillable = nil
 
+        previousLizardKiller = nil
+
         player = helpers.spawnMonipulator(xi.zone.WEST_RONFAURE)
     end)
 
@@ -69,6 +80,10 @@ describe('Monstrosity combat', function()
             -- Controller toggles survive respawn, so restore the ordinary dummy behavior.
             mob:setAutoAttackEnabled(true)
             mob:setMobAbilityEnabled(true)
+            if previousLizardKiller ~= nil then
+                mob:setMod(xi.mod.LIZARD_KILLER, previousLizardKiller)
+            end
+
             if previousUnkillable ~= nil then
                 mob:setUnkillable(previousUnkillable)
             end
