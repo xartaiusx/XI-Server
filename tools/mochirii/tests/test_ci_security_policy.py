@@ -450,7 +450,8 @@ class CodeScanningCoverageTests(TestCase):
             for flag in invalid_reporting
         )
         with TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            # Hosted Windows TEMP can use an 8.3 alias. Match source.resolve().
+            root = Path(temporary).resolve()
             build = root / "build"
             compiler_context = build / "CMakeFiles/3.31.6"
             compiler_context.mkdir(parents=True)
