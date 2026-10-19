@@ -107,9 +107,11 @@ class CodeScanningCoverageTests(TestCase):
             "-DCACHE_BINARY:FILEPATH=",
             "-DCMAKE_CXX_COMPILER_LAUNCHER:STRING=",
             "-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded",
-            '-DCMAKE_C_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang-cl.exe"',
-            '-DCMAKE_CXX_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang-cl.exe"',
-            '-DCMAKE_PROJECT_server_INCLUDE:FILEPATH="$RUNNER_TEMP/mochirii-codeql-cxx23.cmake"',
+            '-DCMAKE_C_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang.exe"',
+            '-DCMAKE_CXX_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang++.exe"',
+            "-DCMAKE_C_COMPILER_TARGET:STRING=x86_64-pc-windows-msvc",
+            "-DCMAKE_CXX_COMPILER_TARGET:STRING=x86_64-pc-windows-msvc",
+            "-DWARNINGS_AS_ERRORS=ON",
         ):
             self.assertIn(flag, configure)
         self.assertNotIn("cmake --build", configure)
@@ -188,7 +190,9 @@ class CodeScanningCoverageTests(TestCase):
             ({"WindowsSDKVersion": "10.0.22621.0\\"}, output, True, False),
             ({"WindowsSDKVersion": ""}, output, True, False),
             ({}, output.replace("20.1.8", "21.1.0"), True, False),
+            ({}, [output, output.replace("20.1.8", "21.1.0")], True, False),
             ({}, output.replace("x86_64", "aarch64"), True, False),
+            ({}, [output, output.replace("windows-msvc", "windows-gnu")], True, False),
             ({}, output + "x" * 32768, True, False),
         )
         for changed, version, exists, accepted in cases:
@@ -199,7 +203,13 @@ class CodeScanningCoverageTests(TestCase):
             ), mock.patch(
                 "pathlib.Path.is_file", return_value=exists
             ), mock.patch(
-                "subprocess.run", return_value=mock.Mock(stdout=version, stderr="")
+                "subprocess.run",
+                return_value=mock.Mock(stdout=version, stderr=""),
+                side_effect=(
+                    [mock.Mock(stdout=item, stderr="") for item in version]
+                    if isinstance(version, list)
+                    else None
+                ),
             ) as run, redirect_stdout(
                 io.StringIO()
             ):
@@ -207,6 +217,19 @@ class CodeScanningCoverageTests(TestCase):
                     exec(compile(script, "<toolchain-preflight>", "exec"), {})
                     self.assertEqual(run.call_args.kwargs["timeout"], 15)
                     self.assertTrue(run.call_args.kwargs["check"])
+                    self.assertEqual(
+                        [call.args[0] for call in run.call_args_list],
+                        [
+                            [
+                                str(Path("C:/Program Files/LLVM/bin/clang.exe")),
+                                "--version",
+                            ],
+                            [
+                                str(Path("C:/Program Files/LLVM/bin/clang++.exe")),
+                                "--version",
+                            ],
+                        ],
+                    )
                 else:
                     with self.assertRaises(SystemExit):
                         exec(compile(script, "<toolchain-preflight>", "exec"), {})
@@ -214,31 +237,41 @@ class CodeScanningCoverageTests(TestCase):
     def test_windows_cmake_context_rejects_wrong_compiler_or_standard(self) -> None:
         script = self._inline_script("Verify Windows security CMake context")
         values = {
-            "COMPILER": "C:/Program Files/LLVM/bin/clang-cl.exe",
             "COMPILER_ID": "Clang",
             "COMPILER_VERSION": "20.1.8",
-            "COMPILER_FRONTEND_VARIANT": "MSVC",
+            "COMPILER_FRONTEND_VARIANT": "GNU",
+            "SIMULATE_ID": "MSVC",
         }
+        target = "x86_64-pc-windows-msvc"
+        native = [f"--target={target}", "-Werror", "-std=c++23"]
         cases = (
-            ({}, ["/std:c++23preview"], "src", True),
+            ({}, native, "src", True),
             (
                 {"COMPILER": "C:/other/clang-cl.exe"},
-                ["/std:c++23preview"],
+                native,
                 "src",
                 False,
             ),
-            ({"COMPILER_ID": "MSVC"}, ["/std:c++23preview"], "src", False),
-            ({"COMPILER_VERSION": "21.1.0"}, ["/std:c++23preview"], "src", False),
-            ({"COMPILER_FRONTEND_VARIANT": "GNU"}, ["/std:c++23preview"], "src", False),
-            ({}, ["-clang:-std=c++23"], "src", False),
-            ({}, ["-std:c++latest"], "src", False),
-            ({}, ["/std:c++latest"], "src", False),
-            ({}, ["-clang:-std=c++26"], "src", False),
+            ({"COMPILER_ID": "MSVC"}, native, "src", False),
+            ({"COMPILER_VERSION": "21.1.0"}, native, "src", False),
+            ({"COMPILER_FRONTEND_VARIANT": "MSVC"}, native, "src", False),
+            ({"SIMULATE_ID": ""}, native, "src", False),
+            ({"SIMULATE_ID": "GNU"}, native, "src", False),
+            ({"TARGET": "x86_64-w64-windows-gnu"}, native, "src", False),
+            ({"TARGET": None}, native, "src", False),
+            ({}, native[:-1] + ["/std:c++23preview"], "src", False),
+            ({}, native[:-1] + ["-clang:-std=c++23"], "src", False),
+            ({}, native[:-1] + ["-std:c++latest"], "src", False),
+            ({}, native[:-1] + ["-std=c++26"], "src", False),
             ({}, [], "src", False),
-            ({}, ["/std:c++23preview", "-clang:-std=c++23"], "src", False),
-            ({}, ["/std:c++23preview", "/std:c++latest"], "src", False),
-            ({}, ["/std:c++23preview", "/std:c++23preview"], "src", False),
-            ({}, ["/std:c++23preview"], "ext", False),
+            ({}, native + ["-clang:-std=c++23"], "src", False),
+            ({}, native + ["-std=c++23"], "src", False),
+            ({}, native + ["--target=x86_64-w64-windows-gnu"], "src", False),
+            ({}, native[1:], "src", False),
+            ({}, [native[0], native[2]], "src", False),
+            ({}, native + ["-Wno-error"], "src", False),
+            ({}, native + ["-Wno-error=unused-variable"], "src", False),
+            ({}, native, "ext", False),
         )
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -248,20 +281,36 @@ class CodeScanningCoverageTests(TestCase):
             for changed, standards, folder, accepted in cases:
                 with self.subTest(changed=changed, standards=standards, folder=folder):
                     for language in ("C", "CXX"):
+                        compiler = (
+                            "C:/Program Files/LLVM/bin/clang.exe"
+                            if language == "C"
+                            else "C:/Program Files/LLVM/bin/clang++.exe"
+                        )
                         (
                             compiler_context / f"CMake{language}Compiler.cmake"
                         ).write_text(
                             "\n".join(
                                 f'set(CMAKE_{language}_{key} "{value}")'
-                                for key, value in (values | changed).items()
+                                for key, value in (
+                                    {"COMPILER": compiler} | values | changed
+                                ).items()
+                                if key != "TARGET"
                             )
                         )
+                    (build / "CMakeCache.txt").write_text(
+                        "\n".join(
+                            f"CMAKE_{language}_COMPILER_TARGET:STRING={changed.get('TARGET', target)}"
+                            for language in ("C", "CXX")
+                            if changed.get("TARGET", target) is not None
+                        )
+                        + "\n"
+                    )
                     (build / "compile_commands.json").write_text(
                         json.dumps(
                             [
                                 {
                                     "file": str(root / folder / "sample.cpp"),
-                                    "command": "clang-cl.exe " + " ".join(standards),
+                                    "command": "clang++.exe " + " ".join(standards),
                                 }
                             ]
                         )
@@ -277,13 +326,13 @@ class CodeScanningCoverageTests(TestCase):
                             self.assertEqual(
                                 arguments[:-1],
                                 [
-                                    "C:/Program Files/LLVM/bin/clang-cl.exe",
-                                    "/nologo",
-                                    "/Zs",
-                                    "/WX",
-                                    "/W4",
-                                    "/EHsc",
-                                    "/std:c++23preview",
+                                    "C:/Program Files/LLVM/bin/clang++.exe",
+                                    "--target=x86_64-pc-windows-msvc",
+                                    "-std=c++23",
+                                    "-fsyntax-only",
+                                    "-Werror",
+                                    "-Wall",
+                                    "-Wextra",
                                     "--",
                                 ],
                             )
@@ -309,8 +358,13 @@ class CodeScanningCoverageTests(TestCase):
             ):
                 exec(compile(script, "<cmake-context>", "exec"), {})
 
-    def test_windows_cxx23_override_is_narrow_and_preserves_the_language(self) -> None:
-        script = self._inline_script("Configure Windows security extraction context")
+    def test_windows_gnu_frontend_keeps_native_cxx23_without_overrides(self) -> None:
+        steps = self.workflow["jobs"]["analyze"]["steps"]
+        configure = next(
+            step["run"]
+            for step in steps
+            if step.get("name") == "Configure Windows security extraction context"
+        )
         context = self._inline_script("Verify Windows security CMake context")
         for proof in (
             "__cplusplus == 202302L",
@@ -322,44 +376,39 @@ class CodeScanningCoverageTests(TestCase):
             "std::string_view",
         ):
             self.assertIn(proof, context)
-        values = {
-            "WIN32": "TRUE",
-            "CMAKE_CXX_COMPILER_ID": "Clang",
-            "CMAKE_CXX_COMPILER_VERSION": "20.1.8",
-            "CMAKE_CXX_COMPILER_FRONTEND_VARIANT": "MSVC",
-            "CMAKE_CXX23_STANDARD_COMPILE_OPTION": "-clang:-std=c++23",
-            "CMAKE_CXX23_EXTENSION_COMPILE_OPTION": "-clang:-std=c++23",
-        }
-        cases = (
-            ({}, True),
-            ({"WIN32": "FALSE"}, False),
-            ({"CMAKE_CXX_COMPILER_ID": "MSVC"}, False),
-            ({"CMAKE_CXX_COMPILER_VERSION": "21.1.0"}, False),
-            ({"CMAKE_CXX_COMPILER_FRONTEND_VARIANT": "GNU"}, False),
-            ({"CMAKE_CXX23_STANDARD_COMPILE_OPTION": "/std:c++latest"}, False),
-            ({"CMAKE_CXX23_EXTENSION_COMPILE_OPTION": "-std=c++26"}, False),
-            ({"CMAKE_CXX23_STANDARD_COMPILE_OPTION": ""}, False),
+        self.assertNotIn("CMAKE_PROJECT_", configure)
+        self.assertNotIn("COMPILE_OPTION", configure)
+        self.assertNotIn("clang-cl", configure)
+        self.assertNotIn("/std:", configure)
+        warnings = (self.repo / "cmake/CompilerWarnings.cmake").read_text()
+        self.assertIn('set(ERRORS "-Werror")', warnings)
+        self.assertIn('set(ERRORS "/WX")', warnings)
+
+    def test_windows_system_libraries_follow_platform_not_driver(self) -> None:
+        settings = (self.repo / "cmake/StandardProjectSettings.cmake").read_text()
+        block = re.search(
+            r"if\(WIN32\)\s+link_libraries\((.*?)\)\s+endif\(\)",
+            settings,
+            re.DOTALL,
         )
+        self.assertIsNotNone(block)
+        libraries = "ws2_32;dbghelp;winmm;shlwapi;shell32;user32"
         with TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            with mock.patch.dict("os.environ", {"RUNNER_TEMP": temporary}):
-                exec(compile(script, "<cmake-override>", "exec"), {})
-            override = root / "mochirii-codeql-cxx23.cmake"
-            for changed, accepted in cases:
-                with self.subTest(changed=changed):
-                    probe = root / "verify.cmake"
+            probe = Path(temporary) / "platform.cmake"
+            for windows, msvc, expected in (
+                ("TRUE", "TRUE", libraries),
+                ("TRUE", "FALSE", libraries),
+                ("FALSE", "FALSE", ""),
+            ):
+                with self.subTest(windows=windows, msvc=msvc):
                     probe.write_text(
-                        "\n".join(
-                            f'set({key} "{value}")'
-                            for key, value in (values | changed).items()
-                        )
-                        + f'\ninclude("{override.as_posix()}")\n'
-                        + """foreach(kind STANDARD EXTENSION)
-                        if(NOT CMAKE_CXX23_${kind}_COMPILE_OPTION STREQUAL "/std:c++23preview")
-                            message(FATAL_ERROR "C++23 option was not replaced exactly")
-                        endif()
-                        endforeach()
-                        """
+                        f"set(WIN32 {windows})\nset(MSVC {msvc})\n"
+                        "set(actual)\nmacro(link_libraries)\n"
+                        'set(actual "${ARGV}")\nendmacro()\n'
+                        + block[0]
+                        + f'\nif(NOT "${{actual}}" STREQUAL "{expected}")\n'
+                        'message(FATAL_ERROR "Unexpected platform libraries")\n'
+                        "endif()\n"
                     )
                     result = subprocess.run(
                         ["cmake", "-P", str(probe)],
@@ -368,7 +417,7 @@ class CodeScanningCoverageTests(TestCase):
                         timeout=30,
                         check=False,
                     )
-                    self.assertEqual(result.returncode == 0, accepted, result.stderr)
+                    self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_vendor_flags_are_real_msvc_only_without_warning_weakening(self) -> None:
         settings = (self.repo / "cmake/StandardProjectSettings.cmake").read_text()

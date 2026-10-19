@@ -23,28 +23,35 @@ coverage policy.
   PCH/IPO/compiler cache, and the existing custom/era/example modules plus the
   optional packet-capture source. That module is enabled **only in ephemeral CI**;
   this workflow never starts a server or enables live packet capture.
-- A fifth, separately named Windows2022/clang-cl20.1.8 manual category traces only
+- A fifth, separately named Windows2022/Clang20.1.8 manual category traces only
   `xi_connect` and `xi_profile` plus their common dependencies. The pinned setup
   action selects the explicit VS2022 Enterprise path, MSVC14.44 library/toolset
   and Windows SDK10.0.26100.0
   environment; a bounded native preflight rejects missing/wrong compilers,
   developer environments, toolsets or x64 targets without fallback. Both C/C++
-  compiler paths are explicit. Before any native build/tracing, the generated
-  CMake compiler contexts must prove Clang20.1.8/MSVC frontend/exact paths and
+  compiler paths are explicit: native Windows `clang.exe` and `clang++.exe`,
+  with `x86_64-pc-windows-msvc` targets for both languages, not MinGW. Before any
+  first-party native build/tracing, the generated CMake compiler contexts must
+  prove Clang20.1.8/GNU frontend/MSVC simulation/exact paths and cached targets;
   every first-party C++ compilation command must use exactly
-  `/std:c++23preview`, never `c++latest`/C++26 or a conflicting forwarded flag.
-  A CI-only named-project include replaces CMake3.31.6's stock
-  `-clang:-std=c++23` standard/extension options after compiler detection,
-  rejecting an unexpected compiler or stock option. The normal project build
-  configuration is unchanged. LLVM20.1.8's [driver tests](https://github.com/llvm/llvm-project/blob/llvmorg-20.1.8/clang/test/Driver/cl-options.c#L555-L559)
-  prove that the native CL spelling selects C++23 while `c++latest` selects
-  C++26. Before initialization, a syntax-only native probe requires both
+  `-std=c++23`, one explicit MSVC-ABI target and warnings-as-errors, never
+  `c++latest`/C++26 or a conflicting CL/forwarded flag. CMake3.31.6's native
+  [Windows GNU-frontend/MSVC-ABI support](https://github.com/Kitware/CMake/blob/v3.31.6/Modules/Platform/Windows-Clang.cmake#L194-L215)
+  and [C++23 selection](https://github.com/Kitware/CMake/blob/v3.31.6/Modules/Compiler/Clang.cmake#L172-L180)
+  need no compiler-option override. The normal project build configuration is
+  unchanged. This lane uses the existing Clang warning profile (`-Wall`,
+  `-Wextra`, `-Werror`), not the MSVC `/W4` profile; no suppression is added.
+  The ordinary native MSVC Build lane retains its `/W4` and `/WX` checks.
+  Windows system-library linkage follows `WIN32`, not the driver's `MSVC`
+  syntax flag, so the GNU frontend retains the same timer/debug/network imports
+  as ordinary MSVC builds without overriding CMake's default libraries.
+  Before initialization, a syntax-only native GNU-driver probe requires both
   `__cplusplus` and `_MSVC_LANG` to equal 202302L, and checks `expected`,
   `optional`, `span`, `string_view` and a defaulted comparison. No production
   object from this probe is reused. This native proof does not establish
   extractor compatibility: only the unchanged raw coverage, zero compiler-error
   and eight-family API gates can accept the actual CodeQL result.
-  The normal native MSVC Build lane is unchanged. Generated-header steps and the
+  Generated-header steps and the
   fresh uncached/no-PCH Debug context remain. Existing four categories/check names and full
   query suites are unchanged. The shared local coverage pack is added to every
   C++ lane with the native `+` query input so it cannot replace configured
@@ -203,6 +210,15 @@ so fresh native zero-error/Windows8 proof is mandatory, not inferred from this
 toolchain change. The Glaze interface facade also retains upstream's three
 real-MSVC-only C++ conformance options; clang-cl never inherits those options.
 Only `/MP` is restricted to the real MSVC driver; warnings-as-errors are retained.
+
+Both later clang-cl20.1.8 spellings (`-clang:-std=c++23` and
+`/std:c++23preview`) passed native compilation but produced the same failed
+extraction: 12,127 compiler errors and zero of the eight private-file API
+families. The second also passed the native C++23 macro/library proof. These
+are retained diagnostic results, not acceptance; aggregate extractor language
+telemetry does not establish the mode of every translation unit. The GNU
+frontend candidate keeps the same compiler version, Windows ABI, SDK/toolset
+and exact C++23 mode while avoiding the CL-driver argument-translation path.
 
 The first supported-toolchain candidate passed native compiler/SDK preflight but
 failed CMake generation before CodeQL initialization: fmt12.2.0 auto-enabled its

@@ -99,10 +99,10 @@ jobs:
         import re
         import subprocess
 
-        compiler = Path("C:/Program Files/LLVM/bin/clang-cl.exe")
+        compilers = {language: Path(f"C:/Program Files/LLVM/bin/{name}.exe") for language, name in {"C": "clang", "CXX": "clang++"}.items()}
         visual_studio = "C:/Program Files/Microsoft Visual Studio/2022/Enterprise"
-        if not compiler.is_file():
-            raise SystemExit("Required clang-cl executable is missing")
+        if not all(compiler.is_file() for compiler in compilers.values()):
+            raise SystemExit("Required native Clang executables are missing")
         if ntpath.normcase(ntpath.normpath(os.environ.get("VSINSTALLDIR", ""))) != ntpath.normcase(ntpath.normpath(visual_studio)):
             raise SystemExit("Unexpected Visual Studio developer environment")
         toolset = os.environ.get("VCToolsVersion", "").rstrip("/\\")
@@ -111,14 +111,15 @@ jobs:
         sdk = os.environ.get("WindowsSDKVersion", "").rstrip("/\\")
         if sdk != "10.0.26100.0":
             raise SystemExit("Required Windows SDK10.0.26100.0 is not selected")
-        version = subprocess.run([str(compiler), "--version"], check=True, capture_output=True, text=True, timeout=15)
-        if len(version.stdout) + len(version.stderr) > 32768:
-            raise SystemExit("Compiler version output exceeds its bound")
-        if not re.search(r"clang version 20\.1\.8(?:\s|$)", version.stdout):
-            raise SystemExit("Required clang-cl20.1.8 is not selected")
-        if not re.search(r"^Target: x86_64-pc-windows-msvc(?:[0-9.]+)?$", version.stdout, re.MULTILINE):
-            raise SystemExit("Required Windows x64 compiler target is not selected")
-        print(json.dumps({"compiler": str(compiler), "version": "20.1.8", "target": "x86_64-pc-windows-msvc", "visual_studio": visual_studio, "toolset": toolset, "windows_sdk": sdk, "image": os.environ.get("ImageOS"), "image_version": os.environ.get("ImageVersion")}))
+        for compiler in compilers.values():
+            version = subprocess.run([str(compiler), "--version"], check=True, capture_output=True, text=True, timeout=15)
+            if len(version.stdout) + len(version.stderr) > 32768:
+                raise SystemExit("Compiler version output exceeds its bound")
+            if not re.search(r"clang version 20\.1\.8(?:\s|$)", version.stdout):
+                raise SystemExit("Required Clang20.1.8 is not selected")
+            if not re.search(r"^Target: x86_64-pc-windows-msvc(?:[0-9.]+)?$", version.stdout, re.MULTILINE):
+                raise SystemExit("Required Windows x64 compiler target is not selected")
+        print(json.dumps({"compilers": {language: str(compiler) for language, compiler in compilers.items()}, "version": "20.1.8", "target": "x86_64-pc-windows-msvc", "visual_studio": visual_studio, "toolset": toolset, "windows_sdk": sdk, "image": os.environ.get("ImageOS"), "image_version": os.environ.get("ImageVersion")}))
         PY
 
     - name: Install Windows codegen dependencies
@@ -144,31 +145,14 @@ jobs:
     - name: Configure Windows security extraction context
       if: matrix.windows_security
       run: |
-        # Use the native CL spelling without changing the C++23 language mode.
-        python - <<'PY'
-        import os
-        from pathlib import Path
-
-        override = Path(os.environ["RUNNER_TEMP"]) / "mochirii-codeql-cxx23.cmake"
-        with override.open("x", encoding="utf-8", newline="\n") as output:
-            output.write('''if(NOT WIN32 OR NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
-            OR NOT CMAKE_CXX_COMPILER_VERSION STREQUAL "20.1.8"
-            OR NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-            message(FATAL_ERROR "Unexpected Windows security compiler context")
-        endif()
-        foreach(kind STANDARD EXTENSION)
-            if(NOT CMAKE_CXX23_${kind}_COMPILE_OPTION STREQUAL "-clang:-std=c++23")
-                message(FATAL_ERROR "Unexpected stock C++23 compiler option")
-            endif()
-            set(CMAKE_CXX23_${kind}_COMPILE_OPTION "/std:c++23preview")
-        endforeach()
-        ''')
-        PY
+        # Native GNU frontend, MSVC ABI and exact C++23; no CL option translation.
         cmake -G Ninja -S . -B build --fresh \
-          -DCMAKE_C_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang-cl.exe" \
-          -DCMAKE_CXX_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang-cl.exe" \
-          -DCMAKE_PROJECT_server_INCLUDE:FILEPATH="$RUNNER_TEMP/mochirii-codeql-cxx23.cmake" \
+          -DCMAKE_C_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang.exe" \
+          -DCMAKE_CXX_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang++.exe" \
+          -DCMAKE_C_COMPILER_TARGET:STRING=x86_64-pc-windows-msvc \
+          -DCMAKE_CXX_COMPILER_TARGET:STRING=x86_64-pc-windows-msvc \
           -DCMAKE_BUILD_TYPE=Debug -DPCH_ENABLE=OFF -DENABLE_IPO=OFF \
+          -DWARNINGS_AS_ERRORS=ON \
           -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded \
           -DCACHE_BINARY:FILEPATH= \
           -DCMAKE_C_COMPILER_LAUNCHER:STRING= \
@@ -188,16 +172,23 @@ jobs:
 
         root = Path.cwd()
         build = root / "build"
-        expected_compiler = ntpath.normcase("C:\\Program Files\\LLVM\\bin\\clang-cl.exe")
+        target = "x86_64-pc-windows-msvc"
+        compilers = {language: f"C:/Program Files/LLVM/bin/{name}.exe" for language, name in {"C": "clang", "CXX": "clang++"}.items()}
+        cache_file = build / "CMakeCache.txt"
+        if not 0 < cache_file.stat().st_size <= 1048576:
+            raise SystemExit("Native CMake cache exceeds its bound")
+        cache = cache_file.read_text()
         for language in ("C", "CXX"):
             files = list((build / "CMakeFiles").glob(f"*/CMake{language}Compiler.cmake"))
             if len(files) != 1:
                 raise SystemExit("Missing or ambiguous native CMake compiler context")
-            values = dict(re.findall(rf'^set\(CMAKE_{language}_(COMPILER|COMPILER_ID|COMPILER_VERSION|COMPILER_FRONTEND_VARIANT) "([^"\n]*)"\)$', files[0].read_text(), re.MULTILINE))
-            if ntpath.normcase(ntpath.normpath(values.get("COMPILER", ""))) != expected_compiler:
+            values = dict(re.findall(rf'^set\(CMAKE_{language}_(COMPILER|COMPILER_ID|COMPILER_VERSION|COMPILER_FRONTEND_VARIANT|SIMULATE_ID) "([^"\n]*)"\)$', files[0].read_text(), re.MULTILINE))
+            if ntpath.normcase(ntpath.normpath(values.get("COMPILER", ""))) != ntpath.normcase(ntpath.normpath(compilers[language])):
                 raise SystemExit("CMake selected an unexpected compiler path")
-            if any(values.get(key) != value for key, value in {"COMPILER_ID": "Clang", "COMPILER_VERSION": "20.1.8", "COMPILER_FRONTEND_VARIANT": "MSVC"}.items()):
+            if any(values.get(key) != value for key, value in {"COMPILER_ID": "Clang", "COMPILER_VERSION": "20.1.8", "COMPILER_FRONTEND_VARIANT": "GNU", "SIMULATE_ID": "MSVC"}.items()):
                 raise SystemExit("CMake selected an unexpected compiler identity")
+            if re.findall(rf"^CMAKE_{language}_COMPILER_TARGET:STRING=(.*)$", cache, re.MULTILINE) != [target]:
+                raise SystemExit("CMake selected an unexpected compiler target")
         commands_file = build / "compile_commands.json"
         if not 0 < commands_file.stat().st_size <= 16777216:
             raise SystemExit("Native compilation database exceeds its bound")
@@ -213,9 +204,14 @@ jobs:
                 continue
             if relative.parts[0] not in {"src", "modules"} or source.suffix not in {".cpp", ".cc", ".cxx", ".c++"}:
                 continue
-            standards = [arg for arg in shlex.split(entry["command"], posix=False) if re.match(r"[-/](?:clang:)?-?std[:=]", arg)]
-            if standards != ["/std:c++23preview"]:
+            arguments = shlex.split(entry["command"], posix=False)
+            standards = [arg for arg in arguments if re.match(r"[-/](?:clang:)?-?std[:=]", arg)]
+            if standards != ["-std=c++23"]:
                 raise SystemExit("First-party C++ compilation is not explicitly C++23")
+            if [arg for arg in arguments if arg.startswith(("--target=", "-target"))] != [f"--target={target}"]:
+                raise SystemExit("First-party C++ compilation is not explicitly Windows MSVC ABI")
+            if "-Werror" not in arguments or any(arg.startswith("-Wno-error") for arg in arguments):
+                raise SystemExit("First-party C++ compilation must retain warnings as errors")
             checked += 1
         if not checked:
             raise SystemExit("No first-party C++ compilation context was verified")
@@ -235,10 +231,10 @@ jobs:
         static_assert(std::span<const int>{}.empty());
         static_assert(std::string_view{"C++23"}.size() == 5);
         ''', encoding="utf-8")
-            result = subprocess.run(["C:/Program Files/LLVM/bin/clang-cl.exe", "/nologo", "/Zs", "/WX", "/W4", "/EHsc", "/std:c++23preview", "--", str(probe)], check=True, capture_output=True, text=True, timeout=30)
+            result = subprocess.run([compilers["CXX"], f"--target={target}", "-std=c++23", "-fsyntax-only", "-Werror", "-Wall", "-Wextra", "--", str(probe)], check=True, capture_output=True, text=True, timeout=30)
             if len(result.stdout) + len(result.stderr) > 32768:
                 raise SystemExit("Native C++23 proof output exceeds its bound")
-        print(json.dumps({"compiler_id": "Clang", "version": "20.1.8", "frontend": "MSVC", "standard_flag": "/std:c++23preview", "cplusplus": 202302, "msvc_lang": 202302, "first_party_commands": checked}))
+        print(json.dumps({"compiler_id": "Clang", "version": "20.1.8", "frontend": "GNU", "simulate_id": "MSVC", "target": target, "standard_flag": "-std=c++23", "cplusplus": 202302, "msvc_lang": 202302, "first_party_commands": checked}))
         PY
         cmake --build build --target enum_codegen --parallel 4
 

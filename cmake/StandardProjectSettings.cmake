@@ -64,6 +64,9 @@ if(MSVC)
         )
     endforeach()
 
+endif()
+
+if(WIN32)
     link_libraries(
         ws2_32
         dbghelp
