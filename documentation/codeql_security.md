@@ -37,6 +37,23 @@ coverage policy.
   standard option and the existing `/W4`, `/WX`, `/permissive-` policy, with
   `/Zc:__cplusplus` for truthful language macros. Reject conflicting standards,
   warning/conformance overrides and fabricated compiler or language predefines.
+  The global reporting enable is set once. Per-command inspection permits
+  repeated identical standalone enables because [spdlog1.17.0 adds its own](https://github.com/gabime/spdlog/blob/v1.17.0/CMakeLists.txt#L298-L300)
+  after [CMake's global flags](https://cmake.org/cmake/help/v3.31/variable/CMAKE_LANG_FLAGS.html).
+  Missing, disabling, malformed or grouped reporting options fail closed in
+  dependency commands as well as first-party commands. Actual Windows
+  [Windows argument decoding](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw)
+  uses typed System32-only bindings and exactly one `LocalFree`, not POSIX
+  tokenization. The supported CMake command grammar rejects
+  adjacent/unmatched quotes, controls, oversized UTF-16 input, response files and
+  `/link`; it is not a universal CRT-parser equivalence claim. Mandatory native
+  Windows regression cases compare adversarial tokens with real UCRT argv
+  delivery against the [CRT rules](https://learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments),
+  including escaped quotes and literal apostrophes. Compiler/reporting mismatches identify bounded
+  source/driver context without printing full commands or environments.
+  First-party conformance checks also reject a disabling `twoPhase-` member
+  inside [comma-separated `/Zc` options](https://learn.microsoft.com/en-us/cpp/build/reference/zc-conformance),
+  regardless of whether it precedes or follows the required conformance flags.
   This compiler-contract change was explicitly approved after the pinned
   Clang20.1.8 trace failed; it does not relax any extraction or security gate.
   The ordinary native MSVC build configuration remains unchanged.

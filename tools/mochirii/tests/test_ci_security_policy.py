@@ -6,10 +6,11 @@ import io
 import json
 import re
 import subprocess
+import sys
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest import TestCase, main, mock
+from unittest import TestCase, main, mock, skipUnless
 
 import yaml
 
@@ -88,6 +89,19 @@ class CodeScanningCoverageTests(TestCase):
         job = self.workflow["jobs"]["analyze"]
         steps = {step.get("name"): step for step in job["steps"]}
         self.assertEqual(job["defaults"]["run"]["shell"], "bash")
+        native_regressions = steps["Verify native Windows command-policy regressions"]
+        self.assertEqual(native_regressions["if"], "matrix.windows_security")
+        self.assertIn(
+            "result.testsRun != 2 or result.skipped", native_regressions["run"]
+        )
+        self.assertIn(
+            "test_native_windows_command_parser_contract", native_regressions["run"]
+        )
+        self.assertIn(
+            "test_windows_cmake_context_rejects_wrong_compiler_or_standard",
+            native_regressions["run"],
+        )
+        self.assertIn("pyyaml", steps["Install Windows codegen dependencies"]["run"])
         self.assertEqual(
             steps["Setup MSVC"]["uses"],
             "TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9",
@@ -259,6 +273,7 @@ class CodeScanningCoverageTests(TestCase):
                     with self.assertRaises(SystemExit):
                         exec(compile(script, "<toolchain-preflight>", "exec"), {})
 
+    @skipUnless(sys.platform == "win32", "Actual Windows command-line API contract")
     def test_windows_cmake_context_rejects_wrong_compiler_or_standard(self) -> None:
         script = self._inline_script("Verify Windows security CMake context")
         values = {
@@ -297,14 +312,25 @@ class CodeScanningCoverageTests(TestCase):
             ({}, native[1:], "src", False),
             ({}, [native[0], *native[2:]], "src", False),
             ({}, native + ["/WX-"], "src", False),
+            ({}, native + ['/W"X-"'], "src", False),
+            ({}, native + ['/per"missive"'], "src", False),
+            ({}, native + ['/st"d":c++20'], "src", False),
             ({}, native + ["/W0"], "src", False),
             ({}, native + ["/W3"], "src", False),
             ({}, ["/W2", *native], "src", False),
             ({}, ["/W3", "/W3", *native], "src", False),
             ({}, [arg for arg in native if arg != "/Zc:__cplusplus"], "src", False),
-            ({}, native + ["/Zc:__cplusplus"], "src", False),
+            ({}, native + ["/Zc:__cplusplus"], "src", True),
+            ({}, native + ["-Zc:__cplusplus"], "src", True),
+            ({}, native + ['"/Zc:__cplusplus"'], "src", True),
+            ({}, native + ['"/IC:/Program Files/Headers"'], "src", True),
+            ({}, native + ["/IC:/O'Connor/Headers"], "src", True),
             ({}, native + ["/Zc:__cplusplus-"], "src", False),
             ({}, native + ["/Zc:twoPhase-"], "src", False),
+            ({}, native + ["/Zc:preprocessor,twoPhase-"], "src", False),
+            ({}, native + ["/Zc:twoPhase-,preprocessor"], "src", False),
+            ({}, ["-Zc:preprocessor,twoPhase-", *native], "src", False),
+            ({}, native + ['"/Zc:preprocessor,"twoPhase-'], "src", False),
             ({}, native + ["/permissive"], "src", False),
             ({}, [arg for arg in native if arg != "/permissive-"], "src", False),
             ({}, native + ["/U__STDC__"], "src", False),
@@ -319,9 +345,109 @@ class CodeScanningCoverageTests(TestCase):
             ({}, native + ["-D__cpp_lib_expected=202202L"], "src", False),
             ({}, native + ["-D", "_MSC_VER=1944"], "src", False),
             ({"FLAGS": ""}, native, "src", False),
+            (
+                {"FLAGS": '/GR /EHsc /Zc:__cplusplus "/IC:/Program Files/Headers"'},
+                native,
+                "src",
+                True,
+            ),
+            (
+                {"FLAGS": "/GR /EHsc /Zc:__cplusplus /IC:/O'Connor/Headers"},
+                native,
+                "src",
+                True,
+            ),
+            (
+                {"FLAGS": "/Zc:__cplusplus /Zc:__cplusplus"},
+                native,
+                "src",
+                False,
+            ),
             ({"FLAGS": "/Zc:__cplusplus /D__cplusplus=202302L"}, native, "src", False),
             ({"DEPENDENCY": True}, native, "src", False),
+            (
+                {
+                    "DEPENDENCY": True,
+                    "DEPENDENCY_FLAGS": [
+                        "/Zc:__cplusplus",
+                        "/std:c++14",
+                        "/Zc:__cplusplus",
+                        '"/IC:/Program Files/Headers"',
+                        "/IC:/O'Connor/Headers",
+                    ],
+                },
+                native,
+                "src",
+                True,
+            ),
+            (
+                {
+                    "DEPENDENCY": True,
+                    "DEPENDENCY_COMPILER": "C:/other/cl.exe",
+                    "DEPENDENCY_FLAGS": ["/Zc:__cplusplus"],
+                },
+                native,
+                "src",
+                False,
+            ),
+            (
+                {
+                    "DEPENDENCY": True,
+                    "DEPENDENCY_FLAGS": ["/Zc:__cplusplus", "/D__cplusplus=202302L"],
+                },
+                native,
+                "src",
+                False,
+            ),
             ({}, native, "ext", False),
+        )
+        invalid_reporting = (
+            "/Zc:__cplusplus-",
+            "-Zc:__cplusplus-",
+            "/zc:__cplusplus-",
+            "-ZC:__cplusplus-",
+            "/zc:__cplusplus",
+            "/Zc:__CPLUSPLUS",
+            "/Zc:__cplusplus=1",
+            "/Zc:__cplusplus+",
+            "/Zc:preprocessor,__cplusplus-",
+            "/Zc:__cplusplus-,preprocessor",
+            "/Zc:preprocessor,__cplusplus",
+            '/Zc:__cplus"plus"-',
+            '/Z"c":__cplusplus-',
+            '/Zc:"__cplusplus-"',
+            '"/Zc:"__cplusplus-',
+            '"-Zc:"__cplusplus-',
+            '"/Z"c:__cplusplus-',
+            '"/"Zc:__cplusplus-',
+            '""/Zc:__cplusplus-',
+            '"/Zc:preprocessor,"__cplusplus-',
+            '"/Zc:pre"processor,__cplusplus-',
+            "/I 'a /Zc:__cplusplus- /I b'",
+            "/I 'a -Zc:__cplusplus- /I b'",
+            r'/I "a\" " /Zc:__cplusplus- /I "b"',
+            "@uninspected.rsp",
+            "/link /WX-",
+            '/D__cplus"plus"=202302L',
+        )
+        cases += tuple(
+            ({}, arguments, "src", False)
+            for flag in invalid_reporting
+            for arguments in ([flag, *native], [*native, flag])
+        )
+        cases += tuple(
+            (
+                {"DEPENDENCY": True, "DEPENDENCY_FLAGS": arguments},
+                native,
+                "src",
+                False,
+            )
+            for flag in invalid_reporting
+            for arguments in ([flag, "/Zc:__cplusplus"], ["/Zc:__cplusplus", flag])
+        )
+        cases += tuple(
+            ({"FLAGS": f"/Zc:__cplusplus {flag}"}, native, "src", False)
+            for flag in invalid_reporting
         )
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -347,7 +473,14 @@ class CodeScanningCoverageTests(TestCase):
                                     )
                                 ).items()
                                 if key
-                                not in {"TARGET", "FLAGS", "DEPENDENCY", "C_VERSION"}
+                                not in {
+                                    "TARGET",
+                                    "FLAGS",
+                                    "DEPENDENCY",
+                                    "DEPENDENCY_FLAGS",
+                                    "DEPENDENCY_COMPILER",
+                                    "C_VERSION",
+                                }
                             )
                             + (
                                 f'\nset(MSVC_{language}_ARCHITECTURE_ID {changed.get("TARGET", "x64")})'
@@ -370,7 +503,13 @@ class CodeScanningCoverageTests(TestCase):
                                 [
                                     {
                                         "file": str(build / "_deps/library.cpp"),
-                                        "command": f'"{compiler}" /std:c++23preview',
+                                        "command": f'"{changed.get("DEPENDENCY_COMPILER", compiler)}" '
+                                        + " ".join(
+                                            changed.get(
+                                                "DEPENDENCY_FLAGS",
+                                                ["/std:c++23preview"],
+                                            )
+                                        ),
                                     }
                                 ]
                                 if changed.get("DEPENDENCY")
@@ -602,6 +741,106 @@ class CodeScanningCoverageTests(TestCase):
             ):
                 exec(compile(script, "<cmake-context>", "exec"), {})
 
+    @skipUnless(sys.platform == "win32", "Actual Windows command-line API contract")
+    def test_native_windows_command_parser_contract(self) -> None:
+        import ctypes
+
+        tree = ast.parse(self._inline_script("Verify Windows security CMake context"))
+        bindings = {"shell32", "kernel32", "parse_argv", "free_argv"}
+        selected = []
+        for node in tree.body:
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                selected.append(node)
+            elif isinstance(node, ast.FunctionDef) and node.name == "command_tokens":
+                selected.append(node)
+            elif isinstance(node, ast.Assign):
+                target = node.targets[0]
+                if (
+                    isinstance(target, ast.Name)
+                    and target.id in bindings
+                    or isinstance(target, ast.Attribute)
+                    and isinstance(target.value, ast.Name)
+                    and target.value.id in bindings
+                ):
+                    selected.append(node)
+        scope = {}
+        exec(
+            compile(
+                ast.Module(body=selected, type_ignores=[]), "<native-parser>", "exec"
+            ),
+            scope,
+        )
+        parse = scope["command_tokens"]
+        vectors = (
+            "/Zc:__cplusplus /Zc:__cplusplus",
+            '/I "C:/Program Files/O\'Connor/Headers" /WX',
+            "/I 'a /Zc:__cplusplus- /I b'",
+            '"/Zc:"__cplusplus-',
+            r'/I "a\" " /Zc:__cplusplus- /I "b"',
+        )
+        for tail in vectors:
+            with self.subTest(tail=tail):
+                delivered = subprocess.run(
+                    f'"{sys.executable}" -c "import json,sys;print(json.dumps(sys.argv[1:]))" {tail}',
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                self.assertLessEqual(len(delivered.stdout), 4096)
+                self.assertEqual(
+                    parse("cl.exe " + tail)[1:], json.loads(delivered.stdout)
+                )
+                self.assertEqual(delivered.stderr, "")
+        for command in (
+            "",
+            "cl.exe\x00 /WX",
+            "cl.exe\n /WX",
+            'cl.exe "" /WX',
+            'cl.exe "unmatched',
+            "cl.exe " + "a" * 32767,
+            "cl.exe @hidden.rsp",
+            "cl.exe /link /WX",
+        ):
+            with self.subTest(command=command[:80]), self.assertRaises(SystemExit):
+                parse(command)
+        original_parse, original_free = scope["parse_argv"], scope["free_argv"]
+        observed_free = mock.Mock(wraps=original_free)
+        scope["free_argv"] = observed_free
+        self.assertEqual(parse("cl.exe /WX"), ["cl.exe", "/WX"])
+        observed_free.assert_called_once()
+        scope["free_argv"] = original_free
+        allocation = (ctypes.c_wchar_p * 1)("cl.exe")
+        for count, entry, free_result in (
+            (0, "cl.exe", None),
+            (32767, "cl.exe", None),
+            (1, None, None),
+            (1, "cl.exe", 1),
+        ):
+            allocation[0] = entry
+
+            def fake_parse(_command, out_count):
+                ctypes.cast(out_count, ctypes.POINTER(ctypes.c_int)).contents.value = (
+                    count
+                )
+                return allocation
+
+            free = mock.Mock(return_value=free_result)
+            scope["parse_argv"], scope["free_argv"] = fake_parse, free
+            with self.subTest(
+                count=count, entry=entry, free_result=free_result
+            ), self.assertRaises(SystemExit):
+                parse("cl.exe")
+            free.assert_called_once()
+        scope["parse_argv"], scope["free_argv"] = (
+            mock.Mock(return_value=None),
+            mock.Mock(),
+        )
+        with self.assertRaises(SystemExit):
+            parse("cl.exe")
+        scope["free_argv"].assert_not_called()
+        scope["parse_argv"], scope["free_argv"] = original_parse, original_free
+
     def test_windows_native_frontend_proves_exact_cxx23_and_abi(self) -> None:
         steps = self.workflow["jobs"]["analyze"]["steps"]
         configure = next(
@@ -622,6 +861,8 @@ class CodeScanningCoverageTests(TestCase):
             "#ifdef __STDC__",
             "static_assert(not false and true)",
             "static_assert(definition_lookup(0) == 1)",
+            "template <> struct tuple_size<Binding> {};",
+            "static_assert(sizeof(std::tuple_size<Binding>) > 0)",
             "static_assert(bind_aggregate() == 2386)",
             "operator==(const Comparison&) const = default",
             "std::expected<int, int>",
