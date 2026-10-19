@@ -9,6 +9,8 @@ from unittest.mock import patch
 from tools.mochirii.codeql_coverage import (
     COMPILER_ERRORS_METRIC,
     CPP_RECOVERY_PATHS,
+    WINDOWS_BCRYPT_METRIC,
+    WINDOWS_BCRYPT_SOURCES,
     WINDOWS_SECURITY_APIS,
     WINDOWS_SECURITY_METRIC,
     WINDOWS_SECURITY_PATHS,
@@ -91,6 +93,9 @@ def windows_sarif() -> dict:
             "cpp/diagnostics/successfully-extracted-files",
         )
     ]
+    run["properties"]["metricResults"].append(
+        {"ruleId": WINDOWS_BCRYPT_METRIC, "value": len(WINDOWS_BCRYPT_SOURCES)}
+    )
     run["properties"]["metricResults"].append(
         {
             "rule": {"id": WINDOWS_SECURITY_METRIC},
@@ -320,6 +325,34 @@ class NativeCodeQLCoverageTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 data = windows_sarif()
                 data["runs"][0]["properties"]["metricResults"][-1]["value"] = value
+                analyze_windows(data)
+
+    def test_windows_requires_every_traced_c_body_without_weakening_other_gates(
+        self,
+    ) -> None:
+        data = windows_sarif()
+        self.assertEqual(
+            analyze_windows(data)["windows_bcrypt_c"]["observed_source_body_counts"],
+            [4],
+        )
+        metrics = data["runs"][0]["properties"]["metricResults"]
+        metrics.pop(-2)
+        self.assertEqual(analyze_windows(data)["gate"], "failed")
+        for count in range(len(WINDOWS_BCRYPT_SOURCES)):
+            with self.subTest(count=count):
+                data = windows_sarif()
+                data["runs"][0]["properties"]["metricResults"][-2]["value"] = count
+                self.assertEqual(analyze_windows(data)["gate"], "failed")
+        data = windows_sarif()
+        metrics = data["runs"][0]["properties"]["metricResults"]
+        metrics.append(copy.deepcopy(metrics[-2]))
+        self.assertEqual(analyze_windows(data)["gate"], "failed")
+
+    def test_invalid_c_body_metrics_are_rejected(self) -> None:
+        for value in (True, False, -1, 5, 4.0, "4", float("nan"), None):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                data = windows_sarif()
+                data["runs"][0]["properties"]["metricResults"][-2]["value"] = value
                 analyze_windows(data)
 
     def test_windows_and_linux_recovery_gates_are_not_conflated(self) -> None:

@@ -266,6 +266,11 @@ jobs:
         checked = 0
         for index, entry in enumerate(commands):
             source = Path(entry["file"])
+            if source.suffix == ".c":
+                arguments = command_tokens(entry["command"])
+                if not arguments or native_path(arguments[0]) != native_path(compiler) or any(arg[:3].lower() in {"/tp", "-tp"} or re.match(r"[-/](?:clang:)?-?std[:=]c\+\+", arg, re.IGNORECASE) or arg in {"-D", "/D", "-U", "/U"} or predefines.match(arg) for arg in arguments):
+                    raise SystemExit("Native C inputs must retain their real compiler, language and predefines")
+                continue
             if source.suffix not in {".cpp", ".cc", ".cxx", ".c++"}:
                 continue
             arguments = command_tokens(entry["command"])
@@ -277,6 +282,8 @@ jobs:
                 raise SystemExit("Invalid native C++ command: " + json.dumps({"entry": index, "source": str(source)[-240:], "compiler_matches": compiler_matches, "driver": arguments[0][:240] if arguments else "", "reporting_flags": [arg[:80] for arg in reporting[:8]]}))
             if any(arg in {"-D", "/D", "-U", "/U"} or predefines.match(arg) for arg in arguments):
                 raise SystemExit("Compiler and language predefines must not be fabricated")
+            if any(arg[:3].lower() in {"/tc", "-tc"} for arg in arguments):
+                raise SystemExit("Native C++ inputs must not be forced into C mode")
             try:
                 relative = source.resolve().relative_to(root)
             except ValueError:
@@ -376,10 +383,6 @@ jobs:
         PY
         cmake --build build --target enum_codegen --parallel 4
 
-    - name: Translate verified native MSVC C++23 for extraction
-      if: matrix.windows_security
-      run: printf '%s\n' 'CODEQL_EXTRACTOR_CPP_OPTION_FRONTEND_OPTIONS=--ms_c++23' >> "$GITHUB_ENV"
-
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
       uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4
@@ -390,6 +393,55 @@ jobs:
         config-file: ./.github/codeql/codeql-config.yml
         # '+' supplements, never replaces, the full configured query suites.
         queries: ${{ matrix.language == 'cpp' && '+./.github/codeql/security-coverage' || '' }}
+
+    - name: Trace Windows C dependencies
+      if: matrix.windows_security
+      run: |
+        # Keep C inside the same traced database, before the C++-only override.
+        python - <<'PY'
+        import hashlib
+        import json
+        import os
+        from pathlib import Path
+        import subprocess
+
+        if os.environ.get("CODEQL_EXTRACTOR_CPP_OPTION_FRONTEND_OPTIONS", "").strip():
+            raise SystemExit("C tracing must not inherit C++ frontend options")
+        build = Path("build").resolve()
+        database = build / "compile_commands.json"
+        def read_commands():
+            with database.open("rb") as stream:
+                data = stream.read(16777217)
+            if not 0 < len(data) <= 16777216:
+                raise SystemExit("Native compilation database exceeds its bound")
+            return data
+        raw = read_commands()
+        names = {"bcrypt.c", "crypt_blowfish.c", "crypt_gensalt.c", "wrapper.c"}
+        inputs, outputs = set(), set()
+        for entry in json.loads(raw):
+            source = Path(entry["file"])
+            if source.parts[-4:-1] != ("bcrypt", "7ac6b4178d22a0c3d5fffae21ac54ea887d2b81f", "src") or source.name not in names:
+                continue
+            directory = Path(entry["directory"]).resolve()
+            raw_output = directory / entry["output"]
+            if raw_output.is_symlink():
+                raise SystemExit("C object outputs must not be symbolic links")
+            output = raw_output.resolve()
+            if directory != build or not output.is_relative_to(build) or output.suffix != ".obj" or output.exists() or output.is_symlink() or source.name in inputs or output in outputs:
+                raise SystemExit("C inputs require unique, fresh native build outputs")
+            inputs.add(source.name)
+            outputs.add(output)
+        if inputs != names:
+            raise SystemExit("All four pinned bcrypt C inputs must be traced")
+        subprocess.run(["cmake", "--build", str(build), "--target", "bcrypt", "--parallel", "4"], check=True, timeout=180)
+        if read_commands() != raw or not all(output.is_file() and not output.is_symlink() for output in outputs):
+            raise SystemExit("Traced C build did not preserve its compilation context")
+        print(json.dumps({"traced_c_inputs": sorted(inputs), "compilation_database_sha256": hashlib.sha256(raw).hexdigest()}))
+        PY
+
+    - name: Translate verified native MSVC C++23 for extraction
+      if: matrix.windows_security
+      run: printf '%s\n' 'CODEQL_EXTRACTOR_CPP_OPTION_FRONTEND_OPTIONS=--ms_c++23' >> "$GITHUB_ENV"
 
     - name: Build traced schema context
       if: matrix.build-mode == 'manual'

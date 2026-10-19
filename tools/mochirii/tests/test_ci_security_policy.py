@@ -16,6 +16,8 @@ import yaml
 
 from tools.mochirii.codeql_coverage import (
     COMPILER_ERRORS_METRIC,
+    WINDOWS_BCRYPT_METRIC,
+    WINDOWS_BCRYPT_SOURCES,
     WINDOWS_SECURITY_APIS,
     WINDOWS_SECURITY_METRIC,
 )
@@ -312,6 +314,16 @@ class CodeScanningCoverageTests(TestCase):
             ({}, native[1:], "src", False),
             ({}, [native[0], *native[2:]], "src", False),
             ({}, native + ["/WX-"], "src", False),
+            ({}, native + ["/TC"], "src", False),
+            ({}, native + ['/T"C"'], "src", False),
+            ({"C_FLAGS": ["/TC", "/std:c17"]}, native, "src", True),
+            ({"C_FLAGS": ["/TP"]}, native, "src", False),
+            ({"C_FLAGS": ['/T"P"']}, native, "src", False),
+            ({"C_FLAGS": ["/Tpfile.c"]}, native, "src", False),
+            ({"C_FLAGS": ["/STD:C++23PREVIEW"]}, native, "src", False),
+            ({"C_FLAGS": ["-std=c++20"]}, native, "src", False),
+            ({"C_FLAGS": ["/D__cplusplus=202302L"]}, native, "src", False),
+            ({"C_DRIVER": "C:/other/cl.exe"}, native, "src", False),
             ({}, native + ['/W"X-"'], "src", False),
             ({}, native + ['/per"missive"'], "src", False),
             ({}, native + ['/st"d":c++20'], "src", False),
@@ -481,6 +493,8 @@ class CodeScanningCoverageTests(TestCase):
                                     "DEPENDENCY_FLAGS",
                                     "DEPENDENCY_COMPILER",
                                     "C_VERSION",
+                                    "C_FLAGS",
+                                    "C_DRIVER",
                                 }
                             )
                             + (
@@ -498,7 +512,12 @@ class CodeScanningCoverageTests(TestCase):
                                 {
                                     "file": str(root / folder / "sample.cpp"),
                                     "command": f'"{compiler}" ' + " ".join(standards),
-                                }
+                                },
+                                {
+                                    "file": str(root / "dependency.c"),
+                                    "command": f'"{changed.get("C_DRIVER", compiler)}" '
+                                    + " ".join(changed.get("C_FLAGS", ["/std:c17"])),
+                                },
                             ]
                             + (
                                 [
@@ -892,15 +911,26 @@ class CodeScanningCoverageTests(TestCase):
             for index, step in enumerate(steps)
             if name in json.dumps(step)
         ]
-        self.assertEqual(len(contexts), 1)
-        index, step = contexts[0]
+        self.assertEqual(
+            [step["name"] for _, step in contexts],
+            [
+                "Trace Windows C dependencies",
+                "Translate verified native MSVC C++23 for extraction",
+            ],
+        )
+        index, step = contexts[1]
         self.assertEqual(step["if"], "matrix.windows_security")
         self.assertEqual(
             step["run"], f"printf '%s\\n' '{name}=--ms_c++23' >> \"$GITHUB_ENV\""
         )
         names = [step.get("name") for step in steps]
         self.assertLess(names.index("Verify Windows security CMake context"), index)
-        self.assertLess(index, names.index("Initialize CodeQL"))
+        self.assertLess(
+            names.index("Initialize CodeQL"),
+            names.index("Trace Windows C dependencies"),
+        )
+        self.assertLess(names.index("Trace Windows C dependencies"), index)
+        self.assertLess(index, names.index("Build traced schema context"))
         for obsolete in ("--alternative_tokens", "--dep_name", "-U__STDC__"):
             self.assertNotIn(obsolete, json.dumps(job))
 
@@ -1181,6 +1211,138 @@ class CodeScanningCoverageTests(TestCase):
         self.assertEqual(len(WINDOWS_SECURITY_APIS), 8)
         for name in WINDOWS_SECURITY_APIS:
             self.assertEqual(query.count(f'"{name}"'), 1)
+
+    def test_windows_c_metric_requires_four_distinct_traced_bodies(self) -> None:
+        query = (
+            self.repo / ".github/codeql/security-coverage/WindowsBcryptCFunctions.ql"
+        ).read_text()
+        self.assertIn(f"@id {WINDOWS_BCRYPT_METRIC}", query)
+        self.assertIn("select count(string source |", query)
+        self.assertIn("file.getBaseName() = source", query)
+        self.assertIn("compilation.getAFileCompiled() = file", query)
+        self.assertIn("not compilation.buildModeNone()", query)
+        self.assertIn("compilation.normalTermination()", query)
+        self.assertIn("function.getBlock().getFile() = file", query)
+        self.assertIn("file.getAbsolutePath().matches(", query)
+        self.assertIn("/bcrypt/7ac6b4178d22a0c3d5fffae21ac54ea887d2b81f/src/", query)
+        for name in WINDOWS_BCRYPT_SOURCES:
+            self.assertEqual(query.count(f'"{name}"'), 1)
+
+    def test_windows_c_build_is_fresh_traced_and_context_preserving(self) -> None:
+        script = self._inline_script("Trace Windows C dependencies")
+        resolve_path = Path.resolve
+        is_symlink = Path.is_symlink
+        for variant in (
+            "valid",
+            "missing",
+            "duplicate",
+            "wrong_pin",
+            "old_output",
+            "dangling_output",
+            "outside",
+            "wrong_suffix",
+            "no_output",
+            "changed_context",
+            "ambient_cpp",
+        ):
+            with self.subTest(variant=variant), TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                build = root / "build"
+                build.mkdir()
+                entries = [
+                    {
+                        "file": str(
+                            root
+                            / ".cpm-cache/bcrypt/7ac6b4178d22a0c3d5fffae21ac54ea887d2b81f/src"
+                            / name
+                        ),
+                        "directory": str(build),
+                        "output": f"objects/{name}.obj",
+                    }
+                    for name in WINDOWS_BCRYPT_SOURCES
+                ]
+                if variant == "missing":
+                    entries.pop()
+                elif variant == "duplicate":
+                    entries.append(entries[0].copy())
+                elif variant == "wrong_pin":
+                    entries[0]["file"] = entries[0]["file"].replace(
+                        "7ac6b4178d22a0c3d5fffae21ac54ea887d2b81f", "other"
+                    )
+                elif variant == "outside":
+                    entries[0]["output"] = "../outside.obj"
+                elif variant == "wrong_suffix":
+                    entries[0]["output"] = "objects/wrong.o"
+                database = build / "compile_commands.json"
+                database.write_text(json.dumps(entries))
+                alias = build / entries[0]["output"]
+                alias_target = build / "objects/dangling-target.obj"
+                if variant == "old_output":
+                    old = build / entries[0]["output"]
+                    old.parent.mkdir()
+                    old.write_bytes(b"stale")
+
+                def build_c(*_args, **_kwargs):
+                    if variant == "changed_context":
+                        database.write_text("[]")
+                    if variant != "no_output":
+                        for entry in entries:
+                            output = build / entry["output"]
+                            if variant == "dangling_output" and output == alias:
+                                output = alias_target
+                            output.parent.mkdir(exist_ok=True)
+                            output.write_bytes(b"native fixture object")
+                    return subprocess.CompletedProcess([], 0)
+
+                def resolve_fixture(path, **kwargs):
+                    path = root / path if not path.is_absolute() else path
+                    if variant == "dangling_output" and path == alias:
+                        path = alias_target
+                    return resolve_path(path, **kwargs)
+
+                with mock.patch("pathlib.Path.cwd", return_value=root), mock.patch(
+                    "subprocess.run", side_effect=build_c
+                ) as run, mock.patch.dict(
+                    "os.environ",
+                    {
+                        "CODEQL_EXTRACTOR_CPP_OPTION_FRONTEND_OPTIONS": (
+                            "--ms_c++23" if variant == "ambient_cpp" else ""
+                        )
+                    },
+                ), redirect_stdout(
+                    io.StringIO()
+                ):
+                    # Path('build') resolves against the actual cwd, not Path.cwd.
+                    with mock.patch(
+                        "pathlib.Path.resolve",
+                        autospec=True,
+                        side_effect=resolve_fixture,
+                    ), mock.patch(
+                        "pathlib.Path.is_symlink",
+                        autospec=True,
+                        side_effect=lambda path: (
+                            variant == "dangling_output" and path == alias
+                        )
+                        or is_symlink(path),
+                    ):
+                        if variant == "valid":
+                            exec(compile(script, "<traced-c-build>", "exec"), {})
+                            run.assert_called_once_with(
+                                [
+                                    "cmake",
+                                    "--build",
+                                    str(build),
+                                    "--target",
+                                    "bcrypt",
+                                    "--parallel",
+                                    "4",
+                                ],
+                                check=True,
+                                timeout=180,
+                            )
+                        else:
+                            with self.assertRaises(SystemExit):
+                                exec(compile(script, "<traced-c-build>", "exec"), {})
 
     def test_shared_compiler_metric_includes_native_error_and_fatal_classes(
         self,

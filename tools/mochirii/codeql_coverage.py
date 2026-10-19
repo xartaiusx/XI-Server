@@ -15,6 +15,13 @@ MAX_SARIF_BYTES = 64 * 1024 * 1024
 
 COMPILER_ERRORS_METRIC = "mochirii/telemetry/compiler-errors-total"
 WINDOWS_SECURITY_METRIC = "mochirii/telemetry/windows-private-file-calls"
+WINDOWS_BCRYPT_METRIC = "mochirii/telemetry/windows-bcrypt-c-bodies"
+WINDOWS_BCRYPT_SOURCES = (
+    "bcrypt.c",
+    "crypt_blowfish.c",
+    "crypt_gensalt.c",
+    "wrapper.c",
+)
 WINDOWS_SECURITY_APIS = (
     "ConvertStringSecurityDescriptorToSecurityDescriptorA",
     "CreateFileW",
@@ -181,6 +188,7 @@ def analyze_sarif(
     compiler_error_totals = []
     failed_extractor_notifications = 0
     windows_api_counts = []
+    windows_bcrypt_counts = []
     tool_versions = set()
     for run in data["runs"]:
         driver = run["tool"]["driver"]
@@ -298,6 +306,15 @@ def analyze_sarif(
                 ):
                     raise ValueError("Invalid Windows private-file API metric")
                 windows_api_counts.append(value)
+            elif identifier == WINDOWS_BCRYPT_METRIC:
+                value = metric.get("value")
+                if (
+                    not isinstance(value, int)
+                    or isinstance(value, bool)
+                    or not 0 <= value <= len(WINDOWS_BCRYPT_SOURCES)
+                ):
+                    raise ValueError("Invalid Windows bcrypt C body metric")
+                windows_bcrypt_counts.append(value)
         components = [driver, *run["tool"].get("extensions", [])]
         rules = {
             rule["id"]: rule
@@ -339,6 +356,8 @@ def analyze_sarif(
             failures.append(
                 "Missing or incomplete native Windows private-file API coverage"
             )
+        if windows_bcrypt_counts != [len(WINDOWS_BCRYPT_SOURCES)]:
+            failures.append("Missing or incomplete traced Windows bcrypt C bodies")
     if (required_paths or require_windows_security) and (
         grouped_compiler_errors
         or compiler_error_totals != [0]
@@ -363,6 +382,12 @@ def analyze_sarif(
             "expected_api_families": list(WINDOWS_SECURITY_APIS),
             "observed_api_family_counts": windows_api_counts,
             "missing_required_sources": missing_windows,
+        },
+        "windows_bcrypt_c": {
+            "required": require_windows_security,
+            "metric_id": WINDOWS_BCRYPT_METRIC,
+            "expected_sources": list(WINDOWS_BCRYPT_SOURCES),
+            "observed_source_body_counts": windows_bcrypt_counts,
         },
         "files": [
             {"path": path, "expected": path in expected, "extracted": path in extracted}

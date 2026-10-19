@@ -88,6 +88,17 @@ three forms, forwarding, truncation/depth limits and bounded streaming skips.
   replaces both stock C++23 option mappings after language initialization;
   other compilers/build lanes never load it. Generated command inspection
   verifies the actual option rather than trusting `CMAKE_CXX_STANDARD=23`.
+  The lane initializes tracing without a C++ frontend override, then builds the
+  four pinned bcrypt C inputs in that same database. Their native commands may
+  not force C++ mode or fabricate compiler predefines. Unique object outputs
+  must be absent before this build and present afterward, with an unchanged
+  compilation database. Only then does the lane enable C++23 for schema and
+  server compilation; no C input is moved outside tracing or excluded.
+  The raw gate also requires exactly one `windows-bcrypt-c-bodies` metric of
+  four: distinct pinned-source files with actual function bodies and traced
+  compilations. Header declarations, duplicate compilations, and no-build
+  extraction cannot satisfy this additional gate. Existing four-source,
+  eight-API, numeric-zero and failed-extractor gates remain mandatory.
   Only this Windows lane supplies `--ms_c++23` through the pinned extractor's
   supported `frontend_options` transport. The native compiler's exact
   `/std:c++23preview` switch is otherwise unrecognized by CodeQL2.27.2; generic
