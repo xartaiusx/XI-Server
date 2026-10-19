@@ -108,11 +108,10 @@ class CodeScanningCoverageTests(TestCase):
             "-DCACHE_BINARY:FILEPATH=",
             "-DCMAKE_CXX_COMPILER_LAUNCHER:STRING=",
             "-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded",
-            '-DCMAKE_C_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang.exe"',
-            '-DCMAKE_CXX_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang++.exe"',
-            "-DCMAKE_C_COMPILER_TARGET:STRING=x86_64-pc-windows-msvc",
-            "-DCMAKE_CXX_COMPILER_TARGET:STRING=x86_64-pc-windows-msvc",
-            "-DCMAKE_CXX_FLAGS:STRING=-U__STDC__",
+            '-DCMAKE_C_COMPILER:FILEPATH="$MOCHIRII_WINDOWS_CL"',
+            '-DCMAKE_CXX_COMPILER:FILEPATH="$MOCHIRII_WINDOWS_CL"',
+            "-DCMAKE_CXX_FLAGS_INIT:STRING=/Zc:__cplusplus",
+            '-DCMAKE_PROJECT_server_INCLUDE:FILEPATH="$GITHUB_WORKSPACE/.github/codeql/windows-msvc-cxx23.cmake"',
             "-DWARNINGS_AS_ERRORS=ON",
         ):
             self.assertIn(flag, configure)
@@ -176,7 +175,7 @@ class CodeScanningCoverageTests(TestCase):
             "VCToolsVersion": "14.44.35207",
             "WindowsSDKVersion": "10.0.26100.0\\",
         }
-        output = "clang version 20.1.8\nTarget: x86_64-pc-windows-msvc\n"
+        output = "Microsoft (R) C/C++ Optimizing Compiler Version 19.44.35207 for x64\n"
         cases = (
             ({}, output, True, True),
             ({}, output, False, False),
@@ -191,12 +190,33 @@ class CodeScanningCoverageTests(TestCase):
             ({"VCToolsVersion": "14.51.36231"}, output, True, False),
             ({"WindowsSDKVersion": "10.0.22621.0\\"}, output, True, False),
             ({"WindowsSDKVersion": ""}, output, True, False),
-            ({}, output.replace("20.1.8", "21.1.0"), True, False),
-            ({}, [output, output.replace("20.1.8", "21.1.0")], True, False),
-            ({}, output.replace("x86_64", "aarch64"), True, False),
-            ({}, [output, output.replace("windows-msvc", "windows-gnu")], True, False),
+            ({}, output.replace("19.44", "19.51"), True, False),
+            ({}, output + output.replace("19.44", "19.51"), True, False),
+            ({}, output.replace("x64", "ARM64"), True, False),
+            ({}, output + output.replace("x64", "x86"), True, False),
+            ({}, "clang version 20.1.8\n", True, False),
+            ({"CL": "/std:c++latest"}, output, True, False),
+            ({"_CL_": "/WX-"}, output, True, False),
+            (
+                {},
+                output + "command line warning D9002: ignoring unknown option\n",
+                True,
+                False,
+            ),
+            (
+                {},
+                output + "command line warning D9025: overriding option\n",
+                True,
+                False,
+            ),
             ({}, output + "x" * 32768, True, False),
         )
+        with TemporaryDirectory() as temporary:
+            environment["GITHUB_ENV"] = str(Path(temporary) / "environment")
+            self._check_msvc_preflight_cases(script, environment, cases)
+
+    def _check_msvc_preflight_cases(self, script, environment, cases) -> None:
+        compiler = "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe"
         for changed, version, exists, accepted in cases:
             with self.subTest(
                 changed=changed, exists=exists, accepted=accepted
@@ -207,11 +227,6 @@ class CodeScanningCoverageTests(TestCase):
             ), mock.patch(
                 "subprocess.run",
                 return_value=mock.Mock(stdout=version, stderr=""),
-                side_effect=(
-                    [mock.Mock(stdout=item, stderr="") for item in version]
-                    if isinstance(version, list)
-                    else None
-                ),
             ) as run, redirect_stdout(
                 io.StringIO()
             ):
@@ -219,18 +234,26 @@ class CodeScanningCoverageTests(TestCase):
                     exec(compile(script, "<toolchain-preflight>", "exec"), {})
                     self.assertEqual(run.call_args.kwargs["timeout"], 15)
                     self.assertTrue(run.call_args.kwargs["check"])
+                    run.assert_called_once()
+                    arguments = run.call_args.args[0]
+                    self.assertEqual(arguments[0], str(Path(compiler)))
                     self.assertEqual(
-                        [call.args[0] for call in run.call_args_list],
+                        arguments[1:-1],
                         [
-                            [
-                                str(Path("C:/Program Files/LLVM/bin/clang.exe")),
-                                "--version",
-                            ],
-                            [
-                                str(Path("C:/Program Files/LLVM/bin/clang++.exe")),
-                                "--version",
-                            ],
+                            "/Bv",
+                            "/Zs",
+                            "/TP",
+                            "/std:c++23preview",
+                            "/permissive-",
+                            "/Zc:__cplusplus",
+                            "/W4",
+                            "/WX",
                         ],
+                    )
+                    self.assertFalse(Path(arguments[-1]).exists())
+                    self.assertEqual(
+                        Path(environment["GITHUB_ENV"]).read_text(),
+                        f"MOCHIRII_WINDOWS_CL={compiler}\n",
                     )
                 else:
                     with self.assertRaises(SystemExit):
@@ -239,53 +262,64 @@ class CodeScanningCoverageTests(TestCase):
     def test_windows_cmake_context_rejects_wrong_compiler_or_standard(self) -> None:
         script = self._inline_script("Verify Windows security CMake context")
         values = {
-            "COMPILER_ID": "Clang",
-            "COMPILER_VERSION": "20.1.8",
-            "COMPILER_FRONTEND_VARIANT": "GNU",
-            "SIMULATE_ID": "MSVC",
+            "COMPILER_ID": "MSVC",
+            "COMPILER_VERSION": "19.44.35207",
+            "COMPILER_FRONTEND_VARIANT": "MSVC",
+            "SIMULATE_ID": "",
         }
-        target = "x86_64-pc-windows-msvc"
-        native = [f"--target={target}", "-Werror", "-U__STDC__", "-std=c++23"]
+        compiler = "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe"
+        native = ["/W4", "/WX", "/permissive-", "/Zc:__cplusplus", "/std:c++23preview"]
         cases = (
             ({}, native, "src", True),
+            ({}, ["/W3", *native], "src", True),
             (
                 {"COMPILER": "C:/other/clang-cl.exe"},
                 native,
                 "src",
                 False,
             ),
-            ({"COMPILER_ID": "MSVC"}, native, "src", False),
-            ({"COMPILER_VERSION": "21.1.0"}, native, "src", False),
-            ({"COMPILER_FRONTEND_VARIANT": "MSVC"}, native, "src", False),
-            ({"SIMULATE_ID": ""}, native, "src", False),
+            ({"COMPILER_ID": "Clang"}, native, "src", False),
+            ({"COMPILER_VERSION": "19.51.36260"}, native, "src", False),
+            ({"COMPILER_FRONTEND_VARIANT": "GNU"}, native, "src", False),
+            ({"SIMULATE_ID": "MSVC"}, native, "src", False),
             ({"SIMULATE_ID": "GNU"}, native, "src", False),
-            ({"TARGET": "x86_64-w64-windows-gnu"}, native, "src", False),
+            ({"TARGET": "ARM64"}, native, "src", False),
             ({"TARGET": None}, native, "src", False),
-            ({}, native[:-1] + ["/std:c++23preview"], "src", False),
+            ({"C_VERSION": "19.44.35219"}, native, "src", False),
+            ({}, native[:-1] + ["/std:c++20"], "src", False),
             ({}, native[:-1] + ["-clang:-std=c++23"], "src", False),
             ({}, native[:-1] + ["-std:c++latest"], "src", False),
             ({}, native[:-1] + ["-std=c++26"], "src", False),
             ({}, [], "src", False),
             ({}, native + ["-clang:-std=c++23"], "src", False),
             ({}, native + ["-std=c++23"], "src", False),
-            ({}, native + ["--target=x86_64-w64-windows-gnu"], "src", False),
+            ({}, native + ["/std:c++latest"], "src", False),
             ({}, native[1:], "src", False),
             ({}, [native[0], *native[2:]], "src", False),
-            ({}, native + ["-Wno-error"], "src", False),
-            ({}, native + ["-Wno-error=unused-variable"], "src", False),
-            ({}, [arg for arg in native if arg != "-U__STDC__"], "src", False),
-            ({}, native + ["-U__STDC__"], "src", False),
+            ({}, native + ["/WX-"], "src", False),
+            ({}, native + ["/W0"], "src", False),
+            ({}, native + ["/W3"], "src", False),
+            ({}, ["/W2", *native], "src", False),
+            ({}, ["/W3", "/W3", *native], "src", False),
+            ({}, [arg for arg in native if arg != "/Zc:__cplusplus"], "src", False),
+            ({}, native + ["/Zc:__cplusplus"], "src", False),
+            ({}, native + ["/Zc:__cplusplus-"], "src", False),
+            ({}, native + ["/Zc:twoPhase-"], "src", False),
+            ({}, native + ["/permissive"], "src", False),
+            ({}, [arg for arg in native if arg != "/permissive-"], "src", False),
             ({}, native + ["/U__STDC__"], "src", False),
             ({}, native + ["-U", "__STDC__"], "src", False),
             ({}, native + ["-D__STDC__=0"], "src", False),
             ({}, native + ["/D__cplusplus=202302L"], "src", False),
             ({}, native + ['"-D_MSVC_LANG=202302L"'], "src", False),
             ({}, native + ["-D_MSC_VER=1944"], "src", False),
+            ({}, native + ["/D_MSC_FULL_VER=194435207"], "src", False),
+            ({}, native + ["/D_M_X64=100"], "src", False),
             ({}, native + ["-D__clang_major__=20"], "src", False),
             ({}, native + ["-D__cpp_lib_expected=202202L"], "src", False),
             ({}, native + ["-D", "_MSC_VER=1944"], "src", False),
             ({"FLAGS": ""}, native, "src", False),
-            ({"FLAGS": "-U__STDC__ -D__STDC__=0"}, native, "src", False),
+            ({"FLAGS": "/Zc:__cplusplus /D__cplusplus=202302L"}, native, "src", False),
             ({"DEPENDENCY": True}, native, "src", False),
             ({}, native, "ext", False),
         )
@@ -297,43 +331,46 @@ class CodeScanningCoverageTests(TestCase):
             for changed, standards, folder, accepted in cases:
                 with self.subTest(changed=changed, standards=standards, folder=folder):
                     for language in ("C", "CXX"):
-                        compiler = (
-                            "C:/Program Files/LLVM/bin/clang.exe"
-                            if language == "C"
-                            else "C:/Program Files/LLVM/bin/clang++.exe"
-                        )
                         (
                             compiler_context / f"CMake{language}Compiler.cmake"
                         ).write_text(
                             "\n".join(
                                 f'set(CMAKE_{language}_{key} "{value}")'
                                 for key, value in (
-                                    {"COMPILER": compiler} | values | changed
+                                    {"COMPILER": compiler}
+                                    | values
+                                    | changed
+                                    | (
+                                        {"COMPILER_VERSION": changed["C_VERSION"]}
+                                        if language == "C" and "C_VERSION" in changed
+                                        else {}
+                                    )
                                 ).items()
-                                if key not in {"TARGET", "FLAGS", "DEPENDENCY"}
+                                if key
+                                not in {"TARGET", "FLAGS", "DEPENDENCY", "C_VERSION"}
+                            )
+                            + (
+                                f'\nset(MSVC_{language}_ARCHITECTURE_ID {changed.get("TARGET", "x64")})'
+                                if changed.get("TARGET", "x64") is not None
+                                else ""
                             )
                         )
                     (build / "CMakeCache.txt").write_text(
-                        "\n".join(
-                            f"CMAKE_{language}_COMPILER_TARGET:STRING={changed.get('TARGET', target)}"
-                            for language in ("C", "CXX")
-                            if changed.get("TARGET", target) is not None
-                        )
-                        + f"\nCMAKE_CXX_FLAGS:STRING={changed.get('FLAGS', '-U__STDC__')}\n"
+                        f"CMAKE_CXX_FLAGS:STRING={changed.get('FLAGS', '/GR /EHsc /Zc:__cplusplus')}\n"
                     )
                     (build / "compile_commands.json").write_text(
                         json.dumps(
                             [
                                 {
                                     "file": str(root / folder / "sample.cpp"),
-                                    "command": "clang++.exe " + " ".join(standards),
+                                    "command": f'"{compiler}" ' + " ".join(standards),
                                 }
                             ]
                             + (
                                 [
                                     {
                                         "file": str(build / "_deps/library.cpp"),
-                                        "command": "clang++.exe -std=c++23",
+                                        "command": f'"{compiler}" /std:c++23preview',
                                     }
                                 ]
                                 if changed.get("DEPENDENCY")
@@ -344,45 +381,45 @@ class CodeScanningCoverageTests(TestCase):
                     processes = []
 
                     def start(arguments, **_kwargs):
-                        output = (
-                            b"#define _MSC_VER 1944\n"
-                            if "-dM" in arguments
-                            else b"real headers\n" if "-E" in arguments else b""
-                        )
+                        negative = "/std:c++20" in arguments
                         child = mock.Mock()
-                        child.stdout.read.return_value = output
-                        child.wait.return_value = 0
-                        child.poll.return_value = 0
+                        child.stdout.read.return_value = (
+                            b"error C2039: 'expected': is not a member of 'std'\n"
+                            if negative
+                            else b""
+                        )
+                        child.wait.return_value = 1 if negative else 0
+                        child.poll.return_value = 1 if negative else 0
                         processes.append(child)
                         return child
 
-                    with mock.patch("pathlib.Path.cwd", return_value=root), mock.patch(
+                    with mock.patch.dict(
+                        "os.environ", {"VCToolsVersion": "14.44.35207"}
+                    ), mock.patch("pathlib.Path.cwd", return_value=root), mock.patch(
                         "subprocess.Popen", side_effect=start
-                    ) as popen, mock.patch("threading.Timer") as timer, redirect_stdout(
+                    ) as popen, mock.patch(
+                        "threading.Timer"
+                    ) as timer, redirect_stdout(
                         io.StringIO()
                     ):
+                        timer.return_value.is_alive.return_value = False
                         if accepted:
                             exec(compile(script, "<cmake-context>", "exec"), {})
-                            self.assertEqual(popen.call_count, 6)
+                            self.assertEqual(popen.call_count, 2)
                             for index, call in enumerate(popen.call_args_list):
-                                action, maximum = (
-                                    (["-fsyntax-only"], 32768),
-                                    (["-dM", "-E"], 2097152),
-                                    (["-E", "-P"], 16777216),
-                                )[index % 3]
                                 arguments = call.args[0]
                                 expected = [
-                                    "C:/Program Files/LLVM/bin/clang++.exe",
-                                    "--target=x86_64-pc-windows-msvc",
-                                    "-std=c++23",
-                                    "-Werror",
-                                    "-Wall",
-                                    "-Wextra",
-                                    "-I",
+                                    compiler,
+                                    "/nologo",
+                                    "/std:c++23preview" if index == 0 else "/std:c++20",
+                                    "/W4",
+                                    "/WX",
+                                    "/permissive-",
+                                    "/Zc:__cplusplus",
+                                    "/EHsc",
+                                    "/Zs",
+                                    "/I",
                                     str(root / "src"),
-                                    *(["-U__STDC__"] if index >= 3 else []),
-                                    *action,
-                                    "--",
                                 ]
                                 self.assertEqual(arguments[:-1], expected)
                                 self.assertFalse(Path(arguments[-1]).exists())
@@ -395,34 +432,49 @@ class CodeScanningCoverageTests(TestCase):
                                     },
                                 )
                                 processes[index].stdout.read.assert_called_once_with(
-                                    maximum + 1
+                                    32769
                                 )
                                 processes[index].wait.assert_called_once_with(timeout=5)
                                 processes[index].stdout.close.assert_called_once()
                                 processes[index].kill.assert_not_called()
+                                timer_call = timer.call_args_list[index].args
+                                self.assertEqual(timer_call[0], 30)
                                 self.assertEqual(
-                                    timer.call_args_list[index].args,
-                                    (30, processes[index].kill),
+                                    timer_call[1].__defaults__[0], processes[index]
                                 )
-                            self.assertEqual(timer.return_value.start.call_count, 6)
-                            self.assertEqual(timer.return_value.cancel.call_count, 6)
+                                self.assertFalse(timer_call[1].__defaults__[1].is_set())
+                                self.assertEqual(
+                                    timer.return_value.join.call_args_list[
+                                        index
+                                    ].kwargs,
+                                    {"timeout": 5},
+                                )
+                            self.assertEqual(timer.return_value.start.call_count, 2)
+                            self.assertEqual(timer.return_value.cancel.call_count, 4)
                             for failure in (
                                 "spawn",
                                 "timer_init",
                                 "timer_start",
                                 "deadline",
+                                "positive-deadline-exit0",
+                                "negative-deadline-exit1",
+                                "timer-still-running",
                                 "exit",
                                 "overflow",
                                 "timeout",
-                                "stdc",
-                                "macro",
-                                "headers",
+                                "ignored",
+                                "override",
+                                "warning",
+                                "negative-pass",
+                                "negative-wrong-error",
+                                "negative-driver",
                             ):
                                 processes.clear()
                                 popen.reset_mock()
                                 timer.reset_mock()
                                 timer.side_effect = None
                                 timer.return_value.start.side_effect = None
+                                timer.return_value.is_alive.return_value = False
 
                                 def fail(arguments, **kwargs):
                                     if failure == "spawn":
@@ -446,18 +498,22 @@ class CodeScanningCoverageTests(TestCase):
                                             subprocess.TimeoutExpired(arguments, 5),
                                             0,
                                         ]
-                                    if failure == "stdc" and "-dM" in arguments:
+                                    if failure == "ignored":
+                                        child.stdout.read.return_value = b"command line warning D9002: ignoring unknown option\n"
+                                    if failure == "override":
+                                        child.stdout.read.return_value = b"command line warning D9025: overriding option\n"
+                                    if failure == "warning":
                                         child.stdout.read.return_value = (
-                                            b"#define\t__STDC__\t1\n"
+                                            b"warning C4996: deprecated function\n"
                                         )
-                                    if failure == "macro" and len(processes) == 5:
-                                        child.stdout.read.return_value = (
-                                            b"#define _MSC_VER 1945\n"
-                                        )
-                                    if failure == "headers" and len(processes) == 6:
-                                        child.stdout.read.return_value = (
-                                            b"different headers\n"
-                                        )
+                                    if "/std:c++20" in arguments:
+                                        if failure == "negative-pass":
+                                            child.wait.return_value = 0
+                                            child.poll.return_value = 0
+                                        if failure == "negative-wrong-error":
+                                            child.stdout.read.return_value = b"error C1083: Cannot open source file\n"
+                                        if failure == "negative-driver":
+                                            child.stdout.read.return_value += b"command line warning D9002: ignoring unknown option\n"
                                     return child
 
                                 popen.side_effect = fail
@@ -472,11 +528,27 @@ class CodeScanningCoverageTests(TestCase):
                                 if failure == "deadline":
 
                                     def expire():
-                                        processes[-1].kill()
+                                        timer.call_args.args[1]()
                                         processes[-1].wait.return_value = -9
                                         processes[-1].poll.return_value = -9
 
                                     timer.return_value.start.side_effect = expire
+                                if failure in {
+                                    "positive-deadline-exit0",
+                                    "negative-deadline-exit1",
+                                }:
+
+                                    def expire_normal_exit():
+                                        if (failure == "positive-deadline-exit0") == (
+                                            len(processes) == 1
+                                        ):
+                                            timer.call_args.args[1]()
+
+                                    timer.return_value.start.side_effect = (
+                                        expire_normal_exit
+                                    )
+                                if failure == "timer-still-running":
+                                    timer.return_value.is_alive.return_value = True
                                 exception = (
                                     OSError
                                     if failure == "spawn"
@@ -500,6 +572,7 @@ class CodeScanningCoverageTests(TestCase):
                                     "timer_init",
                                     "timer_start",
                                     "deadline",
+                                    "positive-deadline-exit0",
                                     "overflow",
                                     "timeout",
                                 }:
@@ -508,17 +581,28 @@ class CodeScanningCoverageTests(TestCase):
                                         processes[0].wait.call_args.kwargs,
                                         {"timeout": 5},
                                     )
+                                if failure == "negative-deadline-exit1":
+                                    self.assertEqual(len(processes), 2)
+                                    processes[0].kill.assert_not_called()
+                                    processes[1].kill.assert_called_once()
+                                    self.assertIn(
+                                        b"expected",
+                                        processes[1].stdout.read.return_value,
+                                    )
+                                    self.assertEqual(processes[1].wait.return_value, 1)
                         else:
                             with self.assertRaises(SystemExit):
                                 exec(compile(script, "<cmake-context>", "exec"), {})
                             popen.assert_not_called()
             (compiler_context / "CMakeCCompiler.cmake").unlink()
-            with mock.patch("pathlib.Path.cwd", return_value=root), self.assertRaises(
+            with mock.patch.dict(
+                "os.environ", {"VCToolsVersion": "14.44.35207"}
+            ), mock.patch("pathlib.Path.cwd", return_value=root), self.assertRaises(
                 SystemExit
             ):
                 exec(compile(script, "<cmake-context>", "exec"), {})
 
-    def test_windows_gnu_frontend_keeps_native_cxx23_without_overrides(self) -> None:
+    def test_windows_native_frontend_proves_exact_cxx23_and_abi(self) -> None:
         steps = self.workflow["jobs"]["analyze"]["steps"]
         configure = next(
             step["run"]
@@ -530,12 +614,15 @@ class CodeScanningCoverageTests(TestCase):
             "__cplusplus == 202302L",
             "_MSVC_LANG == 202302L",
             "_MSC_VER == 1944",
-            "__clang_major__ == 20 && __clang_minor__ == 1 && __clang_patchlevel__ == 8",
+            "_MSC_FULL_VER == @MSC_FULL_VER@",
+            "_M_X64 == 100 && _WIN32 && _WIN64",
+            "defined(__clang__)",
             "sizeof(void*) == 8 && sizeof(long) == 4",
             "std::is_same_v<off_t, _off_t>",
             "#ifdef __STDC__",
             "static_assert(not false and true)",
             "static_assert(definition_lookup(0) == 1)",
+            "static_assert(bind_aggregate() == 2386)",
             "operator==(const Comparison&) const = default",
             "std::expected<int, int>",
             "std::optional<int>",
@@ -543,15 +630,17 @@ class CodeScanningCoverageTests(TestCase):
             "std::string_view",
         ):
             self.assertIn(proof, context)
-        self.assertNotIn("CMAKE_PROJECT_", configure)
-        self.assertNotIn("COMPILE_OPTION", configure)
+        self.assertIn("CMAKE_PROJECT_server_INCLUDE", configure)
+        self.assertNotIn("CMAKE_PROJECT_INCLUDE:", configure)
         self.assertNotIn("clang-cl", configure)
         self.assertNotIn("/std:", configure)
+        self.assertIn('("/std:c++20", negative, False)', context)
+        self.assertNotIn('/Zc:twoPhase"', context)
         warnings = (self.repo / "cmake/CompilerWarnings.cmake").read_text()
         self.assertIn('set(ERRORS "-Werror")', warnings)
         self.assertIn('set(ERRORS "/WX")', warnings)
 
-    def test_windows_token_option_is_scoped_before_initialization(self) -> None:
+    def test_windows_does_not_inherit_clang_extractor_workarounds(self) -> None:
         job = self.workflow["jobs"]["analyze"]
         name = "CODEQL_EXTRACTOR_CPP_OPTION_FRONTEND_OPTIONS"
         self.assertNotIn(name, job["env"])
@@ -565,12 +654,62 @@ class CodeScanningCoverageTests(TestCase):
         index, step = contexts[0]
         self.assertEqual(step["if"], "matrix.windows_security")
         self.assertEqual(
-            step["run"],
-            f"printf '%s\\n' '{name}<<MOCHIRII_CPP_FRONTEND' '--alternative_tokens' '--dep_name' 'MOCHIRII_CPP_FRONTEND' >> \"$GITHUB_ENV\"",
+            step["run"], f"printf '%s\\n' '{name}=--ms_c++23' >> \"$GITHUB_ENV\""
         )
         names = [step.get("name") for step in steps]
         self.assertLess(names.index("Verify Windows security CMake context"), index)
         self.assertLess(index, names.index("Initialize CodeQL"))
+        for obsolete in ("--alternative_tokens", "--dep_name", "-U__STDC__"):
+            self.assertNotIn(obsolete, json.dumps(job))
+
+    def test_windows_cxx23_hook_is_scoped_and_fails_closed(self) -> None:
+        hook = self.repo / ".github/codeql/windows-msvc-cxx23.cmake"
+        values = {
+            "PROJECT_NAME": "server",
+            "CMAKE_CXX_COMPILER_ID": "MSVC",
+            "CMAKE_CXX_COMPILER_VERSION": "19.44.35207",
+            "MSVC_CXX_ARCHITECTURE_ID": "x64",
+            "CMAKE_CXX23_STANDARD_COMPILE_OPTION": "-std:c++latest",
+            "CMAKE_CXX23_EXTENSION_COMPILE_OPTION": "-std:c++latest",
+        }
+        cases = [({}, True)] + [
+            ({key: value}, False)
+            for key, value in (
+                ("PROJECT_NAME", "dependency"),
+                ("CMAKE_CXX_COMPILER_ID", "Clang"),
+                ("CMAKE_CXX_COMPILER_VERSION", "19.51.36260"),
+                ("MSVC_CXX_ARCHITECTURE_ID", "ARM64"),
+                ("CMAKE_CXX23_STANDARD_COMPILE_OPTION", "/std:c++20"),
+                ("CMAKE_CXX23_EXTENSION_COMPILE_OPTION", "-std:c++latest;-DFAKE"),
+                ("CMAKE_CXX23_STANDARD_COMPILE_OPTION", ""),
+            )
+        ]
+        with TemporaryDirectory() as temporary:
+            script = Path(temporary) / "standard.cmake"
+            for changed, accepted in cases:
+                with self.subTest(changed=changed):
+                    script.write_text(
+                        "\n".join(
+                            f'set({key} "{value}")'
+                            for key, value in (values | changed).items()
+                        )
+                        + f'\ninclude("{hook.as_posix()}")\n'
+                        + "foreach(option CMAKE_CXX23_STANDARD_COMPILE_OPTION CMAKE_CXX23_EXTENSION_COMPILE_OPTION)\n"
+                        + 'if(NOT "${${option}}" STREQUAL "/std:c++23preview")\n'
+                        + 'message(FATAL_ERROR "C++23 mode was not exact")\nendif()\nendforeach()\n'
+                    )
+                    result = subprocess.run(
+                        ["cmake", "-P", str(script)],
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode == 0, accepted, result.stderr)
+        source = (self.repo / "CMakeLists.txt").read_text()
+        self.assertIn("set(CMAKE_CXX_STANDARD 23)", source)
+        self.assertIn("set(CMAKE_CXX_STANDARD_REQUIRED ON)", source)
+        self.assertIn("set(CMAKE_CXX_EXTENSIONS OFF)", source)
 
     def test_windows_system_libraries_follow_platform_not_driver(self) -> None:
         settings = (self.repo / "cmake/StandardProjectSettings.cmake").read_text()
@@ -633,7 +772,10 @@ class CodeScanningCoverageTests(TestCase):
             and node.func.value.id == "probe"
         ]
         self.assertEqual(len(probes), 1)
-        source = ast.literal_eval(probes[0].args[0])
+        value = probes[0].args[0]
+        self.assertIsInstance(value, ast.Call)
+        self.assertEqual(value.func.attr, "replace")
+        source = ast.literal_eval(value.func.value)
         self.assertTrue(source.startswith('#include "common/macros.h"\n'))
         self.assertIn("static_assert(&strcmpi == &_stricmp);", source)
         self.assertIn("static_assert(&stricmp == &_stricmp);", source)

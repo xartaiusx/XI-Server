@@ -23,53 +23,55 @@ coverage policy.
   PCH/IPO/compiler cache, and the existing custom/era/example modules plus the
   optional packet-capture source. That module is enabled **only in ephemeral CI**;
   this workflow never starts a server or enables live packet capture.
-- A fifth, separately named Windows2022/Clang20.1.8 manual category traces only
+- A fifth, separately named Windows2022/MSVC14.44 manual category traces only
   `xi_connect` and `xi_profile` plus their common dependencies. The pinned setup
   action selects the explicit VS2022 Enterprise path, MSVC14.44 library/toolset
   and Windows SDK10.0.26100.0
   environment; a bounded native preflight rejects missing/wrong compilers,
   developer environments, toolsets or x64 targets without fallback. Both C/C++
-  compiler paths are explicit: native Windows `clang.exe` and `clang++.exe`,
-  with `x86_64-pc-windows-msvc` targets for both languages, not MinGW. Before any
-  first-party native build/tracing, the generated CMake compiler contexts must
-  prove Clang20.1.8/GNU frontend/MSVC simulation/exact paths and cached targets;
-  every first-party C++ compilation command must use exactly
-  `-std=c++23`, one explicit MSVC-ABI target and warnings-as-errors, never
-  `c++latest`/C++26 or a conflicting CL/forwarded flag. CMake3.31.6's native
-  [Windows GNU-frontend/MSVC-ABI support](https://github.com/Kitware/CMake/blob/v3.31.6/Modules/Platform/Windows-Clang.cmake#L194-L215)
-  and [C++23 selection](https://github.com/Kitware/CMake/blob/v3.31.6/Modules/Compiler/Clang.cmake#L172-L180)
-  need no compiler-option override. The normal project build configuration is
-  unchanged. This lane uses the existing Clang warning profile (`-Wall`,
-  `-Wextra`, `-Werror`), not the MSVC `/W4` profile; no suppression is added.
-  Its C++ commands carry exactly one native `-U__STDC__`, with no fabricated
-  compiler/language feature values. Native Windows Clang already leaves this
-  macro absent under MSVC compatibility; the undefinition preserves that state
-  when the pinned extractor otherwise introduces it in system headers.
-  Only this Windows lane sets the pinned extractor's supported
-  `frontend_options` transport to `--alternative_tokens` and `--dep_name`,
-  preserving C++ `not`/`and` tokens and standard dependent-name lookup. The
-  array uses the pinned extractor's verified newline-separated environment
-  representation, not a single space-joined argument. Linux lanes inherit
-  neither setting.
-  The ordinary native MSVC Build lane retains its `/W4` and `/WX` checks.
-  Windows system-library linkage follows `WIN32`, not the driver's `MSVC`
-  syntax flag, so the GNU frontend retains the same timer/debug/network imports
-  as ordinary MSVC builds without overriding CMake's default libraries.
-  Before initialization, a native GNU-driver probe requires both `__cplusplus`
-  and `_MSVC_LANG` to equal 202302L, Clang20.1.8, `_MSC_VER`1944, the Windows x64
-  pointer/long ABI and `off_t`/`_off_t` type identity. It checks alternative
-  tokens, two-phase definition-context lookup, `expected`, `optional`, `span`,
-  `string_view` and a defaulted comparison.
-  The actual `common/macros.h` is its first include, with alias-address assertions against
-  `_stricmp` under strict warnings, so CRT declaration ordering is also checked.
-  Using flags read from the guarded CMake cache, this real-header probe compiles
-  without and with only the known undefinition. Both must
-  leave `__STDC__` absent and produce byte-identical `-dM -E` macro output and
-  `-E -P` preprocessed source. Each compiler process has a 30-second deadline
-  and bounded merged output; failed comparisons fail closed. No production
-  object from this probe is reused. This native proof does not establish
-  extractor compatibility: only the unchanged raw coverage, zero compiler-error
-  and eight-family API gates can accept the actual CodeQL result.
+  compiler paths resolve to the selected toolset's real `cl.exe`, not clang-cl,
+  MinGW or a simulated extractor dialect. Before any first-party native build,
+  the generated CMake compiler contexts and compilation database must prove the
+  exact native compiler path, MSVC19.44 identity and Windows x64/LLP64 target.
+  Every first-party C++ command requires the sole exact `/std:c++23preview`
+  standard option and the existing `/W4`, `/WX`, `/permissive-` policy, with
+  `/Zc:__cplusplus` for truthful language macros. Reject conflicting standards,
+  warning/conformance overrides and fabricated compiler or language predefines.
+  This compiler-contract change was explicitly approved after the pinned
+  Clang20.1.8 trace failed; it does not relax any extraction or security gate.
+  The ordinary native MSVC build configuration remains unchanged.
+  CMake3.31.6's [MSVC module](https://github.com/Kitware/CMake/blob/v3.31.6/Modules/Compiler/MSVC-CXX.cmake#L30-L36)
+  maps C++23 to `-std:c++latest`, which also enables post-C++23 features. The
+  CI-only, guarded [`CMAKE_PROJECT_server_INCLUDE` hook](https://cmake.org/cmake/help/v3.31/variable/CMAKE_PROJECT_PROJECT-NAME_INCLUDE.html)
+  replaces both stock C++23 option mappings after language initialization;
+  other compilers/build lanes never load it. Generated command inspection
+  verifies the actual option rather than trusting `CMAKE_CXX_STANDARD=23`.
+  Only this Windows lane supplies `--ms_c++23` through the pinned extractor's
+  supported `frontend_options` transport. The native compiler's exact
+  `/std:c++23preview` switch is otherwise unrecognized by CodeQL2.27.2; generic
+  `--c++23` does not restore `_MSVC_LANG` and therefore changes ASIO feature
+  selection. The [MSVC-specific language option](https://edgcpp.org/doc/ext_intf/#language-dialect-options)
+  preserves the naturally detected Microsoft compiler/version and its C++23
+  feature set, rather than forcing Microsoft emulation onto another compiler.
+  Native macro undefinitions, fabricated feature values, replacement standard
+  headers and diagnostic suppressions are not used.
+  Windows system-library linkage continues to follow `WIN32`, preserving the
+  same timer/debug/network imports and CMake's normal default libraries.
+  The bounded native probe includes the actual `common/macros.h` first and
+  verifies CRT aliases against `_stricmp`, `off_t`/`_off_t`, Windows x64/LLP64,
+  native compiler/language identity, alternative tokens, definition-context
+  two-phase lookup, defaulted comparison and C++23/STL features. It also covers
+  the complete-but-no-`value` tuple-size structured-binding rule. A separate
+  C++20 negative control rejects the C++23/STL feature test, so a mode label
+  alone cannot establish the selected features. `/permissive-` enables
+  conforming two-phase lookup; an extra positive `/Zc:twoPhase` is omitted,
+  and ignored driver options are not accepted
+  merely because `/WX` leaves the compiler exit code zero. See Microsoft's
+  [standard-mode](https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version?view=msvc-170)
+  and [two-phase lookup](https://learn.microsoft.com/en-us/cpp/build/reference/zc-twophase?view=msvc-170)
+  contracts. No production object from these probes is reused. Their success
+  does not establish extractor compatibility: only the unchanged raw coverage,
+  numeric zero compiler/fatal-error and eight-family API gates accept CodeQL.
   Generated-header steps and the
   fresh uncached/no-PCH Debug context remain. Existing four categories/check names and full
   query suites are unchanged. The shared local coverage pack is added to every
@@ -274,6 +276,44 @@ defines `--alternative_tokens`. LLVM20.1.8's
 [native preprocessor initialization](https://github.com/llvm/llvm-project/blob/llvmorg-20.1.8/clang/lib/Frontend/InitPreprocessor.cpp)
 defines the MSVC-compatible absence being preserved. No dependency version,
 standard, runtime behavior, query or coverage denominator changes here.
+
+The complete385e GNU-frontend trace then passed native compiler/header/language
+proof, traced compilation/linking and query execution, with all four required
+Windows sources and eight API families. It still failed the unchanged raw gate:
+542 compiler errors, 197 extraction-warning groups and17 aborted-invocation
+notifications. The earlier token, CRT-offset, ambiguous query cleanup and
+missing ASIO work-result diagnostics were absent, but Glaze structured-binding
+and constrained-declaration, ASIO executor-trait, JSON iterator and cpptrace
+diagnostics remained. No single microprobe explains all groups, and native build
+success does not establish source analysis. These failed artifacts remain
+diagnostic-only and do not permit a merge or deployment.
+
+Source-bound minimal probes reproduced a native-valid CWG2386 aggregate binding
+that CodeQL2.27.2 rejects, including with independently verified public17.14 STL
+headers. This defect-report rule requires a complete tuple-size class **with a
+`value` member** before choosing tuple-protocol decomposition; absence of that
+member permits aggregate binding. See [CWG2386](https://cplusplus.github.io/CWG/issues/2386.html).
+Neither speculative SFINAE/language switches nor changing compiler spelling
+verified a faithful correction in that Clang evaluation. CodeQL2.27.2 was the latest stable release at
+evaluation; its [support matrix](https://codeql.github.com/docs/codeql-overview/supported-languages-and-frameworks/)
+lists VS2022 and explicitly qualifies C++23 support as beta. The approved
+real-MSVC evaluation traces the actual compiler's semantics instead of forcing
+Microsoft emulation onto a Clang build. Local VS18/14.51 probes, if successful,
+remain diagnostic-only; exact CI14.44 raw results and every retained gate must
+pass before acceptance.
+
+Real-MSVC local diagnostics distinguish native compiler acceptance from scanner
+behavior. On the installed VS18/14.51 compiler, native C++23-preview compilation
+and strict CRT/ABI/feature proofs pass. Natural CodeQL tracing fails to recognize
+the preview flag; generic C++23 selection still omits `_MSVC_LANG`. The precise
+`--ms_c++23` option yields zero numeric compiler/fatal errors for source-bound
+valid structured-binding and real-header/CRT probes, without defining compiler
+macros manually. These are not exact VS2022/14.44 or full-project acceptance.
+A deliberately invalid tuple-value control is rejected by the native compiler
+but accepted by this extractor; that failed diagnostic control is retained,
+not reported as a pass or semantic-conformance proof. CodeQL is not a substitute
+for the mandatory strict native build. Actual dependency feature branches and
+all fresh coverage/API/error gates still require separate verification.
 
 ASIO remains at the verified 1.38.0 source commit
 `03cf5f86a780dd102f1cdd3a59d1244d12143e46`, with only the maintainer's
