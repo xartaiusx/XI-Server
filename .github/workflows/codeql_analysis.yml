@@ -151,6 +151,7 @@ jobs:
           -DCMAKE_CXX_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang++.exe" \
           -DCMAKE_C_COMPILER_TARGET:STRING=x86_64-pc-windows-msvc \
           -DCMAKE_CXX_COMPILER_TARGET:STRING=x86_64-pc-windows-msvc \
+          -DCMAKE_CXX_FLAGS:STRING=-U__STDC__ \
           -DCMAKE_BUILD_TYPE=Debug -DPCH_ENABLE=OFF -DENABLE_IPO=OFF \
           -DWARNINGS_AS_ERRORS=ON \
           -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded \
@@ -169,6 +170,7 @@ jobs:
         import shlex
         import subprocess
         from tempfile import TemporaryDirectory
+        from threading import Timer
 
         root = Path.cwd()
         build = root / "build"
@@ -178,6 +180,11 @@ jobs:
         if not 0 < cache_file.stat().st_size <= 1048576:
             raise SystemExit("Native CMake cache exceeds its bound")
         cache = cache_file.read_text()
+        flag_values = re.findall(r"^CMAKE_CXX_FLAGS:STRING=(.*)$", cache, re.MULTILINE)
+        if flag_values != ["-U__STDC__"]:
+            raise SystemExit("Unexpected Windows native preprocessing flags")
+        native_flags = shlex.split(flag_values[0], posix=False)
+        baseline_flags = [flag for flag in native_flags if flag != "-U__STDC__"]
         for language in ("C", "CXX"):
             files = list((build / "CMakeFiles").glob(f"*/CMake{language}Compiler.cmake"))
             if len(files) != 1:
@@ -198,13 +205,19 @@ jobs:
         checked = 0
         for entry in commands:
             source = Path(entry["file"])
+            if source.suffix not in {".cpp", ".cc", ".cxx", ".c++"}:
+                continue
+            arguments = shlex.split(entry["command"], posix=False)
+            if arguments.count("-U__STDC__") != 1 or any(arg in {"-U", "/U", "/U__STDC__"} for arg in arguments):
+                raise SystemExit("Every C++ command must preserve native __STDC__ absence exactly once")
+            if any(arg in {"-D", "/D"} or re.match(r"[-/]D(?:__STDC__|__cplusplus|_MSVC_LANG|_MSC_VER|__clang(?:_[A-Za-z0-9_]+)?|__cpp_[A-Za-z0-9_]+)(?:=|$)", arg.strip('"')) for arg in arguments):
+                raise SystemExit("Compiler and language predefines must not be fabricated")
             try:
                 relative = source.resolve().relative_to(root)
             except ValueError:
                 continue
-            if relative.parts[0] not in {"src", "modules"} or source.suffix not in {".cpp", ".cc", ".cxx", ".c++"}:
+            if relative.parts[0] not in {"src", "modules"}:
                 continue
-            arguments = shlex.split(entry["command"], posix=False)
             standards = [arg for arg in arguments if re.match(r"[-/](?:clang:)?-?std[:=]", arg)]
             if standards != ["-std=c++23"]:
                 raise SystemExit("First-party C++ compilation is not explicitly C++23")
@@ -219,14 +232,28 @@ jobs:
         with TemporaryDirectory(prefix="cxx23-proof-", dir=build) as temporary:
             probe = Path(temporary) / "language.cpp"
             probe.write_text('''#include "common/macros.h"
+        #ifdef __STDC__
+        #error Native Windows Clang must leave __STDC__ absent before undefinition
+        #endif
         #include <expected>
         #include <optional>
         #include <span>
         #include <string_view>
+        #include <sys/types.h>
+        #include <type_traits>
         static_assert(&strcmpi == &_stricmp);
         static_assert(&stricmp == &_stricmp);
+        static_assert(__clang_major__ == 20 && __clang_minor__ == 1 && __clang_patchlevel__ == 8);
+        static_assert(_MSC_VER == 1944);
         static_assert(__cplusplus == 202302L);
         static_assert(_MSVC_LANG == 202302L);
+        static_assert(sizeof(void*) == 8 && sizeof(long) == 4);
+        static_assert(std::is_same_v<off_t, _off_t>);
+        static_assert(not false and true);
+        constexpr int definition_target(long) { return 1; }
+        template <typename Value> constexpr int definition_lookup(Value value) { return definition_target(value); }
+        constexpr int definition_target(int) { return 2; }
+        static_assert(definition_lookup(0) == 1);
         struct Comparison { constexpr bool operator==(const Comparison&) const = default; };
         static_assert(Comparison{} == Comparison{});
         static_assert(std::expected<int, int>{42}.value() == 42);
@@ -234,12 +261,40 @@ jobs:
         static_assert(std::span<const int>{}.empty());
         static_assert(std::string_view{"C++23"}.size() == 5);
         ''', encoding="utf-8")
-            result = subprocess.run([compilers["CXX"], f"--target={target}", "-std=c++23", "-fsyntax-only", "-Werror", "-Wall", "-Wextra", "-I", str(root / "src"), "--", str(probe)], check=True, capture_output=True, text=True, timeout=30)
-            if len(result.stdout) + len(result.stderr) > 32768:
-                raise SystemExit("Native C++23 proof output exceeds its bound")
+            snapshots = []
+            for flags in (baseline_flags, native_flags):
+                outputs = []
+                for action, maximum in ((["-fsyntax-only"], 32768), (["-dM", "-E"], 2097152), (["-E", "-P"], 16777216)):
+                    arguments = [compilers["CXX"], f"--target={target}", "-std=c++23", "-Werror", "-Wall", "-Wextra", "-I", str(root / "src"), *flags, *action, "--", str(probe)]
+                    child = subprocess.Popen(arguments, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                    deadline = None
+                    try:
+                        deadline = Timer(30, child.kill)
+                        deadline.daemon = True
+                        deadline.start()
+                        output = child.stdout.read(maximum + 1)
+                        if len(output) > maximum or child.wait(timeout=5) != 0:
+                            raise SystemExit("Native C++23 preprocessing proof failed or exceeded its output bound")
+                        outputs.append(output)
+                    finally:
+                        if deadline is not None:
+                            deadline.cancel()
+                        if child.poll() is None:
+                            child.kill()
+                            child.wait(timeout=5)
+                        child.stdout.close()
+                if re.search(rb"^#define[ \t]+__STDC__(?:[ \t]|$)", outputs[1], re.MULTILINE):
+                    raise SystemExit("Native Windows Clang unexpectedly defines __STDC__")
+                snapshots.append(outputs[1:])
+            if snapshots[0] != snapshots[1]:
+                raise SystemExit("Undefinition changed native macros or real-header preprocessing")
         print(json.dumps({"compiler_id": "Clang", "version": "20.1.8", "frontend": "GNU", "simulate_id": "MSVC", "target": target, "standard_flag": "-std=c++23", "cplusplus": 202302, "msvc_lang": 202302, "first_party_commands": checked}))
         PY
         cmake --build build --target enum_codegen --parallel 4
+
+    - name: Preserve Windows native extractor token semantics
+      if: matrix.windows_security
+      run: printf '%s\n' 'CODEQL_EXTRACTOR_CPP_OPTION_FRONTEND_OPTIONS<<MOCHIRII_CPP_FRONTEND' '--alternative_tokens' '--dep_name' 'MOCHIRII_CPP_FRONTEND' >> "$GITHUB_ENV"
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL

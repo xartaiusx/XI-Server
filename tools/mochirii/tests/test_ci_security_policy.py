@@ -112,6 +112,7 @@ class CodeScanningCoverageTests(TestCase):
             '-DCMAKE_CXX_COMPILER:FILEPATH="C:/Program Files/LLVM/bin/clang++.exe"',
             "-DCMAKE_C_COMPILER_TARGET:STRING=x86_64-pc-windows-msvc",
             "-DCMAKE_CXX_COMPILER_TARGET:STRING=x86_64-pc-windows-msvc",
+            "-DCMAKE_CXX_FLAGS:STRING=-U__STDC__",
             "-DWARNINGS_AS_ERRORS=ON",
         ):
             self.assertIn(flag, configure)
@@ -244,7 +245,7 @@ class CodeScanningCoverageTests(TestCase):
             "SIMULATE_ID": "MSVC",
         }
         target = "x86_64-pc-windows-msvc"
-        native = [f"--target={target}", "-Werror", "-std=c++23"]
+        native = [f"--target={target}", "-Werror", "-U__STDC__", "-std=c++23"]
         cases = (
             ({}, native, "src", True),
             (
@@ -269,9 +270,23 @@ class CodeScanningCoverageTests(TestCase):
             ({}, native + ["-std=c++23"], "src", False),
             ({}, native + ["--target=x86_64-w64-windows-gnu"], "src", False),
             ({}, native[1:], "src", False),
-            ({}, [native[0], native[2]], "src", False),
+            ({}, [native[0], *native[2:]], "src", False),
             ({}, native + ["-Wno-error"], "src", False),
             ({}, native + ["-Wno-error=unused-variable"], "src", False),
+            ({}, [arg for arg in native if arg != "-U__STDC__"], "src", False),
+            ({}, native + ["-U__STDC__"], "src", False),
+            ({}, native + ["/U__STDC__"], "src", False),
+            ({}, native + ["-U", "__STDC__"], "src", False),
+            ({}, native + ["-D__STDC__=0"], "src", False),
+            ({}, native + ["/D__cplusplus=202302L"], "src", False),
+            ({}, native + ['"-D_MSVC_LANG=202302L"'], "src", False),
+            ({}, native + ["-D_MSC_VER=1944"], "src", False),
+            ({}, native + ["-D__clang_major__=20"], "src", False),
+            ({}, native + ["-D__cpp_lib_expected=202202L"], "src", False),
+            ({}, native + ["-D", "_MSC_VER=1944"], "src", False),
+            ({"FLAGS": ""}, native, "src", False),
+            ({"FLAGS": "-U__STDC__ -D__STDC__=0"}, native, "src", False),
+            ({"DEPENDENCY": True}, native, "src", False),
             ({}, native, "ext", False),
         )
         with TemporaryDirectory() as temporary:
@@ -295,7 +310,7 @@ class CodeScanningCoverageTests(TestCase):
                                 for key, value in (
                                     {"COMPILER": compiler} | values | changed
                                 ).items()
-                                if key != "TARGET"
+                                if key not in {"TARGET", "FLAGS", "DEPENDENCY"}
                             )
                         )
                     (build / "CMakeCache.txt").write_text(
@@ -304,7 +319,7 @@ class CodeScanningCoverageTests(TestCase):
                             for language in ("C", "CXX")
                             if changed.get("TARGET", target) is not None
                         )
-                        + "\n"
+                        + f"\nCMAKE_CXX_FLAGS:STRING={changed.get('FLAGS', '-U__STDC__')}\n"
                     )
                     (build / "compile_commands.json").write_text(
                         json.dumps(
@@ -314,47 +329,189 @@ class CodeScanningCoverageTests(TestCase):
                                     "command": "clang++.exe " + " ".join(standards),
                                 }
                             ]
+                            + (
+                                [
+                                    {
+                                        "file": str(build / "_deps/library.cpp"),
+                                        "command": "clang++.exe -std=c++23",
+                                    }
+                                ]
+                                if changed.get("DEPENDENCY")
+                                else []
+                            )
                         )
                     )
+                    processes = []
+
+                    def start(arguments, **_kwargs):
+                        output = (
+                            b"#define _MSC_VER 1944\n"
+                            if "-dM" in arguments
+                            else b"real headers\n" if "-E" in arguments else b""
+                        )
+                        child = mock.Mock()
+                        child.stdout.read.return_value = output
+                        child.wait.return_value = 0
+                        child.poll.return_value = 0
+                        processes.append(child)
+                        return child
+
                     with mock.patch("pathlib.Path.cwd", return_value=root), mock.patch(
-                        "subprocess.run", return_value=mock.Mock(stdout="", stderr="")
-                    ) as run, redirect_stdout(io.StringIO()):
+                        "subprocess.Popen", side_effect=start
+                    ) as popen, mock.patch("threading.Timer") as timer, redirect_stdout(
+                        io.StringIO()
+                    ):
                         if accepted:
                             exec(compile(script, "<cmake-context>", "exec"), {})
-                            self.assertEqual(run.call_args.kwargs["timeout"], 30)
-                            self.assertTrue(run.call_args.kwargs["check"])
-                            arguments = run.call_args.args[0]
-                            self.assertEqual(
-                                arguments[:-1],
-                                [
+                            self.assertEqual(popen.call_count, 6)
+                            for index, call in enumerate(popen.call_args_list):
+                                action, maximum = (
+                                    (["-fsyntax-only"], 32768),
+                                    (["-dM", "-E"], 2097152),
+                                    (["-E", "-P"], 16777216),
+                                )[index % 3]
+                                arguments = call.args[0]
+                                expected = [
                                     "C:/Program Files/LLVM/bin/clang++.exe",
                                     "--target=x86_64-pc-windows-msvc",
                                     "-std=c++23",
-                                    "-fsyntax-only",
                                     "-Werror",
                                     "-Wall",
                                     "-Wextra",
                                     "-I",
                                     str(root / "src"),
+                                    *(["-U__STDC__"] if index >= 3 else []),
+                                    *action,
                                     "--",
-                                ],
-                            )
-                            self.assertFalse(Path(arguments[-1]).exists())
+                                ]
+                                self.assertEqual(arguments[:-1], expected)
+                                self.assertFalse(Path(arguments[-1]).exists())
+                                self.assertEqual(
+                                    call.kwargs,
+                                    {
+                                        "stdin": subprocess.DEVNULL,
+                                        "stdout": subprocess.PIPE,
+                                        "stderr": subprocess.STDOUT,
+                                    },
+                                )
+                                processes[index].stdout.read.assert_called_once_with(
+                                    maximum + 1
+                                )
+                                processes[index].wait.assert_called_once_with(timeout=5)
+                                processes[index].stdout.close.assert_called_once()
+                                processes[index].kill.assert_not_called()
+                                self.assertEqual(
+                                    timer.call_args_list[index].args,
+                                    (30, processes[index].kill),
+                                )
+                            self.assertEqual(timer.return_value.start.call_count, 6)
+                            self.assertEqual(timer.return_value.cancel.call_count, 6)
                             for failure in (
-                                subprocess.CalledProcessError(1, arguments),
-                                subprocess.TimeoutExpired(arguments, 30),
+                                "spawn",
+                                "timer_init",
+                                "timer_start",
+                                "deadline",
+                                "exit",
+                                "overflow",
+                                "timeout",
+                                "stdc",
+                                "macro",
+                                "headers",
                             ):
-                                run.side_effect = failure
-                                with self.assertRaises(type(failure)):
+                                processes.clear()
+                                popen.reset_mock()
+                                timer.reset_mock()
+                                timer.side_effect = None
+                                timer.return_value.start.side_effect = None
+
+                                def fail(arguments, **kwargs):
+                                    if failure == "spawn":
+                                        raise OSError(
+                                            "synthetic compiler launch failure"
+                                        )
+                                    child = start(arguments, **kwargs)
+                                    if failure in {
+                                        "timer_init",
+                                        "timer_start",
+                                        "overflow",
+                                        "timeout",
+                                    }:
+                                        child.poll.return_value = None
+                                    if failure == "exit":
+                                        child.wait.return_value = 1
+                                    if failure == "overflow":
+                                        child.stdout.read.return_value = b"x" * 32769
+                                    if failure == "timeout":
+                                        child.wait.side_effect = [
+                                            subprocess.TimeoutExpired(arguments, 5),
+                                            0,
+                                        ]
+                                    if failure == "stdc" and "-dM" in arguments:
+                                        child.stdout.read.return_value = (
+                                            b"#define\t__STDC__\t1\n"
+                                        )
+                                    if failure == "macro" and len(processes) == 5:
+                                        child.stdout.read.return_value = (
+                                            b"#define _MSC_VER 1945\n"
+                                        )
+                                    if failure == "headers" and len(processes) == 6:
+                                        child.stdout.read.return_value = (
+                                            b"different headers\n"
+                                        )
+                                    return child
+
+                                popen.side_effect = fail
+                                if failure == "timer_init":
+                                    timer.side_effect = RuntimeError(
+                                        "synthetic timer failure"
+                                    )
+                                if failure == "timer_start":
+                                    timer.return_value.start.side_effect = RuntimeError(
+                                        "synthetic timer start failure"
+                                    )
+                                if failure == "deadline":
+
+                                    def expire():
+                                        processes[-1].kill()
+                                        processes[-1].wait.return_value = -9
+                                        processes[-1].poll.return_value = -9
+
+                                    timer.return_value.start.side_effect = expire
+                                exception = (
+                                    OSError
+                                    if failure == "spawn"
+                                    else (
+                                        RuntimeError
+                                        if failure.startswith("timer_")
+                                        else (
+                                            subprocess.TimeoutExpired
+                                            if failure == "timeout"
+                                            else SystemExit
+                                        )
+                                    )
+                                )
+                                with self.subTest(failure=failure), self.assertRaises(
+                                    exception
+                                ):
                                     exec(compile(script, "<cmake-context>", "exec"), {})
-                            run.side_effect = None
-                            run.return_value.stdout = "x" * 32769
-                            with self.assertRaises(SystemExit):
-                                exec(compile(script, "<cmake-context>", "exec"), {})
+                                for child in processes:
+                                    child.stdout.close.assert_called_once()
+                                if failure in {
+                                    "timer_init",
+                                    "timer_start",
+                                    "deadline",
+                                    "overflow",
+                                    "timeout",
+                                }:
+                                    processes[0].kill.assert_called_once()
+                                    self.assertEqual(
+                                        processes[0].wait.call_args.kwargs,
+                                        {"timeout": 5},
+                                    )
                         else:
                             with self.assertRaises(SystemExit):
                                 exec(compile(script, "<cmake-context>", "exec"), {})
-                            run.assert_not_called()
+                            popen.assert_not_called()
             (compiler_context / "CMakeCCompiler.cmake").unlink()
             with mock.patch("pathlib.Path.cwd", return_value=root), self.assertRaises(
                 SystemExit
@@ -372,6 +529,13 @@ class CodeScanningCoverageTests(TestCase):
         for proof in (
             "__cplusplus == 202302L",
             "_MSVC_LANG == 202302L",
+            "_MSC_VER == 1944",
+            "__clang_major__ == 20 && __clang_minor__ == 1 && __clang_patchlevel__ == 8",
+            "sizeof(void*) == 8 && sizeof(long) == 4",
+            "std::is_same_v<off_t, _off_t>",
+            "#ifdef __STDC__",
+            "static_assert(not false and true)",
+            "static_assert(definition_lookup(0) == 1)",
             "operator==(const Comparison&) const = default",
             "std::expected<int, int>",
             "std::optional<int>",
@@ -386,6 +550,27 @@ class CodeScanningCoverageTests(TestCase):
         warnings = (self.repo / "cmake/CompilerWarnings.cmake").read_text()
         self.assertIn('set(ERRORS "-Werror")', warnings)
         self.assertIn('set(ERRORS "/WX")', warnings)
+
+    def test_windows_token_option_is_scoped_before_initialization(self) -> None:
+        job = self.workflow["jobs"]["analyze"]
+        name = "CODEQL_EXTRACTOR_CPP_OPTION_FRONTEND_OPTIONS"
+        self.assertNotIn(name, job["env"])
+        steps = job["steps"]
+        contexts = [
+            (index, step)
+            for index, step in enumerate(steps)
+            if name in json.dumps(step)
+        ]
+        self.assertEqual(len(contexts), 1)
+        index, step = contexts[0]
+        self.assertEqual(step["if"], "matrix.windows_security")
+        self.assertEqual(
+            step["run"],
+            f"printf '%s\\n' '{name}<<MOCHIRII_CPP_FRONTEND' '--alternative_tokens' '--dep_name' 'MOCHIRII_CPP_FRONTEND' >> \"$GITHUB_ENV\"",
+        )
+        names = [step.get("name") for step in steps]
+        self.assertLess(names.index("Verify Windows security CMake context"), index)
+        self.assertLess(index, names.index("Initialize CodeQL"))
 
     def test_windows_system_libraries_follow_platform_not_driver(self) -> None:
         settings = (self.repo / "cmake/StandardProjectSettings.cmake").read_text()

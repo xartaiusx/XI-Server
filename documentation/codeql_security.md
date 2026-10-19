@@ -41,16 +41,32 @@ coverage policy.
   need no compiler-option override. The normal project build configuration is
   unchanged. This lane uses the existing Clang warning profile (`-Wall`,
   `-Wextra`, `-Werror`), not the MSVC `/W4` profile; no suppression is added.
+  Its C++ commands carry exactly one native `-U__STDC__`, with no fabricated
+  compiler/language feature values. Native Windows Clang already leaves this
+  macro absent under MSVC compatibility; the undefinition preserves that state
+  when the pinned extractor otherwise introduces it in system headers.
+  Only this Windows lane sets the pinned extractor's supported
+  `frontend_options` transport to `--alternative_tokens` and `--dep_name`,
+  preserving C++ `not`/`and` tokens and standard dependent-name lookup. The
+  array uses the pinned extractor's verified newline-separated environment
+  representation, not a single space-joined argument. Linux lanes inherit
+  neither setting.
   The ordinary native MSVC Build lane retains its `/W4` and `/WX` checks.
   Windows system-library linkage follows `WIN32`, not the driver's `MSVC`
   syntax flag, so the GNU frontend retains the same timer/debug/network imports
   as ordinary MSVC builds without overriding CMake's default libraries.
-  Before initialization, a syntax-only native GNU-driver probe requires both
-  `__cplusplus` and `_MSVC_LANG` to equal 202302L, and checks `expected`,
-  `optional`, `span`, `string_view` and a defaulted comparison. The actual
-  `common/macros.h` is its first include, with alias-address assertions against
+  Before initialization, a native GNU-driver probe requires both `__cplusplus`
+  and `_MSVC_LANG` to equal 202302L, Clang20.1.8, `_MSC_VER`1944, the Windows x64
+  pointer/long ABI and `off_t`/`_off_t` type identity. It checks alternative
+  tokens, two-phase definition-context lookup, `expected`, `optional`, `span`,
+  `string_view` and a defaulted comparison.
+  The actual `common/macros.h` is its first include, with alias-address assertions against
   `_stricmp` under strict warnings, so CRT declaration ordering is also checked.
-  No production
+  Using flags read from the guarded CMake cache, this real-header probe compiles
+  without and with only the known undefinition. Both must
+  leave `__STDC__` absent and produce byte-identical `-dM -E` macro output and
+  `-E -P` preprocessed source. Each compiler process has a 30-second deadline
+  and bounded merged output; failed comparisons fail closed. No production
   object from this probe is reused. This native proof does not establish
   extractor compatibility: only the unchanged raw coverage, zero compiler-error
   and eight-family API gates can accept the actual CodeQL result.
@@ -232,6 +248,32 @@ rewriting the UCRT's own deprecated declarations. POSIX aliases remain
 `strcasecmp`; null-terminated, locale-sensitive comparison and authentication
 decisions are unchanged. No warning suppression or replacement comparison
 algorithm is introduced. Actual native Windows proof remains required.
+
+The subsequent d6c GNU-frontend trace passed native compilation, queries, all
+four required Windows source files and all eight API families, but retained
+525 native compiler errors and 21 aborted-invocation notifications. That raw
+gate failure remains preserved and is not accepted. A controlled, pinned
+CodeQL2.27.2/Clang20.1.8 real-header reproduction isolated alternative-token
+handling and extractor-only system-header `__STDC__` state: the native numeric
+error query fell from six to three with `--alternative_tokens`, then to zero
+with the real native `-U__STDC__`; the exact environment transport also passed.
+Native macro and preprocessed output were identical before/after undefinition,
+including the real CRT types and ABI. These diagnostic checks used local
+MSVC14.51 headers, not the required CI14.44 toolset. They do not prove that all
+ASIO substitution diagnostics or the complete trace are corrected. Fresh exact
+CI14.44 raw extraction must still pass every unchanged acceptance gate; neither
+the reproduction nor a successful native build permits deployment. A separate
+definition-context overload probe passes both native compilation and extraction
+with `--dep_name`; this narrow documented option avoids the wider semantic
+changes of switching Microsoft emulation modes. Its exact newline-separated
+environment transport was also reproduced with zero compiler/fatal records.
+The [extractor-options interface](https://docs.github.com/en/code-security/reference/code-scanning/codeql/codeql-cli/extractor-options)
+and the exact pinned extractor schema provide the option transport; EDG's
+[frontend documentation](https://edgcpp.org/doc/ext_intf/)
+defines `--alternative_tokens`. LLVM20.1.8's
+[native preprocessor initialization](https://github.com/llvm/llvm-project/blob/llvmorg-20.1.8/clang/lib/Frontend/InitPreprocessor.cpp)
+defines the MSVC-compatible absence being preserved. No dependency version,
+standard, runtime behavior, query or coverage denominator changes here.
 
 The first supported-toolchain candidate passed native compiler/SDK preflight but
 failed CMake generation before CodeQL initialization: fmt12.2.0 auto-enabled its
