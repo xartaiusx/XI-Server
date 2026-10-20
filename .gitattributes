@@ -18,6 +18,8 @@
 *.ps1 text eol=crlf
 *.yaml text eol=lf
 *.yml text eol=lf
+# Unified context markers precede upstream TAB indentation; keep other checks.
+cmake/patches/recast-security.patch text eol=lf whitespace=-space-before-tab
 # Imported reference documents retain upstream whitespace, including Markdown breaks.
 docs/** -whitespace
 

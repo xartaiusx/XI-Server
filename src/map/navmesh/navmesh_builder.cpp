@@ -616,6 +616,47 @@ void disableLinksIntoDisabledPolys(dtNavMesh& navMesh)
 
 } // namespace
 
+auto NavMeshBuilder::supportsPolygonLimit(const int maxVertsPerPoly) noexcept -> bool
+{
+    return maxVertsPerPoly >= 3 && maxVertsPerPoly <= DT_VERTS_PER_POLYGON;
+}
+
+auto NavMeshBuilder::supportsContourSet(const rcContourSet& contours) noexcept -> bool
+{
+    if (contours.nconts < 0 || (contours.nconts > 0 && contours.conts == nullptr))
+    {
+        return false;
+    }
+
+    constexpr int maxVertices = RC_MESH_NULL_IDX - 2;
+    int           total       = 0;
+    for (int i = 0; i < contours.nconts; ++i)
+    {
+        const auto& contour = contours.conts[i];
+        if (contour.nverts < 0)
+        {
+            return false;
+        }
+        if (contour.nverts < 3)
+        {
+            continue;
+        }
+        // Check before adding: Recast sums these counts in signed int before
+        // checking its 16-bit vertex-index limit.
+        if (contour.verts == nullptr || contour.nverts > maxVertices - total)
+        {
+            return false;
+        }
+        total += contour.nverts;
+    }
+    return true;
+}
+
+auto NavMeshBuilder::hasTileValidationFailure(const std::vector<TileResult>& results) noexcept -> bool
+{
+    return std::ranges::any_of(results, &TileResult::validationFailed);
+}
+
 NavMeshBuilder::NavMeshBuilder(const XiMesh& xiMesh)
 : xiMesh_(&xiMesh)
 , gridWidth_(xiMesh.gridWidth())
@@ -1076,6 +1117,15 @@ auto NavMeshBuilder::buildTile(const int tx, const int ty, const rcConfig& cfg, 
         return {};
     }
 
+    // cset owns valid allocations produced by rcBuildContours. Reject excessive
+    // counts before Recast's signed accumulation; do not publish a partial mesh.
+    if (!supportsContourSet(*cset))
+    {
+        rcFreeCompactHeightfield(chf);
+        rcFreeContourSet(cset);
+        return { .validationFailed = true };
+    }
+
     if (cset->nconts == 0)
     {
         rcFreeCompactHeightfield(chf);
@@ -1286,6 +1336,12 @@ auto NavMeshBuilder::buildTile(const int tx, const int ty, const rcConfig& cfg, 
 
 auto NavMeshBuilder::buildAsync(Scheduler& scheduler, const std::string& zoneName, const uint16 zoneID, const NavMeshConfig& config) -> Task<dtNavMesh*>
 {
+    if (!supportsPolygonLimit(config.maxVertsPerPoly))
+    {
+        ShowErrorFmt("NavMeshBuilder::build: maxVertsPerPoly must be between 3 and {} ({})", DT_VERTS_PER_POLYGON, zoneID);
+        co_return nullptr;
+    }
+
     //
     // World bounds to Detour coordinate space (negate Y and Z, swap min/max)
     //
@@ -1425,6 +1481,19 @@ auto NavMeshBuilder::buildAsync(Scheduler& scheduler, const std::string& zoneNam
                         }));
                 }
             });
+    }
+
+    // No buffer has been transferred to navMesh yet. Validation failure in
+    // any tile rejects the complete build, preserving the zone's existing mesh.
+    if (hasTileValidationFailure(results))
+    {
+        for (const auto& result : results)
+        {
+            dtFree(result.data);
+        }
+        dtFreeNavMesh(navMesh);
+        ShowErrorFmt("NavMeshBuilder::build: Contour validation failed ({})", zoneID);
+        co_return nullptr;
     }
 
     //

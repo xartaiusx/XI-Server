@@ -24,12 +24,17 @@
 #include "common/database.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <fmt/chrono.h>
 
 #include <array>
 #include <cstddef>
+#include <ctime>
+#include <future>
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
+#include <utility>
 
 TEST_CASE("Scheduler FOURCC packets preserve exactly four bytes", "[security][packets][fourcc]")
 {
@@ -194,4 +199,38 @@ TEST_CASE("Missing gambit cooldown abilities do not dereference null", "[securit
     }
     REQUIRE(database.queries.size() == 1);
     CHECK(database.queries.front().starts_with("INSERT INTO char_history SET "));
+}
+
+TEST_CASE("fmt UTC conversion selects the supported thread-safe platform API", "[security][time]")
+{
+    using namespace fmt::detail;
+#if FMT_MSC_VERSION
+    static_assert(std::is_same_v<decltype(gmtime_s(std::declval<std::tm*>(), std::declval<const std::time_t*>())), int>);
+#else
+    static_assert(std::is_same_v<decltype(gmtime_r(std::declval<const std::time_t*>(), std::declval<std::tm*>())), std::tm*>);
+#endif
+
+    std::array<std::future<bool>, 4> workers;
+    for (std::size_t worker = 0; worker < workers.size(); ++worker)
+    {
+        workers[worker] = std::async(std::launch::async, [worker]
+                                     {
+                                         for (std::size_t iteration = 0; iteration < 256; ++iteration)
+                                         {
+                                             const bool later = ((iteration + worker) % 2) != 0;
+                                             const auto value = fmt::gmtime(static_cast<std::time_t>(later ? 946684800 : 0));
+                                             if (value.tm_year != (later ? 100 : 70) || value.tm_mon != 0 || value.tm_mday != 1 ||
+                                                 value.tm_hour != 0 || value.tm_min != 0 || value.tm_sec != 0 ||
+                                                 value.tm_wday != (later ? 6 : 4) || value.tm_yday != 0 || value.tm_isdst != 0)
+                                             {
+                                                 return false;
+                                             }
+                                         }
+                                         return true;
+                                     });
+    }
+    for (auto& worker : workers)
+    {
+        CHECK(worker.get());
+    }
 }

@@ -107,10 +107,17 @@ CPMAddPackage(
         "SPDLOG_FMT_EXTERNAL ON"
 ) # defines: spdlog
 
+# Keep the pinned security corrections separate from the unpatched cache.
+set(recast_revision 1078bfe346d9bb560faa748c8fde2e7aae73a3ab)
+set(recast_security_patch "${CMAKE_SOURCE_DIR}/cmake/patches/recast-security.patch")
+file(SHA256 "${recast_security_patch}" recast_patch_hash)
+string(SHA256 recast_cache_key "${recast_revision}:${recast_patch_hash}")
 CPMAddPackage(
     NAME recastnavigation
     GITHUB_REPOSITORY recastnavigation/recastnavigation
-    GIT_TAG 1078bfe346d9bb560faa748c8fde2e7aae73a3ab
+    GIT_TAG ${recast_revision}
+    CUSTOM_CACHE_KEY ${recast_cache_key}
+    PATCHES "${recast_security_patch}"
     SYSTEM ON
     OPTIONS
         "RECASTNAVIGATION_DEMO OFF"

@@ -1,0 +1,31 @@
+diff --git a/Recast/Source/RecastMesh.cpp b/Recast/Source/RecastMesh.cpp
+--- a/Recast/Source/RecastMesh.cpp
++++ b/Recast/Source/RecastMesh.cpp
+@@ -876,5 +876,5 @@
+ 	// Build initial polygons.
+ 	int npolys = 0;
+-	memset(polys, 0xff, ntris*nvp*sizeof(unsigned short));
++	memset(polys, 0xff, sizeof(unsigned short)*ntris*nvp);
+ 	for (int j = 0; j < ntris; ++j)
+ 	{
+@@ -1133,9 +1133,9 @@
+ 		}
+
+ 		// Build initial polygons.
+ 		int npolys = 0;
+-		memset(polys, 0xff, maxVertsPerCont*nvp*sizeof(unsigned short));
++		memset(polys, 0xff, sizeof(unsigned short)*maxVertsPerCont*nvp);
+ 		for (int j = 0; j < ntris; ++j)
+ 		{
+ 			int* t = &tris[j*3];
+ 			if (t[0] != t[1] && t[0] != t[2] && t[1] != t[2])
+diff --git a/Recast/Source/RecastRegion.cpp b/Recast/Source/RecastRegion.cpp
+--- a/Recast/Source/RecastRegion.cpp
++++ b/Recast/Source/RecastRegion.cpp
+@@ -1656,5 +1656,5 @@
+ 		if (overlaps.size() > 0)
+ 		{
+-			ctx->log(RC_LOG_ERROR, "rcBuildRegions: %d overlapping regions.", overlaps.size());
++			ctx->log(RC_LOG_ERROR, "rcBuildRegions: %lld overlapping regions.", static_cast<long long>(overlaps.size()));
+ 		}
+ 	}

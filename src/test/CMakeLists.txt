@@ -71,6 +71,7 @@ xi_add_executable(xi_test testserver.rc
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/glaze_skip_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/item_container_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/lua_returns_tests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/navmesh_security_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/rng_runtime_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/security_boundary_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/trust_full_alliance_tests.cpp

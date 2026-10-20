@@ -33,6 +33,7 @@
 #include <vector>
 
 struct rcConfig;
+struct rcContourSet;
 
 class XiMesh;
 class dtNavMesh;
@@ -66,6 +67,7 @@ struct TileResult
     unsigned char* data{};
     int            dataSize{};
     int            offMeshCount{};
+    bool           validationFailed{};
 
     std::vector<bool> covered; // per ground poly, up-facing collision geometry over every corner and the centre
 };
@@ -91,6 +93,12 @@ class NavMeshBuilder
 {
 public:
     explicit NavMeshBuilder(const XiMesh& xiMesh);
+
+    // Recast's signed count arithmetic and Detour's polygon capacity are bounded
+    // before building. Contour buffers must still satisfy rcBuildContours' contract.
+    static auto supportsPolygonLimit(int maxVertsPerPoly) noexcept -> bool;
+    static auto supportsContourSet(const rcContourSet& contours) noexcept -> bool;
+    static auto hasTileValidationFailure(const std::vector<TileResult>& results) noexcept -> bool;
 
     void getWorldBounds(float* bmin, float* bmax) const;
 
