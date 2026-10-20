@@ -109,7 +109,11 @@ CPMAddPackage(
 
 # Keep the pinned security corrections separate from the unpatched cache.
 set(recast_revision 1078bfe346d9bb560faa748c8fde2e7aae73a3ab)
-set(recast_security_patch "${CMAKE_SOURCE_DIR}/cmake/patches/recast-security.patch")
+set(recast_security_patch_template "${CMAKE_SOURCE_DIR}/cmake/patches/recast-security.patch.in")
+set(recast_security_patch "${CMAKE_CURRENT_BINARY_DIR}/recast-security.patch")
+string(ASCII 9 RECAST_TAB)
+configure_file("${recast_security_patch_template}" "${recast_security_patch}" @ONLY NEWLINE_STYLE LF)
+unset(RECAST_TAB)
 file(SHA256 "${recast_security_patch}" recast_patch_hash)
 string(SHA256 recast_cache_key "${recast_revision}:${recast_patch_hash}")
 CPMAddPackage(

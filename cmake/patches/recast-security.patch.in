@@ -1,0 +1,31 @@
+diff --git a/Recast/Source/RecastMesh.cpp b/Recast/Source/RecastMesh.cpp
+--- a/Recast/Source/RecastMesh.cpp
++++ b/Recast/Source/RecastMesh.cpp
+@@ -876,5 +876,5 @@
+ @RECAST_TAB@// Build initial polygons.
+ @RECAST_TAB@int npolys = 0;
+-@RECAST_TAB@memset(polys, 0xff, ntris*nvp*sizeof(unsigned short));
++@RECAST_TAB@memset(polys, 0xff, sizeof(unsigned short)*ntris*nvp);
+ @RECAST_TAB@for (int j = 0; j < ntris; ++j)
+ @RECAST_TAB@{
+@@ -1133,9 +1133,9 @@
+ @RECAST_TAB@@RECAST_TAB@}
+
+ @RECAST_TAB@@RECAST_TAB@// Build initial polygons.
+ @RECAST_TAB@@RECAST_TAB@int npolys = 0;
+-@RECAST_TAB@@RECAST_TAB@memset(polys, 0xff, maxVertsPerCont*nvp*sizeof(unsigned short));
++@RECAST_TAB@@RECAST_TAB@memset(polys, 0xff, sizeof(unsigned short)*maxVertsPerCont*nvp);
+ @RECAST_TAB@@RECAST_TAB@for (int j = 0; j < ntris; ++j)
+ @RECAST_TAB@@RECAST_TAB@{
+ @RECAST_TAB@@RECAST_TAB@@RECAST_TAB@int* t = &tris[j*3];
+ @RECAST_TAB@@RECAST_TAB@@RECAST_TAB@if (t[0] != t[1] && t[0] != t[2] && t[1] != t[2])
+diff --git a/Recast/Source/RecastRegion.cpp b/Recast/Source/RecastRegion.cpp
+--- a/Recast/Source/RecastRegion.cpp
++++ b/Recast/Source/RecastRegion.cpp
+@@ -1656,5 +1656,5 @@
+ @RECAST_TAB@@RECAST_TAB@if (overlaps.size() > 0)
+ @RECAST_TAB@@RECAST_TAB@{
+-@RECAST_TAB@@RECAST_TAB@@RECAST_TAB@ctx->log(RC_LOG_ERROR, "rcBuildRegions: %d overlapping regions.", overlaps.size());
++@RECAST_TAB@@RECAST_TAB@@RECAST_TAB@ctx->log(RC_LOG_ERROR, "rcBuildRegions: %lld overlapping regions.", static_cast<long long>(overlaps.size()));
+ @RECAST_TAB@@RECAST_TAB@}
+ @RECAST_TAB@}
