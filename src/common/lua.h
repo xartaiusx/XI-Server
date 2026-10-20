@@ -22,6 +22,18 @@
 #pragma once
 
 #include <sol/sol.hpp>
+#include <type_traits>
+
+namespace sol
+{
+
+// Return wrappers expose values, not a public container interface.
+template <typename T>
+struct is_container<as_returns_t<T>> : std::false_type
+{
+};
+
+} // namespace sol
 
 extern sol::state& lua;
 

@@ -22,15 +22,65 @@
 #include "data/enums/detects.h"
 #include "map/data/datasets/ecosystems/dataset.h"
 #include "map/data/datasets/status_effects/dataset.h"
+#include "map/data/datasets/status_effects/yaml.h"
 #include "map/data/yaml/merge.h"
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
+#include <cstdint>
 #include <string>
+#include <string_view>
+#include <variant>
 #include <vector>
 
 using EcosystemsDataset   = xi::data::datasets::ecosystems::Dataset;
 using StatusEffectDataset = xi::data::datasets::status_effects::Dataset;
+
+TEST_CASE("data binding: status schema preserves signed defaults and bounds", "[data][schema]")
+{
+    using Effect = xi::data::datasets::status_effects::wire::StatusEffect;
+    const glz::json_schema<Effect> annotations{};
+    const std::array               entries{ &annotations.min_duration, &annotations.sort_key, &annotations.wear_off_message_id };
+    for (const auto* entry : entries)
+    {
+        REQUIRE(entry->defaultValue.has_value());
+        REQUIRE(std::holds_alternative<std::int64_t>(*entry->defaultValue));
+        CHECK(std::get<std::int64_t>(*entry->defaultValue) == 0);
+        REQUIRE(entry->minimum.has_value());
+        REQUIRE(entry->maximum.has_value());
+        REQUIRE(std::holds_alternative<std::int64_t>(*entry->minimum));
+        REQUIRE(std::holds_alternative<std::int64_t>(*entry->maximum));
+        CHECK(std::get<std::int64_t>(*entry->minimum) == 0);
+        CHECK(std::get<std::int64_t>(*entry->maximum) == 65535);
+    }
+
+    const auto encoded = glz::write_json_schema<Effect, glz::opts{ .error_on_missing_keys = true }>();
+    REQUIRE(encoded.has_value());
+    glz::generic decoded;
+    REQUIRE_FALSE(glz::read_json(decoded, *encoded));
+    using Object     = glz::generic::object_t;
+    const auto* root = decoded.get_if<Object>();
+    REQUIRE(root != nullptr);
+    REQUIRE(root->contains("properties"));
+    const auto* properties = root->at("properties").get_if<Object>();
+    REQUIRE(properties != nullptr);
+    for (const auto* field : { "min_duration", "sort_key", "wear_off_message_id" })
+    {
+        CAPTURE(field);
+        REQUIRE(properties->contains(field));
+        const auto* schema = properties->at(field).get_if<Object>();
+        REQUIRE(schema != nullptr);
+        for (const auto* key : { "default", "minimum", "maximum" })
+        {
+            CAPTURE(key);
+            REQUIRE(schema->contains(key));
+            const auto* number = schema->at(key).get_if<double>();
+            REQUIRE(number != nullptr);
+            CHECK(*number == (std::string_view(key) == "maximum" ? 65535.0 : 0.0));
+        }
+    }
+}
 
 TEST_CASE("data binding: modules keep sparse-map and list-replacement semantics", "[data][binding]")
 {

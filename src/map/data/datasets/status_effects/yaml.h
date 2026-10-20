@@ -76,9 +76,9 @@ struct glz::json_schema<xi::data::datasets::status_effects::wire::StatusEffect>
     glz::schema block{ .description = "This effect will not land while the named effect is active." };
     glz::schema remove{ .description = "The named effect is always removed when this one lands." };
     glz::schema element{ .description = "Element used for resistance checks." };
-    glz::schema min_duration{ .description = "Floor on the effect duration, in seconds.", .defaultValue = 0, .minimum = 0L, .maximum = 65535L };
-    glz::schema sort_key{ .description = "Order in which the effect is displayed.", .defaultValue = 0, .minimum = 0L, .maximum = 65535L };
-    glz::schema wear_off_message_id{ .description = "Message shown when the effect wears off.", .defaultValue = 0, .minimum = 0L, .maximum = 65535L };
+    glz::schema min_duration{ .description = "Floor on the effect duration, in seconds.", .defaultValue = int64{ 0 }, .minimum = 0L, .maximum = 65535L };
+    glz::schema sort_key{ .description = "Order in which the effect is displayed.", .defaultValue = int64{ 0 }, .minimum = 0L, .maximum = 65535L };
+    glz::schema wear_off_message_id{ .description = "Message shown when the effect wears off.", .defaultValue = int64{ 0 }, .minimum = 0L, .maximum = 65535L };
 };
 
 template <>

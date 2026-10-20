@@ -52,3 +52,21 @@ diff --git a/include/glaze/json/skip.hpp b/include/glaze/json/skip.hpp
 +      requires((bool(Opts.comments)) && is_context<Ctx>)
 +   GLZ_ALWAYS_INLINE void skip_value<JSON>::op(Ctx&& ctx, It&& it, End end) noexcept
     {
+diff --git a/include/glaze/util/parse.hpp b/include/glaze/util/parse.hpp
+--- a/include/glaze/util/parse.hpp
++++ b/include/glaze/util/parse.hpp
+@@ -1583,3 +1583,3 @@
+-      it = std::find_if_not(it, end, is_digit);
++      it = std::find_if_not(it, end, static_cast<bool (*)(uint8_t) noexcept>(&glz::is_digit));
+       if (it == sig_start_it) {
+          ctx.error = error_code::syntax_error;
+@@ -1596,3 +1596,3 @@
+-      it = std::find_if_not(it, end, is_digit);
++      it = std::find_if_not(it, end, static_cast<bool (*)(uint8_t) noexcept>(&glz::is_digit));
+       if (it == frac_start_it) {
+          ctx.error = error_code::syntax_error;
+@@ -1606,3 +1606,3 @@
+-      it = std::find_if_not(it, end, is_digit);
++      it = std::find_if_not(it, end, static_cast<bool (*)(uint8_t) noexcept>(&glz::is_digit));
+       if (it == exp_start_it) {
+          ctx.error = error_code::syntax_error;

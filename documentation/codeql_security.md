@@ -18,7 +18,7 @@ not a claim to recognize every possible future extractor failure message.
 The Glaze9.0.0 compatibility candidate pins the same official
 [release revision](https://github.com/stephenberry/glaze/commit/d78832c82289c61a9315bfbc35332cec9f4e93ca)
 and uses a separate revision/patch-content-bound CPM cache; old caches remain
-untouched. Its patch names only the invented context/iterator/endpoint template
+untouched. Its patch names the invented context/iterator/endpoint template
 parameters at three declaration/definition pairs. Context and iterator still
 forward, the endpoint stays by value, and `noexcept`, inline decorations and all
 parsing bodies remain unchanged. JSON's options predicate remains before the
@@ -29,6 +29,27 @@ MSVC19.51 native success and failed local CodeQL experiments do not establish
 the approved hosted MSVC19.44 result: its exact raw-zero/AST/source/API acceptance
 and every other lane remain required. Native regression coverage exercises all
 three forms, forwarding, truncation/depth limits and bounded streaming skips.
+
+The same content-bound patch explicitly binds the three validated-number
+predicates to the existing `bool(uint8_t) noexcept` overload, preserving the
+definition-context lookup when later Glaze headers add `is_digit(char)`. Only
+those bindings change; numeric advancement, bounds and error paths do not.
+The public Sol container-detection customization marks `as_returns_t<T>` as
+non-container: the pinned wrapper privately stores its payload and exposes
+`value()`, while its existing dedicated pusher returns multiple Lua values.
+Ordinary containers keep their existing traits. See the
+[supported trait customization](https://sol2.readthedocs.io/en/latest/containers.html#container-detection).
+Three StatusEffect schema annotations spell their existing signed-64 zero
+alternative as `int64{0}`; runtime fields/defaults, schema bounds and packet
+layouts are unchanged.
+
+Native GCC14 and Clang22 baseline/candidate diagnostics compare all 256
+predicate bytes and bounded numeric cases, both Sol include orders with an
+isolated Lua state, and byte-identical actual StatusEffect schema JSON.
+Focused native regressions retain those contracts. These comparisons establish
+native equivalence only, not successful CodeQL extraction. Every hosted lane,
+the 40 Linux recovery paths, Windows four-source/eight-API/four-C-body proofs,
+zero compiler/fatal errors and zero failed extractor invocations remain required.
 
 ## Preserved analysis contracts
 

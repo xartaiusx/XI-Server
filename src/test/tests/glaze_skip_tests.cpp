@@ -15,9 +15,14 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+#include <array>
+#include <cstdint>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <type_traits>
+#include <vector>
 
 // Automatic reflection needs an externally linked record type.
 namespace glaze_skip_test
@@ -72,6 +77,71 @@ void checkSkip(std::string_view input, glz::error_code error, std::size_t consum
 }
 
 } // namespace
+
+TEST_CASE("Glaze numeric predicates preserve byte classification and bounded parsing", "[glaze][skip][number][bounds]")
+{
+    constexpr auto predicate = static_cast<bool (*)(uint8_t) noexcept>(&glz::is_digit);
+    static_assert(std::is_same_v<decltype(predicate), bool (*const)(uint8_t) noexcept>);
+    for (unsigned value = 0; value != 256; ++value)
+    {
+        const auto byte = static_cast<std::uint8_t>(value);
+        CHECK(predicate(byte) == glz::is_digit(byte));
+        CHECK(predicate(byte) == (value >= '0' && value <= '9'));
+    }
+
+    struct NumberCase
+    {
+        std::string_view text;
+        std::size_t      consumed;
+        glz::error_code  error;
+    };
+
+    constexpr std::array cases{
+        NumberCase{ "", 0, glz::error_code::syntax_error },
+        NumberCase{ "0", 1, glz::error_code::none },
+        NumberCase{ "-0", 2, glz::error_code::none },
+        NumberCase{ "7", 1, glz::error_code::none },
+        NumberCase{ "-12", 3, glz::error_code::none },
+        NumberCase{ "12.5e-2", 7, glz::error_code::none },
+        NumberCase{ "0e4", 3, glz::error_code::none },
+        NumberCase{ "-0.5E+2", 7, glz::error_code::none },
+        NumberCase{ "123x", 3, glz::error_code::none },
+        NumberCase{ "1.", 2, glz::error_code::syntax_error },
+        NumberCase{ "1e", 2, glz::error_code::syntax_error },
+        NumberCase{ "1e+", 3, glz::error_code::syntax_error },
+        NumberCase{ "-", 1, glz::error_code::syntax_error },
+        NumberCase{ "+1", 0, glz::error_code::syntax_error },
+        NumberCase{ "01", 1, glz::error_code::none },
+        NumberCase{ ".5", 0, glz::error_code::syntax_error },
+    };
+    for (const auto& item : cases)
+    {
+        for (const bool rvalue : { false, true })
+        {
+            CAPTURE(item.text, rvalue);
+            std::vector<char> bytes(item.text.size() + 2, 'Z');
+            std::copy(item.text.begin(), item.text.end(), bytes.begin() + 1);
+            const auto         original = bytes;
+            const char*        begin    = bytes.data() + 1;
+            const char*        iterator = begin;
+            const char*        end      = begin + item.text.size();
+            NoncopyableContext context{};
+            context.depth = 9;
+            if (rvalue)
+            {
+                glz::skip_number_with_validation(static_cast<NoncopyableContext&&>(context), static_cast<const char*&&>(iterator), end);
+            }
+            else
+            {
+                glz::skip_number_with_validation(context, iterator, end);
+            }
+            CHECK(iterator == begin + item.consumed);
+            CHECK(context.error == item.error);
+            CHECK(context.depth == 9);
+            CHECK(bytes == original);
+        }
+    }
+}
 
 TEST_CASE("Glaze skip overloads preserve forwarding and bounds", "[glaze][skip][bounds]")
 {

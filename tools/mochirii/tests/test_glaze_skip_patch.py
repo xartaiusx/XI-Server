@@ -9,11 +9,11 @@ from unittest import TestCase, main
 
 REPO = Path(__file__).resolve().parents[3]
 REVISION = "d78832c82289c61a9315bfbc35332cec9f4e93ca"
-PATCH_SHA256 = "a1e44c133f7b550348b3047b4466af55be7594a2e4e1d4ec9bacae602b3a35f1"
+PATCH_SHA256 = "2551096b51b0c3a6020d0b1bbb514f5a1e6718d0236dc983c9245870d02427d6"
 
 
 class GlazeSkipPatchTests(TestCase):
-    def test_patch_changes_only_the_six_member_signatures(self) -> None:
+    def test_patch_changes_only_member_signatures_and_predicate_bindings(self) -> None:
         patch = (REPO / "cmake/patches/glaze-skip-member-templates.patch").read_bytes()
         self.assertEqual(hashlib.sha256(patch).hexdigest(), PATCH_SHA256)
         self.assertNotIn(b"\r", patch)
@@ -25,6 +25,7 @@ class GlazeSkipPatchTests(TestCase):
             [
                 "diff --git a/include/glaze/beve/skip.hpp b/include/glaze/beve/skip.hpp",
                 "diff --git a/include/glaze/json/skip.hpp b/include/glaze/json/skip.hpp",
+                "diff --git a/include/glaze/util/parse.hpp b/include/glaze/util/parse.hpp",
             ],
         )
         removed = [
@@ -53,7 +54,8 @@ class GlazeSkipPatchTests(TestCase):
             + [
                 "GLZ_ALWAYS_INLINE void skip_value<JSON>::op(is_context auto&& ctx, auto&& it, auto end) noexcept"
             ]
-            * 2,
+            * 2
+            + ["it = std::find_if_not(it, end, is_digit);"] * 3,
         )
         self.assertCountEqual(
             added,
@@ -72,7 +74,11 @@ class GlazeSkipPatchTests(TestCase):
             + [
                 "GLZ_ALWAYS_INLINE void skip_value<JSON>::op(Ctx&& ctx, It&& it, End end) noexcept"
             ]
-            * 2,
+            * 2
+            + [
+                "it = std::find_if_not(it, end, static_cast<bool (*)(uint8_t) noexcept>(&glz::is_digit));"
+            ]
+            * 3,
         )
 
     def test_patched_source_uses_a_revision_and_content_bound_cache(self) -> None:
