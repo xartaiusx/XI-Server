@@ -1,7 +1,9 @@
 diff --git a/include/glaze/beve/skip.hpp b/include/glaze/beve/skip.hpp
+index 7d6f150c..f026a6c9 100644
 --- a/include/glaze/beve/skip.hpp
 +++ b/include/glaze/beve/skip.hpp
-@@ -16,6 +16,7 @@
+@@ -15,8 +15,9 @@ namespace glz
+    template <>
     struct skip_value<BEVE>
     {
 -      template <auto Opts>
@@ -11,17 +13,27 @@ diff --git a/include/glaze/beve/skip.hpp b/include/glaze/beve/skip.hpp
 +      inline static void op(Ctx&& ctx, It&& it, End end) noexcept;
     };
 
-@@ -306,3 +307,4 @@
+    inline void skip_string_beve(is_context auto&& ctx, auto&& it, auto end) noexcept
+@@ -303,8 +304,9 @@ namespace glz
+       }
+    }
+
 -   template <auto Opts>
 -   inline void skip_value<BEVE>::op(is_context auto&& ctx, auto&& it, auto end) noexcept
 +   template <auto Opts, class Ctx, class It, class End>
 +      requires(is_context<Ctx>)
 +   inline void skip_value<BEVE>::op(Ctx&& ctx, It&& it, End end) noexcept
     {
+       using namespace glz::detail;
+
 diff --git a/include/glaze/json/skip.hpp b/include/glaze/json/skip.hpp
+index 1ccdb5e6..c26c6244 100644
 --- a/include/glaze/json/skip.hpp
 +++ b/include/glaze/json/skip.hpp
-@@ -18,8 +18,8 @@
+@@ -15,13 +15,13 @@ namespace glz
+    template <>
+    struct skip_value<JSON>
+    {
 -      template <auto Opts>
 -         requires(not Opts.comments)
 -      GLZ_ALWAYS_INLINE static void op(is_context auto&& ctx, auto&& it, auto end) noexcept;
@@ -36,7 +48,12 @@ diff --git a/include/glaze/json/skip.hpp b/include/glaze/json/skip.hpp
 +         requires((bool(Opts.comments)) && is_context<Ctx>)
 +      GLZ_ALWAYS_INLINE static void op(Ctx&& ctx, It&& it, End end) noexcept;
     };
-@@ -322,4 +322,4 @@
+
+    template <auto Opts>
+@@ -319,9 +319,9 @@ namespace glz
+       return std::span{start, size_t(it - start)};
+    }
+
 -   template <auto Opts>
 -      requires(not Opts.comments)
 -   GLZ_ALWAYS_INLINE void skip_value<JSON>::op(is_context auto&& ctx, auto&& it, auto end) noexcept
@@ -44,7 +61,12 @@ diff --git a/include/glaze/json/skip.hpp b/include/glaze/json/skip.hpp
 +      requires((not Opts.comments) && is_context<Ctx>)
 +   GLZ_ALWAYS_INLINE void skip_value<JSON>::op(Ctx&& ctx, It&& it, End end) noexcept
     {
-@@ -441,4 +441,4 @@
+       using namespace glz::detail;
+
+@@ -438,9 +438,9 @@ namespace glz
+       }
+    }
+
 -   template <auto Opts>
 -      requires(bool(Opts.comments))
 -   GLZ_ALWAYS_INLINE void skip_value<JSON>::op(is_context auto&& ctx, auto&& it, auto end) noexcept
@@ -52,21 +74,103 @@ diff --git a/include/glaze/json/skip.hpp b/include/glaze/json/skip.hpp
 +      requires((bool(Opts.comments)) && is_context<Ctx>)
 +   GLZ_ALWAYS_INLINE void skip_value<JSON>::op(Ctx&& ctx, It&& it, End end) noexcept
     {
+       using namespace glz::detail;
+
 diff --git a/include/glaze/util/parse.hpp b/include/glaze/util/parse.hpp
+index c472e8af..9e7c01c9 100644
 --- a/include/glaze/util/parse.hpp
 +++ b/include/glaze/util/parse.hpp
-@@ -1583,3 +1583,3 @@
+@@ -1580,7 +1580,7 @@ namespace glz
+          ++it;
+          goto frac_start;
+       }
 -      it = std::find_if_not(it, end, is_digit);
 +      it = std::find_if_not(it, end, static_cast<bool (*)(uint8_t) noexcept>(&glz::is_digit));
        if (it == sig_start_it) {
           ctx.error = error_code::syntax_error;
-@@ -1596,3 +1596,3 @@
+          return;
+@@ -1593,7 +1593,7 @@ namespace glz
+       ++it;
+    frac_start:
+       frac_start_it = it;
 -      it = std::find_if_not(it, end, is_digit);
 +      it = std::find_if_not(it, end, static_cast<bool (*)(uint8_t) noexcept>(&glz::is_digit));
        if (it == frac_start_it) {
           ctx.error = error_code::syntax_error;
-@@ -1606,3 +1606,3 @@
+          return;
+@@ -1603,7 +1603,7 @@ namespace glz
+    exp_start:
+       it += (it != end) && (*it == '+' || *it == '-');
+       const auto exp_start_it = it;
 -      it = std::find_if_not(it, end, is_digit);
 +      it = std::find_if_not(it, end, static_cast<bool (*)(uint8_t) noexcept>(&glz::is_digit));
        if (it == exp_start_it) {
           ctx.error = error_code::syntax_error;
+          return;
+diff --git a/include/glaze/reflection/get_name.hpp b/include/glaze/reflection/get_name.hpp
+--- a/include/glaze/reflection/get_name.hpp
++++ b/include/glaze/reflection/get_name.hpp
+@@ -458,8 +458,20 @@
+    consteval std::string_view get_name_msvc()
+    {
+       std::string_view str = GLZ_PRETTY_FUNCTION;
+-      str = str.substr(str.find("->") + 2);
+-      return str.substr(0, str.find(">"));
++      if (str.find("->") != std::string_view::npos) {
++         str = str.substr(str.find("->") + 2);
++         return str.substr(0, str.find(">"));
++      }
++      const auto dot = str.rfind('.');
++      if (dot == std::string_view::npos) {
++         return {};
++      }
++      str.remove_prefix(dot + 1);
++      const auto end = str.find_first_of(")>");
++      if (end == std::string_view::npos) {
++         return {};
++      }
++      return str.substr(0, end);
+    }
+
+    template <class T, auto P>
+diff --git a/include/glaze/json/schema.hpp b/include/glaze/json/schema.hpp
+--- a/include/glaze/json/schema.hpp
++++ b/include/glaze/json/schema.hpp
+@@ -1027,14 +1027,14 @@
+       {
+          return std::ranges::any_of(str, [](const auto character) { return character == '/'; });
+       }
+-      template <const std::string_view& ref>
++      template <class T>
+       auto consteval validate_ref() noexcept -> void
+       {
+ #if (__cpp_static_assert >= 202306L) && (__cplusplus > 202302L)
+-         static_assert(!has_slash(ref),
+-                       join_v<chars<"Slash in name: \"">, ref, chars<"\" in json schema references is not allowed">>);
++         static_assert(!has_slash(name_v<T>),
++                       join_v<chars<"Slash in name: \"">, name_v<T>, chars<"\" in json schema references is not allowed">>);
+ #else
+-         static_assert(!has_slash(ref), "Slashes in json schema references are not allowed");
++         static_assert(!has_slash(name_v<T>), "Slashes in json schema references are not allowed");
+ #endif
+       }
+
+@@ -1156,7 +1156,7 @@
+                else if constexpr (nullable_t<val_t>) {
+                   // Canonicalize std::optional<T> (and other nullables) so the wrapper itself
+                   // is never placed in $defs. Inner type T is referenced via anyOf + null.
+-                  validate_ref<name_v<inner_val_t>>();
++                  validate_ref<inner_val_t>();
+                   auto& def = defs[name_v<inner_val_t>];
+                   if (!def.type) {
+                      to_json_schema<inner_val_t>::template op<Opts>(def, defs);
+@@ -1167,8 +1167,8 @@
+                }
+                else {
+                   if (!prop.ref) {
+-                     validate_ref<name_v<val_t>>();
++                     validate_ref<val_t>();
+                      prop.ref = join_v<chars<"#/$defs/">, name_v<val_t>>;
+                   }
+
+                   auto& def = defs[name_v<val_t>];

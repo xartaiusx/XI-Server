@@ -51,6 +51,34 @@ native equivalence only, not successful CodeQL extraction. Every hosted lane,
 the 40 Linux recovery paths, Windows four-source/eight-API/four-C-body proofs,
 zero compiler/fatal errors and zero failed extractor invocations remain required.
 
+The patch also preserves the native MSVC arrow-member signature path and adds a
+bounded dot-member fallback for the different signature actually observed in the
+extractor. In the dot-member fallback, missing delimiters return no member name rather than wrapping
+`string_view::npos`; exact production dataset payload-key assertions remain
+mandatory. Microsoft's [signature macro documentation](https://learn.microsoft.com/en-us/cpp/preprocessor/predefined-macros)
+does not specify a portable member-expression spelling.
+Internal schema-reference validation takes the field type instead of a reference
+non-type argument, then validates the same static `name_v<T>` at both existing
+call sites. Both slash predicates, assertion branches/messages, `consteval` and
+`noexcept` remain intact. The object-schema parent, field callback and global
+iteration helper are unchanged.
+
+Native MSVC19.51, GCC14 and Clang22 comparisons retain identical complete actual
+Stats schema JSON and valid zero-through-five-field/custom-name/nullable cases.
+Both ordinary and nullable slash-containing names still fail with the intended
+assertion on each compiler. Regression coverage uses the actual Stats payload,
+five Tables fields, seven GradeRow fields, and StatusEffect nullable references.
+These are native component proofs, not successful Windows extraction: local
+CodeQL2.27.2 still aborts and the exact hosted MSVC19.44 lane remains mandatory.
+
+Interior patch hunks keep at least three unchanged context lines on both sides, with
+declared hunk counts checked by the helper suite. This preserves every previous
+semantic edit while avoiding the beginning/end-of-file interpretation of
+asymmetric context in [Apple's patch implementation](https://github.com/apple-oss-distributions/patch_cmds/blob/3806430b4b3897dcc11dc80fb7b251530ef588cc/patch/patch.c#L1500-L1548).
+Fresh native macOS patch application and all existing CI gates remain required;
+no fuzzy matching, whitespace-ignore option, cache deletion or gate relaxation
+is an acceptance substitute.
+
 ## Preserved analysis contracts
 
 - Keep `security-extended` and `security-and-quality`, the existing `ext/**` and

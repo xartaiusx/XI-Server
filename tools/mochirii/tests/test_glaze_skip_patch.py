@@ -9,11 +9,11 @@ from unittest import TestCase, main
 
 REPO = Path(__file__).resolve().parents[3]
 REVISION = "d78832c82289c61a9315bfbc35332cec9f4e93ca"
-PATCH_SHA256 = "2551096b51b0c3a6020d0b1bbb514f5a1e6718d0236dc983c9245870d02427d6"
+PATCH_SHA256 = "18ca70d499921efc5b5c4d9d540b26190def1d2b33a59db46eb68731baab3fe5"
 
 
 class GlazeSkipPatchTests(TestCase):
-    def test_patch_changes_only_member_signatures_and_predicate_bindings(self) -> None:
+    def test_patch_changes_only_the_reviewed_template_bindings(self) -> None:
         patch = (REPO / "cmake/patches/glaze-skip-member-templates.patch").read_bytes()
         self.assertEqual(hashlib.sha256(patch).hexdigest(), PATCH_SHA256)
         self.assertNotIn(b"\r", patch)
@@ -26,6 +26,8 @@ class GlazeSkipPatchTests(TestCase):
                 "diff --git a/include/glaze/beve/skip.hpp b/include/glaze/beve/skip.hpp",
                 "diff --git a/include/glaze/json/skip.hpp b/include/glaze/json/skip.hpp",
                 "diff --git a/include/glaze/util/parse.hpp b/include/glaze/util/parse.hpp",
+                "diff --git a/include/glaze/reflection/get_name.hpp b/include/glaze/reflection/get_name.hpp",
+                "diff --git a/include/glaze/json/schema.hpp b/include/glaze/json/schema.hpp",
             ],
         )
         removed = [
@@ -55,7 +57,17 @@ class GlazeSkipPatchTests(TestCase):
                 "GLZ_ALWAYS_INLINE void skip_value<JSON>::op(is_context auto&& ctx, auto&& it, auto end) noexcept"
             ]
             * 2
-            + ["it = std::find_if_not(it, end, is_digit);"] * 3,
+            + ["it = std::find_if_not(it, end, is_digit);"] * 3
+            + [
+                'str = str.substr(str.find("->") + 2);',
+                'return str.substr(0, str.find(">"));',
+                "template <const std::string_view& ref>",
+                "static_assert(!has_slash(ref),",
+                'join_v<chars<"Slash in name: \\"">, ref, chars<"\\" in json schema references is not allowed">>);',
+                'static_assert(!has_slash(ref), "Slashes in json schema references are not allowed");',
+                "validate_ref<name_v<inner_val_t>>();",
+                "validate_ref<name_v<val_t>>();",
+            ],
         )
         self.assertCountEqual(
             added,
@@ -78,8 +90,71 @@ class GlazeSkipPatchTests(TestCase):
             + [
                 "it = std::find_if_not(it, end, static_cast<bool (*)(uint8_t) noexcept>(&glz::is_digit));"
             ]
-            * 3,
+            * 3
+            + [
+                'if (str.find("->") != std::string_view::npos) {',
+                'str = str.substr(str.find("->") + 2);',
+                'return str.substr(0, str.find(">"));',
+                "const auto dot = str.rfind('.');",
+                "if (dot == std::string_view::npos) {",
+                "str.remove_prefix(dot + 1);",
+                'const auto end = str.find_first_of(")>");',
+                "if (end == std::string_view::npos) {",
+                "return str.substr(0, end);",
+                "template <class T>",
+                "static_assert(!has_slash(name_v<T>),",
+                'join_v<chars<"Slash in name: \\"">, name_v<T>, chars<"\\" in json schema references is not allowed">>);',
+                'static_assert(!has_slash(name_v<T>), "Slashes in json schema references are not allowed");',
+                "validate_ref<inner_val_t>();",
+                "validate_ref<val_t>();",
+            ]
+            + ["return {};"] * 2
+            + ["}"] * 3,
         )
+
+    def test_interior_patch_hunks_keep_balanced_portable_context(self) -> None:
+        lines = (
+            (REPO / "cmake/patches/glaze-skip-member-templates.patch")
+            .read_text()
+            .splitlines()
+        )
+        hunks = 0
+        index = 0
+        while index < len(lines):
+            header = re.fullmatch(r"@@ -(\d+),(\d+) \+(\d+),(\d+) @@.*", lines[index])
+            if header is None:
+                index += 1
+                continue
+            hunks += 1
+            old_start, old_count, new_start, new_count = map(int, header.groups())
+            self.assertGreater(old_start, 1)
+            self.assertGreater(new_start, 1)
+            old_seen = new_seen = 0
+            body = []
+            index += 1
+            while old_seen < old_count or new_seen < new_count:
+                self.assertLess(index, len(lines))
+                line = lines[index]
+                self.assertTrue(not line or line[0] in " +-", line)
+                body.append(line)
+                old_seen += not line.startswith("+")
+                new_seen += not line.startswith("-")
+                index += 1
+            self.assertEqual((old_seen, new_seen), (old_count, new_count))
+            leading = 0
+            for line in body:
+                if line.startswith(("+", "-")):
+                    break
+                leading += 1
+            trailing = 0
+            for line in reversed(body):
+                if line.startswith(("+", "-")):
+                    break
+                trailing += 1
+            # Keep one extra final context line so the patch does not end on
+            # an empty source line, while retaining all portable context.
+            self.assertEqual((leading, trailing), (3, 4 if hunks == 12 else 3))
+        self.assertEqual(hunks, 12)
 
     def test_patched_source_uses_a_revision_and_content_bound_cache(self) -> None:
         facade = (REPO / "ext/CMakeLists.txt").read_text()

@@ -21,6 +21,7 @@
 
 #include "data/enums/detects.h"
 #include "map/data/datasets/ecosystems/dataset.h"
+#include "map/data/datasets/stats/yaml.h"
 #include "map/data/datasets/status_effects/dataset.h"
 #include "map/data/datasets/status_effects/yaml.h"
 #include "map/data/yaml/merge.h"
@@ -29,6 +30,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -79,6 +81,92 @@ TEST_CASE("data binding: status schema preserves signed defaults and bounds", "[
             REQUIRE(number != nullptr);
             CHECK(*number == (std::string_view(key) == "maximum" ? 65535.0 : 0.0));
         }
+    }
+
+    REQUIRE(root->contains("$defs"));
+    const auto* definitions = root->at("$defs").get_if<Object>();
+    REQUIRE(definitions != nullptr);
+    CHECK(definitions->contains(std::string(glz::name_v<uint16>)));
+    CHECK_FALSE(definitions->contains(std::string(glz::name_v<std::optional<uint16>>)));
+    const auto* minimum = properties->at("min_duration").get_if<Object>();
+    REQUIRE(minimum != nullptr);
+    REQUIRE(minimum->contains("anyOf"));
+    const auto* alternatives = minimum->at("anyOf").get_if<glz::generic::array_t>();
+    REQUIRE(alternatives != nullptr);
+    REQUIRE(alternatives->size() == 2);
+    const auto* reference = alternatives->at(0).get_if<Object>();
+    REQUIRE(reference != nullptr);
+    REQUIRE(reference->contains("$ref"));
+    const auto* referenceName = reference->at("$ref").get_if<std::string>();
+    REQUIRE(referenceName != nullptr);
+    CHECK(*referenceName == "#/$defs/" + std::string(glz::name_v<uint16>));
+    const auto* nullable = alternatives->at(1).get_if<Object>();
+    REQUIRE(nullable != nullptr);
+    REQUIRE(nullable->contains("type"));
+    const auto* nullableType = nullable->at("type").get_if<std::string>();
+    REQUIRE(nullableType != nullptr);
+    CHECK(*nullableType == "null");
+}
+
+TEST_CASE("data binding: stats schema preserves payload keys and nested fields", "[data][schema]")
+{
+    using namespace xi::data::datasets::stats::wire;
+    static_assert(glz::get_name<&Document::stats>() == "stats");
+    static_assert(glz::reflect<Document>::size == 2);
+    static_assert(glz::reflect<Document>::keys[0] == "meta");
+    static_assert(glz::reflect<Document>::keys[1] == "stats");
+
+    const auto encoded = glz::write_json_schema<Document, glz::opts{ .error_on_missing_keys = true }>();
+    REQUIRE(encoded.has_value());
+    glz::generic decoded;
+    REQUIRE_FALSE(glz::read_json(decoded, *encoded));
+    using Object     = glz::generic::object_t;
+    const auto* root = decoded.get_if<Object>();
+    REQUIRE(root != nullptr);
+    REQUIRE(root->contains("properties"));
+    const auto* properties = root->at("properties").get_if<Object>();
+    REQUIRE(properties != nullptr);
+    REQUIRE(properties->size() == 2);
+    CHECK(properties->contains("meta"));
+    REQUIRE(properties->contains("stats"));
+    REQUIRE(root->contains("required"));
+    const auto* required = root->at("required").get_if<glz::generic::array_t>();
+    REQUIRE(required != nullptr);
+    REQUIRE(required->size() == 1);
+    const auto* payloadName = required->at(0).get_if<std::string>();
+    REQUIRE(payloadName != nullptr);
+    CHECK(*payloadName == "stats");
+
+    const auto* payload = properties->at("stats").get_if<Object>();
+    REQUIRE(payload != nullptr);
+    REQUIRE(payload->contains("properties"));
+    const auto* fields = payload->at("properties").get_if<Object>();
+    REQUIRE(fields != nullptr);
+    REQUIRE(fields->size() == 5);
+    for (const auto* field : { "round_once", "hp", "mp", "attributes", "ungraded" })
+    {
+        CAPTURE(field);
+        CHECK(fields->contains(field));
+    }
+
+    REQUIRE(root->contains("$defs"));
+    const auto* definitions = root->at("$defs").get_if<Object>();
+    REQUIRE(definitions != nullptr);
+    const auto curveName = std::string(glz::name_v<Curve<GradeRow>>);
+    REQUIRE(definitions->contains(curveName));
+    const auto* curve = definitions->at(curveName).get_if<Object>();
+    REQUIRE(curve != nullptr);
+    REQUIRE(curve->contains("additionalProperties"));
+    const auto* row = curve->at("additionalProperties").get_if<Object>();
+    REQUIRE(row != nullptr);
+    REQUIRE(row->contains("properties"));
+    const auto* columns = row->at("properties").get_if<Object>();
+    REQUIRE(columns != nullptr);
+    REQUIRE(columns->size() == 7);
+    for (const auto* column : { "a", "b", "c", "d", "e", "f", "g" })
+    {
+        CAPTURE(column);
+        CHECK(columns->contains(column));
     }
 }
 
