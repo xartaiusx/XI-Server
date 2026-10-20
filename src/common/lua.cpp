@@ -29,7 +29,9 @@
 #include "no_destructor.h"
 #include "tracy.h"
 
+#include <cmath>
 #include <iostream>
+#include <limits>
 #include <string>
 
 namespace
@@ -202,18 +204,18 @@ std::string lua_to_string(sol::variadic_args va)
     std::vector<std::string> vec;
     for (std::size_t i = 0; i < va.size(); ++i)
     {
-        // Determine if this value is an integer.
-        // NOTE: Since all known values in Lua are referenced as uint32, this conversion
-        // is being done here.
-
-        if (va[i].is<double>() && va[i].as<double>() == std::floor(va[i].as<double>()))
+        // Preserve decimal formatting for the server's uint32 values without
+        // narrowing negative, oversized or non-finite Lua numbers.
+        if (va[i].is<double>())
         {
-            vec.emplace_back(fmt::format("{0:d}", va[i].as<uint32>()));
+            const auto number = va[i].as<double>();
+            if (std::isfinite(number) && number >= 0.0 && number <= static_cast<double>(std::numeric_limits<uint32>::max()) && number == std::floor(number))
+            {
+                vec.emplace_back(fmt::format("{0:d}", static_cast<uint32>(number)));
+                continue;
+            }
         }
-        else
-        {
-            vec.emplace_back(lua_to_string_depth(va[i], 0));
-        }
+        vec.emplace_back(lua_to_string_depth(va[i], 0));
     }
 
     return fmt::format("{}", fmt::join(vec.begin(), vec.end(), " "));

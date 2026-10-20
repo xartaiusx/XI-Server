@@ -27,7 +27,9 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
+#include <cmath>
 #include <functional>
+#include <limits>
 #include <map>
 #include <string>
 #include <type_traits>
@@ -42,6 +44,59 @@ static_assert(sol::is_container_v<std::map<int, int>>);
 static_assert(!sol::is_container_v<std::string>);
 static_assert(!sol::is_container_v<sol::object>);
 static_assert(!sol::is_container_v<sol::variadic_results>);
+
+TEST_CASE("Lua text formatting bounds unsigned integer conversions", "[lua][format][bounds]")
+{
+    sol::state localLua;
+    localLua.set_function("format_under_test", &lua_to_string);
+    sol::protected_function format = localLua["format_under_test"];
+
+    struct NumberCase
+    {
+        double      value;
+        const char* expected;
+    };
+
+    const std::array cases{
+        NumberCase{ 0.0, "0" },
+        NumberCase{ -0.0, "0" },
+        NumberCase{ 42.0, "42" },
+        NumberCase{ 4294967295.0, "4294967295" },
+        NumberCase{ -1.0, "-1" },
+        NumberCase{ 4294967296.0, "4.29497e+09" },
+        NumberCase{ 0.25, "0.25" },
+        NumberCase{ -0.25, "-0.25" },
+        NumberCase{ std::numeric_limits<double>::infinity(), "inf" },
+        NumberCase{ -std::numeric_limits<double>::infinity(), "-inf" },
+    };
+    const int stack = lua_gettop(localLua.lua_state());
+    for (const auto& item : cases)
+    {
+        CAPTURE(item.expected);
+        auto result = format(item.value);
+        REQUIRE(result.valid());
+        CHECK(result.get<std::string>() == item.expected);
+    }
+    CHECK(lua_gettop(localLua.lua_state()) == stack);
+
+    {
+        const auto value = sol::make_object(localLua, std::numeric_limits<double>::quiet_NaN());
+        REQUIRE(value.get_type() == sol::type::number);
+        REQUIRE(std::isnan(value.as<double>()));
+        auto result = format(value);
+        REQUIRE(result.valid());
+        // LuaJIT may canonicalize the NaN sign; preserve the existing formatter.
+        CHECK(result.get<std::string>() == lua_to_string_depth(value, 0));
+    }
+    CHECK(lua_gettop(localLua.lua_state()) == stack);
+
+    {
+        auto mixed = format("plain", "0042", true, sol::lua_nil, -1.0, 42.0);
+        REQUIRE(mixed.valid());
+        CHECK(mixed.get<std::string>() == "plain 0042 true nil -1 42");
+    }
+    CHECK(lua_gettop(localLua.lua_state()) == stack);
+}
 
 TEST_CASE("Lua return wrappers preserve multiple values and ordinary container userdata", "[lua][returns]")
 {
