@@ -167,7 +167,7 @@ describe('Instance entry event context', function()
     end)
 
     it('preserves direct transport for the whole party outside the entrance zone', function()
-        local leader, member, remote, instance, entryInfo = context(false)
+        local leader, _, _, instance, entryInfo = context(false)
         leader.zoneId = xi.zone.WEST_RONFAURE
 
         xi.instance.onInstanceCreatedCallback(leader, instance, entryInfo)
