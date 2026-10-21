@@ -51,6 +51,7 @@ local ph         = require('scripts.tests.packets.s2c.0x028_battle2.placeholders
 
 ---@class Battle2TestEntry
 ---@field test fun(player: CClientEntityPair, mob: CTestEntity) Test function that sets up and executes the test scenario
+---@field cleanup? fun(player: CClientEntityPair, mob: CTestEntity) Cleanup after the expected packets have been checked
 ---@field expected Battle2Packet|Battle2Packet[] Expected packet(s). Single packet or array of packets
 
 ---@alias Battle2TestSuite table<string, Battle2TestEntry>
@@ -253,6 +254,15 @@ describe('BATTLE2', function()
 
                         assert(false, string.format('Could not match expected BATTLE2 packet(s): %s',
                             table.concat(unmatchedPackets, ', ')))
+                    end
+
+                    if caseDefinition.cleanup then
+                        caseDefinition.cleanup(player, mob)
+                    end
+
+                    if player:isInEvent() then
+                        player.events:finish(100, 0)
+                        player.events:expectNotInEvent()
                     end
                 end)
             end

@@ -21,7 +21,12 @@ local function spawnCandidate(params)
     params      = params or {}
     params.zone = xi.zone.MONARCH_LINN
 
-    local player = xi.test.world:spawnPlayer(params)
+    local player         = xi.test.world:spawnPlayer(params)
+    local currentMission = player:getCurrentMission(xi.mission.log_id.COP)
+    if currentMission ~= 0 then
+        player:delMission(xi.mission.log_id.COP, currentMission)
+    end
+
     player:addMission(xi.mission.log_id.COP, xi.mission.id.cop.ANCIENT_VOWS)
     player:setCharVar('Mission[6][248]Status', 2)
 
@@ -223,6 +228,9 @@ describe('Battlefield entry', function()
         local battlefield = player:getBattlefield()
         assert(battlefield and battlefield:getID() == xi.battlefield.id.SHOOTING_FISH, 'player did not enter the orb battlefield')
         assert(player:hasItem(xi.item.CLOUDY_ORB), 'the orb is only worn on a win, not taken at the door')
+        local orb = player:findItem(xi.item.CLOUDY_ORB)
+        assert(orb and player:getItemCount(xi.item.CLOUDY_ORB) == 1, 'entry must retain exactly one orb')
+        assert(orb:state() == xi.itemState.FREE, 'entry must release the retained orb')
     end)
 end)
 

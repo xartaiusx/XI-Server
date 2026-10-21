@@ -304,6 +304,15 @@ describe('PlayerTradeTransaction', function()
 
         p1.assert:hasItem(itemB)
         p2.assert:hasItem(itemA)
+
+        xi.test.world:skipTime(17)
+        xi.test.world:skipTime(15)
+
+        assert(p1:getAnimation() ~= xi.animation.SYNTH, 'synth animation did not finish')
+        for _, itemId in ipairs({ crystal, ingredient }) do
+            local remaining = p1:findItem(itemId)
+            assert(not remaining or remaining:state() == xi.itemState.FREE, 'synth item still claimed')
+        end
     end)
 
     it('gil-only trade transfers gil', function()
@@ -419,6 +428,9 @@ describe('PlayerTradeTransaction', function()
         p1:gotoZone(xi.zone.NORTHERN_SAN_DORIA)
 
         p1.assert:hasItem(itemA)
+
+        p1.events:finish(878, 0)
+        p1.events:expectNotInEvent()
     end)
 
     it('ignores a Start from the side that requested the trade', function()

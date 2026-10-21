@@ -155,6 +155,13 @@ jobs:
           upload-artifact: true
           artifact-name: "xi_test-ctrf-${{ format('docker-{0}', inputs.os) }}"
 
+      - name: Application lifecycle regressions
+        timeout-minutes: 2
+        run: |
+          docker exec test-server /bin/bash -c './xi_lifecycle_test --ci --log log/lifecycle-normal.log'
+          docker exec test-server /bin/bash -c './xi_lifecycle_test --ci --already-stopped --log log/lifecycle-already-stopped.log'
+          docker exec test-server /bin/bash -c './xi_lifecycle_test --ci --no-engine --log log/lifecycle-no-engine.log'
+
       - name: Startup checks
         id: startup_checks
         timeout-minutes: 10
@@ -197,9 +204,13 @@ jobs:
           echo "</details>" >> $GITHUB_STEP_SUMMARY
 
       - name: Stop container
+        if: ${{ always() }}
         run: |
-          docker stop test-server
-          docker rm test-server
+          container_id="$(docker container ls --all --quiet --filter name='^/test-server$')"
+          if [[ -n "$container_id" ]]; then
+              docker stop test-server
+              docker rm test-server
+          fi
 
       - name: Fail Workflow if Checks Failed
         if: ${{ steps.xi_test.outcome == 'failure' || steps.startup_checks.outcome == 'failure' }}

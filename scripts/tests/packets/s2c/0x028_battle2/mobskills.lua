@@ -13,6 +13,10 @@ local packets =
             xi.test.world:tickEntity(bats) -- Tick the AI so the skill gets readied
         end,
 
+        cleanup = function(player)
+            player.entities:get('Incubus_Bats'):resetAI()
+        end,
+
         expected =
         {
             m_uID   = ph.IGNORE,

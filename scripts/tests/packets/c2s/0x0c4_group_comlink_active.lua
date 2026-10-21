@@ -29,7 +29,10 @@ describe('Linkshell equip', function()
     end)
 
     after_each(function()
-        player.actions:dropItem(xi.inventoryLocation.INVENTORY, shellSlot, 1)
+        local shell = player:getStorageItem(xi.inventoryLocation.INVENTORY, shellSlot, 255)
+        if shell and shell:getID() == xi.item.LINKSHELL then
+            player.actions:dropItem(xi.inventoryLocation.INVENTORY, shellSlot, 1)
+        end
     end)
 
     it('keeps membership when an equipped pearl is equipped again', function()

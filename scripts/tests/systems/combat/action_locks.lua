@@ -32,6 +32,9 @@ describe('Actions during events', function()
         xi.test.world:skipTime(5)
 
         assert(mob:getHP() >= hpBefore, 'spell landed during an event')
+
+        player.events:finish(1, 0)
+        player.events:expectNotInEvent()
     end)
 
     it('refuses to engage while in an event', function()
@@ -41,6 +44,9 @@ describe('Actions during events', function()
         xi.test.world:skipTime(1)
 
         assert(not player:isEngaged(), 'engaged during an event')
+
+        player.events:finish(1, 0)
+        player.events:expectNotInEvent()
     end)
 end)
 

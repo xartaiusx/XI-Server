@@ -106,7 +106,7 @@ void CLuaClientEntityPairPackets::send(const PacketC2S packetId, const sol::obje
  *  Notes   : Handles the zone-in packet sequence
  ************************************************************************/
 
-void CLuaClientEntityPairPackets::sendZonePackets()
+void CLuaClientEntityPairPackets::sendZonePackets(const bool reloadEntity)
 {
     const auto testChar = parent_->testChar();
 
@@ -114,7 +114,10 @@ void CLuaClientEntityPairPackets::sendZonePackets()
     // TestChar holds the actual CCharEntity, while parent_ is the Lua wrapper
     // that also needs its internal pointer updated to the newly loaded entity
     testChar->setBlowfish(BLOWFISH_PENDING_ZONE);
-    testChar->setEntity(charutils::LoadChar(testChar->charId()));
+    if (reloadEntity)
+    {
+        testChar->setEntity(charutils::LoadChar(testChar->charId()));
+    }
     zoneutils::EnsureZoneLoaded(parent_->engine()->scheduler(), parent_->engine()->config(), testChar->entity()->loc.destination);
     parent_->setEntity(testChar->entity());
 

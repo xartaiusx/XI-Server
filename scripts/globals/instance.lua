@@ -463,7 +463,7 @@ xi.instance.onInstanceCreatedCallback = function(player, instance, entryInfo)
                     v:startEvent(unpack(entryInfo.memberEvent or entryInfo[4]))
 
                     v:setInstance(instance)
-                    local npc = player:getEventTarget()
+                    local npc = player:isInEvent() and player:getEventTarget() or nil
                     if npc ~= nil then
                         v:instanceEntry(npc, 4)
                     end
@@ -485,7 +485,7 @@ xi.instance.onInstanceCreatedCallback = function(player, instance, entryInfo)
         end
 
         -- finally, send commander in
-        local npc = player:getEventTarget()
+        local npc = player:isInEvent() and player:getEventTarget() or nil
         if npc ~= nil then
             player:instanceEntry(npc, 4)
         end

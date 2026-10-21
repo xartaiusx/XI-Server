@@ -1215,7 +1215,7 @@ end
 xi.conquest.setRegionalConquestOverseers = function(region)
     local zone = outposts[region].zone
 
-    if zone then
+    if zone and GetZone(zone) then
         local base = zones[zone].npc.OVERSEER_BASE
         local npcs = overseerOffsets[region]
 

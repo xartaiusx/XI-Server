@@ -88,6 +88,11 @@ mission.sections =
                         player:setCharVar('[COP]TalesBeginning', 0)
                     end
 
+                    -- The starting category is not a completed mission.
+                    if player:getCurrentMission(mission.areaId) == xi.mission.id.cop.ANCIENT_FLAMES_BECKON then
+                        player:delMission(mission.areaId, xi.mission.id.cop.ANCIENT_FLAMES_BECKON)
+                    end
+
                     mission:begin(player)
                     mission:setVar(player, 'Status', 1)
                 end,

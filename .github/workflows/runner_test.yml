@@ -213,6 +213,14 @@ jobs:
           upload-artifact: true
           artifact-name: 'xi_test-ctrf-${{ runner.os }}-${{ inputs.build_type }}'
 
+      - name: Application lifecycle regressions
+        if: ${{ inputs.xi_test }}
+        timeout-minutes: 2
+        run: |
+          ./xi_lifecycle_test --ci --log log/lifecycle-normal.log
+          ./xi_lifecycle_test --ci --already-stopped --log log/lifecycle-already-stopped.log
+          ./xi_lifecycle_test --ci --no-engine --log log/lifecycle-no-engine.log
+
       - name: Upload sanitizer reports
         if: ${{ always() && contains(fromJSON('["ASAN", "UBSAN", "TSAN"]'), inputs.build_type) }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

@@ -4,6 +4,11 @@ describe('Rise of the Zilart', function()
 
     before_each(function()
         player = xi.test.world:spawnPlayer()
+
+        local currentMission = player:getCurrentMission(xi.mission.log_id.ZILART)
+        if currentMission ~= xi.mission.id.zilart.NONE then
+            player:delMission(xi.mission.log_id.ZILART, currentMission)
+        end
     end)
 
     describe('ZM1 to ZM3', function()
@@ -73,6 +78,9 @@ describe('Rise of the Zilart', function()
             player.assert.no:hasKI(xi.keyItem.SACRIFICIAL_CHAMBER_KEY)
             player.assert:hasKI(xi.keyItem.DARK_FRAGMENT)
             player.assert:hasMission(xi.mission.log_id.ZILART, xi.mission.id.zilart.HEADSTONE_PILGRIMAGE)
+
+            player.events:finish(32002, 0)
+            player.events:expectNotInEvent()
         end)
     end)
 
@@ -373,6 +381,11 @@ describe('Rise of the Zilart', function()
             -- Go to La'Loff Amphitheater and use the Ark Pentasphere to enter a BC where you will confront and defeat all 5 Ark Angels.
             player:gotoZone(xi.zone.LALOFF_AMPHITHEATER)
             player.bcnm:enter('qm1_1', xi.battlefield.id.DIVINE_MIGHT, { xi.item.ARK_PENTASPHERE })
+
+            local orb = player:findItem(xi.item.ARK_PENTASPHERE)
+            assert(orb and player:getItemCount(xi.item.ARK_PENTASPHERE) == 1, 'entry must retain exactly one Ark Pentasphere')
+            assert(orb:state() == xi.itemState.FREE, 'entry must release the Ark Pentasphere before combat')
+
             player.bcnm:killMobs()
             player.bcnm:expectWin()
 

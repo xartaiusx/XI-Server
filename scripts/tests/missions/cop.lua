@@ -1,10 +1,30 @@
+local ffi = require('ffi')
+
 describe('Chains of Promathia', function()
     ---@type CClientEntityPair
     local player
 
+    local function watchMissionCompletion()
+        assert(xi.settings.main.ENABLE_ROE == 1, 'mission completion control requires RoE')
+        local record = ffi.new('uint8_t[8]')
+        record[4] = 1313 % 256
+        record[5] = math.floor(1313 / 256)
+        player.packets:send(0x10C, record, assert(ffi.sizeof(record)))
+        assert(player:hasEminenceRecord(1313), 'mission completion objective was not taken')
+
+        return spy('xi.roe.onRecordTrigger')
+    end
+
     before_each(function()
         player = xi.test.world:spawnPlayer()
         player:setLevel(99)
+
+        for _, logId in ipairs({ xi.mission.log_id.COP, xi.mission.log_id.ASA, xi.mission.log_id.ACP, xi.mission.log_id.ROV, xi.mission.log_id.SOA }) do
+            local currentMission = player:getCurrentMission(logId)
+            if currentMission ~= 0 then
+                player:delMission(logId, currentMission)
+            end
+        end
 
         -- Mission conflicts
         player:addMission(xi.mission.log_id.ASA, xi.mission.id.asa.BURGEONING_DREAD)
@@ -16,6 +36,8 @@ describe('Chains of Promathia', function()
     describe('1-0 Ancient Flames Beckon', function()
         it("should progress through Lower Delkfutt's Tower cutscenes and advance to The Rites of Life", function()
             player:addMission(xi.mission.log_id.COP, xi.mission.id.cop.ANCIENT_FLAMES_BECKON)
+            player.assert:hasMission(xi.mission.log_id.COP, xi.mission.id.cop.ANCIENT_FLAMES_BECKON)
+            local missionCompletion = watchMissionCompletion()
 
             -- # COP 0
             -- zone into Lower Delkfutts Tower for a series of CS's
@@ -31,6 +53,35 @@ describe('Chains of Promathia', function()
             player.events:expect({ eventId = 38 })
             player.events:expect({ eventId = 39 })
             player.assert:hasMission(xi.mission.log_id.COP, xi.mission.id.cop.THE_RITES_OF_LIFE)
+            assert(player:getCharVar('Mission[6][110]Status') == 1, 'intro status was not initialized')
+            player.events:expectNotInEvent()
+            missionCompletion:called(0)
+        end)
+
+        it("resumes the postponed intro at the Tales' Beginning without completing a mission", function()
+            player:addMission(xi.mission.log_id.COP, xi.mission.id.cop.ANCIENT_FLAMES_BECKON)
+            local missionCompletion = watchMissionCompletion()
+
+            player:gotoZone(xi.zone.QUFIM_ISLAND)
+            player:gotoZone(xi.zone.LOWER_DELKFUTTS_TOWER)
+            player.events:expect({ eventId = 22, finishOption = 0 })
+            player.events:expectNotInEvent()
+            player.assert:hasMission(xi.mission.log_id.COP, xi.mission.id.cop.ANCIENT_FLAMES_BECKON)
+            assert(player:getCharVar('[COP]TalesBeginning') == 1, 'intro was not postponed')
+            missionCompletion:called(0)
+
+            player.entities:gotoAndTrigger('Tales_Beginning', { eventId = 53, finishOption = 4 })
+            player.events:expect({ eventId = 22, finishOption = 1 })
+            player.events:expect({ eventId = 36 })
+            player.events:expect({ eventId = 37 })
+            player.events:expect({ eventId = 38 })
+            player.events:expect({ eventId = 39 })
+
+            player.assert:hasMission(xi.mission.log_id.COP, xi.mission.id.cop.THE_RITES_OF_LIFE)
+            assert(player:getCharVar('[COP]TalesBeginning') == 0, 'postponed intro flag was not cleared')
+            assert(player:getCharVar('Mission[6][110]Status') == 1, 'intro status was not initialized')
+            player.events:expectNotInEvent()
+            missionCompletion:called(0)
         end)
     end)
 

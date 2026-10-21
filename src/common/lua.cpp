@@ -226,7 +226,7 @@ void lua_print(sol::variadic_args va)
 {
     TracyZoneScoped;
 
-    ShowLua(lua_to_string(va).c_str());
+    ShowLuaFmt("{}", lua_to_string(va));
 }
 
 std::string lua_fmt(const std::string& fmtStr, sol::variadic_args va)

@@ -118,7 +118,7 @@ local function getCasketID(mob)
         end
     end
 
-    if GetNPCByID(chestId) == nil then
+    if chestId == 0 or GetNPCByID(chestId) == nil then
         return 0
     end
 
@@ -570,13 +570,13 @@ xi.caskets.spawnCasket = function(player, mob, x, y, z, r)
         return
     end
 
-    local chestId    = getCasketID(mob)
-    local npc        = GetNPCByID(chestId)
-    local chestOwner = player:getLeaderID()
-
+    local chestId = getCasketID(mob)
     if chestId == 0 then
         return
     end
+
+    local npc        = GetNPCByID(chestId)
+    local chestOwner = player:getLeaderID()
 
     if dropChance(player) then
         setCasketData(player, x, y, z, r, npc, chestOwner, mob:getMainLvl())

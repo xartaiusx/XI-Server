@@ -2,7 +2,7 @@
 ---@param cost integer
 local function verifyPerpetuationCost(player, cost)
     player:setMP(player:getMaxMP())
-    local petName = player:getPetName() or 'avatar'
+    local petName = player:getPet() and player:getPetName() or 'avatar'
     for i = 1, 5 do
         local startMP = player:getMP()
         xi.test.world:tick(xi.tick.EFFECT)
