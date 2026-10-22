@@ -119,7 +119,11 @@ describe('BATTLE2', function()
     ---@type CTestEntity
     local mob
 
+    ---@type CTestEntity?
+    local cleanupMob
+
     before_each(function()
+        cleanupMob = nil
         xi.test.world:setSeed(1)
 
         player = xi.test.world:spawnPlayer(
@@ -132,12 +136,21 @@ describe('BATTLE2', function()
         -- The Clipper spawns at level 28 or 29, so its stats, and the packet values below,
         -- depend on the shared RNG stream. Pin the level.
         mob = player.entities:get(17293357)
+        cleanupMob = mob
         mob:setLevelRange(28, 28)
         mob:setSpawn(10.7, -20.4, -88.1)
         mob:respawn()
         mob.assert:isAlive()
         player.entities:moveTo(mob)
         mob:updateEnmity(player)
+    end)
+
+    after_each(function()
+        local ownedMob = cleanupMob
+        cleanupMob = nil
+        if ownedMob and ownedMob:isAlive() then
+            ownedMob:resetAI()
+        end
     end)
 
     -- Iterate through test suites in deterministic order

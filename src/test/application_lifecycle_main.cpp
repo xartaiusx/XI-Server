@@ -60,6 +60,11 @@ public:
     {
     }
 
+    ProbeEngine(const ProbeEngine&)            = delete;
+    ProbeEngine(ProbeEngine&&)                 = delete;
+    ProbeEngine& operator=(const ProbeEngine&) = delete;
+    ProbeEngine& operator=(ProbeEngine&&)      = delete;
+
     ~ProbeEngine() override
     {
         state_.engineDestroyed  = true;

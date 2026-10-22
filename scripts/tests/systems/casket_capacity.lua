@@ -12,7 +12,8 @@ describe('Treasure casket capacity', function()
             player.events:finish()
         end
 
-        local zone    = GetZone(xi.zone.WEST_RONFAURE)
+        local zone = GetZone(xi.zone.WEST_RONFAURE)
+        assert(zone, 'native casket fixture zone is missing')
         local caskets = zone:queryEntitiesByName('Treasure_Casket')
         assert(#caskets == 16, 'expected sixteen native casket slots')
         baseId = caskets[1]:getID()
