@@ -4,13 +4,45 @@ on:
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
+    inputs:
+      hosted_sql_diagnostic:
+        description: 'Run only the authorized private synthetic SQL observation.'
+        type: boolean
+        required: false
+        default: false
+      expected_head:
+        description: 'Exact reviewed diagnostic branch commit.'
+        type: string
+        required: false
+        default: ''
+      request_nonce:
+        description: 'One authorized observation identifier.'
+        type: string
+        required: false
+        default: ''
+      workflow_sha256:
+        description: 'Reviewed workflow byte digest.'
+        type: string
+        required: false
+        default: ''
+      recipient_spki:
+        description: 'Public encryption recipient only; never a private key.'
+        type: string
+        required: false
+        default: ''
+      recipient_sha256:
+        description: 'Public recipient byte digest.'
+        type: string
+        required: false
+        default: ''
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ inputs.hosted_sql_diagnostic && format('diagnostic-{0}', inputs.request_nonce) || github.ref || github.run_id }}
+  cancel-in-progress: ${{ !inputs.hosted_sql_diagnostic }}
 
 jobs:
   Build:
+    if: ${{ !inputs.hosted_sql_diagnostic }}
     name: ${{ matrix.sanitizer && 'Build' || '' }}
     strategy:
       fail-fast: false
@@ -25,6 +57,7 @@ jobs:
       upload_artifact: true
 
   Test:
+    if: ${{ !inputs.hosted_sql_diagnostic }}
     needs: Build
     name: ${{ matrix.sanitizer && 'Test' || '' }}
     permissions:
@@ -43,3 +76,54 @@ jobs:
       build_type: ${{ matrix.sanitizer }}
       same_run_artifact: true
       startup_checks: false
+
+  Hosted_ASAN_Diagnostic:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.hosted_sql_diagnostic }}
+    name: Private synthetic ASAN SQL observation
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout reviewed diagnostic controller
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: diagnostic
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout immutable public program baseline
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: 75ef2a9b1eb5f74ce1a5b7a5e6bd6c6f557f7483
+          path: program
+          persist-credentials: false
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Prepare Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+
+      - name: Run one private diagnostic and encrypt its evidence
+        id: diagnostic
+        env:
+          DIAGNOSTIC_ENABLED: ${{ inputs.hosted_sql_diagnostic }}
+          DIAGNOSTIC_EXPECTED_HEAD: ${{ inputs.expected_head }}
+          DIAGNOSTIC_REQUEST_NONCE: ${{ inputs.request_nonce }}
+          DIAGNOSTIC_WORKFLOW_SHA256: ${{ inputs.workflow_sha256 }}
+          DIAGNOSTIC_WORKFLOW_HEAD: ${{ github.workflow_sha }}
+          DIAGNOSTIC_RECIPIENT_SPKI: ${{ inputs.recipient_spki }}
+          DIAGNOSTIC_RECIPIENT_SHA256: ${{ inputs.recipient_sha256 }}
+        run: python3 -I -B diagnostic/.github/scripts/hosted_asan_private.py
+
+      - name: Preserve encrypted evidence only
+        if: ${{ always() && steps.diagnostic.outputs.ciphertext_ready == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: private-asan-deb931cbe605421dbeef38a64391ebb2-${{ github.run_id }}
+          path: ${{ runner.temp }}/mochirii-asan-deb931cbe605421dbeef38a64391ebb2/sealed/evidence.bin
+          if-no-files-found: error
+          overwrite: false
+          retention-days: 7
