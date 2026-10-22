@@ -106,6 +106,9 @@ jobs:
         with:
           python-version: '3.14'
 
+      - name: Verify source-bound CTRF stdout reader regressions
+        run: python3 -I -B diagnostic/.github/scripts/test_hosted_asan_stdout.py
+
       - name: Run one private diagnostic and encrypt its evidence
         id: diagnostic
         env:
@@ -122,8 +125,8 @@ jobs:
         if: ${{ always() && steps.diagnostic.outputs.ciphertext_ready == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: private-asan-5c608bf97e6e49ec9063d2efe75b1a24-${{ github.run_id }}
-          path: ${{ runner.temp }}/mochirii-asan-5c608bf97e6e49ec9063d2efe75b1a24/sealed/evidence.bin
+          name: private-asan-ea17616a5f424077ab04370da9553bab-${{ github.run_id }}
+          path: ${{ runner.temp }}/mochirii-asan-ea17616a5f424077ab04370da9553bab/sealed/evidence.bin
           if-no-files-found: error
           overwrite: false
           retention-days: 7

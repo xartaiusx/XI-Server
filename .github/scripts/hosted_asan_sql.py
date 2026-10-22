@@ -18,15 +18,15 @@ import sys
 from types import SimpleNamespace
 
 SOURCE = "75ef2a9b1eb5f74ce1a5b7a5e6bd6c6f557f7483"
-NONCE = "5c608bf97e6e49ec9063d2efe75b1a24"
-BRANCH = "refs/heads/mochi/hosted-asan-package-provenance-20261022"
+NONCE = "ea17616a5f424077ab04370da9553bab"
+BRANCH = "refs/heads/mochi/hosted-asan-stdout-reader-20261023"
 FILE = "scripts/tests/systems/monstrosity/belligerency.lua"
 SUITE = "systems::monstrosity::Monstrosity Belligerency"
 CASE = "lets a gladiator attack a monster it claimed"
-DATABASE = "mochi_asan_5c608bf97e6e49ec"
+DATABASE = "mochi_asan_ea17616a5f424077"
 DB_USER = "mochi_diag"
 # Public, disposable hosted fixture credential; never a workstation credential.
-DB_PASSWORD = "synthetic_only_5c608bf97e6e49ec"
+DB_PASSWORD = "synthetic_only_ea17616a5f424077"
 RECIPE_SHA = "760c435142edb5a8a1c1457465b82989e597a5af2ac754925a84a95cc1f2188d"
 HEADER_SHA = "05960e12ee3a3d9cff0bf1080e5355564a600e9eaacec45d82c8b7c57bd6b3e9"
 RECIPE_B64 = (
@@ -2515,7 +2515,7 @@ def observe_once(ctx, private_command):
         outcome["measurement"] = measurement(raw)
         native_log = ctx["evidence"] / "native.log"
         require(native_log.is_file())
-        output = report["results"]["tests"][0]["output"]
+        output = report["results"]["tests"][0]["stdout"]
         require(
             isinstance(output, list) and all(isinstance(line, str) for line in output)
         )
