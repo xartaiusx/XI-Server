@@ -154,7 +154,7 @@ jobs:
           expected=$'.github/scripts/codeql_pr55_diagnostic.py\n.github/workflows/codeql_analysis.yml'
           test "$(git diff --name-only 8037f00c446608e0204d9a0ebb9789c182522288 HEAD)" = "$expected"
           printf '%s  %s\n' 74a276b81502c0bb9052e7002962f6abfe7c263c17a940bb6d761b0d11ee7189 .github/codeql/codeql-config.yml | sha256sum --check --status
-          printf '%s  %s\n' 71f79094b185fe90402f6e0d982e58b093d593bc1e54052816ba2583be1b77be .github/scripts/codeql_pr55_diagnostic.py | sha256sum --check --status
+          printf '%s  %s\n' db82eaf4f701b909aac7dc5e8a0815a0e0437f790acd0c18f275da4c00ea2f8f .github/scripts/codeql_pr55_diagnostic.py | sha256sum --check --status
           test ! -e "$RUNNER_TEMP/pr55-codeql-database"
           test ! -e "$RUNNER_TEMP/pr55-codeql-results"
 

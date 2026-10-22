@@ -349,8 +349,87 @@ def main():
     print("PR55_CODEQL_DIAGNOSTIC " + encoded)
 
 
+def emit_failure(error):
+    """Emit bounded public-code metadata only, never exception data or a traceback."""
+    functions = {
+        "require",
+        "canonical",
+        "fingerprint",
+        "unique",
+        "read_json",
+        "git",
+        "effective",
+        "source_uri",
+        "summarize",
+        "cli_json",
+        "execution",
+        "main",
+    }
+    types = {
+        "RuntimeError",
+        "ValueError",
+        "KeyError",
+        "TypeError",
+        "AssertionError",
+        "JSONDecodeError",
+        "FileNotFoundError",
+        "CalledProcessError",
+        "OSError",
+    }
+    source = main.__code__.co_filename
+    kind = type(error).__name__
+    frames, truncated = [], False
+    node = error.__traceback__
+    for _ in range(32):
+        if node is None:
+            break
+        code = node.tb_frame.f_code
+        if code.co_filename == source and code.co_name in functions:
+            if type(node.tb_lineno) is int and 0 < node.tb_lineno <= 1024:
+                if len(frames) < 16:
+                    frames.append(
+                        {
+                            "source": "codeql_pr55_diagnostic.py",
+                            "function": code.co_name,
+                            "line": node.tb_lineno,
+                        }
+                    )
+                else:
+                    truncated = True
+        node = node.tb_next
+    truncated = truncated or node is not None
+    stage = (
+        "unavailable"
+        if truncated
+        else next(
+            (
+                frame["function"]
+                for frame in reversed(frames)
+                if frame["function"] != "require"
+            ),
+            "unavailable",
+        )
+    )
+    value = {
+        "schema": "pr55-codeql-proof-failure-v1",
+        "stage": stage,
+        "exception_type": kind if kind in types else "OtherException",
+        "frames": frames,
+        "truncated": truncated,
+        "diagnostic_only": True,
+        "acceptance": False,
+    }
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    if len(encoded.encode()) > 2048:
+        raise RuntimeError("PR55_DIAGNOSTIC_UNPROVEN")
+    print("PR55_CODEQL_FAILURE " + encoded, file=sys.stderr, flush=True)
+
+
 if __name__ == "__main__":
     try:
         main()
-    except Exception:
-        raise SystemExit("PR55_DIAGNOSTIC_UNPROVEN") from None
+    except Exception as error:
+        try:
+            emit_failure(error)
+        finally:
+            raise SystemExit("PR55_DIAGNOSTIC_UNPROVEN") from None
