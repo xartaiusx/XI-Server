@@ -42,7 +42,7 @@ public:
     auto createPacket(PacketC2S packetType) -> std::unique_ptr<CBasicPacket>;
     void sendBasicPacket(CBasicPacket& packet) const;
     void send(PacketC2S packetId, const sol::object& ffiData, size_t ffiSize);
-    void sendZonePackets();
+    void sendZonePackets(bool reloadEntity = true);
 
     void parseIncoming();
     auto getIncoming() const -> sol::table;

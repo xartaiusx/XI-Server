@@ -23,6 +23,14 @@ describe('Mog House visits', function()
 
     local function placeFurniture(itemId, container, x)
         host:addItem(itemId)
+        if itemId == xi.item.HUME_M_MANNEQUIN then
+            host:findItem(itemId, xi.inv.INVENTORY):setExData(
+                {
+                    race = xi.mannequin.type.HUME_M,
+                    pose = xi.mannequin.pose.HURRAY,
+                })
+        end
+
         host.actions:moveItem(xi.inv.INVENTORY, host:findItem(itemId, xi.inv.INVENTORY):getSlotID(), container, 1)
         host.actions:placeFurniture(container, host:findItem(itemId, container):getSlotID(), x, 0)
         host.actions:finishFurnishing()

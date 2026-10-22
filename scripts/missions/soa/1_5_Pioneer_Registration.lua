@@ -63,7 +63,10 @@ mission.sections =
             onEventFinish =
             {
                 [546] = function(player, csid, option, npc)
-                    if option == 1 then
+                    if
+                        option == 1 and
+                        xi.settings.main.ENABLE_MOG_GARDEN == 1
+                    then
                         player:setPos(0, 0, 0, 0, xi.zone.MOG_GARDEN)
                     end
                 end,

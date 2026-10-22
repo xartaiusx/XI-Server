@@ -8587,7 +8587,7 @@ void CLuaBaseEntity::addMission(MissionLog logId, uint16 missionID) const
     {
         auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
 
-        if (PChar->m_missionLog[static_cast<uint8_t>(logId)].current != (static_cast<uint8_t>(logId) > 2 ? 0 : std::numeric_limits<uint16>::max()))
+        if (PChar->m_missionLog[static_cast<uint8_t>(logId)].current != (logId > MissionLog::Zilart ? 0 : std::numeric_limits<uint16>::max()))
         {
             ShowWarning("Lua::addMission: player has a current mission (%d)", static_cast<uint8_t>(logId));
         }
@@ -8627,7 +8627,7 @@ void CLuaBaseEntity::delMission(MissionLog logId, uint16 missionID) const
 
         if (current == missionID)
         {
-            PChar->m_missionLog[static_cast<uint8_t>(logId)].current = static_cast<uint8_t>(logId) > 2 ? 0 : -1;
+            PChar->m_missionLog[static_cast<uint8_t>(logId)].current = logId > MissionLog::Zilart ? 0 : -1;
             charutils::SendPartialMissionLog(PChar, logId, false);
         }
         if (complete)
@@ -8744,7 +8744,7 @@ void CLuaBaseEntity::completeMission(MissionLog logId, const uint16 missionID) c
         }
         else
         {
-            PChar->m_missionLog[static_cast<uint8_t>(logId)].current = static_cast<uint8_t>(logId) > 2 ? 0 : std::numeric_limits<uint16>::max();
+            PChar->m_missionLog[static_cast<uint8_t>(logId)].current = logId > MissionLog::Zilart ? 0 : std::numeric_limits<uint16>::max();
             if (logId != MissionLog::CoP && (missionID < 64))
             {
                 PChar->m_missionLog[static_cast<uint8_t>(logId)].complete[missionID] = true;

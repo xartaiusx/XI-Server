@@ -29,6 +29,9 @@ describe('Status effect persistence across zoning', function()
         local remaining = protect:getTimeRemaining() / 1000
         assert(remaining > 1100 and remaining <= 1200,
             'expected ~1200s left after 600s elapsed, got ' .. tostring(remaining))
+
+        player.events:finish(30035, 0)
+        player.events:expectNotInEvent()
     end)
 
     it('carries a subPower changed after the effect was gained', function()

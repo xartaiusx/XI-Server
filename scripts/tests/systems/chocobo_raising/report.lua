@@ -97,6 +97,12 @@ describe('Chocobo raising report', function()
     ---@type RaisingClient
     local client
 
+    local function assertRetained(itemId)
+        local item = player:findItem(itemId)
+        assert(item and player:getItemCount(itemId) == 1, 'rejected stable trade must retain its item')
+        assert(item:state() == xi.itemState.FREE, 'rejected stable trade must release its item')
+    end
+
     -- Moves the chocobo back so that `day` is its last reported day.
     local function placeOnDay(dayNumber, stage, fields)
         local info = player:getChocoboRaisingInfo()
@@ -189,12 +195,14 @@ describe('Chocobo raising report', function()
             start = raisingClient.trade(zopago, { xi.item.BUNCH_OF_GYSAHL_GREENS })
             assert(start.eventId == 508, string.format('Expected the reminder event 508, got %d', start.eventId))
             raisingClient.finish(zopago, 0)
+            assertRetained(xi.item.BUNCH_OF_GYSAHL_GREENS)
 
             player:addItem(xi.item.CHOCOBO_EGG_FAINTLY_WARM)
             start = raisingClient.trade(zopago, { xi.item.CHOCOBO_EGG_FAINTLY_WARM })
             assert(start.eventId == 515, string.format('Expected the rejection event 515, got %d', start.eventId))
             raisingClient.expectReply('515 start', start.params, { sandoria })
             raisingClient.finish(zopago, 0)
+            assertRetained(xi.item.CHOCOBO_EGG_FAINTLY_WARM)
 
             assert(player:getChocoboRaisingInfo().last_update_age == 1, 'Expected no day applied at another stable')
 
@@ -334,6 +342,7 @@ describe('Chocobo raising report', function()
 
             raisingClient.expectReply('831 244', raisingClient.send(client, 244), { 0, 0, 0, 0, stages.CHICK, 1, 0, 0 })
             raisingClient.finish(client, 0)
+            assertRetained(xi.item.CHOCOBO_EGG_FAINTLY_WARM)
         end)
     end)
 end)

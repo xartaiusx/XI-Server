@@ -87,6 +87,11 @@ describe('confirmTrade & confirmItem', function()
                 }
             },
             { eventId = 652 })
+
+        turbine = player:findItem(xi.item.BARRAGE_TURBINE, xi.inventoryLocation.INVENTORY)
+        assert(turbine and player:getItemCount(xi.item.BARRAGE_TURBINE) == 1, 'rejected attachment must remain in inventory')
+        assert(turbine:state() == xi.itemState.FREE, 'rejected attachment must not remain claimed')
+        assert(player:hasAttachment(turbineAttachment), 'rejected duplicate must preserve the unlocked attachment')
     end)
 
     it('does not leave a reserve when only part of a stack is confirmed', function()

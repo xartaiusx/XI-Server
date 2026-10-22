@@ -15,7 +15,7 @@ local function getEncounters()
     local ID
 
     ID = zones[xi.zone.ALZADAAL_UNDERSEA_RUINS]
-    if ID then
+    if ID and GetZone(xi.zone.ALZADAAL_UNDERSEA_RUINS) then
         result[xi.zone.ALZADAAL_UNDERSEA_RUINS] =
         {
             mob     = ID.mob.ALEXANDER,
@@ -25,7 +25,7 @@ local function getEncounters()
     end
 
     ID = zones[xi.zone.RUAUN_GARDENS]
-    if ID then
+    if ID and GetZone(xi.zone.RUAUN_GARDENS) then
         result[xi.zone.RUAUN_GARDENS] =
         {
             mob     = ID.mob.KIRIN,
@@ -35,7 +35,7 @@ local function getEncounters()
     end
 
     ID = zones[xi.zone.THE_BOYAHDA_TREE]
-    if ID then
+    if ID and GetZone(xi.zone.THE_BOYAHDA_TREE) then
         result[xi.zone.THE_BOYAHDA_TREE] =
         {
             mob     = ID.mob.FAFNIR,

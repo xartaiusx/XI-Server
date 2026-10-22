@@ -50,6 +50,9 @@ describe('Dynamis - Jeuno roam pathing away from the spawn anchor', function()
             assert(zone:isNavigablePoint(pos),
                 string.format('%s (%.3f, %.3f, %.3f) should be navigable', name, pos.x, pos.y, pos.z))
         end
+
+        player.events:finish(100, 0)
+        player.events:expectNotInEvent()
     end)
 
     it('roams out via the staircase instead of cutting straight at the spawn anchor', function()

@@ -233,12 +233,18 @@ describe('Gardening', function()
                         break
                     end
 
-                    -- A full mog safe blocks the next sowing.
-                    player:delContainerItems(xi.inv.MOGSAFE)
-                    stockSafe(player, xi.item.EARTHEN_FLOWERPOT)
-                    local nextPot = mogItem(player, xi.item.EARTHEN_FLOWERPOT)
-                    player.actions:placeFurniture(xi.inv.MOGSAFE, nextPot:getSlotID(), 0, 0)
-                    player.actions:finishFurnishing()
+                    -- Keep the installed pot claimed; clear only free harvest stacks.
+                    local potSlot = pot:getSlotID()
+                    for _, item in ipairs(player:getItems(xi.inv.MOGSAFE)) do
+                        if item:getSlotID() ~= potSlot then
+                            assert(item:state() == xi.itemState.FREE, 'expected harvested items to be free')
+                            assert(player:delItemAt(item:getID(), item:getQuantity(), xi.inv.MOGSAFE, item:getSlotID()),
+                                'expected harvested items to be removed')
+                        end
+                    end
+
+                    assert(mogItem(player, xi.item.EARTHEN_FLOWERPOT):getSlotID() == potSlot and pot:isInstalled(),
+                        'expected the original flowerpot to remain installed')
                 end
 
                 assert(gotOre, string.format('expected %s feed to yield %s ore', feedEntry.element, feedEntry.element))

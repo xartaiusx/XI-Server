@@ -94,6 +94,11 @@ Application::Application(const ApplicationConfig& appConfig, int argc, char** ar
 
 Application::~Application()
 {
+    // Tear down asynchronous producers and the engine while logging is alive.
+    scheduler_.stop();
+    engine_.reset();
+    zmqService_.stop();
+
     tryRestoreTimerResolution();
     tryRestoreQuickEditMode();
     logging::ShutDown();

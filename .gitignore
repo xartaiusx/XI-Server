@@ -136,6 +136,7 @@ UpgradeLog*.XML
 
 # Generated executables
 /xi_connect*
+/xi_lifecycle*
 /xi_map*
 /xi_search*
 /xi_profile*

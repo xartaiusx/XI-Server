@@ -1,6 +1,13 @@
 add_subdirectory(lua)
 add_subdirectory(reporters)
 
+# Exercise Application teardown in its own process, independent of xi_test.
+xi_add_executable(xi_lifecycle_test testserver.rc
+    ${CMAKE_CURRENT_SOURCE_DIR}/application_lifecycle_main.cpp
+)
+target_link_libraries(xi_lifecycle_test PRIVATE xi_common)
+set_target_properties(xi_lifecycle_test PROPERTIES OUTPUT_NAME xi_lifecycle_test)
+
 # Catch2 hosts the C++ unit tests that run during xi_test startup, before the
 # Lua test engine boots (see main.cpp).
 suspend_clang_tidy()

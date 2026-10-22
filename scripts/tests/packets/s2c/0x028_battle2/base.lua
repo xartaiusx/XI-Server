@@ -51,6 +51,7 @@ local ph         = require('scripts.tests.packets.s2c.0x028_battle2.placeholders
 
 ---@class Battle2TestEntry
 ---@field test fun(player: CClientEntityPair, mob: CTestEntity) Test function that sets up and executes the test scenario
+---@field cleanup? fun(player: CClientEntityPair, mob: CTestEntity) Cleanup after the expected packets have been checked
 ---@field expected Battle2Packet|Battle2Packet[] Expected packet(s). Single packet or array of packets
 
 ---@alias Battle2TestSuite table<string, Battle2TestEntry>
@@ -118,7 +119,11 @@ describe('BATTLE2', function()
     ---@type CTestEntity
     local mob
 
+    ---@type CTestEntity?
+    local cleanupMob
+
     before_each(function()
+        cleanupMob = nil
         xi.test.world:setSeed(1)
 
         player = xi.test.world:spawnPlayer(
@@ -131,12 +136,21 @@ describe('BATTLE2', function()
         -- The Clipper spawns at level 28 or 29, so its stats, and the packet values below,
         -- depend on the shared RNG stream. Pin the level.
         mob = player.entities:get(17293357)
+        cleanupMob = mob
         mob:setLevelRange(28, 28)
         mob:setSpawn(10.7, -20.4, -88.1)
         mob:respawn()
         mob.assert:isAlive()
         player.entities:moveTo(mob)
         mob:updateEnmity(player)
+    end)
+
+    after_each(function()
+        local ownedMob = cleanupMob
+        cleanupMob = nil
+        if ownedMob and ownedMob:isAlive() then
+            ownedMob:resetAI()
+        end
     end)
 
     -- Iterate through test suites in deterministic order
@@ -253,6 +267,15 @@ describe('BATTLE2', function()
 
                         assert(false, string.format('Could not match expected BATTLE2 packet(s): %s',
                             table.concat(unmatchedPackets, ', ')))
+                    end
+
+                    if caseDefinition.cleanup then
+                        caseDefinition.cleanup(player, mob)
+                    end
+
+                    if player:isInEvent() then
+                        player.events:finish(100, 0)
+                        player.events:expectNotInEvent()
                     end
                 end)
             end

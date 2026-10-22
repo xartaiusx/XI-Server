@@ -14,6 +14,17 @@ describe('SynthTransaction', function()
         player:setSkillLevel(xi.skill.WOODWORKING, 200)
     end)
 
+    local function finishSynth()
+        xi.test.world:skipTime(17)
+        xi.test.world:skipTime(15)
+
+        assert(player:getAnimation() ~= xi.animation.SYNTH, 'synth animation did not finish')
+        for _, itemId in ipairs({ crystal, ingredient }) do
+            local remaining = player:findItem(itemId)
+            assert(not remaining or remaining:state() == xi.itemState.FREE, 'synth item still claimed')
+        end
+    end
+
     it('crystal and ingredient are InTransaction during the animation', function()
         player:addItem(crystal)
         player:addItem(ingredient)
@@ -30,6 +41,8 @@ describe('SynthTransaction', function()
         assert(midSynth, 'ingredient should still be in inventory mid-synth')
         assert(midSynth:state() == xi.itemState.IN_TRANSACTION,
             'expected IN_TRANSACTION mid-synth, got ' .. tostring(midSynth:state()))
+
+        finishSynth()
     end)
 
     it('successful synth consumes ingredients and yields the result', function()
@@ -122,6 +135,8 @@ describe('SynthTransaction', function()
 
         local inMogSafe = player:findItem(ingredient, xi.inventoryLocation.MOGSAFE)
         assert(not inMogSafe, 'ingredient must not have moved to mog safe')
+
+        finishSynth()
     end)
 
     local function leaveOneFreeSlot()
@@ -164,6 +179,8 @@ describe('SynthTransaction', function()
 
         player.assert.no:hasItem(xi.item.CHUNK_OF_IRON_ORE)
         seller.assert:hasItem(xi.item.CHUNK_OF_IRON_ORE)
+
+        finishSynth()
     end)
 
     it('cannot synth with a full inventory', function()

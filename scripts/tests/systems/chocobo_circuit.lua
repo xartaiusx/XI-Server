@@ -206,7 +206,8 @@ describe('Chocobo Circuit betting', function()
         SaveChocoboRaceResult(race)
         assert(GetChocoboRaceQuills(raceNo)[pair] >= 10, 'saving the race lost its bets')
 
-        return player, client, race
+        -- Any counter can redeem a ticket; use a fixed native attendant.
+        return player, raisingClient.forNPC(player, 'Gadimo'), race
     end
 
     it('pays a winning ticket', function()
@@ -214,6 +215,7 @@ describe('Chocobo Circuit betting', function()
         local payout               = xi.chocoboRacing.getQuinella(race).payout
 
         local start = raisingClient.trade(client, { xi.item.CHOCOBET_TICKET })
+        assert(start.eventId == 314, 'wrong native redemption counter event')
         raisingClient.expectReply('ticket', start.params, { payout * 10, xi.chocoboRacing.getRaceId(race.raceNo), 2, 6, xi.chocoboRacing.ticketStatus.WINNER })
         raisingClient.expectReply('result', raisingClient.send(client, 1), { payout, 3, 7, nil, xi.chocoboRacing.ticketStatus.WINNER, nil, nil, 0 })
 
@@ -231,6 +233,7 @@ describe('Chocobo Circuit betting', function()
         local player, client = ticketOn({ 0, 1, 2, 3, 4, 5, 6, 7 })
 
         local start = raisingClient.trade(client, { xi.item.CHOCOBET_TICKET })
+        assert(start.eventId == 314, 'wrong native redemption counter event')
         assert(start.params[0] == 0 and start.params[4] == xi.chocoboRacing.ticketStatus.LOSER)
         raisingClient.finish(client, xi.chocoboRacing.ticketOption.COLLECT)
         assert(player:getGil() == 0 and player:findItem(xi.item.CHOCOBET_TICKET))
@@ -242,7 +245,7 @@ describe('Chocobo Circuit betting', function()
 
     it('does not pay an expired ticket', function()
         local player = xi.test.world:spawnPlayer({ zone = xi.zone.CHOCOBO_CIRCUIT })
-        local client = raisingClient.forNPC(player, (counterAhead(0)))
+        local client = raisingClient.forNPC(player, 'Gadimo')
         local raceNo = xi.chocoboRacing.currentRaceNo() - 673
         player:setGil(0)
 
@@ -254,7 +257,9 @@ describe('Chocobo Circuit betting', function()
             quills       = 999,
         })
 
-        assert(raisingClient.trade(client, { xi.item.CHOCOBET_TICKET }).params[4] == xi.chocoboRacing.ticketStatus.EXPIRED)
+        local start = raisingClient.trade(client, { xi.item.CHOCOBET_TICKET })
+        assert(start.eventId == 314, 'wrong native redemption counter event')
+        assert(start.params[4] == xi.chocoboRacing.ticketStatus.EXPIRED)
         raisingClient.finish(client, xi.chocoboRacing.ticketOption.COLLECT)
         assert(player:getGil() == 0 and player:findItem(xi.item.CHOCOBET_TICKET))
     end)

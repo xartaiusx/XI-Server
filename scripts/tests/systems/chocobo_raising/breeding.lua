@@ -240,6 +240,12 @@ describe('Chocobo breeding', function()
 
             player.actions:tradeNpc('Finbarr', { xi.item.CHOCOCARD_M, xi.item.CHOCOCARD_F })
             player.events:expect({ eventId = finbarr.TICKET_MENU, finishOption = 0 })
+
+            for _, itemId in ipairs({ xi.item.CHOCOCARD_M, xi.item.CHOCOCARD_F }) do
+                local card = player:findItem(itemId)
+                assert(card and player:getItemCount(itemId) == 1, 'rejected breeding must retain each chococard')
+                assert(card:state() == xi.itemState.FREE, 'rejected breeding must release each chococard')
+            end
         end)
 
         it('lays an egg from the parents\' genes after JST midnight', function()

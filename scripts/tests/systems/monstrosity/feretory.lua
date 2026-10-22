@@ -219,6 +219,9 @@ describe('Monstrosity Teyrnon shop', function()
 
         local replies = helpers.updateReplies(player)
         assert(replies[1] == 5 and replies[2] == 17, string.format('page masks were %s and %s', tostring(replies[1]), tostring(replies[2])))
+
+        player.events:finish(7, 0)
+        player.events:expectNotInEvent()
     end)
 
     it('sells a family for its infamy', function()
@@ -627,6 +630,9 @@ describe('Monstrosity Suibhne trades', function()
 
         assert(request, 'Suibhne named no item')
         assert(request[1] == xi.item.CREEL_OF_MOAT_CARP and request[2] == 1, string.format('asked for %d x%d', request[1], request[2]))
+
+        player.events:finish(11, 0)
+        player.events:expectNotInEvent()
     end)
 
     it('unlocks the Basket-burdened Crab for a creel of moat carp', function()
@@ -674,8 +680,13 @@ describe('Monstrosity Goblin Footprint', function()
         local player = helpers.spawnMonipulator(xi.zone.FERETORY)
         player:addGil(100)
 
+        -- Offering gil selects the story; the native script does not charge it.
+        local offeredBalance = player:getGil()
+
         player.actions:tradeNpc('Goblin_Footprint', { { itemId = xi.item.GIL, quantity = 100 } }, { eventId = 0, updates = { 1 }, finishOption = 1 })
+        assert(player:getGil() == offeredBalance, 'story selection must retain the offered gil')
         player.events:expect({ eventId = 2, updates = { 1 }, finishOption = 1 })
+        assert(player:getGil() == offeredBalance, 'story completion must retain the offered gil')
     end)
 end)
 

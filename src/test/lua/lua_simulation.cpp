@@ -43,6 +43,7 @@
 #include "map/map_networking.h"
 #include "map/spawn_slot.h"
 #include "map/time_server.h"
+#include "map/utils/charutils.h"
 #include "map/utils/zoneutils.h"
 #include "map/zone.h"
 #include "map/zone_entities.h"
@@ -655,6 +656,10 @@ auto CLuaSimulation::spawnPlayer(sol::optional<sol::table> params) -> CLuaClient
         db::preparedStmt("UPDATE chars SET playtime = 60, titles = ? WHERE charid = ?", titles, testChar->charId());
     }
 
+    // The Lua wrapper requires a valid entity at construction.
+    testChar->setBlowfish(BLOWFISH_PENDING_ZONE);
+    testChar->setEntity(charutils::LoadChar(testChar->charId()));
+
     // Create client wrapper and track setup context
     ClientInfo info{
         .client = std::make_unique<CLuaClientEntityPair>(std::move(testChar), this, engine_),
@@ -664,8 +669,8 @@ auto CLuaSimulation::spawnPlayer(sol::optional<sol::table> params) -> CLuaClient
 
     auto* player = clients_.back().client.get();
 
-    // Complete zone-in sequence
-    player->packets().sendZonePackets();
+    // Complete zone-in without loading the initial entity twice.
+    player->packets().sendZonePackets(false);
 
     if (job.has_value())
     {
