@@ -18,15 +18,15 @@ import sys
 from types import SimpleNamespace
 
 SOURCE = "75ef2a9b1eb5f74ce1a5b7a5e6bd6c6f557f7483"
-NONCE = "8d823e890d534c9fa0a5db051b722a06"
-BRANCH = "refs/heads/mochi/hosted-asan-dependency-inventory-20261022"
+NONCE = "5c608bf97e6e49ec9063d2efe75b1a24"
+BRANCH = "refs/heads/mochi/hosted-asan-package-provenance-20261022"
 FILE = "scripts/tests/systems/monstrosity/belligerency.lua"
 SUITE = "systems::monstrosity::Monstrosity Belligerency"
 CASE = "lets a gladiator attack a monster it claimed"
-DATABASE = "mochi_asan_8d823e890d534c9f"
+DATABASE = "mochi_asan_5c608bf97e6e49ec"
 DB_USER = "mochi_diag"
 # Public, disposable hosted fixture credential; never a workstation credential.
-DB_PASSWORD = "synthetic_only_8d823e890d534c9f"
+DB_PASSWORD = "synthetic_only_5c608bf97e6e49ec"
 RECIPE_SHA = "760c435142edb5a8a1c1457465b82989e597a5af2ac754925a84a95cc1f2188d"
 HEADER_SHA = "05960e12ee3a3d9cff0bf1080e5355564a600e9eaacec45d82c8b7c57bd6b3e9"
 RECIPE_B64 = (
@@ -219,7 +219,7 @@ DEPENDENCIES = {
     "yhirose/cpp-httplib",
     "jeremy-rifkin/cpptrace",
     "mapbox/earcut.hpp",
-    "spartan-j/efsw",
+    "spartanj/efsw",
     "martinmoene/expected-lite",
     "thisistherk/fast_obj",
     "fmtlib/fmt",
@@ -235,6 +235,56 @@ DEPENDENCIES = {
     "nemtrif/utfcpp",
     "madler/zlib",
 }
+PACKAGE_IDENTITIES = {
+    "argparse": "p-ranav/argparse",
+    "asio": "chriskohlhoff/asio",
+    "bcrypt": "zach2good/libbcrypt",
+    "catch2": "catchorg/catch2",
+    "cpp-httplib": "yhirose/cpp-httplib",
+    "cpptrace": "jeremy-rifkin/cpptrace",
+    "earcut_hpp": "mapbox/earcut.hpp",
+    "efsw": "spartanj/efsw",
+    "expected-lite": "martinmoene/expected-lite",
+    "fast_obj": "thisistherk/fast_obj",
+    "fmt": "fmtlib/fmt",
+    "function2": "naios/function2",
+    "glaze": "stephenberry/glaze",
+    "json": "nlohmann/json",
+    "magic_enum": "neargye/magic_enum",
+    "pcg-cpp": "imneme/pcg-cpp",
+    "recastnavigation": "recastnavigation/recastnavigation",
+    "spdlog": "gabime/spdlog",
+    "termcolor": "ikalnytskyi/termcolor",
+    "unordered_dense": "martinus/unordered_dense",
+    "utfcpp": "nemtrif/utfcpp",
+    "zlib": "madler/zlib",
+}
+# Exact75ef ext/CMakeLists.txt package contracts, corroborated by immutable
+# official GitHub trees/blobs in the independently reviewed private receipt.
+PUBLIC_CONTRACTS_SHA = (
+    "2117563b99c34a4c183e6a7b1cf1cea16192ea68af293fb43a55d762f405d854"
+)
+NESTED_CONTRACTS = {
+    "mapbox/earcut.hpp": {
+        "parent": "4811a2b69b91f6127a75e780de6e2113609ddabb",
+        "blob": "728bde6c012499d4146d699294c945766a8d98b3",
+        "path": "glfw",
+        "child": "90e22947c60b0c1fa47cf1496790ce1942e4a5d8",
+        "identity": "glfw/glfw",
+        "origin": "https://github.com/glfw/glfw.git",
+        "modules": "W3N1Ym1vZHVsZSAiZ2xmdyJdCglwYXRoID0gZ2xmdwoJdXJsID0gaHR0cHM6Ly9naXRodWIuY29tL2dsZncvZ2xmdy5naXQK",
+    },
+    "naios/function2": {
+        "parent": "a354bd093d2b6e50c9325dbce84d20b4e77aabc6",
+        "blob": "6889aed06052875cd3df8f39c24c4065a3e7237f",
+        "path": "test/googletest",
+        "child": "7d955430d1f5fa3652000e407f2a46a9bfccbca3",
+        "identity": "google/googletest",
+        "origin": "https://github.com/google/googletest.git",
+        "modules": "W3N1Ym1vZHVsZSAidGVzdC9nb29nbGV0ZXN0Il0KCXBhdGggPSB0ZXN0L2dvb2dsZXRlc3QKCXVybCA9IGh0dHBzOi8vZ2l0aHViLmNvbS9nb29nbGUvZ29vZ2xldGVzdC5naXQK",
+    },
+}
+EFSW_COMMIT = "22f17a0bcdf3a4edf61f8b14328391463389e548"
 ZLIB_CONFIGURED = {
     "commit": "51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf",
     "cmake_sha256": "ab5f3afca6fe38983dc30a28da4877706e3a690a564eda3d4929fff39dab190e",
@@ -859,7 +909,7 @@ def dependency_inventory(ctx, roots, label="configured-deps"):
         "acceptance": False,
         "expected_roots": len(DEPENDENCIES),
         "observed_roots": len(roots),
-        "original_walk_error_visibility": "unavailable-no-onerror-callback",
+        "original_walk_error_visibility": "bounded-walk-errors-in-sibling-discovery-receipt",
         "limits": INVENTORY_LIMITS,
         "cache_root_type": "unknown",
         "report_complete": True,
@@ -869,7 +919,8 @@ def dependency_inventory(ctx, roots, label="configured-deps"):
         "report_directories": 0,
         "report_entries": 0,
     }
-    # Original discovery has its own unchanged <=32 guard; witness independently bounded.
+    # New discovery is bounded to <=33 before a partial over-budget report;
+    # its sibling discovery receipt records completion/errors, never historical runs.
     for directory in roots[:33]:
         receipt["roots"].append(inventory_git(cache, directory))
     receipt["root_metadata_complete"] = all(
@@ -929,17 +980,475 @@ def dependency_inventory(ctx, roots, label="configured-deps"):
     require(receipt["report_complete"])
 
 
-def dependency_proof(ctx, private_command, label):
-    roots = []
-    for current, directories, files in os.walk(ctx["work"] / "cpm", followlinks=False):
-        require(len(roots) <= 32)
-        if ".git" in directories or ".git" in files:
-            roots.append(Path(current))
-        directories[:] = [name for name in directories if name != ".git"]
+def discover_dependencies(ctx, label):
+    cache = ctx["work"] / "cpm"
+    roots, errors = [], []
+    counts = {"directories": 0, "entries": 0}
+    try:
+        checked_directory(cache)
+        for current, directories, files in os.walk(
+            cache,
+            followlinks=False,
+            onerror=lambda error: errors.append(type(error).__name__),
+        ):
+            counts["directories"] += 1
+            counts["entries"] += len(directories) + len(files)
+            require(counts["directories"] <= 32768 and counts["entries"] <= 131072)
+            require(not errors)
+            relative = Path(current).relative_to(cache)
+            require(len(os.fsencode(relative)) <= 1024)
+            require(
+                all(
+                    len(os.fsencode(relative / name)) <= 1024
+                    for name in directories + files
+                )
+            )
+            if ".git" in directories or ".git" in files:
+                roots.append(Path(current))
+                require(len(roots) <= 33)
+            directories[:] = sorted(name for name in directories if name != ".git")
+    except (OSError, RuntimeError, ValueError) as error:
+        errors.append(type(error).__name__)
+    write_json(
+        ctx["evidence"] / (label + "-discovery.json"),
+        {
+            "diagnostic_only": True,
+            "acceptance": False,
+            "complete": not errors,
+            "observed_markers": len(roots),
+            "visited": counts,
+            "errors": errors[:4],
+        },
+    )
     dependency_inventory(ctx, roots, label)
-    require(len(roots) == len(DEPENDENCIES))
+    require(not errors)
+    return roots
+
+
+def partition_dependencies(cache, roots):
+    require(len(roots) == len(set(roots)))
+    primary, nested = {}, []
+    for directory in roots:
+        relative = directory.relative_to(cache)
+        require(".." not in relative.parts and len(relative.parts) >= 2)
+        fd = directory_fd(directory)
+        try:
+            kind = inventory_kind(
+                os.stat(".git", dir_fd=fd, follow_symlinks=False).st_mode
+            )
+        finally:
+            os.close(fd)
+        if len(relative.parts) == 2:
+            package, cache_hash = relative.parts
+            require(
+                package in PACKAGE_IDENTITIES
+                and re.fullmatch(r"[0-9a-f]{40}", cache_hash)
+            )
+            name = PACKAGE_IDENTITIES[package]
+            require(kind == "directory" and name not in primary)
+            checked_directory(directory / ".git")
+            primary[name] = directory
+        else:
+            require(kind == "regular")
+            nested.append(directory)
+    require(set(primary) == DEPENDENCIES)
+    expected = {
+        primary[name] / contract["path"] for name, contract in NESTED_CONTRACTS.items()
+    }
+    require(set(nested) == expected and len(nested) == len(expected) == 2)
+    return primary
+
+
+def safe_git_config(raw, identity, worktree=None, contract=None):
+    require(isinstance(raw, bytes) and 0 < len(raw) <= 65536 and b"\x00" not in raw)
+    values, section = {}, None
+    for line in raw.decode("utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith(("#", ";")):
+            continue
+        if line.startswith("["):
+            match = re.fullmatch(
+                r'\[(core|advice|remote|branch|submodule)(?: "([A-Za-z0-9_./-]{1,128})")?\]',
+                line,
+            )
+            require(match is not None)
+            section = (match[1], match[2])
+            require(
+                (section[0] in {"core", "advice"} and section[1] is None)
+                or section == ("remote", "origin")
+                or section[0] == "branch"
+                or contract is not None
+                and section == ("submodule", contract["path"])
+            )
+            continue
+        require(section is not None)
+        match = re.fullmatch(r"([A-Za-z][A-Za-z0-9]*)\s*=\s*([^\r\n]+)", line)
+        require(match is not None)
+        key, value = (section[0], section[1], match[1].lower()), match[2].strip()
+        require(key not in values)
+        values[key] = value
+        if section[0] == "core":
+            allowed = {
+                "repositoryformatversion": "0",
+                "filemode": "true",
+                "bare": "false",
+                "logallrefupdates": "true",
+                "ignorecase": "false",
+            }
+            if match[1].lower() == "worktree":
+                require(worktree is not None and value == worktree)
+            else:
+                require(allowed.get(match[1].lower()) == value)
+        elif section == ("advice", None):
+            require(match[1].lower() == "detachedhead" and value == "false")
+        elif section == ("remote", "origin"):
+            if match[1].lower() == "url":
+                match_url = re.fullmatch(
+                    r"https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?",
+                    value,
+                )
+                require(match_url is not None and match_url[1].lower() == identity)
+            else:
+                fetch = re.fullmatch(
+                    r"\+refs/heads/([A-Za-z0-9_./*-]+):refs/remotes/origin/([A-Za-z0-9_./*-]+)",
+                    value,
+                )
+                require(
+                    match[1].lower() == "fetch"
+                    and fetch is not None
+                    and fetch[1] == fetch[2]
+                    and ".." not in value
+                )
+        elif section[0] == "branch":
+            require(section[1] is not None and ".." not in section[1])
+            require(
+                (match[1].lower() == "remote" and value == "origin")
+                or (
+                    match[1].lower() == "merge"
+                    and re.fullmatch(r"refs/heads/[A-Za-z0-9_./-]+", value)
+                    and ".." not in value
+                )
+            )
+        else:
+            require(
+                contract is not None
+                and (
+                    (match[1].lower() == "active" and value == "true")
+                    or (match[1].lower() == "url" and value == contract["origin"])
+                )
+            )
+    for key, value in (
+        ("repositoryformatversion", "0"),
+        ("filemode", "true"),
+        ("bare", "false"),
+    ):
+        require(values.get(("core", None, key)) == value)
+    require(("remote", "origin", "url") in values)
+    require((worktree is None) == (("core", None, "worktree") not in values))
+
+
+def git_path_exists(path):
+    fd = None
+    try:
+        fd = directory_fd(path.parent)
+        os.stat(path.name, dir_fd=fd, follow_symlinks=False)
+        return True
+    except FileNotFoundError:
+        return False
+    finally:
+        if fd is not None:
+            os.close(fd)
+
+
+def module_namespace(directory, expected):
+    modules = directory / "modules"
+    if expected is None:
+        require(not git_path_exists(modules))
+        return
+    checked_directory(modules)
+    parts = Path(expected).parts
+    current = modules
+    for part in parts:
+        fd = directory_fd(current)
+        try:
+            with os.scandir(fd) as entries:
+                names = [entry.name for entry in entries]
+            require(names == [part])
+        finally:
+            os.close(fd)
+        current = current / part
+        checked_directory(current)
+
+
+def packed_refs_safe(raw):
+    require(
+        isinstance(raw, bytes) and 0 < len(raw) <= 1024 * 1024 and b"\x00" not in raw
+    )
+    seen, previous = set(), False
+    for line in raw.splitlines():
+        if line.startswith(b"#"):
+            continue
+        if line.startswith(b"^"):
+            require(previous and re.fullmatch(rb"\^[0-9a-f]{40}", line))
+            previous = False
+            continue
+        match = re.fullmatch(rb"[0-9a-f]{40} (refs/\S+)", line)
+        require(match is not None)
+        name = match[1]
+        require(
+            name not in seen
+            and name != b"refs/replace"
+            and not name.startswith(b"refs/replace/")
+        )
+        require(b".." not in name and b"//" not in name and b"@{" not in name)
+        require(
+            not any(byte < 33 or byte == 127 or byte in b"~^:?*[\\" for byte in name)
+        )
+        require(
+            all(
+                not part.startswith(b".") and not part.endswith((b".", b".lock"))
+                for part in name.split(b"/")
+            )
+        )
+        seen.add(name)
+        previous = True
+
+
+def git_admin_snapshot(directory, nested_path=None):
+    checked_directory(directory)
+    module_namespace(directory, nested_path)
+    for name in (
+        "commondir",
+        "config.worktree",
+        "gitdir",
+        "worktrees",
+        "info/grafts",
+        "objects/info/alternates",
+        "objects/info/http-alternates",
+        "refs/replace",
+    ):
+        require(not git_path_exists(directory / name))
+    if git_path_exists(directory / "packed-refs"):
+        packed_refs_safe(read_file(directory / "packed-refs", limit=1024 * 1024))
+    hooks = directory / "hooks"
+    if git_path_exists(hooks):
+        fd = directory_fd(hooks)
+        try:
+            with os.scandir(fd) as entries:
+                count = 0
+                for entry in entries:
+                    count += 1
+                    require(count <= 64 and entry.name.endswith(".sample"))
+                    require(stat.S_ISREG(entry.stat(follow_symlinks=False).st_mode))
+        finally:
+            os.close(fd)
+    # One streamed content digest also freezes refs, index, config, shallow state,
+    # object packs and nested admin directories; no subprocess/log per file.
+    digest = hashlib.sha256()
+    count = total = directories_seen = 0
+    errors = []
+    for current, directories, files in os.walk(
+        directory,
+        followlinks=False,
+        onerror=lambda error: errors.append(type(error).__name__),
+    ):
+        directories_seen += 1
+        require(not errors and directories_seen <= 32768)
+        if Path(current) == directory and nested_path is not None:
+            directories[:] = [name for name in directories if name != "modules"]
+        directories.sort()
+        for name in sorted(directories + files):
+            path = Path(current) / name
+            info = path.lstat()
+            relative = path.relative_to(directory).as_posix()
+            require(info.st_uid == os.geteuid() and len(os.fsencode(relative)) <= 1024)
+            require(not stat.S_ISLNK(info.st_mode))
+            require(not name.endswith(".lock"))
+            if stat.S_ISDIR(info.st_mode):
+                continue
+            require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1)
+            count += 1
+            total += info.st_size
+            require(count <= 131072 and total <= 2**30)
+            digest.update(
+                (
+                    relative
+                    + "\0"
+                    + str(stat.S_IMODE(info.st_mode))
+                    + "\0"
+                    + file_sha(path)
+                    + "\n"
+                ).encode()
+            )
+    require(not errors and count > 0)
+    return {"sha256": digest.hexdigest(), "files": count, "bytes": total}
+
+
+def nested_pointer(parent, contract):
+    child = parent / contract["path"]
+    gitdir = parent / ".git/modules" / contract["path"]
+    checked_directory(child)
+    checked_directory(gitdir)
+    raw = read_file(child / ".git", limit=4096)
+    require(raw == ("gitdir: " + os.path.relpath(gitdir, child) + "\n").encode())
+    back = os.path.relpath(child, gitdir)
+    safe_git_config(
+        read_file(gitdir / "config", limit=65536), contract["identity"], back
+    )
+    return child, gitdir, sha(raw)
+
+
+def hidden_index_flags(raw):
+    require(
+        isinstance(raw, bytes) and 0 < len(raw) <= 1024 * 1024 and raw.endswith(b"\x00")
+    )
+    entries = raw[:-1].split(b"\x00")
+    require(len(entries) <= 32768 and len(entries) == len(set(entries)))
+    require(
+        all(
+            item.startswith(b"H ") and len(item) > 2 and b"\n" not in item
+            for item in entries
+        )
+    )
+    return sha(raw)
+
+
+def git_mapping(raw, worktree, gitdir):
+    lines = raw.decode("utf-8").splitlines()
+    require(len(lines) == 3)
+    expected = (gitdir, gitdir, worktree)
+    for line, target in zip(lines, expected):
+        require(line and "\x00" not in line)
+        actual = Path(
+            posixpath.normpath(line if line.startswith("/") else str(worktree / line))
+        )
+        require(actual == target)
+        checked_directory(actual)
+
+
+def nested_manifest(raw, contract):
+    require(
+        isinstance(raw, bytes) and raw.endswith(b"\x00") and len(raw) <= 1024 * 1024
+    )
+    links, module = [], []
+    for entry in raw[:-1].split(b"\x00"):
+        fields = entry.split(b"\t", 1)
+        require(len(fields) == 2)
+        header = fields[0].split(b" ")
+        require(len(header) == 3 and re.fullmatch(rb"[0-9a-f]{40}", header[2]))
+        if header[0] == b"160000":
+            require(header[1] == b"commit")
+            links.append((fields[1], header[2]))
+        if fields[1] == b".gitmodules":
+            module.append(header)
+    require(links == [(contract["path"].encode(), contract["child"].encode())])
+    require(module == [[b"100644", b"blob", contract["blob"].encode()]])
+
+
+def prove_nested(ctx, private_command, label, parent, contract, layout):
+    child, gitdir, pointer = nested_pointer(parent, contract)
+    require(pointer == layout["pointer_sha256"])
+    raw = read_file(parent / ".gitmodules", limit=4096)
+    require(raw == base64.b64decode(contract["modules"], validate=True))
+    require(
+        hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+        == contract["blob"]
+    )
+    nested_manifest(
+        git_output(
+            ctx,
+            private_command,
+            label + "-manifest",
+            parent,
+            "ls-tree",
+            "-rz",
+            "--full-tree",
+            contract["parent"],
+        ),
+        contract,
+    )
+    require(
+        git_output(
+            ctx, private_command, label + "-url", child, "remote", "get-url", "origin"
+        ).strip()
+        == contract["origin"].encode()
+    )
+    require(
+        git_output(
+            ctx, private_command, label + "-head", child, "rev-parse", "HEAD"
+        ).strip()
+        == contract["child"].encode()
+    )
+    git_mapping(
+        git_output(
+            ctx,
+            private_command,
+            label + "-mapping",
+            child,
+            "rev-parse",
+            "--absolute-git-dir",
+            "--git-common-dir",
+            "--show-toplevel",
+        ),
+        child,
+        gitdir,
+    )
+    flags = hidden_index_flags(
+        git_output(
+            ctx, private_command, label + "-flags", child, "ls-files", "-v", "-z"
+        )
+    )
+    require(
+        not git_output(
+            ctx,
+            private_command,
+            label + "-clean",
+            child,
+            "status",
+            "--porcelain",
+            "--untracked-files=no",
+        )
+    )
+    require(git_admin_snapshot(gitdir) == layout["admin"])
+    return {
+        **layout,
+        "tree": tree_digest(child),
+        "index_flags_sha256": flags,
+        "commit": contract["child"],
+        "identity": contract["identity"],
+        "gitmodules_sha256": sha(raw),
+        "contract_source_sha256": PUBLIC_CONTRACTS_SHA,
+    }
+
+
+def dependency_proof(ctx, private_command, label):
+    roots = discover_dependencies(ctx, label)
+    primary = partition_dependencies(ctx["work"] / "cpm", roots)
+    require(len(primary) == len(DEPENDENCIES))
+    layouts = {}
+    # Every primary and nested config is screened before any Git plumbing/status.
+    for name, directory in primary.items():
+        safe_git_config(
+            read_file(directory / ".git/config", limit=65536),
+            name,
+            contract=NESTED_CONTRACTS.get(name),
+        )
+        layouts[name] = {
+            "git": git_admin_snapshot(
+                directory / ".git",
+                NESTED_CONTRACTS[name]["path"] if name in NESTED_CONTRACTS else None,
+            )
+        }
+        if name in NESTED_CONTRACTS:
+            child, gitdir, pointer = nested_pointer(directory, NESTED_CONTRACTS[name])
+            layouts[name]["nested"] = {
+                "path": child.relative_to(ctx["work"]).as_posix(),
+                "gitdir": gitdir.relative_to(ctx["work"]).as_posix(),
+                "pointer_sha256": pointer,
+                "admin": git_admin_snapshot(gitdir),
+            }
     result = {}
-    for index, directory in enumerate(sorted(roots)):
+    for index, (expected_name, directory) in enumerate(sorted(primary.items())):
         prefix = label + "-" + str(index)
         remote = (
             git_output(
@@ -959,7 +1468,7 @@ def dependency_proof(ctx, private_command, label):
         )
         require(match is not None)
         name = match[1].lower()
-        require(name in DEPENDENCIES and name not in result)
+        require(name == expected_name and name in DEPENDENCIES and name not in result)
         commit = (
             git_output(
                 ctx, private_command, prefix + "-head", directory, "rev-parse", "HEAD"
@@ -968,6 +1477,35 @@ def dependency_proof(ctx, private_command, label):
             .strip()
         )
         require(re.fullmatch(r"[0-9a-f]{40}", commit))
+        if name in NESTED_CONTRACTS:
+            require(commit == NESTED_CONTRACTS[name]["parent"])
+        if name == "spartanj/efsw":
+            require(commit == EFSW_COMMIT)
+        git_mapping(
+            git_output(
+                ctx,
+                private_command,
+                prefix + "-mapping",
+                directory,
+                "rev-parse",
+                "--absolute-git-dir",
+                "--git-common-dir",
+                "--show-toplevel",
+            ),
+            directory,
+            directory / ".git",
+        )
+        index_flags = hidden_index_flags(
+            git_output(
+                ctx,
+                private_command,
+                prefix + "-flags",
+                directory,
+                "ls-files",
+                "-v",
+                "-z",
+            )
+        )
         status = git_output(
             ctx,
             private_command,
@@ -1005,7 +1543,25 @@ def dependency_proof(ctx, private_command, label):
             "path": directory.relative_to(ctx["work"]).as_posix(),
             "tree": tree_digest(directory),
             "head_sha256": file_sha(directory / ".git/HEAD"),
+            "git_admin": layouts[name]["git"],
+            "index_flags_sha256": index_flags,
         }
+        if name in NESTED_CONTRACTS:
+            result[name]["nested"] = prove_nested(
+                ctx,
+                private_command,
+                prefix + "-nested",
+                directory,
+                NESTED_CONTRACTS[name],
+                layouts[name]["nested"],
+            )
+        require(
+            git_admin_snapshot(
+                directory / ".git",
+                NESTED_CONTRACTS[name]["path"] if name in NESTED_CONTRACTS else None,
+            )
+            == layouts[name]["git"]
+        )
         if configured is not None:
             result[name]["configured_source_transform"] = configured
     require(set(result) == DEPENDENCIES)
@@ -1161,13 +1717,40 @@ def verify_frozen(ctx, private_command, label, proof):
         source_proof(ctx, private_command, label + "-source", True)
         == proof["sql_source_sha256"]
     )
-    for item in proof["dependencies"].values():
+    require(set(proof["dependencies"]) == DEPENDENCIES)
+    for name, item in proof["dependencies"].items():
         path = ctx["work"] / item["path"]
         require(path.is_relative_to(ctx["work"] / "cpm") and ".." not in path.parts)
         require(
             tree_digest(path) == item["tree"]
             and file_sha(path / ".git/HEAD") == item["head_sha256"]
         )
+        require(
+            git_admin_snapshot(
+                path / ".git",
+                NESTED_CONTRACTS[name]["path"] if name in NESTED_CONTRACTS else None,
+            )
+            == item["git_admin"]
+        )
+        if name in NESTED_CONTRACTS:
+            contract = NESTED_CONTRACTS[name]
+            child, gitdir, pointer = nested_pointer(path, contract)
+            nested = item["nested"]
+            require(
+                child == ctx["work"] / nested["path"]
+                and gitdir == ctx["work"] / nested["gitdir"]
+            )
+            require(
+                pointer == nested["pointer_sha256"]
+                and sha(read_file(path / ".gitmodules", limit=4096))
+                == nested["gitmodules_sha256"]
+            )
+            require(
+                tree_digest(child) == nested["tree"]
+                and git_admin_snapshot(gitdir) == nested["admin"]
+            )
+        else:
+            require("nested" not in item)
 
 
 def sql(ctx, private_command, label, query, capture=False):

@@ -122,8 +122,8 @@ jobs:
         if: ${{ always() && steps.diagnostic.outputs.ciphertext_ready == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: private-asan-8d823e890d534c9fa0a5db051b722a06-${{ github.run_id }}
-          path: ${{ runner.temp }}/mochirii-asan-8d823e890d534c9fa0a5db051b722a06/sealed/evidence.bin
+          name: private-asan-5c608bf97e6e49ec9063d2efe75b1a24-${{ github.run_id }}
+          path: ${{ runner.temp }}/mochirii-asan-5c608bf97e6e49ec9063d2efe75b1a24/sealed/evidence.bin
           if-no-files-found: error
           overwrite: false
           retention-days: 7

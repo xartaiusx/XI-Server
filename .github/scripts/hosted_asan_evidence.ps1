@@ -30,7 +30,7 @@ namespace Mochirii
         public const int MaxPayload = 128 * 1024 * 1024;
         public const int MaxHeader = 8192;
         public const int MaxEnvelope = MaxPayload + MaxHeader + 35;
-        public const string RequestNonce = "8d823e890d534c9fa0a5db051b722a06";
+        public const string RequestNonce = "5c608bf97e6e49ec9063d2efe75b1a24";
         public const string ProgramBaseline = "75ef2a9b1eb5f74ce1a5b7a5e6bd6c6f557f7483";
         public const string Schema = "mochirii-hosted-asan-evidence-v1";
         private const string Algorithm = "RSA4096-OAEP-SHA256+AES256-GCM";
