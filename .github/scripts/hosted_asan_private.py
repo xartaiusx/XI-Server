@@ -20,8 +20,8 @@ from types import SimpleNamespace
 
 REPOSITORY = "xartaiusx/XI-Server"
 PROGRAM = "75ef2a9b1eb5f74ce1a5b7a5e6bd6c6f557f7483"
-REF = "refs/heads/mochi/hosted-asan-sql-diagnostic-20261022"
-NONCE = "deb931cbe605421dbeef38a64391ebb2"
+REF = "refs/heads/mochi/hosted-asan-dependency-inventory-20261022"
+NONCE = "8d823e890d534c9fa0a5db051b722a06"
 LIMIT = 128 * 1024 * 1024
 LOG_LIMIT = 64 * 1024 * 1024
 

@@ -10,6 +10,7 @@ import base64
 import hashlib
 import json
 import os
+import posixpath
 import re
 import shlex
 import stat
@@ -17,15 +18,15 @@ import sys
 from types import SimpleNamespace
 
 SOURCE = "75ef2a9b1eb5f74ce1a5b7a5e6bd6c6f557f7483"
-NONCE = "deb931cbe605421dbeef38a64391ebb2"
-BRANCH = "refs/heads/mochi/hosted-asan-sql-diagnostic-20261022"
+NONCE = "8d823e890d534c9fa0a5db051b722a06"
+BRANCH = "refs/heads/mochi/hosted-asan-dependency-inventory-20261022"
 FILE = "scripts/tests/systems/monstrosity/belligerency.lua"
 SUITE = "systems::monstrosity::Monstrosity Belligerency"
 CASE = "lets a gladiator attack a monster it claimed"
-DATABASE = "mochi_asan_deb931cbe605421d"
+DATABASE = "mochi_asan_8d823e890d534c9f"
 DB_USER = "mochi_diag"
 # Public, disposable hosted fixture credential; never a workstation credential.
-DB_PASSWORD = "synthetic_only_deb931cbe605421d"
+DB_PASSWORD = "synthetic_only_8d823e890d534c9f"
 RECIPE_SHA = "760c435142edb5a8a1c1457465b82989e597a5af2ac754925a84a95cc1f2188d"
 HEADER_SHA = "05960e12ee3a3d9cff0bf1080e5355564a600e9eaacec45d82c8b7c57bd6b3e9"
 RECIPE_B64 = (
@@ -263,6 +264,34 @@ BASE_ENV_KEYS = {
     "PYTHONDONTWRITEBYTECODE",
     "PYTHONNOUSERSITE",
 }
+INVENTORY_NAMES = {
+    "argparse",
+    "asio",
+    "bcrypt",
+    "catch2",
+    "cpp-httplib",
+    "cpptrace",
+    "earcut_hpp",
+    "efsw",
+    "expected-lite",
+    "fast_obj",
+    "fmt",
+    "function2",
+    "glaze",
+    "json",
+    "magic_enum",
+    "pcg-cpp",
+    "recastnavigation",
+    "spdlog",
+    "termcolor",
+    "unordered_dense",
+    "utfcpp",
+    "zlib",
+    "cpm",
+    ".git",
+    "CPM_0.40.2.cmake",
+}
+INVENTORY_LIMITS = {"depth": 2, "directories": 256, "entries": 4096, "path_bytes": 1024}
 
 
 def require(value):
@@ -716,6 +745,190 @@ def configured_zlib(
     }
 
 
+def inventory_path(relative):
+    # Never serialize arbitrary cache names, URLs or Git configuration values.
+    parts = []
+    for name in relative.parts:
+        if name in INVENTORY_NAMES or re.fullmatch(r"[0-9a-f]{32,64}", name):
+            parts.append({"public": name})
+        else:
+            suffix = next(
+                (
+                    value
+                    for value in (".tar.gz", ".tar.xz", ".zip", ".tgz", ".tar")
+                    if name.lower().endswith(value)
+                ),
+                None,
+            )
+            parts.append(
+                {
+                    "class": "archive" if suffix else "unknown",
+                    "sha256": sha(os.fsencode(name)),
+                }
+            )
+    return parts
+
+
+def inventory_kind(mode):
+    if stat.S_ISLNK(mode):
+        return "symlink"
+    if stat.S_ISDIR(mode):
+        return "directory"
+    if stat.S_ISREG(mode):
+        return "regular"
+    return "other"
+
+
+def inventory_target(relative, target):
+    # Lexical classification only: never resolve or open a symlink/gitdir target.
+    joined = posixpath.normpath(posixpath.join(relative.parent.as_posix(), target))
+    inside = (
+        not posixpath.isabs(target) and joined != ".." and not joined.startswith("../")
+    )
+    return {"sha256": sha(os.fsencode(target)), "lexically_within_cache": inside}
+
+
+def inventory_git(cache, directory):
+    result = {"path": inventory_path(directory.relative_to(cache))}
+    fd = None
+    try:
+        relative = directory.relative_to(cache)
+        require(len(os.fsencode(relative)) <= INVENTORY_LIMITS["path_bytes"])
+        fd = directory_fd(directory)
+        info = os.stat(".git", dir_fd=fd, follow_symlinks=False)
+        kind = inventory_kind(info.st_mode)
+        result["git_entry_type"] = kind
+        if kind == "symlink":
+            result["target"] = inventory_target(
+                relative / ".git", os.readlink(".git", dir_fd=fd)
+            )
+        elif kind == "regular":
+            raw = read_file(directory / ".git", limit=4096)
+            result["gitfile_sha256"] = sha(raw)
+            if (
+                raw.startswith(b"gitdir: ")
+                and raw.endswith(b"\n")
+                and raw.count(b"\n") == 1
+            ):
+                result["gitdir"] = inventory_target(
+                    relative / ".git", os.fsdecode(raw[8:-1])
+                )
+            else:
+                result["gitfile_format"] = "other"
+        elif kind == "directory":
+            raw = read_file(directory / ".git" / "HEAD", limit=4096)
+            result["head_sha256"] = sha(raw)
+            if re.fullmatch(rb"[0-9a-f]{40}\n?", raw):
+                result["detached_commit"] = raw.strip().decode("ascii")
+            else:
+                result["head_format"] = (
+                    "symbolic" if raw.startswith(b"ref: ") else "other"
+                )
+            config = read_file(directory / ".git" / "config", limit=65536)
+            result["config_sha256"] = sha(config)
+            sections = re.findall(rb'(?m)^\[remote "origin"\]\r?\n([^\[]*)', config)
+            urls = (
+                re.findall(rb"(?m)^\s*url\s*=\s*(\S+)\s*$", sections[0])
+                if len(sections) == 1
+                else []
+            )
+            match = (
+                re.fullmatch(
+                    rb"https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?",
+                    urls[0],
+                )
+                if len(urls) == 1
+                else None
+            )
+            name = match[1].decode("ascii").lower() if match else None
+            result["public_identity"] = name if name in DEPENDENCIES else "unknown"
+    except (OSError, RuntimeError, ValueError) as error:
+        result["metadata_error"] = type(error).__name__
+    finally:
+        if fd is not None:
+            os.close(fd)
+    return result
+
+
+def dependency_inventory(ctx, roots, label="configured-deps"):
+    """Private witness only; never selects, removes or repairs discovery roots."""
+    require(type(label) is str and re.fullmatch(r"[a-z][a-z0-9_-]{0,47}", label))
+    cache = ctx["work"] / "cpm"
+    receipt = {
+        "diagnostic_only": True,
+        "acceptance": False,
+        "expected_roots": len(DEPENDENCIES),
+        "observed_roots": len(roots),
+        "original_walk_error_visibility": "unavailable-no-onerror-callback",
+        "limits": INVENTORY_LIMITS,
+        "cache_root_type": "unknown",
+        "report_complete": True,
+        "errors": [],
+        "roots": [],
+        "cache_entries": [],
+        "report_directories": 0,
+        "report_entries": 0,
+    }
+    # Original discovery has its own unchanged <=32 guard; witness independently bounded.
+    for directory in roots[:33]:
+        receipt["roots"].append(inventory_git(cache, directory))
+    receipt["root_metadata_complete"] = all(
+        "metadata_error" not in item for item in receipt["roots"]
+    )
+    if len(roots) > 33:
+        receipt["report_complete"] = False
+        receipt["errors"].append("root-report-budget")
+
+    def walk(fd, relative, depth):
+        receipt["report_directories"] += 1
+        if receipt["report_directories"] > INVENTORY_LIMITS["directories"]:
+            raise RuntimeError("directory-budget")
+        with os.scandir(fd) as entries:
+            for entry in entries:
+                receipt["report_entries"] += 1
+                if receipt["report_entries"] > INVENTORY_LIMITS["entries"]:
+                    raise RuntimeError("entry-budget")
+                path = relative / entry.name
+                if len(os.fsencode(path)) > INVENTORY_LIMITS["path_bytes"]:
+                    raise RuntimeError("path-budget")
+                info = entry.stat(follow_symlinks=False)
+                kind = inventory_kind(info.st_mode)
+                item = {"path": inventory_path(path), "type": kind}
+                receipt["cache_entries"].append(item)
+                if kind == "symlink":
+                    item["target"] = inventory_target(
+                        path, os.readlink(entry.name, dir_fd=fd)
+                    )
+                elif kind == "directory" and entry.name != ".git":
+                    if depth < INVENTORY_LIMITS["depth"]:
+                        child = os.open(
+                            entry.name,
+                            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                            dir_fd=fd,
+                        )
+                        try:
+                            walk(child, path, depth + 1)
+                        finally:
+                            os.close(child)
+                    else:
+                        item["contents"] = "outside-shallow-report-depth"
+
+    fd = None
+    try:
+        receipt["cache_root_type"] = inventory_kind(cache.lstat().st_mode)
+        fd = directory_fd(cache)
+        walk(fd, Path(), 0)
+    except (OSError, RuntimeError, ValueError) as error:
+        receipt["report_complete"] = False
+        # Fixed classifications only, never exception messages/paths/locals.
+        receipt["errors"].append(type(error).__name__)
+    finally:
+        if fd is not None:
+            os.close(fd)
+    write_json(ctx["evidence"] / (label + "-inventory.json"), receipt)
+    require(receipt["report_complete"])
+
+
 def dependency_proof(ctx, private_command, label):
     roots = []
     for current, directories, files in os.walk(ctx["work"] / "cpm", followlinks=False):
@@ -723,6 +936,7 @@ def dependency_proof(ctx, private_command, label):
         if ".git" in directories or ".git" in files:
             roots.append(Path(current))
         directories[:] = [name for name in directories if name != ".git"]
+    dependency_inventory(ctx, roots, label)
     require(len(roots) == len(DEPENDENCIES))
     result = {}
     for index, directory in enumerate(sorted(roots)):
