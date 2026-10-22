@@ -18,15 +18,15 @@ import sys
 from types import SimpleNamespace
 
 SOURCE = "75ef2a9b1eb5f74ce1a5b7a5e6bd6c6f557f7483"
-NONCE = "ea17616a5f424077ab04370da9553bab"
-BRANCH = "refs/heads/mochi/hosted-asan-stdout-reader-20261023"
+NONCE = "4bbc0bb9dc7b4cb7ac767ff2376e3750"
+BRANCH = "refs/heads/mochi/hosted-asan-guard-telemetry-20261023"
 FILE = "scripts/tests/systems/monstrosity/belligerency.lua"
 SUITE = "systems::monstrosity::Monstrosity Belligerency"
 CASE = "lets a gladiator attack a monster it claimed"
-DATABASE = "mochi_asan_ea17616a5f424077"
+DATABASE = "mochi_asan_4bbc0bb9dc7b4cb7"
 DB_USER = "mochi_diag"
 # Public, disposable hosted fixture credential; never a workstation credential.
-DB_PASSWORD = "synthetic_only_ea17616a5f424077"
+DB_PASSWORD = "synthetic_only_4bbc0bb9dc7b4cb7"
 RECIPE_SHA = "760c435142edb5a8a1c1457465b82989e597a5af2ac754925a84a95cc1f2188d"
 HEADER_SHA = "05960e12ee3a3d9cff0bf1080e5355564a600e9eaacec45d82c8b7c57bd6b3e9"
 RECIPE_B64 = (

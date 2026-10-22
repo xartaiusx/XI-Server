@@ -109,6 +109,9 @@ jobs:
       - name: Verify source-bound CTRF stdout reader regressions
         run: python3 -I -B diagnostic/.github/scripts/test_hosted_asan_stdout.py
 
+      - name: Verify source-bound finite guard telemetry regressions
+        run: python3 -I -B diagnostic/.github/scripts/test_hosted_asan_guard.py
+
       - name: Run one private diagnostic and encrypt its evidence
         id: diagnostic
         env:
@@ -125,8 +128,8 @@ jobs:
         if: ${{ always() && steps.diagnostic.outputs.ciphertext_ready == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: private-asan-ea17616a5f424077ab04370da9553bab-${{ github.run_id }}
-          path: ${{ runner.temp }}/mochirii-asan-ea17616a5f424077ab04370da9553bab/sealed/evidence.bin
+          name: private-asan-4bbc0bb9dc7b4cb7ac767ff2376e3750-${{ github.run_id }}
+          path: ${{ runner.temp }}/mochirii-asan-4bbc0bb9dc7b4cb7ac767ff2376e3750/sealed/evidence.bin
           if-no-files-found: error
           overwrite: false
           retention-days: 7

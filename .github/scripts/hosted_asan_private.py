@@ -20,8 +20,8 @@ from types import SimpleNamespace
 
 REPOSITORY = "xartaiusx/XI-Server"
 PROGRAM = "75ef2a9b1eb5f74ce1a5b7a5e6bd6c6f557f7483"
-REF = "refs/heads/mochi/hosted-asan-stdout-reader-20261023"
-NONCE = "ea17616a5f424077ab04370da9553bab"
+REF = "refs/heads/mochi/hosted-asan-guard-telemetry-20261023"
+NONCE = "4bbc0bb9dc7b4cb7ac767ff2376e3750"
 LIMIT = 128 * 1024 * 1024
 LOG_LIMIT = 64 * 1024 * 1024
 
@@ -148,7 +148,8 @@ def child_environment(env):
     return value
 
 
-def command_runner(ctx):
+def command_runner(ctx, run_id):
+    require(type(run_id) is int and 0 < run_id < 10**15)
     used = set()
 
     def run(label, argv, *, cwd, timeout, env=None, check=True, capture=False):
@@ -175,41 +176,148 @@ def command_runner(ctx):
             log, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
         )
         process = None
-        with os.fdopen(descriptor, "wb") as stream:
-            try:
-                process = subprocess.Popen(
-                    argv,
-                    cwd=cwd,
-                    env=effective_env,
-                    stdin=subprocess.DEVNULL,
-                    stdout=stream,
-                    stderr=subprocess.STDOUT,
-                    start_new_session=True,
-                )
-                deadline = time.monotonic() + timeout
-                while process.poll() is None:
-                    require(
-                        log.stat().st_size <= log_limit and time.monotonic() < deadline
-                    )
-                    time.sleep(0.2)
-                code = process.wait(timeout=5)
-            finally:
-                if process is not None and process.poll() is None:
-                    os.killpg(process.pid, signal.SIGTERM)
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        os.killpg(process.pid, signal.SIGKILL)
-                        process.wait(timeout=10)
-        require(log.stat().st_size <= log_limit)
-        data = b""
-        if capture:
-            require(log.stat().st_size <= 1024 * 1024)
-            data = log.read_bytes()
-        if check:
-            require(code == 0)
-        return {"returncode": code, "log": log, "stdout": data}
+        code = None
+        deadline = clock = size = size_ok = time_ok = None
+        time_state = "not_evaluated"
+        guard = "spawn"
 
+        def remember():
+            if run.failure_seen:
+                return
+            run.failure_seen = True  # Reserve before validation/encoding can fail.
+            size_guard = guard in {
+                "poll-stat",
+                "poll-clock",
+                "poll-check",
+                "final-stat",
+                "final-size",
+                "capture-stat",
+                "capture-size",
+                "capture-read",
+            }
+            clock_guard = guard in {"deadline-clock", "poll-clock", "poll-check"}
+            poll_guard = guard in {"poll-stat", "poll-clock", "poll-check"}
+            sampled_size = size if size_guard else None
+            sampled_clock = clock if clock_guard else None
+            sampled_deadline = deadline if clock_guard or poll_guard else None
+            sampled_code = code if guard == "exit-code" else None
+            require(
+                sampled_size is None
+                or type(sampled_size) is int
+                and 0 <= sampled_size < 2**63
+            )
+            require(sampled_clock is None or type(sampled_clock) in (int, float))
+            require(sampled_deadline is None or type(sampled_deadline) in (int, float))
+            require(
+                sampled_code is None
+                or type(sampled_code) is int
+                and -(2**31) <= sampled_code < 2**31
+            )
+            witness = {
+                "schema": "hosted-command-guard-failure-v1",
+                "program": PROGRAM,
+                "run_id": run_id,
+                "diagnostic_only": True,
+                "acceptance": False,
+                "available": True,
+                "stage": label if label in {"apt-update", "apt-install"} else "other",
+                "guard": guard,
+                "timeout_seconds": timeout,
+                "limit_bytes": (
+                    1024 * 1024
+                    if guard in {"capture-stat", "capture-size", "capture-read"}
+                    else log_limit
+                ),
+                "size_bytes": sampled_size,
+                "size_ok": size_ok if size_guard else None,
+                "deadline_seconds": sampled_deadline,
+                "clock_seconds": sampled_clock,
+                "time_state": time_state if clock_guard else "not_evaluated",
+                "time_ok": time_ok if clock_guard else None,
+                "returncode": sampled_code,
+            }
+            content = encode(witness)
+            require(len(content) <= 4096)
+            run.failure = content  # Immutable first witness; never resample or replace.
+
+        try:
+            with os.fdopen(descriptor, "wb") as stream:
+                try:
+                    process = subprocess.Popen(
+                        argv,
+                        cwd=cwd,
+                        env=effective_env,
+                        stdin=subprocess.DEVNULL,
+                        stdout=stream,
+                        stderr=subprocess.STDOUT,
+                        start_new_session=True,
+                    )
+                    guard = "deadline-clock"
+                    time_state = "failed"
+                    clock = time.monotonic()
+                    deadline = clock + timeout
+                    clock = None
+                    time_state = "not_evaluated"
+                    guard = "process-poll"
+                    while process.poll() is None:
+                        size = size_ok = clock = time_ok = None
+                        time_state = "not_evaluated"
+                        guard = "poll-stat"
+                        size = log.stat().st_size
+                        size_ok = size <= log_limit
+                        # Original AND: never evaluate clock on size failure.
+                        if size_ok:
+                            guard = "poll-clock"
+                            time_state = "failed"
+                            clock = time.monotonic()
+                            time_state = "evaluated"
+                            time_ok = clock < deadline
+                        guard = "poll-check"
+                        require(size_ok and time_ok)
+                        guard = "sleep"
+                        time.sleep(0.2)
+                        guard = "process-poll"
+                    guard = "wait"
+                    code = process.wait(timeout=5)
+                except BaseException:
+                    remember()  # Must precede cleanup, which can mask this exception.
+                    raise
+                finally:
+                    guard = "cleanup"
+                    if process is not None and process.poll() is None:
+                        os.killpg(process.pid, signal.SIGTERM)
+                        try:
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            os.killpg(process.pid, signal.SIGKILL)
+                            process.wait(timeout=10)
+            size = size_ok = clock = time_ok = None
+            time_state = "not_evaluated"
+            guard = "final-stat"
+            size = log.stat().st_size
+            size_ok = size <= log_limit
+            guard = "final-size"
+            require(size_ok)
+            data = b""
+            if capture:
+                size = size_ok = None
+                guard = "capture-stat"
+                size = log.stat().st_size
+                size_ok = size <= 1024 * 1024
+                guard = "capture-size"
+                require(size_ok)
+                guard = "capture-read"
+                data = log.read_bytes()
+            if check:
+                guard = "exit-code"
+                require(code == 0)
+            return {"returncode": code, "log": log, "stdout": data}
+        except BaseException:
+            remember()
+            raise
+
+    run.failure_seen = False
+    run.failure = None
     return run
 
 
@@ -310,7 +418,7 @@ def main():
         expected_executed=1,
         expected_filtered=19,
     )
-    run = command_runner(ctx)
+    run = command_runner(ctx, context["run_id"])
     public_path, context_path = work / "recipient.spki.der", work / "context.json"
     private_file(public_path, recipient)
     private_file(context_path, encode(context))
@@ -396,6 +504,20 @@ def main():
             evidence / "private-exception.txt", traceback.format_exc().encode()
         )
     finally:
+        if run.failure_seen:
+            outcome["command_failure"] = (
+                json.loads(run.failure, object_pairs_hook=unique)
+                if run.failure is not None
+                else {
+                    "schema": "hosted-command-guard-failure-v1",
+                    "program": PROGRAM,
+                    "run_id": context["run_id"],
+                    "diagnostic_only": True,
+                    "acceptance": False,
+                    "available": False,
+                }
+            )
+            result = 1
         private_file(evidence / "outcome.json", encode(outcome))
         try:
             archive = package_evidence(ctx)
