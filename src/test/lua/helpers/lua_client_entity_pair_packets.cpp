@@ -38,6 +38,8 @@
 #include "utils/charutils.h"
 #include "utils/zoneutils.h"
 
+#include <utility>
+
 CLuaClientEntityPairPackets::CLuaClientEntityPairPackets(CLuaClientEntityPair* parent)
 : parent_(parent)
 {
@@ -106,7 +108,7 @@ void CLuaClientEntityPairPackets::send(const PacketC2S packetId, const sol::obje
  *  Notes   : Handles the zone-in packet sequence
  ************************************************************************/
 
-void CLuaClientEntityPairPackets::sendZonePackets()
+void CLuaClientEntityPairPackets::sendZonePackets(CharacterLoadMode loadMode)
 {
     const auto testChar = parent_->testChar();
 
@@ -114,7 +116,24 @@ void CLuaClientEntityPairPackets::sendZonePackets()
     // TestChar holds the actual CCharEntity, while parent_ is the Lua wrapper
     // that also needs its internal pointer updated to the newly loaded entity
     testChar->setBlowfish(BLOWFISH_PENDING_ZONE);
-    testChar->setEntity(charutils::LoadChar(testChar->charId()));
+    if (loadMode == CharacterLoadMode::Reload)
+    {
+        auto entity = charutils::LoadChar(testChar->charId());
+        if (!entity)
+        {
+            TestError("Failed to reload test character {}", testChar->charId());
+            return;
+        }
+
+        testChar->setEntity(std::move(entity));
+    }
+
+    if (!testChar->entity())
+    {
+        TestError("Cannot enter a zone without loaded test character {}", testChar->charId());
+        return;
+    }
+
     zoneutils::EnsureZoneLoaded(parent_->engine()->scheduler(), parent_->engine()->config(), testChar->entity()->loc.destination);
     parent_->setEntity(testChar->entity());
 
