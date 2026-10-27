@@ -83,9 +83,34 @@
 #include "map/party.h"
 #include "map/status_effect_container.h"
 #include "map/utils/trustutils.h"
+#include "map/utils/zoneutils.h"
 #include "packets/c2s/0x015_pos.h"
 #include "test_char.h"
 #include "test_common.h"
+
+#include <algorithm>
+
+namespace
+{
+
+// Test-only controller entry: exact fixture owner and current attached entity.
+// No recast deletion, forced state, extra inventory or production Lua surface.
+auto FixtureTrust(CLuaClientEntityPair* owner, CLuaBaseEntity* actor, CLuaBaseEntity* target) -> CTrustEntity*
+{
+    auto* player    = owner->testChar()->entity();
+    auto* trust     = actor ? dynamic_cast<CTrustEntity*>(actor->GetBaseEntity()) : nullptr;
+    auto* recipient = target ? dynamic_cast<CBattleEntity*>(target->GetBaseEntity()) : nullptr;
+    if (!player || !trust || !recipient || !trust->loc.zone || trust->PMaster != player ||
+        trust->loc.zone != player->loc.zone || trust->PInstance != player->PInstance ||
+        recipient->loc.zone != trust->loc.zone || recipient->PInstance != trust->PInstance ||
+        !std::ranges::contains(player->PTrusts, trust))
+    {
+        return nullptr;
+    }
+    return trust;
+}
+
+} // namespace
 
 CLuaClientEntityPairActions::CLuaClientEntityPairActions(CLuaClientEntityPair* parent)
 : parent_(parent)
@@ -214,6 +239,40 @@ void CLuaClientEntityPairActions::useAbility(CLuaBaseEntity* target, const ABILI
     actionPacket->JobAbility.SkillId = abilityId;
 
     parent_->packets().sendBasicPacket(*packet);
+}
+
+bool CLuaClientEntityPairActions::useTrustSpell(CLuaBaseEntity* actor, CLuaBaseEntity* target, SpellID spellId) const
+{
+    auto* trust = FixtureTrust(parent_, actor, target);
+    return trust && trust->PAI->Cast(target->GetBaseEntity()->entityId(), spellId);
+}
+
+bool CLuaClientEntityPairActions::useTrustAbility(CLuaBaseEntity* actor, CLuaBaseEntity* target, ABILITY abilityId) const
+{
+    auto* trust = FixtureTrust(parent_, actor, target);
+    return trust && trust->PAI->Ability(target->GetBaseEntity()->entityId(), abilityId);
+}
+
+bool CLuaClientEntityPairActions::useTrustWeaponskill(CLuaBaseEntity* actor, CLuaBaseEntity* target, uint16 wsId) const
+{
+    auto* trust = FixtureTrust(parent_, actor, target);
+    return trust && trust->PAI->WeaponSkill(target->GetBaseEntity()->entityId(), wsId);
+}
+
+void CLuaClientEntityPairActions::flushEquipmentBatch() const
+{
+    // Packet fixtures dispatch directly, so explicitly close their synthetic
+    // SmallPacket batch at the same canonical boundary as map_networking.
+    parent_->testChar()->entity()->flushEquipChanges();
+}
+
+bool CLuaClientEntityPairActions::hasTrustEntity(uint32 id) const
+{
+    // Non-instanced fixture proof only. The original full ID selects its zone,
+    // even after owner zone-out. A current-owner/location filter would hide an
+    // orphan. Return no userdata that could outlive native destruction.
+    auto* entity = id ? zoneutils::GetEntity(id, TYPE_TRUST) : nullptr;
+    return entity && entity->objtype == TYPE_TRUST && entity->id == id;
 }
 
 /************************************************************************
@@ -1457,6 +1516,11 @@ void CLuaClientEntityPairActions::Register()
     SOL_REGISTER("setBlueSpells", CLuaClientEntityPairActions::setBlueSpells);
     SOL_REGISTER("useWeaponskill", CLuaClientEntityPairActions::useWeaponskill);
     SOL_REGISTER("useAbility", CLuaClientEntityPairActions::useAbility);
+    SOL_REGISTER("useTrustSpell", CLuaClientEntityPairActions::useTrustSpell);
+    SOL_REGISTER("useTrustAbility", CLuaClientEntityPairActions::useTrustAbility);
+    SOL_REGISTER("useTrustWeaponskill", CLuaClientEntityPairActions::useTrustWeaponskill);
+    SOL_REGISTER("flushEquipmentBatch", CLuaClientEntityPairActions::flushEquipmentBatch);
+    SOL_REGISTER("hasTrustEntity", CLuaClientEntityPairActions::hasTrustEntity);
     SOL_REGISTER("useMonsterSkill", CLuaClientEntityPairActions::useMonsterSkill);
     SOL_REGISTER("changeTarget", CLuaClientEntityPairActions::changeTarget);
     SOL_REGISTER("rangedAttack", CLuaClientEntityPairActions::rangedAttack);

@@ -5,6 +5,19 @@ xi = xi or {}
 xi.job_utils = xi.job_utils or {}
 xi.job_utils.paladin = xi.job_utils.paladin or {}
 
+-- Community-measured model through 605 Divine skill (June 2017).
+-- The published 460-skill result is anomalous; this is not an exact SE formula.
+xi.job_utils.paladin.enlightIIPotency = function(divineSkill, enlightJobPoints)
+    local value
+    if divineSkill <= 500 then
+        value = 2 * math.floor((divineSkill + 85) / 13) + math.floor((divineSkill + 85) / 26)
+    else
+        value = 2 * math.floor((divineSkill + 400) / 20) + math.floor((divineSkill + 400) / 40)
+    end
+
+    return value + enlightJobPoints
+end
+
 -----------------------------------
 -- Ability Check Functions
 -----------------------------------
@@ -12,7 +25,7 @@ xi.job_utils.paladin.checkCover = function(player, target, ability)
     if
         target == nil or
         target:getID() == player:getID() or
-        not target:isPC()
+        not (target:isPC() or (player:isDevelopedTrust() and target:isTrust()))
     then
         return xi.msg.basic.CANNOT_PERFORM_TARG, 0
     else
@@ -33,7 +46,13 @@ end
 xi.job_utils.paladin.checkInvincible = function(player, target, ability)
     local jpValue = player:getJobPointLevel(xi.jp.INVINCIBLE_EFFECT)
 
-    ability:setVE(ability:getVE() + 100 * jpValue)
+    if player:isDevelopedTrust() then
+        -- The client specifies static (nonvolatile) enmity for these points.
+        ability:setCE(ability:getCE() + 100 * jpValue)
+    else
+        ability:setVE(ability:getVE() + 100 * jpValue)
+    end
+
     ability:setRecast(math.max(0, ability:getRecast() - player:getMod(xi.mod.ONE_HOUR_RECAST) * 60))
 
     return 0, 0
@@ -104,11 +123,18 @@ xi.job_utils.paladin.useHolyCircle = function(player, target, ability)
     -- Main (PLD) job gives a unique 15% damage bonus against undead, 15% damage resistance from undead, and likely +15% Undead Killer.
     -- When subbed, gives 5% of these bonuses.
     local duration = 180 + player:getMod(xi.mod.HOLY_CIRCLE_DURATION)
-    local power    = player:getMainJob() == xi.job.PLD and 15 or 5
+    local power    = player:hasMainJobAccess(xi.job.PLD) and 15 or 5
 
     power = power + player:getMod(xi.mod.HOLY_CIRCLE_POTENCY)
 
-    target:addStatusEffect(xi.effect.HOLY_CIRCLE, { power = power, duration = duration, origin = player })
+    local approved = player:isDevelopedTrust() and player:getTrustID() == xi.magic.spell.VALAINERAL
+    target:addStatusEffect(xi.effect.HOLY_CIRCLE, {
+        power           = power,
+        duration        = duration,
+        origin          = player,
+        sourceType      = approved and xi.effectSourceType.DEVELOPED_TRUST or xi.effectSourceType.NONE,
+        sourceTypeParam = approved and xi.magic.spell.VALAINERAL or 0,
+    })
 
     return xi.effect.HOLY_CIRCLE
 end
@@ -116,7 +142,8 @@ end
 xi.job_utils.paladin.useIntervene = function(player, target, ability)
     -- TODO: Retail testing to determine damage
     local shieldSize = player:getShieldSize()
-    local jpValue    = 1 + (player:getJobPointLevel(xi.jp.INTERVENE_EFFECT) / 100)
+    local perRank    = player:isDevelopedTrust() and 2 or 1
+    local jpValue    = 1 + (player:getJobPointLevel(xi.jp.INTERVENE_EFFECT) * perRank / 100)
     local damage     = math.floor(player:getMainLvl() * 3.36)
 
     if shieldSize == 2 then
@@ -130,6 +157,14 @@ xi.job_utils.paladin.useIntervene = function(player, target, ability)
     damage = damage * jpValue
 
     target:addStatusEffect(xi.effect.INTERVENE, { power = 1, duration = 30, origin = player })
+
+    if player:isDevelopedTrust() then
+        damage = xi.combat.damage.applyDevelopedHolyCircle(player, target, damage)
+        damage = utils.handleStoneskin(target, math.floor(damage), xi.attackType.PHYSICAL)
+        target:takeDamage(damage, player, xi.attackType.PHYSICAL, xi.damageType.BLUNT)
+        target:updateEnmityFromDamage(player, damage)
+        ability:setMsg(xi.msg.basic.JA_DAMAGE)
+    end
 
     return damage
 end
@@ -158,7 +193,24 @@ end
 xi.job_utils.paladin.useRampart = function(player, target, ability)
     local duration = 30 + player:getMod(xi.mod.RAMPART_DURATION)
 
-    target:addStatusEffect(xi.effect.RAMPART, { power = 2500, duration = duration, origin = player })
+    local applied = target:addStatusEffect(xi.effect.RAMPART, { power = 2500, duration = duration, origin = player })
+    if player:isDevelopedTrust() and applied then
+        local effect = target:getStatusEffect(xi.effect.RAMPART)
+        if effect ~= nil and effect:getOriginID() == player:getID() then
+            local ironWill = player:getMerit(xi.merit.IRON_WILL)
+            local recipientIronWill = 0
+            if target:isPC() and target:hasTrait(xi.trait.IRON_WILL) then
+                recipientIronWill = target:getMerit(xi.merit.IRON_WILL)
+            end
+
+            -- Native PC effect initialization used the recipient's trait. Replace
+            -- only that contribution for an approved Trust's party-wide action.
+            effect:addMod(xi.mod.SPELLINTERRUPT, ironWill - recipientIronWill)
+            local fastCast = player:getMod(xi.mod.ENHANCES_IRON_WILL) * ironWill / 19
+            effect:addMod(xi.mod.FASTCAST, fastCast - effect:getSubPower())
+            effect:setSubPower(fastCast)
+        end
+    end
 
     return xi.effect.RAMPART
 end
@@ -172,8 +224,10 @@ xi.job_utils.paladin.useSentinel = function(player, target, ability)
     local jpValue     = player:getJobPointLevel(xi.jp.SENTINEL_EFFECT)
     local duration    = 30 + enhGuardian
 
+    -- Approved action points affect generated enmity separately from Guardian's loss reduction.
+    local lossReduction = player:isDevelopedTrust() and guardian or guardian + jpValue
     -- Sent as positive power because UINTs, man.
-    player:addStatusEffect(xi.effect.SENTINEL, { power = power, duration = duration, origin = player, tick = 3, subPower = guardian + jpValue })
+    player:addStatusEffect(xi.effect.SENTINEL, { power = power, duration = duration, origin = player, tick = 3, subPower = lossReduction })
 
     return xi.effect.SENTINEL
 end
@@ -200,7 +254,7 @@ xi.job_utils.paladin.useShieldBash = function(player, target, ability)
     end
 
     -- Main job factors
-    if player:getMainJob() ~= xi.job.PLD then
+    if not player:hasMainJobAccess(xi.job.PLD) then
         damage = math.floor(damage / 2.5)
     else
         damage = math.floor(damage)
@@ -232,6 +286,7 @@ xi.job_utils.paladin.useShieldBash = function(player, target, ability)
     local randomizer = 1 + math.randomInt(1, 5) / 100
 
     damage = math.floor(damage * randomizer)
+    damage = xi.combat.damage.applyDevelopedHolyCircle(player, target, damage)
     damage = utils.handleStoneskin(target, damage, xi.attackType.PHYSICAL)
 
     target:takeDamage(damage, player, xi.attackType.PHYSICAL, xi.damageType.BLUNT)

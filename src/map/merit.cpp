@@ -389,6 +389,12 @@ auto CMeritPoints::GetMeritValue(const xi::Merit merit, const CCharEntity* PChar
 namespace meritNameSpace
 {
 
+auto GetMeritDefinition(const xi::Merit merit) -> const Merit_t*
+{
+    const auto match = meritIndexById.find(std::to_underlying(merit));
+    return match == meritIndexById.end() ? nullptr : &meritDefaults[match->second];
+}
+
 auto GetSkillMerit(const xi::SkillType skill) -> std::optional<xi::Merit>
 {
     const auto match = meritData.MeritBySkill.find(skill);

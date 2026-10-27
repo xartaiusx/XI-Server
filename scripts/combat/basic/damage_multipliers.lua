@@ -76,6 +76,17 @@ xi.combat.damage.calculateDamageAdjustment = function(target, isPhysical, isMagi
     return targetDamageTaken
 end
 
+-- Only for damage paths that do not already consume ecosystemMultiplier.
+-- The snapshot source marker preserves the approved cast's normal lifetime.
+xi.combat.damage.applyDevelopedHolyCircle = function(actor, target, damage)
+    local multiplier = actor:getDevelopedHolyCircleMultiplier(target)
+    if damage > 0 and multiplier ~= 1 then
+        return math.floor(damage * multiplier)
+    end
+
+    return damage
+end
+
 xi.combat.damage.ecosystemMultiplier = function(actor, target, actionEcosystem)
     local ecosystemMultiplier = 1
     local actorEcosystem      = actor:getEcosystem()

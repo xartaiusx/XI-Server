@@ -10,6 +10,10 @@ spellObject.onMagicCastingCheck = function(caster, target, spell)
         return xi.msg.basic.MAGIC_CANNOT_BE_CAST
     end
 
+    if target:isTrust() then
+        return target:canReceiveTrustRaise() and 0 or xi.msg.basic.MAGIC_CANNOT_BE_CAST
+    end
+
     -- Only PCs should ever be blocked by the Raise/Tractor menu state
     if target:isPC() and target:hasRaiseTractorMenu() then
         return xi.msg.basic.MAGIC_CANNOT_BE_CAST
@@ -29,6 +33,11 @@ end
 spellObject.onSpellCast = function(caster, target, spell)
     if target:isPC() then
         target:sendRaise(2)
+    elseif target:isTrust() then
+        if not target:offerTrustRaise(2, false, false) then
+            spell:setMsg(xi.msg.basic.MAGIC_NO_EFFECT)
+            return 0
+        end
     end
 
     spell:setMsg(xi.msg.basic.MAGIC_CASTS_ON)

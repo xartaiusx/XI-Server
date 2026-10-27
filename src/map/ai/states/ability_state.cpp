@@ -29,6 +29,7 @@
 #include "entities/char_entity.h"
 #include "entities/mob_entity.h"
 #include "entities/pet_entity.h"
+#include "entities/trust_entity.h"
 #include "enums/msg_basic.h"
 #include "lua/luautils.h"
 #include "packets/s2c/0x028_battle2.h"
@@ -38,6 +39,7 @@
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
 #include "utils/charutils.h"
+#include "utils/trust_job_development.h"
 #include "utils/trustutils.h"
 #include "utils/zoneutils.h"
 
@@ -125,6 +127,11 @@ auto CAbilityState::init() -> StateErrorOr<void>
     }
     m_PAbility = std::make_unique<CAbility>(*PAbility);
     m_castTime = PAbility->getCastTime();
+
+    if (trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(m_PEntity)) && !CanUseAbility())
+    {
+        return Error{ std::make_unique<GP_SERV_COMMAND_BATTLE_MESSAGE>(m_PEntity, m_PEntity, 0, 0, MsgBasic::UnableToUseJobAbility) };
+    }
 
     if (m_castTime > 0s && CanUseAbility())
     {
@@ -331,13 +338,40 @@ auto CAbilityState::CanUseAbility() const -> bool
                 cancelAbility = true;
             }
         }
+        else if (trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(m_PEntity)))
+        {
+            cancelAbility = true;
+        }
 
         if (cancelAbility)
         {
             return false;
         }
 
-        // TODO: should luautils::OnAbilityCheck go here too?
+        if (auto* PTrust = dynamic_cast<CTrustEntity*>(m_PEntity); trustdevelopment::IsEnabled(PTrust))
+        {
+            // The native Lua check adjusts this private action copy. Rechecking
+            // a queued action must not apply SP reductions or enmity twice.
+            auto* definition = ability::GetAbility(PAbility->getID());
+            if (!definition)
+            {
+                return false;
+            }
+            *PAbility = *definition;
+
+            if (!trustdevelopment::CanUseAbility(PTrust, PAbility) ||
+                PTrust->PRecastContainer->HasRecast(RECAST_ABILITY, PAbility->getRecastId(), PAbility->getRecastTime()) ||
+                (PTrust->loc.zone->CanUseMisc(xi::ZoneMisc::LosPlayerBlock) && !PTrust->CanSeeTarget(PTarget)))
+            {
+                return false;
+            }
+
+            CBaseEntity* PMsgTarget = PTrust;
+            if (luautils::OnAbilityCheck(PTrust, PTarget, PAbility, &PMsgTarget) != 0)
+            {
+                return false;
+            }
+        }
     }
     return true;
 }

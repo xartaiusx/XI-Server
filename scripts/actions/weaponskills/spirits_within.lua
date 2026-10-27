@@ -48,6 +48,8 @@ weaponskillObject.onUseWeaponSkill = function(player, target, wsID, tp, primary,
     dmg = math.floor(playerHP * ftp)
 
     local damage = dmg
+    -- Preserve the accepted ecosystem model; exact retail Circle rounding is unverified.
+    damage = xi.combat.damage.applyDevelopedHolyCircle(player, target, damage)
     damage = math.floor(damage * xi.combat.damage.calculateDamageAdjustment(target, false, false, false, true))
     damage = math.floor(damage * xi.spells.damage.calculateAbsorption(target, xi.element.NONE, false, false, false, true))
     damage = math.floor(damage * xi.spells.damage.calculateNullification(target, xi.element.NONE, false, false, false, true))

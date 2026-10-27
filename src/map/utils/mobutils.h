@@ -96,10 +96,10 @@ void SetupPetSkills(CMobEntity* PMob);
 
 auto JobSkillRankToBaseEvaRank(xi::Job mjob, xi::Job sjob) -> uint8;
 
-uint16 GetBaseWeaponDamage(CMobEntity* PMob, uint16 slot);
-uint16 GetMagicEvasion(CMobEntity* PMob);
+uint16 GetBaseWeaponDamage(CMobEntity* PMob, uint16 slot, uint8 statLevel = 0);
+uint16 GetMagicEvasion(CMobEntity* PMob, uint8 statLevel = 0);
 uint16 GetBaseDefEva(CMobEntity* PMob, uint8 rank);
-uint16 GetBaseSkill(CMobEntity* PMob, uint8 rank);
+uint16 GetBaseSkill(CMobEntity* PMob, uint8 rank, uint8 statLevel = 0);
 uint16 GetBaseToRank(uint8 rank, uint16 level);
 uint16 GetSubJobStats(uint8 rank, uint16 level, uint16 stat);
 auto   MonipulatorBaseHP(xi::Job mjob, xi::Job sjob, uint8 level) -> uint32;

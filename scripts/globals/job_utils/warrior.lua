@@ -19,6 +19,11 @@ xi.job_utils.warrior.checkMightyStrikes = function(player, target, ability)
 end
 
 xi.job_utils.warrior.checkTomahawk = function(player, target, ability)
+    -- Developed WAR Trusts provide the documented throwing consumable themselves.
+    if player:isDevelopedTrust() and player:hasMainJobAccess(xi.job.WAR) then
+        return 0, 0
+    end
+
     local ammoID = player:getEquipID(xi.slot.AMMO)
 
     if ammoID == xi.item.THROWING_TOMAHAWK then
@@ -41,7 +46,7 @@ end
 
 xi.job_utils.warrior.useBerserk = function(player, target, ability)
     -- Get bonus from WAR lvl as main Job
-    local warriorLevel = player:getMainJob() == xi.job.WAR and player:getMainLvl() or 0
+    local warriorLevel = player:hasMainJobAccess(xi.job.WAR) and utils.getActiveJobLevel(player, xi.job.WAR) or 0
     local levelScale   = math.floor((warriorLevel - 40) / 10) * 2
 
     -- Get Power and duration.
@@ -74,7 +79,7 @@ end
 
 xi.job_utils.warrior.useDefender = function(player, target, ability)
     -- Get bonus from WAR lvl as main Job
-    local warriorLevel = player:getMainJob() == xi.job.WAR and player:getMainLvl() or 0
+    local warriorLevel = player:hasMainJobAccess(xi.job.WAR) and utils.getActiveJobLevel(player, xi.job.WAR) or 0
     local levelScale   = math.floor((warriorLevel - 40) / 10) * 2
 
     -- Get Power and duration.
@@ -109,7 +114,9 @@ xi.job_utils.warrior.useTomahawk = function(player, target, ability)
     local duration = 30 + merits
 
     target:addStatusEffect(xi.effect.TOMAHAWK, { power = 25, duration = duration, origin = player, tick = 3, icon = 0 })
-    player:removeAmmo(1)
+    if not player:isDevelopedTrust() then
+        player:removeAmmo(1)
+    end
 end
 
 xi.job_utils.warrior.useWarcry = function(player, target, ability)

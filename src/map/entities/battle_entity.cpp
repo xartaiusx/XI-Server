@@ -65,6 +65,7 @@
 #include "utils/mountutils.h"
 #include "utils/petutils.h"
 #include "utils/puppetutils.h"
+#include "utils/trust_job_development.h"
 #include "utils/zoneutils.h"
 #include "weapon_skill.h"
 
@@ -2470,7 +2471,7 @@ void CBattleEntity::OnCastFinished(CMagicState& state, action_t& action)
             if (this->objtype == TYPE_MOB && dynamic_cast<const CCharEntity*>(PActionTarget) != nullptr)
             {
                 CBattleEntity* PCoverAbilityUser = battleutils::GetCoverAbilityUser(PActionTarget, this);
-                IsMagicCovered                   = battleutils::IsMagicCovered(static_cast<CCharEntity*>(PCoverAbilityUser));
+                IsMagicCovered                   = battleutils::IsMagicCovered(PCoverAbilityUser);
 
                 if (IsMagicCovered)
                 {
@@ -2498,6 +2499,15 @@ void CBattleEntity::OnCastFinished(CMagicState& state, action_t& action)
 
     for (auto* PTarget : PAI->TargetFind->m_targets)
     {
+        // Retained corpses admit only a still-legal Raise target, including at
+        // final victim dispatch. Ordinary friendly effects cannot heal a corpse.
+        if (auto* corpse = dynamic_cast<CTrustEntity*>(PTarget); corpse && corpse->isDead())
+        {
+            if (!(PSpell->getValidTarget() & TARGET_PLAYER_DEAD) || !corpse->ValidTarget(this, PSpell->getValidTarget()))
+            {
+                continue;
+            }
+        }
         PSpell->setMessage(initialSpellMessage);
 
         action_target_t& actionTarget = action.addTarget(PTarget->id);
@@ -2766,10 +2776,17 @@ void CBattleEntity::OnAbility(CAbilityState& state, action_t& action)
             return;
         }
 
-        action.actorId    = this->id;
-        action.actiontype = PAbility->getActionType();
-        action.actionid   = PAbility->getID();
-        action.recast     = PAbility->getRecastTime();
+        action.actorId             = this->id;
+        action.actiontype          = PAbility->getActionType();
+        action.actionid            = PAbility->getID();
+        action.recast              = PAbility->getRecastTime();
+        const auto* developedTrust = dynamic_cast<CTrustEntity*>(this);
+        const bool  developed      = developedTrust && trustdevelopment::IsEnabled(developedTrust);
+        if (developed && PAbility->getMeritModID() > 0 && !(PAbility->getAddType() & ADDTYPE_MERIT))
+        {
+            const auto reduction = std::chrono::seconds(trustdevelopment::GetMeritValue(this, static_cast<xi::Merit>(PAbility->getMeritModID())));
+            action.recast        = std::max(action.recast - reduction, timer::duration::zero());
+        }
 
         if (PAbility->isAoE())
         {
@@ -2840,7 +2857,8 @@ void CBattleEntity::OnAbility(CAbilityState& state, action_t& action)
 
         state.ApplyEnmity();
 
-        PRecastContainer->Add(RECAST_ABILITY, static_cast<Recast>(action.actionid), action.recast);
+        const auto recast = developed ? PAbility->getRecastId() : static_cast<Recast>(action.actionid);
+        PRecastContainer->Add(RECAST_ABILITY, recast, action.recast);
     }
     this->processActionEffectFlags(action);
 }

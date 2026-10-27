@@ -7,7 +7,7 @@ local effectObject = {}
 effectObject.onEffectGain = function(target, effect)
     local enmityBonus = 100
 
-    if target:getMainJob() ~= xi.job.PLD then
+    if not target:hasMainJobAccess(xi.job.PLD) then
         enmityBonus = 50
     end
 
@@ -40,7 +40,7 @@ end
 effectObject.onEffectLose = function(target, effect)
     local enmityBonus = 100
 
-    if target:getMainJob() ~= xi.job.PLD then
+    if not target:hasMainJobAccess(xi.job.PLD) then
         enmityBonus = 50
     end
 

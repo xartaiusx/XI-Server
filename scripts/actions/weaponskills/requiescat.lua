@@ -12,16 +12,18 @@
 local weaponskillObject = {}
 
 weaponskillObject.onUseWeaponSkill = function(player, target, wsID, tp, primary, action, taChar)
+    local meritRanks = xi.weaponskills.getMeritRanks(player, xi.merit.REQUIESCAT)
+
     local params = {}
     params.numHits = 5
     params.ftpMod = { 1.0, 1.0, 1.0 }
-    params.mnd_wsc = player:getMerit(xi.merit.REQUIESCAT) * 0.17
+    params.mnd_wsc = meritRanks * 0.17
     params.atkVaries = { 0.8, 0.9, 1.0 }
     -- TODO: Verify the params.formless check
     params.formless = true
 
     if xi.settings.main.USE_ADOULIN_WEAPON_SKILL_CHANGES then
-        params.mnd_wsc = 0.7 + (player:getMerit(xi.merit.REQUIESCAT) * 0.03)
+        params.mnd_wsc = 0.7 + (meritRanks * 0.03)
         params.multiHitfTP = true
     end
 

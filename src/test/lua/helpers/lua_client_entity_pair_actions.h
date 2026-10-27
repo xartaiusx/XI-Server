@@ -42,6 +42,11 @@ public:
     void setBlueSpells(const sol::table& spellIds) const;
     void useWeaponskill(CLuaBaseEntity* target, uint16 wsId) const;
     void useAbility(CLuaBaseEntity* target, ABILITY abilityId) const;
+    bool useTrustSpell(CLuaBaseEntity* trust, CLuaBaseEntity* target, SpellID spellId) const;
+    bool useTrustAbility(CLuaBaseEntity* trust, CLuaBaseEntity* target, ABILITY abilityId) const;
+    bool useTrustWeaponskill(CLuaBaseEntity* trust, CLuaBaseEntity* target, uint16 wsId) const;
+    void flushEquipmentBatch() const;
+    bool hasTrustEntity(uint32 id) const;
     void useMonsterSkill(CLuaBaseEntity* target, uint16 datSkillId) const;
     void changeTarget(CLuaBaseEntity* target) const;
     void rangedAttack(CLuaBaseEntity* target) const;

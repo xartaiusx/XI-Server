@@ -367,7 +367,7 @@ describe('Module: Trust evidence lanes', function()
     end)
 
     it('preserves ordinary-player Rhapsodies gates and the five-Trust hard cap', function()
-        local ordinary = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE })
+        local ordinary = xi.test.world:spawnPlayer({ name = 'OrdinaryCap', zone = xi.zone.WEST_RONFAURE })
         assert(not ordinary:canUseTwillsFullAlliance())
         assert(xi.trustRetailParity.spawnTrust(ordinary, xi.magic.spell.VALAINERAL) == nil)
 

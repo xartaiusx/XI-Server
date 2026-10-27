@@ -112,6 +112,8 @@
 #include "utils/messageutils.h"
 #include "utils/moduleutils.h"
 #include "utils/petutils.h"
+#include "utils/trust_job_development.h"
+#include "utils/trustutils.h"
 #include "weapon_skill.h"
 
 CCharEntity::CCharEntity()
@@ -1212,6 +1214,15 @@ void CCharEntity::PostTick()
 
     CBattleEntity::PostTick();
 
+    // Revoke only oversized ordinary rosters; evidence sessions own their cleanup.
+    if (PTrusts.size() > trustutils::kRetailTrustSummonLimit && getName() == "Twills" &&
+        trustutils::GetTwillsFullAllianceState(this) == trustutils::TwillsFullAllianceState::Idle &&
+        GetLocalVar("MochiriiTrustEvidenceMode") == static_cast<uint32>(trustutils::TwillsTrustEvidenceMode::Idle) &&
+        !trustutils::CanUseTwillsTrustGameplay(this))
+    {
+        ClearTrusts();
+    }
+
     if (ReloadParty())
     {
         TracyZoneNamed(reloadPartyZone, "CCharEntity::PostTick: ReloadParty");
@@ -1335,6 +1346,7 @@ void CCharEntity::flushEquipChanges()
     pushPacket<GP_SERV_COMMAND_COMMAND_DATA>(this);
 
     inventorySyncState_.clearEquipChanges();
+    trustutils::RefreshDevelopedTrusts(this);
 }
 
 void CCharEntity::resyncEquipment()
@@ -2460,6 +2472,11 @@ auto CCharEntity::applyTargetRestrictions(CBaseEntity* PResolved, uint16 validTa
     auto* PTarget = PAI->TargetFind->getValidTarget(dynamic_cast<CBattleEntity*>(PResolved), validTargetFlags);
     if (PTarget)
     {
+        // A validated approved Trust corpse is a friendly Raise recipient, not
+        // an enemy claim. Its ValidTarget already enforces context and blockaid.
+        const auto* retainedTrust      = dynamic_cast<CTrustEntity*>(PTarget);
+        const bool  friendlyTrustRaise = (validTargetFlags & TARGET_PLAYER_DEAD) && retainedTrust &&
+                                         retainedTrust->IsRetainedCorpse() && retainedTrust->CanReceiveRaise();
         if (auto* PChar = dynamic_cast<CCharEntity*>(PTarget); PChar && charutils::IsAidBlocked(this, PChar))
         {
             // Target is blocking assistance
@@ -2467,7 +2484,7 @@ auto CCharEntity::applyTargetRestrictions(CBaseEntity* PResolved, uint16 validTa
             // Interaction was blocked
             PChar->pushPacket<GP_SERV_COMMAND_SYSTEMMES>(0, 0, MsgStd::BlockedByBlockaid);
         }
-        else if (IsMobOwner(PTarget))
+        else if (IsMobOwner(PTarget) || friendlyTrustRaise)
         {
             if (PTarget->isAlive() || (validTargetFlags & TARGET_PLAYER_DEAD) != 0)
             {
@@ -2564,7 +2581,29 @@ void CCharEntity::Die(timer::duration _duration, DeathParams params)
 {
     TracyZoneScopedN("CCharEntity::Die");
 
-    this->ClearTrusts();
+    // Keep only explicitly approved Trusts attached to this exact owner. Clear
+    // queued combat immediately; the controller permits only recovery while KO.
+    std::erase_if(PTrusts, [this](CTrustEntity* trust)
+                  {
+                      if (!trust || !trustdevelopment::IsEnabled(trust) || trust->PMaster != this ||
+                          trust->loc.zone != loc.zone || trust->PInstance != PInstance)
+                      {
+                          if (trust)
+                          {
+                              trust->PAI->Despawn();
+                          }
+                          return true;
+                      }
+                      trust->PAI->ClearActionQueue();
+                      trust->PAI->ClearTimerQueue();
+                      if (!trust->isDead())
+                      {
+                          trust->PAI->ClearStateStack();
+                          trust->setBattleTarget(std::nullopt);
+                      }
+                      return false;
+                  });
+    ReloadPartyInc();
 
     if (StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Weakness))
     {

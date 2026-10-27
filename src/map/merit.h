@@ -95,5 +95,6 @@ namespace meritNameSpace
 void LoadMeritsList(); // load the global list of merits
 
 auto GetSkillMerit(xi::SkillType skill) -> std::optional<xi::Merit>;
+auto GetMeritDefinition(xi::Merit merit) -> const Merit_t*;
 
 }; // namespace meritNameSpace

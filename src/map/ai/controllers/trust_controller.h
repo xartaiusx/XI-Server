@@ -61,6 +61,7 @@ private:
     auto DoCombatTick(timer::time_point tick) -> Task<void> override;
     auto DoRoamTick(timer::time_point tick) -> Task<void> override;
     auto DoNonCombatTick(timer::time_point tick) -> Task<void>;
+    auto TryRecoveryTick(timer::time_point tick) -> bool;
     void Declump(const CCharEntity* PMaster, const CBattleEntity* PTarget) const;
     void PathOutToDistance(const CBattleEntity* PTarget, float amount);
 
@@ -76,4 +77,5 @@ private:
 
     timer::time_point m_LastRangedAttackTime;
     timer::time_point m_LastRoleEnmityTime;
+    timer::time_point m_LastRecoveryTime;
 };

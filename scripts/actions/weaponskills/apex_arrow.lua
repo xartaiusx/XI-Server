@@ -18,11 +18,11 @@ weaponskillObject.onUseWeaponSkill = function(player, target, wsID, tp, primary,
     local params = {}
     params.numHits = 1
     params.ftpMod = { 3, 3, 3 }
-    params.agi_wsc = player:getMerit(xi.merit.APEX_ARROW) * 0.17
+    params.agi_wsc = xi.weaponskills.getMeritRanks(player, xi.merit.APEX_ARROW) * 0.17
     params.ignoredDefense = { 0.15, 0.35, 0.5 }
 
     if xi.settings.main.USE_ADOULIN_WEAPON_SKILL_CHANGES then
-        params.agi_wsc = 0.7 + (player:getMerit(xi.merit.APEX_ARROW) * 0.03)
+        params.agi_wsc = 0.7 + (xi.weaponskills.getMeritRanks(player, xi.merit.APEX_ARROW) * 0.03)
     end
 
     local damage, criticalHit, tpHits, extraHits = xi.weaponskills.doRangedWeaponskill(player, target, wsID, params, tp, action, primary)

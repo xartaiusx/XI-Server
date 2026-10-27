@@ -40,6 +40,39 @@ end
 function CClientEntityPairActions:useAbility(target, abilityId)
 end
 
+---Test-only owned Trust controller action; preserves normal native gates and recasts.
+---@param trust CBaseEntity
+---@param target CBaseEntity
+---@param spellId xi.magic.spell
+---@return boolean
+function CClientEntityPairActions:useTrustSpell(trust, target, spellId)
+end
+
+---@param trust CBaseEntity
+---@param target CBaseEntity
+---@param abilityId xi.jobAbility
+---@return boolean
+function CClientEntityPairActions:useTrustAbility(trust, target, abilityId)
+end
+
+---@param trust CBaseEntity
+---@param target CBaseEntity
+---@param wsId xi.weaponskill
+---@return boolean
+function CClientEntityPairActions:useTrustWeaponskill(trust, target, wsId)
+end
+
+---Close the fixture's directly dispatched equipment packet batch using the native flush.
+---@return nil
+function CClientEntityPairActions:flushEquipmentBatch()
+end
+
+---Exact full-ID native existence probe for non-instanced fixtures, including after owner zone-out.
+---@param id integer
+---@return boolean
+function CClientEntityPairActions:hasTrustEntity(id)
+end
+
 ---Use a Monstrosity TP move on a target
 ---@param target CBaseEntity Target entity
 ---@param datSkillId integer Client-facing DAT skill id (e.g. 343 for Fireball)

@@ -421,6 +421,16 @@ xi.spells.damage.calculateBaseDamage = function(caster, target, spellId, spellGr
         end
     end
 
+    -- Developed PLD action points add flat divine magic damage while Divine
+    -- Emblem is active. This is an action effect, not a passive gift package.
+    if
+        caster:isDevelopedTrust() and
+        skillType == xi.skill.DIVINE_MAGIC and
+        caster:hasStatusEffect(xi.effect.DIVINE_EMBLEM)
+    then
+        baseSpellDamageBonus = baseSpellDamageBonus + caster:getJobPointLevel(xi.jp.DIVINE_EMBLEM_EFFECT) * 2
+    end
+
     -- Bonus to spell base damage from gear.
     baseSpellDamageBonus = baseSpellDamageBonus + caster:getMod(xi.mod.MAGIC_DAMAGE)
 
@@ -1189,7 +1199,7 @@ xi.spells.damage.useDamageSpell = function(caster, target, spell)
     target:handleAfflatusMiseryDamage(finalDamage)
 
     -- Handle Enmity.
-    target:updateEnmityFromDamage(caster, finalDamage)
+    target:updateEnmityFromDamage(caster, finalDamage, spell)
 
     -- Add "Magic Burst!" message
     if canMBurst then

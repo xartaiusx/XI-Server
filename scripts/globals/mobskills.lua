@@ -323,6 +323,7 @@ local function handleSinglePhysicalHit(mob, target, baseHitDamage, params, actio
 
     hitDamage = math.floor(hitDamage * xi.combat.damage.physicalElementSDT(target, params.damageType))
     hitDamage = math.floor(hitDamage * xi.combat.damage.calculateDamageAdjustment(target, true, false, false, false))
+    hitDamage = xi.combat.damage.applyDevelopedHolyCircle(mob, target, hitDamage)
 
     if mob:isAvatar() then
         hitDamage = math.floor(hitDamage + hitDamage * mob:getMod(xi.mod.BP_DAMAGE) / 100)
@@ -441,6 +442,7 @@ local function handleSingleRangedHit(mob, target, baseHitDamage, params)
 
     hitDamage = math.floor(hitDamage * xi.combat.damage.physicalElementSDT(target, params.damageType))
     hitDamage = math.floor(hitDamage * xi.combat.damage.calculateDamageAdjustment(target, true, false, true, false))
+    hitDamage = xi.combat.damage.applyDevelopedHolyCircle(mob, target, hitDamage)
 
     hitDamage = xi.automaton.handleEqualizer(target, hitDamage)
 
@@ -1188,6 +1190,7 @@ xi.mobskills.mobMagicalMove = function(mob, target, skill, action, skillParams)
     damage = math.floor(damage * steamJacketMultiplier)
     damage = math.floor(damage * magicBonusDiff)
     damage = math.floor(damage * magicDamageAdjustment)
+    damage = xi.combat.damage.applyDevelopedHolyCircle(mob, target, damage)
     damage = math.floor(damage * bloodPactMultiplier)
     damage = math.floor(damage * absorbDamage)
     damage = math.floor(damage * magicBurst)

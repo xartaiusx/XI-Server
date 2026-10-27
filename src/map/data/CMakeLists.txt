@@ -53,14 +53,14 @@ target_link_libraries(xi_data_schema PRIVATE xi_data_core project_warnings glaze
 
 # Verifies every data file against the schema. xi_map and xi_test depend on it.
 add_custom_target(data_schema_generate ALL
-    COMMAND $<TARGET_FILE:xi_data_schema> --verify-data
+    COMMAND $<TARGET_FILE:xi_data_schema> --verify-data --output "${XI_SCHEMA_OUTPUT_DIR}"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     DEPENDS xi_data_schema
     USES_TERMINAL
 )
 
 add_custom_target(data_schema_check
-    COMMAND ${Python_EXECUTABLE} -m tools.codegen ${CMAKE_BINARY_DIR} --validate
+    COMMAND ${Python_EXECUTABLE} -m tools.codegen ${CMAKE_BINARY_DIR} ${XI_CODEGEN_OUTPUT_ARGS} --validate
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     USES_TERMINAL
 )

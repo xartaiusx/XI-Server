@@ -280,6 +280,20 @@ xi.trust.onTradeCipher = function(player, trade, csid, rovCs, arkAngelCs)
     end
 end
 
+local function conflictsWithTrustVariant(trustId, notAllowedTrustIds)
+    if type(notAllowedTrustIds) == 'number' then
+        return trustId == notAllowedTrustIds
+    elseif type(notAllowedTrustIds) == 'table' then
+        for _, id in pairs(notAllowedTrustIds) do
+            if trustId == id then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
 xi.trust.canCast = function(caster, spell, notAllowedTrustIds)
     -- Trusts must be enabled in settings
     if xi.settings.main.ENABLE_TRUST_CASTING == 0 then
@@ -337,23 +351,13 @@ xi.trust.canCast = function(caster, spell, notAllowedTrustIds)
 
     for _, member in pairs(party) do
         if member:getObjType() == xi.objType.TRUST then
-            -- Check for same trust
-            if member:getTrustID() == spell:getID() then
+            -- Preserve duplicate and alternate-variant exclusions.
+            if
+                member:getTrustID() == spell:getID() or
+                conflictsWithTrustVariant(member:getTrustID(), notAllowedTrustIds)
+            then
                 caster:messageSystem(xi.msg.system.TRUST_ALREADY_CALLED)
                 return -1
-            -- Check not allowed trust combinations (Shantotto I vs Shantotto II)
-            elseif type(notAllowedTrustIds) == 'number' then
-                if member:getTrustID() == notAllowedTrustIds then
-                    caster:messageSystem(xi.msg.system.TRUST_ALREADY_CALLED)
-                    return -1
-                end
-            elseif type(notAllowedTrustIds) == 'table' then
-                for _, v in pairs(notAllowedTrustIds) do
-                    if member:getTrustID() == v then
-                        caster:messageSystem(xi.msg.system.TRUST_ALREADY_CALLED)
-                        return -1
-                    end
-                end
             end
 
             numTrusts = numTrusts + 1
@@ -363,7 +367,8 @@ xi.trust.canCast = function(caster, spell, notAllowedTrustIds)
     end
 
     -- Max party size
-    if numPt >= 6 then
+    local memberLimit = caster:canUseTwillsTrustGameplay() and 18 or 6
+    if numPt >= memberLimit then
         caster:messageSystem(xi.msg.system.TRUST_MAXIMUM_NUMBER)
         return -1
     end

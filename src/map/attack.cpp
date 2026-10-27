@@ -26,11 +26,13 @@
 #include "data/enums/mob_mod.h"
 #include "entities/automaton_entity.h"
 #include "entities/battle_entity.h"
+#include "entities/trust_entity.h"
 #include "items/item_weapon.h"
 #include "job_points.h"
 #include "monstrosity.h"
 #include "status_effect_container.h"
 #include "utils/puppetutils.h"
+#include "utils/trust_job_development.h"
 #include "zone.h"
 
 CAttack::CAttack(CBattleEntity* attacker, CBattleEntity* defender, PHYSICAL_ATTACK_TYPE type, PHYSICAL_ATTACK_DIRECTION direction, CAttackRound* attackRound)
@@ -124,7 +126,8 @@ void CAttack::SetCritical(bool value)
         xi::SkillType skilltype  = xi::SkillType::None;
         SLOTTYPE      weaponSlot = static_cast<SLOTTYPE>(GetWeaponSlot());
 
-        if (dynamic_cast<const CCharEntity*>(m_attacker) != nullptr)
+        const bool developed = trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(m_attacker));
+        if (dynamic_cast<const CCharEntity*>(m_attacker) != nullptr || developed)
         {
             if (auto* weapon = dynamic_cast<CItemWeapon*>(m_attacker->m_Weapons[weaponSlot]))
             {
@@ -137,7 +140,10 @@ void CAttack::SetCritical(bool value)
         }
 
         // need to pass the weapon slot because damage ratio depends on ATT which varies by slot
-        m_damageRatio = battleutils::GetDamageRatio(m_attacker, m_victim, m_isCritical, attBonus, skilltype, weaponSlot, false);
+        const int32 doubleAttackBonus = developed && m_attackType == PHYSICAL_ATTACK_TYPE::DOUBLE
+                                            ? trustdevelopment::GetJobPointLevel(m_attacker, JP_DOUBLE_ATTACK_EFFECT)
+                                            : 0;
+        m_damageRatio                 = battleutils::GetDamageRatio(m_attacker, m_victim, m_isCritical, attBonus, skilltype, weaponSlot, false, doubleAttackBonus);
     }
 }
 
@@ -796,6 +802,10 @@ void CAttack::ProcessDamage()
             if (auto* PChar = dynamic_cast<CCharEntity*>(m_attacker))
             {
                 jpBonus = PChar->PJobPoints->GetJobPointValue(JP_RESTRAINT_EFFECT) * 2;
+            }
+            else
+            {
+                jpBonus = trustdevelopment::GetJobPointLevel(m_attacker, JP_RESTRAINT_EFFECT) * 2;
             }
 
             // Convert weapon delay and divide

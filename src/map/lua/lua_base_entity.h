@@ -389,6 +389,9 @@ public:
     // Player Jobs and Levels
     auto getMainJob() -> xi::Job;
     auto getSubJob() -> xi::Job;
+    bool isDevelopedTrust();
+    bool hasMainJobAccess(xi::Job job);
+    auto getDevelopedHolyCircleMultiplier(CLuaBaseEntity* target) -> double;
     void changeJob(uint8 newJob);
     void changesJob(uint8 subJob);
     void unlockJob(uint8 JobID);
@@ -648,6 +651,8 @@ public:
     bool isDead();
 
     bool hasRaiseTractorMenu();
+    bool canReceiveTrustRaise();
+    bool offerTrustRaise(uint8 tier, bool shortWeakness, bool grantReraiseIII);
     void sendRaise(uint8 raiseLevel);
     void sendReraise(uint8 raiseLevel);
     void sendTractor(float xPos, float yPos, float zPos, uint8 rotation);
@@ -702,7 +707,7 @@ public:
     void  lowerEnmity(CLuaBaseEntity* PEntity, uint8 percent);
     void  updateEnmity(CLuaBaseEntity* PEntity);
     void  transferEnmity(CLuaBaseEntity* entity, uint8 percent, float range);
-    void  updateEnmityFromDamage(CLuaBaseEntity* PEntity, int32 damage) const; // Adds Enmity to player for specified mob for the damage specified
+    void  updateEnmityFromDamage(CLuaBaseEntity* PEntity, int32 damage, const sol::object& spell) const; // Adds Enmity to player for specified mob for the damage specified
     void  updateEnmityFromCure(CLuaBaseEntity* PEntity, int32 amount, const sol::object& fixedCE, const sol::object& fixedVE);
     void  resetEnmity(CLuaBaseEntity* PEntity);
     void  setEnmityActive(CLuaBaseEntity* PEntity, bool active);
@@ -812,6 +817,7 @@ public:
     auto   spawnTrust(uint16 trustId) -> CBaseEntity*;
     void   clearTrusts();
     bool   canUseTwillsFullAlliance();
+    bool   canUseTwillsTrustGameplay();
     bool   isTwillsFullAllianceActive();
     uint8  getTwillsFullAllianceState();
     bool   setTwillsFullAllianceState(uint32 state);

@@ -33,10 +33,12 @@
 
 #include "entities/char_entity.h"
 #include "entities/pet_entity.h"
+#include "entities/trust_entity.h"
 #include "enums/four_cc.h"
 #include "enums/msg_basic.h"
 #include "status_effect_container.h"
 #include "utils/blueutils.h"
+#include "utils/trust_job_development.h"
 
 CSpell::CSpell(SpellID id)
 : m_ID(id)
@@ -864,6 +866,52 @@ bool CanUseSpell(CBattleEntity* PCaster, CSpell* spell)
             if (usable)
             {
                 return true;
+            }
+
+            if (auto* PTrust = dynamic_cast<CTrustEntity*>(PCaster); trustdevelopment::IsEnabled(PTrust))
+            {
+                if (spell->getSpellGroup() == SPELLGROUP_TRUST || spell->getSpellGroup() == SPELLGROUP_BLUE)
+                {
+                    return false;
+                }
+
+                // Preserve the existing, explicitly unverified Valaineral exception.
+                if (PTrust->trustID() == 910 && spell->getID() == SpellID::Banish_III &&
+                    PTrust->m_SpellListContainer && PTrust->m_SpellListContainer->GetSpellMinLevel(spell->getID()) <= 99)
+                {
+                    return true;
+                }
+
+                const auto* profile = trustdevelopment::GetProfile(PTrust->trustID());
+                for (const auto job : { profile->mainJob, profile->supportJob })
+                {
+                    if (spell->getJob(job) > trustdevelopment::GetActionJobLevel(PTrust, job))
+                    {
+                        continue;
+                    }
+
+                    const auto flags = spell->getRequirements();
+                    if ((flags & SPELLREQ_TABULA_RASA) && !PTrust->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::TabulaRasa))
+                    {
+                        continue;
+                    }
+                    if (job == xi::Job::SCH)
+                    {
+                        if ((flags & SPELLREQ_ADDENDUM_BLACK) && !PTrust->StatusEffectContainer->HasStatusEffect({ xi::StatusEffect::AddendumBlack, xi::StatusEffect::Enlightenment }))
+                        {
+                            continue;
+                        }
+                        if ((flags & SPELLREQ_ADDENDUM_WHITE) && !PTrust->StatusEffectContainer->HasStatusEffect({ xi::StatusEffect::AddendumWhite, xi::StatusEffect::Enlightenment }))
+                        {
+                            continue;
+                        }
+                    }
+
+                    // Both assigned jobs have main-job privileges. MP, recast,
+                    // resources, spell-specific checks and targeting remain native.
+                    return true;
+                }
+                return false;
             }
 
             // Ensure pet or trust is level appropriate
