@@ -25,6 +25,10 @@
 
 #include <common/types/flag.h>
 
+#include "utils/trust_recovery.h"
+
+#include <optional>
+
 class CCharEntity;
 
 using IsPassiveTrust = xi::Flag<struct IsPassiveTrustTag>;
@@ -35,7 +39,7 @@ public:
     CTrustEntity(CCharEntity* PMaster, uint32 trustId, IsPassiveTrust isPassiveTrust);
     ~CTrustEntity() override;
 
-    auto trustID() -> uint32;
+    auto trustID() const -> uint32;
 
     auto shieldSize() -> int8;
 
@@ -44,6 +48,14 @@ public:
 
     auto passiveTrust() -> IsPassiveTrust;
 
+    auto IsRetainedCorpse() const -> bool;
+    auto CanReceiveRaise() const -> bool;
+    auto HasPendingRaise() const -> bool;
+    auto OfferRaise(TrustRaiseOptions options) -> bool;
+    auto OfferReraise(uint8 tier) -> bool;
+    auto CompleteRaise() -> bool;
+    void FinishRaise();
+
     //
     // CMobEntity, CBattleEntity, etc.
     //
@@ -51,6 +63,7 @@ public:
     void PostTick() override;
     void FadeOut() override;
     void Die() override;
+    void OnDeathTimer() override;
     void Spawn() override;
     bool ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags) override;
     void OnDespawn(CDespawnState&) override;
@@ -62,7 +75,10 @@ public:
     bool GetUntargetable() const override;
 
 private:
-    uint32         trustID_{};
-    bool           released_{};
-    IsPassiveTrust passiveTrust_ = IsPassiveTrust::No;
+    uint32                           trustID_{};
+    bool                             released_{};
+    IsPassiveTrust                   passiveTrust_ = IsPassiveTrust::No;
+    bool                             retainedCorpse_{};
+    uint16                           weaknessLevel_{};
+    std::optional<TrustRaiseOptions> pendingRaise_;
 };

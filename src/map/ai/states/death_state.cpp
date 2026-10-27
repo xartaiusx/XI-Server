@@ -25,6 +25,7 @@
 #include "entities/battle_entity.h"
 #include "entities/char_entity.h"
 #include "entities/mob_entity.h"
+#include "entities/trust_entity.h"
 #include "packets/s2c/0x0f9_res.h"
 #include "status_effect_container.h"
 
@@ -66,6 +67,29 @@ auto CDeathState::init() -> StateErrorOr<void>
 
 auto CDeathState::Update(const timer::time_point tick) -> bool
 {
+    if (auto* trust = dynamic_cast<CTrustEntity*>(m_PEntity); trust && trust->IsRetainedCorpse())
+    {
+        // Retained Trusts follow native Raise timing without a player menu or an
+        // indefinite RAISABLE mob corpse. The same entity survives recovery.
+        if (m_raiseAccepted && IsCompleted() && tick > m_raiseAcceptedTime + 2s)
+        {
+            trust->animation = xi::Animation::None;
+            trust->updatemask |= UPDATE_HP;
+            return true;
+        }
+        if (!m_raiseAccepted && (!trust->CanReceiveRaise() || tick > GetEntryTime() + m_deathTime))
+        {
+            Complete();
+            trust->OnDeathTimer();
+            return true;
+        }
+        if (!m_raiseAccepted && tick > m_raiseTime && trust->HasPendingRaise() && trust->CompleteRaise())
+        {
+            acceptRaise();
+        }
+        return false;
+    }
+
     if (auto* PChar = dynamic_cast<CCharEntity*>(m_PEntity); !PChar)
     {
         if (IsCompleted() || !m_PEntity->isDead())
@@ -138,6 +162,13 @@ void CDeathState::acceptRaise()
 
 void CDeathState::Cleanup(timer::time_point tick)
 {
+    if (m_raiseAccepted)
+    {
+        if (auto* trust = dynamic_cast<CTrustEntity*>(m_PEntity); trust && trust->IsRetainedCorpse())
+        {
+            trust->FinishRaise();
+        }
+    }
 }
 
 auto CDeathState::CanChangeState() -> bool

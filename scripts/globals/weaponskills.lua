@@ -16,6 +16,13 @@ require('scripts/globals/spells/damage_spell')
 xi = xi or {}
 xi.weaponskills = xi.weaponskills or {}
 
+-- Native weapon-skill merits expose three units per upgrade. The WSC formulas
+-- take ranks; retain existing behavior for actors outside developed Trusts.
+xi.weaponskills.getMeritRanks = function(actor, merit)
+    local value = actor:getMerit(merit)
+    return actor:isDevelopedTrust() and value / 3 or value
+end
+
 local function shadowAbsorb(target)
     local targetShadows = target:getMod(xi.mod.UTSUSEMI)
     local shadowType    = xi.mod.UTSUSEMI
@@ -223,6 +230,9 @@ local function modifyMeleeHitDamage(attacker, target, attackTbl, wsParams, rawDa
     -- Souleater
     adjustedDamage = adjustedDamage + xi.combat.damage.souleaterAddition(attacker)
 
+    -- Hybrid magic derives from this adjusted physical component; do not apply
+    -- the circle term again to that derived component.
+    adjustedDamage = xi.combat.damage.applyDevelopedHolyCircle(attacker, target, adjustedDamage)
     adjustedDamage = utils.handlePhalanx(target, adjustedDamage)
     adjustedDamage = utils.handleStoneskin(target, adjustedDamage, xi.attackType.PHYSICAL)
 
@@ -788,6 +798,7 @@ xi.weaponskills.doRangedWeaponskill = function(attacker, target, wsID, wsParams,
     attacker:delStatusEffect(xi.effect.STEALTH_SHOT)
 
     -- Calculate reductions
+    finaldmg = xi.combat.damage.applyDevelopedHolyCircle(attacker, target, finaldmg)
     finaldmg = target:rangedDmgTaken(finaldmg)
     finaldmg = finaldmg * (1 + target:getMod(xi.mod.PIERCE_SDT) / 10000)
     finaldmg = math.floor(finaldmg)
@@ -899,6 +910,7 @@ xi.weaponskills.doMagicWeaponskill = function(attacker, target, wsID, wsParams, 
         dmg = math.floor(addBonusesAbility(attacker, wsParams.ele, target, dmg, wsParams))
         dmg = math.floor(dmg * xi.combat.magicHitRate.calculateResistRate(attacker, target, maccParams))
         dmg = math.floor(dmg * xi.combat.damage.calculateDamageAdjustment(target, false, true, false, false))
+        dmg = xi.combat.damage.applyDevelopedHolyCircle(attacker, target, dmg)
         dmg = math.floor(target:handleSevereDamage(dmg, false))
 
         if dmg < 0 then

@@ -21,7 +21,7 @@ effectObject.onEffectGain = function(target, effect)
     effect:addMod(xi.mod.LIGHT_SDT, -power)
     effect:addMod(xi.mod.DARK_SDT, -power)
 
-    -- Iron will trait and augment. TODO: Why player only?
+    -- Developed Trust actions replace this recipient contribution in useRampart.
     if target:isPC() and target:hasTrait(xi.trait.IRON_WILL) then
         effect:addMod(xi.mod.SPELLINTERRUPT, target:getMerit(xi.merit.IRON_WILL))
 

@@ -35,6 +35,9 @@ struct action_t;
 namespace trustutils
 {
 
+void RefreshDevelopedTrusts(CCharEntity* PMaster);
+void RefreshDevelopedSpellCatalog(CTrustEntity* PTrust);
+
 inline constexpr std::size_t kRetailPartyMemberLimit  = 6;
 inline constexpr std::size_t kFullAlliancePartyLimit  = 3;
 inline constexpr std::size_t kFullAllianceMemberLimit = 18;
@@ -80,6 +83,9 @@ struct TrustPartyProjection
 
 auto CanUseTwillsFullAlliance(const TwillsFullAllianceAccessContext& context) -> bool;
 auto CanUseTwillsFullAlliance(CCharEntity* PMaster) -> bool;
+
+auto CanUseTwillsTrustGameplay(const TwillsFullAllianceAccessContext& context, TwillsFullAllianceState state, TwillsTrustEvidenceMode mode, bool soloParty) -> bool;
+auto CanUseTwillsTrustGameplay(CCharEntity* PMaster) -> bool;
 auto GetTwillsFullAllianceState(CCharEntity* PMaster) -> TwillsFullAllianceState;
 auto IsTwillsFullAllianceActive(
     const TwillsFullAllianceAccessContext& context,
@@ -93,12 +99,15 @@ auto ResolveTrustPartyProjection(
     const TwillsFullAllianceAccessContext& context,
     TwillsFullAllianceState                state,
     TwillsTrustEvidenceMode                evidenceMode,
-    std::size_t                            globalMemberIndex) -> std::optional<TrustPartyProjection>;
+    std::size_t                            globalMemberIndex,
+    bool                                   ordinaryGameplay = false,
+    std::size_t                            memberCount      = kRetailPartyMemberLimit) -> std::optional<TrustPartyProjection>;
 auto ResolveTrustPartyProjection(CCharEntity* PMaster, std::size_t globalMemberIndex) -> std::optional<TrustPartyProjection>;
 auto ResolveTrustMemberLimit(
     const TwillsFullAllianceAccessContext& context,
     TwillsFullAllianceState                state,
-    TwillsTrustEvidenceMode                evidenceMode) -> std::optional<std::size_t>;
+    TwillsTrustEvidenceMode                evidenceMode,
+    bool                                   ordinaryGameplay = false) -> std::optional<std::size_t>;
 auto ResolveTrustMemberLimit(CCharEntity* PMaster) -> std::optional<std::size_t>;
 void MarkTrustEvidenceTruncated(CCharEntity* PMaster, std::string_view reason);
 

@@ -42,6 +42,7 @@
 #include "spell.h"
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
+#include "utils/trust_job_development.h"
 #include "utils/trustutils.h"
 #include "utils/zoneutils.h"
 
@@ -548,7 +549,8 @@ auto CMagicState::GetRecast() const -> timer::duration
 
 void CMagicState::ApplyEnmity(CBattleEntity* PTarget, int ce, int ve) const
 {
-    bool enmityApplied = false;
+    bool  enmityApplied      = false;
+    int32 specialEnmityBonus = 0;
 
     if (m_PEntity->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Tranquility) && m_PSpell->getSpellGroup() == SPELLGROUP_WHITE)
     {
@@ -581,8 +583,15 @@ void CMagicState::ApplyEnmity(CBattleEntity* PTarget, int ce, int ve) const
 
     if (m_PEntity->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::DivineEmblem) && m_PSpell->getSkillType() == xi::SkillType::DivineMagic)
     {
-        ve = ve * (1.0f + (m_PEntity->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::DivineEmblem)->GetPower() / 100.0f));
-        ce = ce * (1.0f + (m_PEntity->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::DivineEmblem)->GetPower() / 100.0f));
+        if (trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(m_PEntity)))
+        {
+            specialEnmityBonus = std::max<int32>(m_PEntity->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::DivineEmblem)->GetPower(), 0);
+        }
+        else
+        {
+            ve = ve * (1.0f + (m_PEntity->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::DivineEmblem)->GetPower() / 100.0f));
+            ce = ce * (1.0f + (m_PEntity->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::DivineEmblem)->GetPower() / 100.0f));
+        }
     }
 
     if (PTarget != nullptr)
@@ -612,7 +621,7 @@ void CMagicState::ApplyEnmity(CBattleEntity* PTarget, int ce, int ve) const
                         return;
                     }
 
-                    mob->PEnmityContainer->UpdateEnmity(m_PEntity, ce, ve);
+                    mob->PEnmityContainer->UpdateEnmity(m_PEntity, ce, ve, false, false, true, specialEnmityBonus);
                     enmityApplied = true;
                     if (PTarget->isDead() && (!isMob || (isMob && m_PEntity->isCharmed)))
                     { // claim mob only on death (for aoe)
@@ -624,7 +633,7 @@ void CMagicState::ApplyEnmity(CBattleEntity* PTarget, int ce, int ve) const
         }
         else if (PTarget->allegiance == m_PEntity->allegiance)
         {
-            battleutils::GenerateInRangeEnmity(m_PEntity, ce, ve);
+            battleutils::GenerateInRangeEnmity(m_PEntity, ce, ve, specialEnmityBonus);
             enmityApplied = true;
         }
     }

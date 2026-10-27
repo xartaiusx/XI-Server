@@ -1581,6 +1581,26 @@ end
 function CBaseEntity:getMainJob()
 end
 
+---Approved ordinary Trust development, with evidence lanes excluded.
+---@nodiscard
+---@return boolean
+function CBaseEntity:isDevelopedTrust()
+end
+
+---Actual main-job access, or either approved developed Trust job at main-job privilege.
+---@nodiscard
+---@param job xi.job
+---@return boolean
+function CBaseEntity:hasMainJobAccess(job)
+end
+
+---Missing-path multiplier for an active Holy Circle with approved cast-time provenance.
+---@nodiscard
+---@param target CBaseEntity
+---@return number
+function CBaseEntity:getDevelopedHolyCircleMultiplier(target)
+end
+
 ---@nodiscard
 ---@return xi.job
 function CBaseEntity:getSubJob()
@@ -2715,6 +2735,18 @@ end
 function CBaseEntity:hasRaiseTractorMenu()
 end
 
+---@nodiscard
+---@return boolean
+function CBaseEntity:canReceiveTrustRaise()
+end
+
+---@param tier integer
+---@param shortWeakness boolean
+---@param grantReraiseIII boolean
+---@return boolean
+function CBaseEntity:offerTrustRaise(tier, shortWeakness, grantReraiseIII)
+end
+
 ---@param raiseLevel integer
 ---@return nil
 function CBaseEntity:sendRaise(raiseLevel)
@@ -2954,8 +2986,9 @@ end
 
 ---@param PEntity CBaseEntity
 ---@param damage integer
+---@param spell CSpell? Actual active native spell; approved Trust divine damage only.
 ---@return nil
-function CBaseEntity:updateEnmityFromDamage(PEntity, damage)
+function CBaseEntity:updateEnmityFromDamage(PEntity, damage, spell)
 end
 
 ---@param PEntity CBaseEntity
@@ -3498,6 +3531,11 @@ end
 ---@nodiscard
 ---@return boolean
 function CBaseEntity:canUseTwillsFullAlliance()
+end
+
+---@nodiscard
+---@return boolean
+function CBaseEntity:canUseTwillsTrustGameplay()
 end
 
 ---@nodiscard

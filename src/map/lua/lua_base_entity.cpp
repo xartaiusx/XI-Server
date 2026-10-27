@@ -170,6 +170,8 @@
 #include "utils/mountutils.h"
 #include "utils/petutils.h"
 #include "utils/puppetutils.h"
+#include "utils/trust_holy_circle.h"
+#include "utils/trust_job_development.h"
 #include "utils/trustutils.h"
 #include "utils/zoneutils.h"
 #include "ximesh/ximesh.h"
@@ -7084,6 +7086,22 @@ auto CLuaBaseEntity::getMainJob() -> xi::Job
     return static_cast<CBattleEntity*>(m_PBaseEntity)->GetMJob();
 }
 
+bool CLuaBaseEntity::isDevelopedTrust()
+{
+    return trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(m_PBaseEntity));
+}
+
+bool CLuaBaseEntity::hasMainJobAccess(xi::Job job)
+{
+    return trustdevelopment::HasMainJobAccess(dynamic_cast<CBattleEntity*>(m_PBaseEntity), job);
+}
+
+auto CLuaBaseEntity::getDevelopedHolyCircleMultiplier(CLuaBaseEntity* target) -> double
+{
+    return trustholycircle::GetMultiplier(dynamic_cast<CBattleEntity*>(m_PBaseEntity),
+                                          target ? dynamic_cast<CBattleEntity*>(target->GetBaseEntity()) : nullptr);
+}
+
 /************************************************************************
  *  Function: getSubJob()
  *  Purpose : Returns the integer value of the entity's sub job
@@ -9634,7 +9652,7 @@ int32 CLuaBaseEntity::getMerit(uint16 merit)
         return PChar->PMeritPoints->GetMeritValue(static_cast<xi::Merit>(merit), PChar);
     }
 
-    return 0;
+    return trustdevelopment::GetMeritValue(dynamic_cast<CBattleEntity*>(m_PBaseEntity), static_cast<xi::Merit>(merit));
 }
 
 /************************************************************************
@@ -9717,7 +9735,7 @@ uint8 CLuaBaseEntity::getJobPointLevel(uint16 jpType)
         return PChar->PJobPoints->GetJobPointValue(static_cast<JOBPOINT_TYPE>(jpType));
     }
 
-    return 0;
+    return trustdevelopment::GetJobPointLevel(dynamic_cast<CBattleEntity*>(m_PBaseEntity), jpType);
 }
 
 /************************************************************************
@@ -11107,6 +11125,11 @@ void CLuaBaseEntity::updateHealth()
  ************************************************************************/
 uint8 CLuaBaseEntity::getAverageItemLevel()
 {
+    if (const auto* trust = dynamic_cast<CTrustEntity*>(m_PBaseEntity); trustdevelopment::IsEnabled(trust))
+    {
+        return static_cast<uint8>(trust->GetLocalVar("MochiTrustJob99StatLevel"));
+    }
+
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
         return 0;
@@ -12908,6 +12931,18 @@ bool CLuaBaseEntity::hasRaiseTractorMenu()
     return true;
 }
 
+bool CLuaBaseEntity::canReceiveTrustRaise()
+{
+    auto* trust = dynamic_cast<CTrustEntity*>(m_PBaseEntity);
+    return trust && trust->CanReceiveRaise() && !trust->HasPendingRaise();
+}
+
+bool CLuaBaseEntity::offerTrustRaise(uint8 tier, bool shortWeakness, bool grantReraiseIII)
+{
+    auto* trust = dynamic_cast<CTrustEntity*>(m_PBaseEntity);
+    return trust && trust->OfferRaise(TrustRaiseOptions{ tier, shortWeakness, grantReraiseIII });
+}
+
 /************************************************************************
  *  Function: sendRaise()
  *  Purpose : Updates the m_hasRaise private member with the Raise Level
@@ -12950,6 +12985,11 @@ void CLuaBaseEntity::sendRaise(uint8 raiseLevel)
 
 void CLuaBaseEntity::sendReraise(uint8 raiseLevel)
 {
+    if (auto* trust = dynamic_cast<CTrustEntity*>(m_PBaseEntity))
+    {
+        trust->OfferReraise(raiseLevel);
+        return;
+    }
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
         ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
@@ -14015,8 +14055,12 @@ void CLuaBaseEntity::transferEnmity(CLuaBaseEntity* entity, uint8 percent, float
  *  Notes   : Used in most Weaponskills and damaging abilities scripts
  ************************************************************************/
 
-void CLuaBaseEntity::updateEnmityFromDamage(CLuaBaseEntity* PEntity, const int32 damage) const
+void CLuaBaseEntity::updateEnmityFromDamage(CLuaBaseEntity* PEntity, const int32 damage, const sol::object& spellObject) const
 {
+    if (!PEntity || !PEntity->GetBaseEntity())
+    {
+        return;
+    }
     if (m_PBaseEntity->id == PEntity->getID())
     {
         ShowWarning(fmt::format("updateEnmityFromDamage(): Attempting to add enmity from damage to self ({}, {})!", PEntity->getName(), PEntity->getID()));
@@ -14038,7 +14082,28 @@ void CLuaBaseEntity::updateEnmityFromDamage(CLuaBaseEntity* PEntity, const int32
     {
         if (PEntity->GetBaseEntity() && damage > 0 && PEntity->GetBaseEntity()->objtype != TYPE_NPC)
         {
-            PBaseMob->PEnmityContainer->UpdateEnmityFromDamage(static_cast<CBattleEntity*>(PEntity->GetBaseEntity()), damage);
+            auto* actor              = static_cast<CBattleEntity*>(PEntity->GetBaseEntity());
+            int32 specialEnmityBonus = 0;
+            if (trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(actor)) && spellObject.is<CLuaSpell*>())
+            {
+                auto* state    = dynamic_cast<CMagicState*>(actor->PAI->GetCurrentState());
+                auto* wrapped  = spellObject.as<CLuaSpell*>();
+                auto* supplied = wrapped ? wrapped->GetSpell() : nullptr;
+                // Only this actual native cast's already-selected victim can
+                // carry its Divine Emblem term. Counters/spikes omit the spell.
+                if (state && supplied && actor->PAI->TargetFind && state->GetSpell() == supplied && supplied->getSkillType() == xi::SkillType::DivineMagic &&
+                    actor->loc.zone && actor->loc.zone == PBaseMob->loc.zone && actor->PInstance == PBaseMob->PInstance &&
+                    actor->PBattlefield == PBaseMob->PBattlefield && actor->allegiance != PBaseMob->allegiance &&
+                    actor->StatusEffectContainer->GetConfrontationEffect() == PBaseMob->StatusEffectContainer->GetConfrontationEffect() &&
+                    std::ranges::contains(actor->PAI->TargetFind->m_targets, static_cast<CBattleEntity*>(PBaseMob)))
+                {
+                    if (const auto* emblem = actor->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::DivineEmblem))
+                    {
+                        specialEnmityBonus = std::max<int32>(emblem->GetPower(), 0);
+                    }
+                }
+            }
+            PBaseMob->PEnmityContainer->UpdateEnmityFromDamage(actor, damage, specialEnmityBonus);
         }
     }
 }
@@ -16393,6 +16458,11 @@ bool CLuaBaseEntity::canUseTwillsFullAlliance()
 {
     return m_PBaseEntity->objtype == TYPE_PC &&
            trustutils::CanUseTwillsFullAlliance(static_cast<CCharEntity*>(m_PBaseEntity));
+}
+
+bool CLuaBaseEntity::canUseTwillsTrustGameplay()
+{
+    return m_PBaseEntity->objtype == TYPE_PC && trustutils::CanUseTwillsTrustGameplay(static_cast<CCharEntity*>(m_PBaseEntity));
 }
 
 bool CLuaBaseEntity::isTwillsFullAllianceActive()
@@ -18953,6 +19023,10 @@ void CLuaBaseEntity::setSpellList(const uint16 spellListId) const
     if (auto* PMob = dynamic_cast<CMobEntity*>(m_PBaseEntity))
     {
         mobutils::SetSpellList(PMob, spellListId);
+        if (auto* trust = dynamic_cast<CTrustEntity*>(PMob))
+        {
+            trustutils::RefreshDevelopedSpellCatalog(trust);
+        }
         return;
     }
 
@@ -21149,6 +21223,9 @@ void CLuaBaseEntity::Register()
 
     // Player Jobs and Levels
     SOL_REGISTER("getMainJob", CLuaBaseEntity::getMainJob);
+    SOL_REGISTER("isDevelopedTrust", CLuaBaseEntity::isDevelopedTrust);
+    SOL_REGISTER("getDevelopedHolyCircleMultiplier", CLuaBaseEntity::getDevelopedHolyCircleMultiplier);
+    SOL_REGISTER("hasMainJobAccess", CLuaBaseEntity::hasMainJobAccess);
     SOL_REGISTER("getSubJob", CLuaBaseEntity::getSubJob);
     SOL_REGISTER("changeJob", CLuaBaseEntity::changeJob);
     SOL_REGISTER("changesJob", CLuaBaseEntity::changesJob);
@@ -21406,6 +21483,8 @@ void CLuaBaseEntity::Register()
     SOL_REGISTER("hasRaiseTractorMenu", CLuaBaseEntity::hasRaiseTractorMenu);
 
     SOL_REGISTER("sendRaise", CLuaBaseEntity::sendRaise);
+    SOL_REGISTER("canReceiveTrustRaise", CLuaBaseEntity::canReceiveTrustRaise);
+    SOL_REGISTER("offerTrustRaise", CLuaBaseEntity::offerTrustRaise);
     SOL_REGISTER("sendReraise", CLuaBaseEntity::sendReraise);
     SOL_REGISTER("sendTractor", CLuaBaseEntity::sendTractor);
     SOL_REGISTER("allowSendRaisePrompt", CLuaBaseEntity::allowSendRaisePrompt);
@@ -21626,6 +21705,7 @@ void CLuaBaseEntity::Register()
     SOL_REGISTER("spawnTrust", CLuaBaseEntity::spawnTrust);
     SOL_REGISTER("clearTrusts", CLuaBaseEntity::clearTrusts);
     SOL_REGISTER("canUseTwillsFullAlliance", CLuaBaseEntity::canUseTwillsFullAlliance);
+    SOL_REGISTER("canUseTwillsTrustGameplay", CLuaBaseEntity::canUseTwillsTrustGameplay);
     SOL_REGISTER("isTwillsFullAllianceActive", CLuaBaseEntity::isTwillsFullAllianceActive);
     SOL_REGISTER("getTwillsFullAllianceState", CLuaBaseEntity::getTwillsFullAllianceState);
     SOL_REGISTER("setTwillsFullAllianceState", CLuaBaseEntity::setTwillsFullAllianceState);

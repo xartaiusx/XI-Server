@@ -24,6 +24,7 @@ spellObject.onMobSpawn = function(mob)
     mob:setMobMod(xi.mobMod.CAN_PARRY, 3)
 
     local lvl = mob:getMainLvl()
+    local developed = mob:isDevelopedTrust()
     local shieldMasteryPower = 0
 
     if lvl >= 96 then
@@ -46,6 +47,16 @@ spellObject.onMobSpawn = function(mob)
     mob:addMod(xi.mod.DMG, -800) -- Damage Taken -8%
     mob:addMod(xi.mod.HPP, 10)
     mob:addMod(xi.mod.MPP, 20)
+
+    if developed then
+        -- Reserve the shared SP groups for the tank's survival decisions.
+        mob:addGambit(ai.t.SELF, { ai.c.HPP_LT, 25 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.INVINCIBLE })
+        mob:addGambit(ai.t.TARGET, {
+            { ai.c.READYING_MS, 0 },
+            { ai.c.CASTER_HPP_LT, 35 },
+        }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.INTERVENE })
+        mob:addGambit(ai.t.MASTER, { ai.c.HPP_LT, 50 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.COVER })
+    end
 
     if lvl >= 1 then
         mob:addGambit(ai.t.TARGET, { ai.c.VAL_URIEL_CHECK, 0 }, { ai.r.MS, ai.s.SPECIFIC, xi.mobSkill.URIEL_BLADE_1 })
@@ -98,12 +109,45 @@ spellObject.onMobSpawn = function(mob)
     mob:addGambit(ai.t.SELF,   { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.REPRISAL }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.REPRISAL     })
     mob:addGambit(ai.t.PARTY,  { ai.c.HPP_LT,     50                 }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.CURE    })
     mob:addGambit(ai.t.SELF,   { ai.c.HPP_LT,     70                 }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.CURE    })
-    mob:addGambit(ai.t.SELF,   { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.ENLIGHT  }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.ENLIGHT      })
+    mob:addGambit(ai.t.SELF,   { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.ENLIGHT  }, { ai.r.MA, ai.s.SPECIFIC, developed and xi.magic.spell.ENLIGHT_II or xi.magic.spell.ENLIGHT })
     mob:addGambit(ai.t.SELF,   { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.PHALANX  }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.PHALANX      })
     mob:addGambit(ai.t.PARTY,  { ai.c.STATUS,     xi.effect.SLEEP_I  }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.CURE         })
 
     if lvl >= 65 then
         mob:addGambit(ai.t.TARGET, { ai.c.IS_ECOSYSTEM, xi.ecosystem.UNDEAD }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.BANISH_III }, 45)
+    end
+
+    if developed then
+        mob:addGambit(ai.t.SELF, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.ENMITY_BOOST }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.CRUSADE })
+        mob:addGambit(ai.t.TARGET, {
+            { ai.c.IS_ECOSYSTEM, xi.ecosystem.UNDEAD },
+            { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.SEPULCHER },
+        }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.SEPULCHER })
+        mob:addGambit(ai.t.SELF, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.RETALIATION }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.RETALIATION })
+        mob:addGambit(ai.t.SELF, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.RESTRAINT }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.RESTRAINT })
+        mob:addGambit(ai.t.SELF, {
+            { ai.c.NOT_STATUS, xi.effect.BLOOD_RAGE },
+            { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.WARCRY },
+        }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.WARCRY })
+        mob:addGambit(ai.t.SELF, {
+            { ai.c.NOT_STATUS, xi.effect.WARCRY },
+            { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.BLOOD_RAGE },
+        }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.BLOOD_RAGE })
+        mob:addGambit(ai.t.SELF, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.WARRIORS_CHARGE }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.WARRIORS_CHARGE })
+        mob:addGambit(ai.t.TARGET, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.TOMAHAWK }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.TOMAHAWK })
+        mob:addGambit(ai.t.SELF, {
+            { ai.c.HPP_GTE, 90 },
+            { ai.c.NOT_STATUS, xi.effect.DEFENDER },
+            { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.BERSERK },
+        }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.BERSERK })
+        mob:addGambit(ai.t.SELF, {
+            { ai.c.HPP_GTE, 75 },
+            { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.AGGRESSOR },
+        }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.AGGRESSOR })
+        mob:addGambit(ai.t.TARGET, {
+            { ai.c.IS_ECOSYSTEM, xi.ecosystem.UNDEAD },
+            { ai.c.CASTER_MPP_GTE, 75 },
+        }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.HOLY }, 30)
     end
 
     mob:setLocalVar('TrustParityValaineral', 1)

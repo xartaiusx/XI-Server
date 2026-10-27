@@ -4,6 +4,21 @@
 -- - BG Wiki Valaineral: PLD/WAR, Banish III, Palisade, Uriel Blade, support PLD kit.
 -- Keep this idempotent for dbtool.py update.
 
+-- Supply the shared definition for the approved Trust PLD100-JP unlock.
+-- Its action script admits developed Trusts only; no PC cast is activated.
+-- This data statement grants no learned character spell.
+-- MP/cast/recast/animation retain the source's previously disabled definition.
+-- Preserve any existing definition. Deployment must verify the exact row;
+-- a module refresh must never overwrite an unexpected definition.
+INSERT INTO `spell_list`
+    (`spellid`, `name`, `jobs`, `group`, `family`, `element`, `zonemisc`, `validTargets`, `skill`,
+     `mpCost`, `castTime`, `recastTime`, `message`, `magicBurstMessage`, `animation`, `animationTime`,
+     `AOE`, `base`, `multiplier`, `CE`, `VE`, `requirements`, `spell_range`, `radius`, `content_tag`, `status_effect`, `status_effect_tier`)
+SELECT
+    855, 'enlight_ii', 0x00000000000063000000000000000000000000000000, 6, 88, 7, 0, 1, 32,
+    36, 3000, 30000, 2, 252, 980, 4000, 0, 35, 1.00, 0, 0, 32, 0, 0, 'SOA', 274, 2
+WHERE NOT EXISTS (SELECT 1 FROM `spell_list` WHERE `spellid` = 855);
+
 INSERT INTO `mob_spell_lists` (`spell_list_name`, `spell_list_id`, `spell_id`, `min_level`, `max_level`)
 VALUES ('TRUST_Valaineral', 322, 30, 65, 255) -- Banish III
 ON DUPLICATE KEY UPDATE

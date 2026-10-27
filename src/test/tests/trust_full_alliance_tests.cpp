@@ -15,8 +15,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
+#include <limits>
 
 namespace
 {
@@ -226,4 +228,138 @@ TEST_CASE("Trust spawn member limits are state and lane aware", "[trust][spawn]"
     CHECK_FALSE(trustutils::ResolveTrustMemberLimit(authorized, State::Ready, Mode::RetailControl));
     CHECK_FALSE(trustutils::ResolveTrustMemberLimit(authorized, State::Ready, Mode::FullAllianceQualityAssurance));
     CHECK_FALSE(trustutils::ResolveTrustMemberLimit(ordinary, State::Spawning, Mode::FullAllianceQualityAssurance));
+}
+
+TEST_CASE("Ordinary Twills alliance admission requires exact authorization and idle solo context", "[trust][gameplay][policy]")
+{
+    using Mode          = trustutils::TwillsTrustEvidenceMode;
+    using State         = trustutils::TwillsFullAllianceState;
+    auto       context  = AuthorizedTwills();
+    const auto admitted = [&context](State state = State::Idle, Mode mode = Mode::Idle, bool solo = true)
+    {
+        return trustutils::CanUseTwillsTrustGameplay(context, state, mode, solo);
+    };
+    CHECK(admitted());
+    CHECK_FALSE(admitted(State::Idle, Mode::Idle, false));
+    for (const auto state : { State::Spawning, State::Ready, State::Failed, static_cast<State>(255) })
+    {
+        CHECK_FALSE(admitted(state));
+    }
+    for (const auto mode : { Mode::RetailControl, Mode::FullAllianceQualityAssurance, static_cast<Mode>(255) })
+    {
+        CHECK_FALSE(admitted(State::Idle, mode));
+    }
+
+    SECTION("exact name")
+    {
+        for (const auto name : { "twills", "Twills ", "Other", "" })
+        {
+            context.characterName = name;
+            CHECK_FALSE(admitted());
+        }
+    }
+    SECTION("actual and visible GM levels")
+    {
+        for (const auto level : { uint8{ 0 }, uint8{ 4 }, uint8{ 6 }, uint8{ 255 } })
+        {
+            context.actualGmLevel = level;
+            CHECK_FALSE(admitted());
+        }
+        context.actualGmLevel  = 5;
+        context.visibleGmLevel = 1;
+        CHECK_FALSE(admitted());
+    }
+    SECTION("exact persisted entitlement")
+    {
+        for (const auto entitlement : { -1, 0, 2 })
+        {
+            context.entitlement = entitlement;
+            CHECK_FALSE(admitted());
+        }
+    }
+    SECTION("feature and topology")
+    {
+        context.featureEnabled = false;
+        CHECK_FALSE(admitted());
+        context.featureEnabled = true;
+        for (const auto parties : { uint8{ 0 }, uint8{ 2 }, uint8{ 4 } })
+        {
+            context.maxParties = parties;
+            CHECK_FALSE(admitted());
+        }
+    }
+}
+
+TEST_CASE("Ordinary alliance projection switches at six and maps every occupied slot without overflow", "[trust][gameplay][projection]")
+{
+    using Mode          = trustutils::TwillsTrustEvidenceMode;
+    using State         = trustutils::TwillsFullAllianceState;
+    const auto context  = AuthorizedTwills();
+    const bool gameplay = trustutils::CanUseTwillsTrustGameplay(context, State::Idle, Mode::Idle, true);
+    REQUIRE(gameplay);
+
+    for (const auto members : { std::size_t{ 6 }, std::size_t{ 7 }, std::size_t{ 12 }, std::size_t{ 13 }, std::size_t{ 18 } })
+    {
+        CAPTURE(members);
+        std::array<std::array<bool, 6>, 3> occupied{};
+        std::array<std::size_t, 3>         totals{};
+        std::size_t                        trustCount = 0;
+        for (std::size_t index = 0; index < members; ++index)
+        {
+            const auto projection = trustutils::ResolveTrustPartyProjection(context, State::Idle, Mode::Idle, index, gameplay, members);
+            REQUIRE(projection);
+            CHECK(projection->kind == (members > 6 ? PartyKind::Alliance : PartyKind::Party));
+            CHECK(projection->slot.partyNo == index / 6);
+            CHECK(projection->slot.memberNo == index % 6);
+            CHECK_FALSE(occupied.at(projection->slot.partyNo).at(projection->slot.memberNo));
+            occupied.at(projection->slot.partyNo).at(projection->slot.memberNo) = true;
+            ++totals.at(projection->slot.partyNo);
+            trustCount += index > 0;
+        }
+        CHECK(trustCount == members - 1);
+        CHECK(totals[0] == 6);
+        CHECK(totals[1] == (members > 6 ? std::min<std::size_t>(members - 6, 6) : 0));
+        CHECK(totals[2] == (members > 12 ? members - 12 : 0));
+        CHECK_FALSE(trustutils::ResolveTrustPartyProjection(context, State::Idle, Mode::Idle, members, gameplay, members));
+    }
+    // One PC plus seventeen Trusts fills eighteen slots. An eighteenth Trust
+    // cannot acquire a projection, even if the supplied roster count is wrong.
+    CHECK_FALSE(trustutils::ResolveTrustPartyProjection(context, State::Idle, Mode::Idle, 18, gameplay, 18));
+    CHECK_FALSE(trustutils::ResolveTrustPartyProjection(context, State::Idle, Mode::Idle, 18, gameplay, 19));
+    CHECK_FALSE(trustutils::ResolveTrustPartyProjection(context, State::Idle, Mode::Idle, 0, gameplay, 19));
+    CHECK_FALSE(trustutils::ResolveTrustPartyProjection(context, State::Idle, Mode::Idle, 0, gameplay, 0));
+    CHECK_FALSE(trustutils::ResolveTrustPartyProjection(context, State::Idle, Mode::Idle, std::numeric_limits<std::size_t>::max(), gameplay, 18));
+}
+
+TEST_CASE("Ordinary expansion cannot increase retail or QA admission or bypass failed context", "[trust][gameplay][spawn]")
+{
+    using Mode         = trustutils::TwillsTrustEvidenceMode;
+    using State        = trustutils::TwillsFullAllianceState;
+    const auto context = AuthorizedTwills();
+    CHECK(trustutils::ResolveTrustMemberLimit(context, State::Idle, Mode::Idle, true) == 18);
+    CHECK(trustutils::ResolveTrustMemberLimit(context, State::Idle, Mode::Idle, false) == 6);
+    CHECK_FALSE(trustutils::ResolveTrustPartyProjection(context, State::Idle, Mode::Idle, 6, false, 18));
+
+    // Existing evidence lanes keep their previous independent semantics.
+    CHECK(trustutils::ResolveTrustMemberLimit(context, State::Spawning, Mode::RetailControl, true) == 6);
+    CHECK(trustutils::ResolveTrustMemberLimit(context, State::Spawning, Mode::FullAllianceQualityAssurance, true) == 18);
+    CHECK_FALSE(trustutils::ResolveTrustMemberLimit(context, State::Ready, Mode::RetailControl, true));
+    CHECK_FALSE(trustutils::ResolveTrustMemberLimit(context, State::Ready, Mode::FullAllianceQualityAssurance, true));
+    CHECK_FALSE(trustutils::ResolveTrustMemberLimit(context, State::Spawning, Mode::Idle, true));
+    CHECK_FALSE(trustutils::ResolveTrustMemberLimit(context, State::Failed, Mode::Idle, true));
+    CHECK_FALSE(trustutils::ResolveTrustPartyProjection(context, State::Ready, Mode::RetailControl, 6, true, 18));
+    const auto retail = trustutils::ResolveTrustPartyProjection(context, State::Ready, Mode::RetailControl, 5, true, 18);
+    REQUIRE(retail);
+    CHECK(retail->kind == PartyKind::Party);
+    const auto qa = trustutils::ResolveTrustPartyProjection(context, State::Ready, Mode::FullAllianceQualityAssurance, 17, true, 1);
+    REQUIRE(qa);
+    CHECK(qa->kind == PartyKind::Alliance);
+    CHECK(qa->slot.partyNo == 2);
+    CHECK(qa->slot.memberNo == 5);
+
+    auto unauthorized        = context;
+    unauthorized.entitlement = 0;
+    CHECK(trustutils::ResolveTrustMemberLimit(unauthorized, State::Idle, Mode::Idle, true) == 6);
+    CHECK_FALSE(trustutils::ResolveTrustPartyProjection(unauthorized, State::Idle, Mode::Idle, 6, true, 18));
+    CHECK_FALSE(trustutils::ResolveTrustMemberLimit(context, State::Idle, static_cast<Mode>(255), true));
 }

@@ -27,6 +27,7 @@
 #include "ai/controllers/trust_controller.h"
 #include "ai/helpers/pathfind.h"
 #include "ai/helpers/targetfind.h"
+#include "ai/states/death_state.h"
 #include "ai/states/magic_state.h"
 #include "ai/states/weaponskill_state.h"
 #include "data/enums/mob_mod.h"
@@ -35,11 +36,19 @@
 #include "enums/msg_basic.h"
 #include "lua/luautils.h"
 #include "packets/entity_set_name.h"
+#include "packets/s2c/0x028_battle2.h"
 #include "packets/s2c/0x0df_group_attr.h"
+#include "party.h"
 #include "recast_container.h"
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
+#include "utils/charutils.h"
+#include "utils/trust_job_development.h"
+#include "utils/trustutils.h"
 #include "zone.h"
+
+#include <algorithm>
+#include <limits>
 
 namespace
 {
@@ -72,7 +81,7 @@ CTrustEntity::~CTrustEntity()
     TracyZoneScoped;
 }
 
-auto CTrustEntity::trustID() -> uint32
+auto CTrustEntity::trustID() const -> uint32
 {
     return trustID_;
 }
@@ -96,6 +105,102 @@ void CTrustEntity::setReleased(bool released)
 auto CTrustEntity::passiveTrust() -> IsPassiveTrust
 {
     return passiveTrust_;
+}
+
+auto CTrustEntity::IsRetainedCorpse() const -> bool
+{
+    return retainedCorpse_;
+}
+
+auto CTrustEntity::CanReceiveRaise() const -> bool
+{
+    const auto* master = dynamic_cast<const CCharEntity*>(PMaster);
+    return retainedCorpse_ && health.hp == 0 && !released_ && trustdevelopment::IsEnabled(this) &&
+           master && loc.zone && master->loc.zone == loc.zone && master->PInstance == PInstance &&
+           master->status != xi::Status::Disappear && master->status != xi::Status::Shutdown &&
+           std::ranges::contains(master->PTrusts, this);
+}
+
+auto CTrustEntity::HasPendingRaise() const -> bool
+{
+    return pendingRaise_.has_value();
+}
+
+auto CTrustEntity::OfferRaise(TrustRaiseOptions options) -> bool
+{
+    auto* state = dynamic_cast<CDeathState*>(PAI->GetCurrentState());
+    if (!CanReceiveRaise() || HasPendingRaise() || !state || !trustrecovery::IsValid(options))
+    {
+        return false;
+    }
+
+    pendingRaise_ = options;
+    state->allowSendRaise();
+    return true;
+}
+
+auto CTrustEntity::OfferReraise(uint8 tier) -> bool
+{
+    const auto options = trustrecovery::ReraiseOptions(tier);
+    if (!CanReceiveRaise() || HasPendingRaise() || !trustrecovery::IsValid(options))
+    {
+        return false;
+    }
+
+    // The death state's existing eight-second Reraise delay remains in force.
+    pendingRaise_ = options;
+    return true;
+}
+
+auto CTrustEntity::CompleteRaise() -> bool
+{
+    if (!CanReceiveRaise() || !pendingRaise_)
+    {
+        return false;
+    }
+
+    const auto options = *pendingRaise_;
+    weaknessLevel_     = std::max<uint16>(weaknessLevel_, 1);
+    if (!StatusEffectContainer->AddStatusEffect(xi::StatusEffect::Weakness, static_cast<uint16>(xi::StatusEffect::Weakness), weaknessLevel_, 0s, trustrecovery::WeaknessDuration(options)))
+    {
+        return false;
+    }
+    pendingRaise_.reset();
+    // Native Weakness updates/clamps HP and MP. Raise returns HP, never refills MP.
+    addHP(trustrecovery::ReturnedHP(GetMaxHP(), options.tier));
+
+    if (options.grantReraiseIII)
+    {
+        StatusEffectContainer->AddStatusEffect(xi::StatusEffect::Reraise, static_cast<uint16>(xi::StatusEffect::Reraise), 3, 0s, 1h);
+    }
+
+    action_t action{ .actorId = id, .actiontype = ActionCategory::MagicFinish };
+    auto&    result = action.addTarget(id).addResult();
+    switch (options.tier)
+    {
+        case 1:
+            result.animation = ActionAnimation::Raise;
+            break;
+        case 2:
+            result.animation = ActionAnimation::Raise2;
+            break;
+        case 3:
+            result.animation = ActionAnimation::Raise3;
+            break;
+        case 4:
+            result.animation = ActionAnimation::Arise;
+            break;
+    }
+    trustutils::LogTrustActionPacket(this, action, this, "trust_raise_finish");
+    loc.zone->PushPacket(this, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
+    updatemask |= UPDATE_HP;
+    return true;
+}
+
+void CTrustEntity::FinishRaise()
+{
+    retainedCorpse_ = false;
+    pendingRaise_.reset();
 }
 
 void CTrustEntity::PostTick()
@@ -130,16 +235,69 @@ void CTrustEntity::FadeOut()
 
 void CTrustEntity::Die()
 {
+    retainedCorpse_ = trustdevelopment::IsEnabled(this);
+    pendingRaise_.reset();
+    if (retainedCorpse_)
+    {
+        if (const auto* weakness = StatusEffectContainer->GetStatusEffect(xi::StatusEffect::Weakness))
+        {
+            weaknessLevel_ = static_cast<uint16>(std::min<uint32>(static_cast<uint32>(weakness->GetPower()) + 1, std::numeric_limits<uint16>::max()));
+            StatusEffectContainer->DelStatusEffectSilent(xi::StatusEffect::Weakness);
+        }
+        else
+        {
+            weaknessLevel_ = 0;
+        }
+    }
+
     luautils::OnMobDeath(this, nullptr);
     PEnmityContainer->Clear();
+    PAI->ClearActionQueue();
+    PAI->ClearTimerQueue();
     PAI->ClearStateStack();
-    PAI->Internal_Die(0s);
-    static_cast<CCharEntity*>(PMaster)->RemoveTrust(this);
-    m_OwnerID.clean();
+    health.tp = 0;
+    PAI->Internal_Die(retainedCorpse_ ? trustrecovery::CorpseLifetime : 0s);
+    if (retainedCorpse_)
+    {
+        const uint8 reraise = getMod(xi::Mod::RERAISE_III) > 0 ? 3 : getMod(xi::Mod::RERAISE_II) > 0 ? 2
+                                                                 : getMod(xi::Mod::RERAISE_I) > 0    ? 1
+                                                                                                     : 0;
+        if (reraise != 0 && (!pendingRaise_ || pendingRaise_->tier < reraise))
+        {
+            pendingRaise_ = trustrecovery::ReraiseOptions(reraise);
+        }
+    }
+    if (!retainedCorpse_)
+    {
+        static_cast<CCharEntity*>(PMaster)->RemoveTrust(this);
+    }
 
-    // NOTE: This is purposefully calling CBattleEntity's impl.
-    // TODO: Calling a grand-parent's impl. of an overridden function is bad
+    // Preserve native death-listener semantics, then retain the exact owner identity.
+    const auto owner = m_OwnerID;
+    m_OwnerID.clean();
     CBattleEntity::Die();
+    if (retainedCorpse_)
+    {
+        m_OwnerID = owner;
+    }
+}
+
+void CTrustEntity::OnDeathTimer()
+{
+    if (retainedCorpse_)
+    {
+        FinishRaise();
+        if (auto* master = dynamic_cast<CCharEntity*>(PMaster))
+        {
+            master->RemoveTrust(this);
+        }
+        else
+        {
+            PAI->Despawn();
+        }
+        return;
+    }
+    CMobEntity::OnDeathTimer();
 }
 
 void CTrustEntity::Spawn()
@@ -166,6 +324,37 @@ bool CTrustEntity::ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags)
     if (passiveTrust_)
     {
         return false;
+    }
+
+    if (isDead())
+    {
+        if (!(targetFlags & TARGET_PLAYER_DEAD) || !CanReceiveRaise() || HasPendingRaise() || !PInitiator ||
+            PInitiator->allegiance != allegiance || PInitiator->loc.zone != loc.zone ||
+            PInitiator->PInstance != PInstance || PInitiator->PBattlefield != PBattlefield ||
+            PInitiator->StatusEffectContainer->GetConfrontationEffect() != StatusEffectContainer->GetConfrontationEffect())
+        {
+            return false;
+        }
+        auto* master = static_cast<CCharEntity*>(PMaster);
+        if (auto* player = dynamic_cast<CCharEntity*>(PInitiator))
+        {
+            return !charutils::IsAidBlocked(player, master);
+        }
+        if (PInitiator->objtype != TYPE_TRUST)
+        {
+            return false;
+        }
+        auto* otherMaster = dynamic_cast<CCharEntity*>(PInitiator->PMaster);
+        if (otherMaster == master)
+        {
+            return true;
+        }
+        if (!otherMaster || !master->PParty || !otherMaster->PParty)
+        {
+            return false;
+        }
+        return master->PParty == otherMaster->PParty ||
+               (master->PParty->m_PAlliance && master->PParty->m_PAlliance == otherMaster->PParty->m_PAlliance);
     }
 
     if (PInitiator->objtype == TYPE_TRUST && PMaster == PInitiator->PMaster)

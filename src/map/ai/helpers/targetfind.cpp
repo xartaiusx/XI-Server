@@ -31,6 +31,8 @@
 #include "entities/mob_entity.h"
 #include "entities/trust_entity.h"
 #include "status_effect_container.h"
+#include "utils/trust_job_development.h"
+#include "utils/trustutils.h"
 #include "utils/zoneutils.h"
 
 CTargetFind::CTargetFind(CBattleEntity* PBattleEntity)
@@ -601,8 +603,19 @@ bool CTargetFind::validEntity(CBattleEntity* PTarget)
             }
             else if (m_findType == FIND_TYPE::MONSTER_MONSTER || m_findType == FIND_TYPE::PLAYER_PLAYER)
             {
-                // Allow Trusts and summoner/jug pets in party-targeted AoEs
-                return PTarget->objtype == TYPE_TRUST || PTarget->objtype == TYPE_PET;
+                // Preserve legacy party-targeted pet behavior. Qualified Trust
+                // recipients continue through the existing horizontal-radius check.
+                if (PTarget->objtype != TYPE_TRUST)
+                {
+                    return PTarget->objtype == TYPE_PET;
+                }
+                const bool qualifiedOrdinary  = trustutils::CanUseTwillsTrustGameplay(dynamic_cast<CCharEntity*>(PTarget->PMaster));
+                const bool qualifiedDeveloped = trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(m_PBattleEntity)) ||
+                                                trustdevelopment::IsEnabled(static_cast<CTrustEntity*>(PTarget));
+                if (!qualifiedOrdinary && !qualifiedDeveloped)
+                {
+                    return true;
+                }
             }
         }
     }

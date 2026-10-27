@@ -1,5 +1,11 @@
 # Generated sources: version.cpp, the IPC stubs, and the enum/data codegen under build/generated.
 
+set(XI_SCHEMA_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/data/schemas" CACHE PATH "Generated data schemas and schema-validation input directory")
+set(XI_LUA_ENUM_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/scripts/enum" CACHE PATH "Generated Lua enum directory")
+set(XI_CODEGEN_OUTPUT_ARGS
+    --schema-output-dir "${XI_SCHEMA_OUTPUT_DIR}"
+    --lua-enum-output-dir "${XI_LUA_ENUM_OUTPUT_DIR}")
+
 configure_file(${CMAKE_SOURCE_DIR}/src/common/version.cpp.in
                ${CMAKE_BINARY_DIR}/generated/version.cpp)
 
@@ -45,7 +51,7 @@ set(ENUM_CODEGEN_STAMP ${CMAKE_BINARY_DIR}/generated/.enum_codegen.stamp)
 if(NOT EXISTS ${ENUM_CODEGEN_STAMP})
     message(STATUS "Bootstrapping enum codegen")
     execute_process(
-        COMMAND ${Python_EXECUTABLE} -m tools.codegen ${CMAKE_BINARY_DIR}
+        COMMAND ${Python_EXECUTABLE} -m tools.codegen ${CMAKE_BINARY_DIR} ${XI_CODEGEN_OUTPUT_ARGS}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         RESULT_VARIABLE codegen_exit_code
     )
@@ -55,7 +61,7 @@ if(NOT EXISTS ${ENUM_CODEGEN_STAMP})
 endif()
 
 add_custom_target(enum_codegen
-    COMMAND ${Python_EXECUTABLE} -m tools.codegen ${CMAKE_BINARY_DIR}
+    COMMAND ${Python_EXECUTABLE} -m tools.codegen ${CMAKE_BINARY_DIR} ${XI_CODEGEN_OUTPUT_ARGS}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     BYPRODUCTS ${ENUM_CODEGEN_STAMP}
     USES_TERMINAL

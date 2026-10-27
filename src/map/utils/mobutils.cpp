@@ -162,7 +162,7 @@ auto GetSpeciesData(const uint16 speciesId) -> const SpeciesInfo&
  *                                                                       *
  ************************************************************************/
 
-uint16 GetBaseWeaponDamage(CMobEntity* PMob, uint16 slot)
+uint16 GetBaseWeaponDamage(CMobEntity* PMob, uint16 slot, uint8 statLevel)
 {
     // https://docs.google.com/spreadsheets/d/1YBoveP-weMdidrirY-vPDzHyxbEI2ryECINlfCnFkLI/edit?pli=1&gid=1743955268#gid=1743955268
     // Basic base damage formulas for reference:
@@ -176,7 +176,7 @@ uint16 GetBaseWeaponDamage(CMobEntity* PMob, uint16 slot)
     // without double dipping damage modifiers while also being able to see updated damage values with prints/getstats commands.
 
     auto   mobZoneId    = PMob->getZone();
-    uint16 mobLvl       = PMob->GetMLevel();
+    uint16 mobLvl       = statLevel ? statLevel : PMob->GetMLevel();
     int8   offset       = 0;
     int8   rangedOffset = 0;
     uint16 damage       = mobLvl;
@@ -283,9 +283,9 @@ uint16 GetBaseWeaponDamage(CMobEntity* PMob, uint16 slot)
 }
 
 // Get base skill rankings for ACC/ATT/EVA/MEVA
-uint16 GetBaseSkill(CMobEntity* PMob, uint8 rank)
+uint16 GetBaseSkill(CMobEntity* PMob, uint8 rank, uint8 statLevel)
 {
-    int8 mlvl = PMob->GetMLevel();
+    int8 mlvl = statLevel ? statLevel : PMob->GetMLevel();
 
     switch (rank)
     {
@@ -305,9 +305,9 @@ uint16 GetBaseSkill(CMobEntity* PMob, uint8 rank)
     return 0;
 }
 
-uint16 GetMagicEvasion(CMobEntity* PMob)
+uint16 GetMagicEvasion(CMobEntity* PMob, uint8 statLevel)
 {
-    uint8 mlvl = std::min<uint8>(PMob->GetMLevel(), 99);
+    uint8 mlvl = std::min<uint8>(statLevel ? statLevel : PMob->GetMLevel(), 99);
 
     // Assume trusts have G rank meva like players
     if (PMob->objtype == TYPE_TRUST)

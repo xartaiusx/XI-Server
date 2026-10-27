@@ -21,6 +21,7 @@
 
 #include "trust_controller.h"
 
+#include "ability.h"
 #include "ai/helpers/gambits_container.h"
 #include "ai/states/magic_state.h"
 #include "ai/states/range_state.h"
@@ -36,11 +37,14 @@
 #include "packets/basic.h"
 #include "player_controller.h"
 #include "recast_container.h"
+#include "utils/battleutils.h"
 #include "utils/charutils.h"
+#include "utils/trust_job_development.h"
 #include "utils/trustutils.h"
 #include "zone.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <limits>
 #include <string>
@@ -796,7 +800,7 @@ auto CTrustController::Tick(timer::time_point tick) -> Task<void>
 
     auto* PTrust = static_cast<CTrustEntity*>(POwner);
 
-    if (!PTrust->PMaster)
+    if (!PTrust->PMaster || PTrust->isDead())
     {
         co_return;
     }
@@ -804,6 +808,16 @@ auto CTrustController::Tick(timer::time_point tick) -> Task<void>
     if (PTrust->PMaster->isCharmed)
     {
         this->Despawn();
+        co_return;
+    }
+
+    if (PTrust->PMaster->isDead())
+    {
+        TryRecoveryTick(tick);
+        co_return;
+    }
+    if (!POwner->PAI->IsEngaged() && TryRecoveryTick(tick))
+    {
         co_return;
     }
 
@@ -823,6 +837,66 @@ auto CTrustController::Tick(timer::time_point tick) -> Task<void>
     }
 
     co_return;
+}
+
+auto CTrustController::TryRecoveryTick(timer::time_point tick) -> bool
+{
+    auto* trust  = static_cast<CTrustEntity*>(POwner);
+    auto* master = dynamic_cast<CCharEntity*>(trust->PMaster);
+    if (!trustdevelopment::IsEnabled(trust) || !master || trust->isDead() ||
+        !POwner->PAI->CanChangeState() || tick < m_LastRecoveryTime + 3s ||
+        !CanCastSpells(IgnoreRecastsAndCosts::No))
+    {
+        return false;
+    }
+    m_LastRecoveryTime = tick;
+
+    // Bounded to this master's PC and attached Trusts, never a zone scan or an
+    // unrestricted gambit tick (which could select a hostile TP action first).
+    const auto tryTarget = [&](CBattleEntity* recipient) -> bool
+    {
+        if (!recipient || !recipient->isDead() || recipient->loc.zone != trust->loc.zone ||
+            recipient->PInstance != trust->PInstance || recipient->getBattleID() != trust->getBattleID())
+        {
+            return false;
+        }
+        if (auto* corpse = dynamic_cast<CTrustEntity*>(recipient))
+        {
+            if (!corpse->CanReceiveRaise() || corpse->HasPendingRaise())
+            {
+                return false;
+            }
+        }
+        else if (recipient != master || master->m_hasRaise != 0)
+        {
+            return false;
+        }
+
+        static constexpr std::array raiseSpells{ SpellID::Arise, SpellID::Raise_III, SpellID::Raise_II, SpellID::Raise };
+        for (const auto spellId : raiseSpells)
+        {
+            auto* PSpell = spell::GetSpell(spellId);
+            if (PSpell && trust->CanUseSpell(PSpell) && battleutils::CanAffordSpell(trust, PSpell, PSpell->getFlag()) &&
+                distance(trust->loc.p, recipient->loc.p) <= PSpell->getRange() + trust->modelHitboxSize + recipient->modelHitboxSize &&
+                Cast(recipient->entityId(), spellId))
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+    if (tryTarget(master))
+    {
+        return true;
+    }
+    for (auto* recipient : master->PTrusts)
+    {
+        if (tryTarget(recipient))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 auto CTrustController::DoCombatTick(timer::time_point tick) -> Task<void>
@@ -1477,7 +1551,20 @@ auto CTrustController::Ability(const EntityId target, uint16 abilityid) -> bool
 {
     TracyZoneScoped;
 
-    if (POwner->PRecastContainer->HasRecast(RECAST_ABILITY, static_cast<Recast>(abilityid), 0s))
+    if (POwner->isDead() || !POwner->PMaster || POwner->PMaster->isDead())
+    {
+        return false;
+    }
+    const auto* trust     = static_cast<CTrustEntity*>(POwner);
+    auto*       PAbility  = ability::GetAbility(abilityid);
+    const bool  developed = trustdevelopment::IsEnabled(trust);
+    if (developed && (!PAbility || !trustdevelopment::HasMainJobAccess(POwner, PAbility->getJob()) ||
+                      trustdevelopment::GetActionJobLevel(POwner, PAbility->getJob()) < PAbility->getLevel()))
+    {
+        return false;
+    }
+    const auto recast = developed ? PAbility->getRecastId() : static_cast<Recast>(abilityid);
+    if (POwner->PRecastContainer->HasRecast(RECAST_ABILITY, recast, 0s))
     {
         return false;
     }
@@ -1493,6 +1580,11 @@ auto CTrustController::Ability(const EntityId target, uint16 abilityid) -> bool
 auto CTrustController::RangedAttack(const EntityId target) -> bool
 {
     TracyZoneScoped;
+
+    if (POwner->isDead() || !POwner->PMaster || POwner->PMaster->isDead())
+    {
+        return false;
+    }
 
     timer::duration rangedDelay = 10s;
     if (const CItemWeapon* PRange = dynamic_cast<CItemWeapon*>(POwner->m_Weapons[SLOT_RANGED]))
@@ -1516,6 +1608,16 @@ auto CTrustController::Cast(const EntityId target, SpellID spellid) -> bool
 {
     TracyZoneScoped;
 
+    if (POwner->isDead() || !POwner->PMaster)
+    {
+        return false;
+    }
+    const bool recoverySpell = spellid == SpellID::Raise || spellid == SpellID::Raise_II ||
+                               spellid == SpellID::Raise_III || spellid == SpellID::Arise;
+    if (POwner->PMaster->isDead() && (!trustdevelopment::IsEnabled(static_cast<CTrustEntity*>(POwner)) || !recoverySpell))
+    {
+        return false;
+    }
     FaceTarget(target);
 
     if (POwner->PRecastContainer->Has(RECAST_MAGIC, static_cast<Recast>(spellid)))
@@ -1524,6 +1626,10 @@ auto CTrustController::Cast(const EntityId target, SpellID spellid) -> bool
     }
 
     auto* PSpell = spell::GetSpell(spellid);
+    if (!PSpell)
+    {
+        return false;
+    }
 
     const auto castTarget = PSpell->getValidTarget() == TARGET_SELF ? EntityId(POwner) : target;
     const auto PTarget    = castTarget.resolve<CBattleEntity>();

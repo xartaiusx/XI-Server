@@ -77,6 +77,9 @@
 #include "status_effect_container.h"
 #include "trait.h"
 #include "utils/petutils.h"
+#include "utils/trust_holy_circle.h"
+#include "utils/trust_job_development.h"
+#include "utils/trust_weapon_skills.h"
 #include "weapon_skill.h"
 #include "ximesh/ximesh.h"
 #include "zoneutils.h"
@@ -804,7 +807,7 @@ int32 CalculateEnspellDamage(CBattleEntity* PAttacker, CBattleEntity* PDefender,
 
     damage = (int32)(damage * resist);
     damage = (int32)(damage * dBonus);
-    damage = MagicDmgTaken(PDefender, damage, (ELEMENT)(element));
+    damage = MagicDmgTaken(PDefender, damage, (ELEMENT)(element), PAttacker);
 
     if (damage > 0)
     {
@@ -846,7 +849,7 @@ auto CalculateSpikeDamage(CBattleEntity* PAttacker, CBattleEntity* PDefender, ac
         spikeElement = ELEMENT::ELEMENT_FIRE;
     }
 
-    damage = MagicDmgTaken(PAttacker, damage, spikeElement); // apply MDT/MDT2/DT, liement to whoever is taking damage
+    damage = MagicDmgTaken(PAttacker, damage, spikeElement, PDefender); // apply MDT/MDT2/DT, liement to whoever is taking damage
 
     if (damage < 0) // apply heal message
     {
@@ -862,11 +865,16 @@ auto HandleSpikesDamage(CBattleEntity* PAttacker, CBattleEntity* PDefender, acti
     Action->spikesMessage = MsgBasic::SpikesEffectDmg;
     Action->spikesParam   = std::max<int16>(PDefender->getMod(xi::Mod::SPIKES_DMG), 0);
 
+    // Job-point chance applies only to an approved Trust's Retaliation action.
+    const bool developedRetaliation = trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(PDefender)) &&
+                                      PDefender->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Retaliation);
+    const int  retaliationBonus     = developedRetaliation ? trustdevelopment::GetJobPointLevel(PDefender, JP_RETALIATION_EFFECT) : 0;
+
     // Handle Retaliation
     if (!PAttacker->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::PerfectDodge) &&
         PDefender->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Retaliation) &&
         PDefender->PAI->IsEngaged() &&
-        battleutils::GetHitRate(PDefender, PAttacker) / 2 > xirand::GetRandomNumber(100) && facing(PDefender->loc.p, PAttacker->loc.p, 64))
+        std::clamp(battleutils::GetHitRate(PDefender, PAttacker) / 2 + retaliationBonus, 0, 100) > xirand::GetRandomNumber(100) && facing(PDefender->loc.p, PAttacker->loc.p, 64))
     {
         // Retaliation rate is based on player acc vs mob evasion. Missed retaliations do not even display in log.
         // Other theories exist but were not proven or reliably tested (I have to assume too many things to even consider JP translations about weapon
@@ -898,15 +906,30 @@ auto HandleSpikesDamage(CBattleEntity* PAttacker, CBattleEntity* PDefender, acti
                 charutils::TrySkillUP(PChar, skilltype, PAttacker->GetMLevel());
             }
 
+            if (developedRetaliation)
+            {
+                if (auto* weapon = dynamic_cast<CItemWeapon*>(PDefender->m_Weapons[SLOT_MAIN]))
+                {
+                    skilltype = weapon->getSkillType();
+                }
+                else
+                {
+                    skilltype = xi::SkillType::HandToHand;
+                }
+            }
+
             // Check if crit
             const bool crit = battleutils::GetCritHitRate(PDefender, PAttacker, true) > xirand::GetRandomNumber(100);
 
             // Dmg math.
             const float DamageRatio = GetDamageRatio(PDefender, PAttacker, crit, 1.0f, skilltype, SLOT_MAIN, false);
             uint16      dmg         = static_cast<uint32>((PDefender->GetMainWeaponDmg() + battleutils::GetFSTR(PDefender, PAttacker, SLOT_MAIN)) * DamageRatio);
-            dmg                     = attackutils::CheckForDamageMultiplier(static_cast<CCharEntity*>(PDefender), dynamic_cast<CItemWeapon*>(PDefender->m_Weapons[SLOT_MAIN]), dmg, PHYSICAL_ATTACK_TYPE::NORMAL, SLOT_MAIN);
-            const uint16 bonus      = std::floor<uint16>(static_cast<float>(dmg) * (static_cast<float>(PDefender->getMod(xi::Mod::RETALIATION)) / 100.f));
-            dmg                     = dmg + bonus;
+            if (auto* player = dynamic_cast<CCharEntity*>(PDefender))
+            {
+                dmg = attackutils::CheckForDamageMultiplier(player, dynamic_cast<CItemWeapon*>(PDefender->m_Weapons[SLOT_MAIN]), dmg, PHYSICAL_ATTACK_TYPE::NORMAL, SLOT_MAIN);
+            }
+            const uint16 bonus = std::floor<uint16>(static_cast<float>(dmg) * (static_cast<float>(PDefender->getMod(xi::Mod::RETALIATION)) / 100.f));
+            dmg                = dmg + bonus;
 
             // TP and stoneskin are handled inside TakePhysicalDamage
             Action->spikesMessage = MsgBasic::RetaliateDamage;
@@ -2004,6 +2027,7 @@ bool TryInterruptSpell(CBattleEntity* PAttacker, CBattleEntity* PDefender, CSpel
 
 auto TakePhysicalDamage(CBattleEntity* PAttacker, CBattleEntity* PDefender, PHYSICAL_ATTACK_TYPE physicalAttackType, int32 damage, bool isBlocked, uint8 slot, uint16 tpMultiplier, CBattleEntity* taChar, bool giveTPtoVictim, bool giveTPtoAttacker, bool isCounter, bool isCovered, CBattleEntity* POriginalTarget) -> int32
 {
+    damage                    = trustholycircle::Apply(PAttacker, PDefender, damage);
     auto* weapon              = GetEntityWeapon(PAttacker, (SLOTTYPE)slot);
     giveTPtoAttacker          = giveTPtoAttacker && !PAttacker->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::MeikyoShisui);
     giveTPtoVictim            = giveTPtoVictim && physicalAttackType != PHYSICAL_ATTACK_TYPE::DAKEN;
@@ -2606,6 +2630,11 @@ uint8 GetCritHitRate(CBattleEntity* PAttacker, CBattleEntity* PDefender, bool ig
             critHitRate -= PChar->PMeritPoints->GetMeritValue(xi::Merit::EnemyCritRate, PChar);
         }
 
+        if (trustweaponskills::HasFencerWeapon(PAttacker))
+        {
+            critHitRate += PAttacker->getMod(xi::Mod::FENCER_CRITHITRATE);
+        }
+
         // Check for Innin crit rate bonus from behind target
         if (PAttacker->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Innin) && behind(PAttacker->loc.p, PDefender->loc.p, 64))
         {
@@ -2737,7 +2766,7 @@ int8 GetAGICritBonus(CBattleEntity* PAttacker, CBattleEntity* PDefender)
  *                                                                       *
  ************************************************************************/
 
-float GetDamageRatio(CBattleEntity* PAttacker, CBattleEntity* PDefender, bool isCritical, float bonusAttPercent, xi::SkillType weaponType, SLOTTYPE weaponSlot, bool isCannonball)
+float GetDamageRatio(CBattleEntity* PAttacker, CBattleEntity* PDefender, bool isCritical, float bonusAttPercent, xi::SkillType weaponType, SLOTTYPE weaponSlot, bool isCannonball, int32 flatAttackBonus)
 {
     float pDIF = 1.0f;
 
@@ -2754,7 +2783,7 @@ float GetDamageRatio(CBattleEntity* PAttacker, CBattleEntity* PDefender, bool is
             return pDIF;
         }
 
-        auto meleePDIFFuncResult = meleePDIFFunc(PAttacker, PDefender, weaponType, bonusAttPercent, isCritical, levelCorrectionResult.get<bool>(0), false, 0.0, false, weaponSlot, false);
+        auto meleePDIFFuncResult = meleePDIFFunc(PAttacker, PDefender, weaponType, bonusAttPercent, isCritical, levelCorrectionResult.get<bool>(0), false, 0.0, false, weaponSlot, false, flatAttackBonus);
         if (!meleePDIFFuncResult.valid())
         {
             sol::error err = meleePDIFFuncResult;
@@ -3921,7 +3950,7 @@ void GenerateCureEnmity(CBattleEntity* PSource, CBattleEntity* PTarget, int32 am
 }
 
 // Generate enmity for all targets in range
-void GenerateInRangeEnmity(CBattleEntity* PSource, int32 CE, int32 VE)
+void GenerateInRangeEnmity(CBattleEntity* PSource, int32 CE, int32 VE, int32 specialEnmityBonus)
 {
     if (PSource == nullptr)
     {
@@ -3941,7 +3970,7 @@ void GenerateInRangeEnmity(CBattleEntity* PSource, int32 CE, int32 VE)
         {
             if (PCurrentMob->m_HiPCLvl > 0 && PCurrentMob->PEnmityContainer->HasID(PSource->id))
             {
-                PCurrentMob->PEnmityContainer->UpdateEnmity(PSource, CE, VE, false, false, false);
+                PCurrentMob->PEnmityContainer->UpdateEnmity(PSource, CE, VE, false, false, false, specialEnmityBonus);
             }
         }
     }
@@ -4447,8 +4476,9 @@ int32 CheckAndApplyDamageCap(int32 damage, CBattleEntity* PDefender)
 }
 
 // TODO: Study using lua functions.
-auto MagicDmgTaken(CBattleEntity* PDefender, int32 damage, ELEMENT element) -> int32
+auto MagicDmgTaken(CBattleEntity* PDefender, int32 damage, ELEMENT element, CBattleEntity* PAttacker) -> int32
 {
+    damage               = trustholycircle::Apply(PAttacker, PDefender, damage);
     xi::Mod absorb[8]    = { xi::Mod::FIRE_ABSORB, xi::Mod::ICE_ABSORB, xi::Mod::WIND_ABSORB, xi::Mod::EARTH_ABSORB, xi::Mod::LTNG_ABSORB, xi::Mod::WATER_ABSORB, xi::Mod::LIGHT_ABSORB, xi::Mod::DARK_ABSORB };
     xi::Mod nullarray[8] = { xi::Mod::FIRE_NULL, xi::Mod::ICE_NULL, xi::Mod::WIND_NULL, xi::Mod::EARTH_NULL, xi::Mod::LTNG_NULL, xi::Mod::WATER_NULL, xi::Mod::LIGHT_NULL, xi::Mod::DARK_NULL };
 
@@ -6011,6 +6041,12 @@ int16 CalculateWeaponSkillTP(CBattleEntity* PEntity, CWeaponSkill* PWeaponSkill,
         }
     }
 
+    if (PWeaponSkill->getType() != static_cast<uint8>(xi::SkillType::Archery) &&
+        PWeaponSkill->getType() != static_cast<uint8>(xi::SkillType::Marksmanship) && trustweaponskills::HasFencerWeapon(PEntity))
+    {
+        tp += PEntity->getMod(xi::Mod::FENCER_TP_BONUS);
+    }
+
     return std::min(tp, (int16)3000);
 }
 
@@ -6232,13 +6268,13 @@ auto GetRuneEnhancementElement(xi::StatusEffect runeEffect) -> ELEMENT
     }
 }
 
-CBattleEntity* GetCoverAbilityUser(CBattleEntity* PCoverAbilityTarget, CBattleEntity* PMob)
+CBattleEntity* GetCoverAbilityUser(CBattleEntity* PCoverAbilityTarget, CBattleEntity* PMob, bool allowDevelopedTrust)
 {
     CBattleEntity* PCoverAbilityUser    = nullptr;
     uint32         coverAbilityTargetID = PCoverAbilityTarget->id;
 
-    // If the cover ability target is in a party, try to find a cover ability user
-    if (PCoverAbilityTarget->PParty != nullptr)
+    // Preserve native PC protectors for native PC recipients only.
+    if (dynamic_cast<CCharEntity*>(PCoverAbilityTarget) != nullptr && PCoverAbilityTarget->PParty != nullptr)
     {
         for (auto* PMember : PCoverAbilityTarget->PParty->members)
         {
@@ -6267,12 +6303,81 @@ CBattleEntity* GetCoverAbilityUser(CBattleEntity* PCoverAbilityTarget, CBattleEn
             }
         }
     }
+    if (!allowDevelopedTrust)
+    {
+        return nullptr;
+    }
+    // Preserve the native PC search above. Approved Trust protectors are attached
+    // to party PCs rather than included in PParty::members.
+    auto* owner = dynamic_cast<CCharEntity*>(PCoverAbilityTarget);
+    if (auto* protectedTrust = dynamic_cast<CTrustEntity*>(PCoverAbilityTarget))
+    {
+        owner = dynamic_cast<CCharEntity*>(protectedTrust->PMaster);
+    }
+    if (!owner || !PMob || !PCoverAbilityTarget->loc.zone || owner->loc.zone != PCoverAbilityTarget->loc.zone ||
+        owner->PInstance != PCoverAbilityTarget->PInstance || PMob->loc.zone != PCoverAbilityTarget->loc.zone || PMob->PInstance != PCoverAbilityTarget->PInstance)
+    {
+        return nullptr;
+    }
+
+    std::size_t inspectedTrusts = 0;
+    auto        findTrust       = [&](CCharEntity* member) -> CTrustEntity*
+    {
+        if (!member || member->loc.zone != PCoverAbilityTarget->loc.zone || member->PInstance != PCoverAbilityTarget->PInstance)
+        {
+            return nullptr;
+        }
+        for (auto* trust : member->PTrusts)
+        {
+            if (inspectedTrusts++ >= 17)
+            {
+                return nullptr;
+            }
+            if (!trust || trust == PCoverAbilityTarget || trust->PMaster != member || !trustdevelopment::IsEnabled(trust) ||
+                !trust->isAlive() || trust->loc.zone != PCoverAbilityTarget->loc.zone || trust->PInstance != PCoverAbilityTarget->PInstance ||
+                trust->PBattlefield != PCoverAbilityTarget->PBattlefield || trust->allegiance != PCoverAbilityTarget->allegiance ||
+                trust->StatusEffectContainer->GetConfrontationEffect() != PCoverAbilityTarget->StatusEffectContainer->GetConfrontationEffect() ||
+                trust->GetLocalVar("COVER_ABILITY_TARGET") != coverAbilityTargetID ||
+                !trust->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Cover))
+            {
+                continue;
+            }
+            const auto angle = worldAngle(PMob->loc.p, trust->loc.p);
+            const auto dist  = distance(trust->loc.p, PMob->loc.p);
+            if (dist <= PMob->GetMeleeRange(trust) && dist >= worldAngleMinDistance &&
+                dist < distance(PCoverAbilityTarget->loc.p, PMob->loc.p) && areInLine(angle, PMob, PCoverAbilityTarget))
+            {
+                return trust;
+            }
+        }
+        return nullptr;
+    };
+    if (owner->PParty)
+    {
+        std::size_t inspectedMembers = 0;
+        for (auto* member : owner->PParty->members)
+        {
+            if (inspectedMembers++ >= 6 || inspectedTrusts >= 17)
+            {
+                break;
+            }
+            if (auto* trust = findTrust(dynamic_cast<CCharEntity*>(member)))
+            {
+                return trust;
+            }
+        }
+    }
+    else if (auto* trust = findTrust(owner))
+    {
+        return trust;
+    }
     return nullptr;
 }
 
-bool IsMagicCovered(CCharEntity* PCoverAbilityUser)
+bool IsMagicCovered(CBattleEntity* PCoverAbilityUser)
 {
-    return PCoverAbilityUser != nullptr && PCoverAbilityUser->getMod(xi::Mod::COVER_MAGIC_AND_RANGED) == 1;
+    // Developed Trusts have no modeled gear granting magic/ranged Cover.
+    return dynamic_cast<CCharEntity*>(PCoverAbilityUser) != nullptr && PCoverAbilityUser->getMod(xi::Mod::COVER_MAGIC_AND_RANGED) == 1;
 }
 
 void ConvertDmgToMP(CBattleEntity* PDefender, int32 damage, bool IsCovered)

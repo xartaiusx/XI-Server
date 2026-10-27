@@ -27,12 +27,15 @@
 #include "ai/ai_container.h"
 #include "entities/battle_entity.h"
 #include "entities/char_entity.h"
+#include "entities/trust_entity.h"
 #include "enums/msg_basic.h"
 #include "packets/s2c/0x028_battle2.h"
 #include "packets/s2c/0x029_battle_message.h"
 #include "roe.h"
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
+#include "utils/trust_job_development.h"
+#include "utils/trust_weapon_skills.h"
 #include "utils/trustutils.h"
 #include "utils/zoneutils.h"
 #include "weapon_skill.h"
@@ -49,6 +52,11 @@ auto CWeaponSkillState::init() -> StateErrorOr<void>
 {
     auto* skill = battleutils::GetWeaponSkill(m_wsid);
     if (!skill)
+    {
+        return Error{ std::make_unique<GP_SERV_COMMAND_BATTLE_MESSAGE>(m_PEntity, m_PEntity, 0, 0, MsgBasic::CannotUseWeaponskill) };
+    }
+
+    if (auto* trust = dynamic_cast<CTrustEntity*>(m_PEntity); trustdevelopment::IsEnabled(trust) && !trustweaponskills::CanUse(trust, skill))
     {
         return Error{ std::make_unique<GP_SERV_COMMAND_BATTLE_MESSAGE>(m_PEntity, m_PEntity, 0, 0, MsgBasic::CannotUseWeaponskill) };
     }
@@ -143,7 +151,9 @@ auto CWeaponSkillState::Update(const timer::time_point tick) -> bool
         CBattleEntity* PTarget = target().resolve<CBattleEntity>();
         action_t       action;
 
-        if (PTarget && PTarget->isAlive())
+        auto*      trust     = dynamic_cast<CTrustEntity*>(m_PEntity);
+        const bool permitted = !trustdevelopment::IsEnabled(trust) || trustweaponskills::CanUse(trust, m_PSkill.get());
+        if (PTarget && PTarget->isAlive() && permitted)
         {
             SpendCost();
 

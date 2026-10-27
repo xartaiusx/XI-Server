@@ -81,6 +81,7 @@ endif()
 # The exe records the build-tree PDB path, so this is for running without the build tree. About a second per link.
 option(STAGE_PDB "Copy MSVC PDBs next to the staged binaries in the source root." ON)
 message(STATUS "STAGE_PDB: ${STAGE_PDB}")
+option(STAGE_BINARIES "Copy executables and debug artifacts into the source root after building." ON)
 
 set(XI_PCH ${CMAKE_SOURCE_DIR}/src/common/pch.h)
 
@@ -122,6 +123,10 @@ function(xi_stage_in_repo_root target)
     set_target_properties(${target} PROPERTIES
         DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+    if(NOT STAGE_BINARIES)
+        return()
+    endif()
 
     message(STATUS "${target}: staging build artifact to ${CMAKE_SOURCE_DIR} after build")
     add_custom_command(TARGET ${target} POST_BUILD

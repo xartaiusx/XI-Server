@@ -43,10 +43,13 @@
 #include "data/loader.h"
 #include "mobutils.h"
 #include "roe.h"
+#include "trust_job_development.h"
+#include "trust_weapon_skills.h"
 #include "zoneutils.h"
 
 #include "alliance.h"
 #include "grades.h"
+#include "mob_spell_container.h"
 #include "mob_spell_list.h"
 #include "party.h"
 
@@ -64,6 +67,7 @@
 #include "items/item_weapon.h"
 #include "mobskill.h"
 #include "status_effect_container.h"
+#include "trait.h"
 #include "weapon_skill.h"
 #include "zone.h"
 
@@ -73,10 +77,48 @@
 
 void BuildTrustData(uint32 TrustID);
 auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*;
-void LoadTrustStatsAndSkills(CTrustEntity* PTrust);
+void LoadTrustStatsAndSkills(CTrustEntity* PTrust, bool refresh = false);
+void AppendDevelopedWeaponSkills(CTrustEntity* PTrust);
 
 namespace
 {
+
+// Only the native base contribution is replaced on a scaling refresh. Earned
+// AEP/Unity additions and active effect modifiers remain owned by their paths.
+template <typename T>
+void SetTrustBase(CTrustEntity* PTrust, const char* key, T& destination, T next, bool refresh)
+{
+    if (trustdevelopment::IsEnabled(PTrust))
+    {
+        const auto previous = PTrust->GetLocalVar(key);
+        destination         = refresh ? static_cast<T>(trustdevelopment::ReplaceBaseContribution(destination, previous, next, std::numeric_limits<T>::max())) : next;
+        PTrust->SetLocalVar(key, next);
+    }
+    else
+    {
+        destination = next;
+    }
+}
+
+void SetTrustBaseCombatModifiers(CTrustEntity* PTrust, uint8 statLevel, bool refresh)
+{
+    const auto setBase = [PTrust, refresh](xi::Mod mod, uint16 value, const char* key)
+    {
+        const auto previous = refresh ? PTrust->GetLocalVar(key) : 0;
+        PTrust->addModifier(mod, static_cast<int16>(static_cast<int32>(value) - static_cast<int32>(previous)));
+        if (trustdevelopment::IsEnabled(PTrust))
+        {
+            PTrust->SetLocalVar(key, value);
+        }
+    };
+    setBase(xi::Mod::DEF, mobutils::GetBaseSkill(PTrust, PTrust->defRank, statLevel), "MochiTrustJob99BaseDEF");
+    setBase(xi::Mod::EVA, mobutils::GetBaseSkill(PTrust, PTrust->evaRank, statLevel), "MochiTrustJob99BaseEVA");
+    setBase(xi::Mod::ATT, mobutils::GetBaseSkill(PTrust, PTrust->attRank, statLevel), "MochiTrustJob99BaseATT");
+    setBase(xi::Mod::ACC, mobutils::GetBaseSkill(PTrust, PTrust->accRank, statLevel), "MochiTrustJob99BaseACC");
+    setBase(xi::Mod::RATT, mobutils::GetBaseSkill(PTrust, PTrust->attRank, statLevel), "MochiTrustJob99BaseRATT");
+    setBase(xi::Mod::RACC, mobutils::GetBaseSkill(PTrust, PTrust->accRank, statLevel), "MochiTrustJob99BaseRACC");
+    setBase(xi::Mod::MEVA, mobutils::GetMagicEvasion(PTrust, statLevel), "MochiTrustJob99BaseMEVA");
+}
 
 constexpr auto   TwillsCharacterName        = "Twills";
 constexpr auto   TrustAllianceAccessVar     = "MochiriiTrustAllianceAccess";
@@ -151,6 +193,23 @@ auto trustutils::CanUseTwillsFullAlliance(const TwillsFullAllianceAccessContext&
 auto trustutils::CanUseTwillsFullAlliance(CCharEntity* PMaster) -> bool
 {
     return PMaster && CanUseTwillsFullAlliance(GetTwillsFullAllianceAccessContext(PMaster));
+}
+
+auto trustutils::CanUseTwillsTrustGameplay(const TwillsFullAllianceAccessContext& context, TwillsFullAllianceState state, TwillsTrustEvidenceMode mode, bool soloParty) -> bool
+{
+    return CanUseTwillsFullAlliance(context) && soloParty && state == TwillsFullAllianceState::Idle && mode == TwillsTrustEvidenceMode::Idle;
+}
+
+auto trustutils::CanUseTwillsTrustGameplay(CCharEntity* PMaster) -> bool
+{
+    const auto mode = GetTwillsTrustEvidenceMode(PMaster);
+    if (!PMaster || !mode)
+    {
+        return false;
+    }
+    auto context           = GetTwillsFullAllianceAccessContext(PMaster);
+    context.featureEnabled = settings::get<bool>("main.ENABLE_MOCHIRII_TWILLS_TRUST_GAMEPLAY");
+    return CanUseTwillsTrustGameplay(context, GetTwillsFullAllianceState(PMaster), *mode, HasSupportedTrustSessionPartyShape(PMaster));
 }
 
 auto trustutils::GetTwillsFullAllianceState(CCharEntity* PMaster) -> TwillsFullAllianceState
@@ -240,8 +299,20 @@ auto trustutils::ResolveTrustPartyProjection(
     const TwillsFullAllianceAccessContext& context,
     TwillsFullAllianceState                state,
     TwillsTrustEvidenceMode                evidenceMode,
-    std::size_t                            globalMemberIndex) -> std::optional<TrustPartyProjection>
+    std::size_t                            globalMemberIndex,
+    bool                                   ordinaryGameplay,
+    std::size_t                            memberCount) -> std::optional<TrustPartyProjection>
 {
+    if (ordinaryGameplay && CanUseTwillsTrustGameplay(context, state, evidenceMode, true))
+    {
+        if (memberCount == 0 || memberCount > kFullAllianceMemberLimit || globalMemberIndex >= memberCount)
+        {
+            return std::nullopt;
+        }
+        const auto slot = MapTwillsFullAllianceSlot(globalMemberIndex);
+        return slot ? std::optional<TrustPartyProjection>{ TrustPartyProjection{ .kind = memberCount > kRetailPartyMemberLimit ? PartyKind::Alliance : PartyKind::Party, .slot = *slot } } : std::nullopt;
+    }
+
     if (IsTwillsFullAllianceActive(context, state, evidenceMode))
     {
         const auto slot = MapTwillsFullAllianceSlot(globalMemberIndex);
@@ -281,21 +352,30 @@ auto trustutils::ResolveTrustPartyProjection(CCharEntity* PMaster, std::size_t g
         return std::nullopt;
     }
 
+    const bool gameplay = CanUseTwillsTrustGameplay(PMaster);
+    auto       context  = GetTwillsFullAllianceAccessContext(PMaster);
+    if (gameplay)
+    {
+        context.featureEnabled = true; // The independent ordinary-gameplay gate already admitted this context.
+    }
     return ResolveTrustPartyProjection(
-        GetTwillsFullAllianceAccessContext(PMaster),
+        context,
         GetTwillsFullAllianceState(PMaster),
         *evidenceMode,
-        globalMemberIndex);
+        globalMemberIndex,
+        gameplay,
+        1 + PMaster->PTrusts.size());
 }
 
 auto trustutils::ResolveTrustMemberLimit(
     const TwillsFullAllianceAccessContext& context,
     TwillsFullAllianceState                state,
-    TwillsTrustEvidenceMode                evidenceMode) -> std::optional<std::size_t>
+    TwillsTrustEvidenceMode                evidenceMode,
+    bool                                   ordinaryGameplay) -> std::optional<std::size_t>
 {
     if (evidenceMode == TwillsTrustEvidenceMode::Idle && state == TwillsFullAllianceState::Idle)
     {
-        return kRetailPartyMemberLimit;
+        return ordinaryGameplay && CanUseTwillsFullAlliance(context) ? kFullAllianceMemberLimit : kRetailPartyMemberLimit;
     }
 
     if (state != TwillsFullAllianceState::Spawning || !CanUseTwillsFullAlliance(context))
@@ -329,10 +409,17 @@ auto trustutils::ResolveTrustMemberLimit(CCharEntity* PMaster) -> std::optional<
         return std::nullopt;
     }
 
+    const bool gameplay = CanUseTwillsTrustGameplay(PMaster);
+    auto       context  = GetTwillsFullAllianceAccessContext(PMaster);
+    if (gameplay)
+    {
+        context.featureEnabled = true;
+    }
     return ResolveTrustMemberLimit(
-        GetTwillsFullAllianceAccessContext(PMaster),
+        context,
         GetTwillsFullAllianceState(PMaster),
-        *evidenceMode);
+        *evidenceMode,
+        gameplay);
 }
 
 auto SafeLogValue(std::string value) -> std::string
@@ -1263,6 +1350,96 @@ auto ResolvePacketTarget(CTrustEntity* PTrust, CCharEntity* PMaster, const CBatt
     return nullptr;
 }
 
+namespace
+{
+
+void LogOrdinaryTrustPacket(CTrustEntity* trust, CCharEntity* master, const action_t& action, const CBattleEntity* primaryTarget, const char* source)
+{
+    // Reuse the native map-log sink with a separate byte cap. This optional trace never changes
+    // a QA session, gameplay admission, actor stats or action selection.
+    if (!master || !settings::get<bool>("main.ENABLE_TRUST_ACTION_LOG") ||
+        !settings::get<bool>("main.TRUST_ACTION_LOG_PACKET_RESULTS") || !settings::get<bool>("main.TRUST_ACTION_LOG_MAP_ECHO") ||
+        settings::get<std::string>("main.TRUST_ACTION_LOG_PLAYER") != master->getName() || !trustutils::CanUseTwillsTrustGameplay(master) ||
+        !trust || trust->PMaster != master || action.actorId != trust->id || !std::ranges::contains(master->PTrusts, trust) ||
+        trust->loc.zone != master->loc.zone || trust->PInstance != master->PInstance || action.targets.size() > 256 ||
+        master->GetLocalVar("MochiOrdinaryTrustLogTruncated") != 0)
+    {
+        return;
+    }
+    std::size_t resultCount = 0;
+    for (const auto& target : action.targets)
+    {
+        resultCount += target.results.size();
+        if (resultCount > 1024)
+        {
+            return;
+        }
+    }
+    const auto commit   = std::string(version::GetGitSha());
+    const auto sequence = master->GetLocalVar("MochiOrdinaryTrustLogSequence");
+    if (!IsFullCommitIdentity(commit) || sequence == std::numeric_limits<uint32>::max())
+    {
+        return;
+    }
+    const auto         stamp = CurrentTrustLogStamp();
+    std::ostringstream context;
+    context << "ordinary_trust_action\tschema_version=1\tserver_commit=" << commit;
+    context << "\ttimestamp_epoch=" << stamp.epoch << "\tsequence=" << sequence + 1;
+    context << "\towner_id=" << master->id << "\tzone=" << static_cast<uint32>(master->getZone());
+    context << "\ttrust_id=" << trust->trustID() << "\tactor_id=" << trust->id;
+    context << "\tmain_job=" << static_cast<uint16>(trust->GetMJob()) << "\tsub_job=" << static_cast<uint16>(trust->GetSJob());
+    context << "\tmain_level=" << static_cast<uint16>(trust->GetMLevel()) << "\tsub_level=" << static_cast<uint16>(trust->GetSLevel());
+    context << "\tdeveloped=" << BoolLog(trustdevelopment::IsEnabled(trust));
+    context << "\tactor_hp=" << trust->health.hp << "\tactor_mp=" << trust->health.mp << "\tactor_tp=" << trust->health.tp;
+    const auto* weakness = trust->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::Weakness);
+    const auto* reraise  = trust->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::Reraise);
+    context << "\tweakness_power=" << (weakness ? weakness->GetPower() : 0);
+    context << "\tweakness_duration_ms=" << (weakness ? weakness->GetDuration().count() : 0);
+    context << "\treraise_power=" << (reraise ? reraise->GetPower() : 0);
+    context << "\tmember_count=" << master->PTrusts.size() + 1;
+    context << "\tsource=" << SafeLogValue(std::string(source ? source : "unknown").substr(0, 64));
+    context << "\taction_category=" << static_cast<uint16>(action.actiontype) << "\taction_id=" << action.actionid;
+    const auto prefix = context.str();
+    // Every variable text field above is bounded. Charge 768 bytes per row for
+    // the fixed result fields, decimal integers and native logger prefixes.
+    const auto       bytes           = (resultCount + 1) * (prefix.size() + 768);
+    constexpr uint32 hardLimit       = 64 * 1024 * 1024;
+    const auto       configuredLimit = settings::get<uint32>("main.TRUST_ACTION_LOG_MAX_BYTES_PER_SESSION");
+    const auto       limit           = configuredLimit == 0 ? hardLimit : std::min(configuredLimit, hardLimit);
+    const auto       used            = master->GetLocalVar("MochiOrdinaryTrustLogBytes");
+    if (used > limit || bytes > limit - used)
+    {
+        master->SetLocalVar("MochiOrdinaryTrustLogTruncated", 1);
+        ShowWarningFmt("Ordinary Trust action trace reached its byte cap; gameplay admission is unchanged.");
+        return;
+    }
+    master->SetLocalVar("MochiOrdinaryTrustLogSequence", sequence + 1);
+    master->SetLocalVar("MochiOrdinaryTrustLogBytes", used + static_cast<uint32>(bytes));
+    ShowInfoFmt("{}\trecord_type=action_packet\ttarget_count={}\tresult_count={}", prefix, action.targets.size(), resultCount);
+    std::size_t targetIndex = 0;
+    for (const auto& target : action.targets)
+    {
+        const auto* victim      = dynamic_cast<const CBattleEntity*>(ResolvePacketTarget(trust, master, primaryTarget, target.actorId));
+        std::size_t resultIndex = 0;
+        for (const auto& result : target.results)
+        {
+            ShowInfoFmt("{}\trecord_type=action_result\ttarget_index={}\tresult_index={}\ttarget_id={}\ttarget_hp={}\tparam={}\tmessage={}\tanimation={}\tresolution={}",
+                        prefix,
+                        targetIndex,
+                        resultIndex++,
+                        target.actorId,
+                        victim && victim->id == target.actorId ? victim->health.hp : -1,
+                        result.param,
+                        static_cast<uint16>(result.messageID),
+                        static_cast<uint16>(result.animation),
+                        static_cast<uint16>(result.resolution));
+        }
+        ++targetIndex;
+    }
+}
+
+} // namespace
+
 void trustutils::LogTrustActionSkip(CBattleEntity* PActor, const CBattleEntity* PTarget, uint16 actionId, const char* source, const char* reason)
 {
     auto* PTrust = dynamic_cast<CTrustEntity*>(PActor);
@@ -1339,7 +1516,8 @@ void trustutils::LogTrustActionPacket(CBattleEntity* PActor, const action_t& act
         return;
     }
 
-    auto*      PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    auto* PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    LogOrdinaryTrustPacket(PTrust, PMaster, action, PPrimaryTarget, source);
     const auto session = GetTrustEvidenceSession(PMaster, true);
     if (!session)
     {
@@ -1863,7 +2041,9 @@ auto trustutils::SpawnTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntit
 
     PMaster->loc.zone->InsertTRUST(PTrust);
     PTrust->Spawn();
+    RefreshDevelopedSpellCatalog(PTrust);
     ApplyTrustMasterProgressionBonuses(PTrust);
+    AppendDevelopedWeaponSkills(PTrust);
 
     PMaster->PParty->ReloadParty();
 
@@ -2041,11 +2221,20 @@ auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*
     PTrust->SetMLevel(PMaster->GetMLevel());
     PTrust->SetSLevel(std::floor(PMaster->GetMLevel() / 2));
 
+    if (trustdevelopment::IsEnabled(PTrust))
+    {
+        PTrust->SetLocalVar("MochiTrustJob99SummonLevel", PMaster->GetMLevel());
+        PTrust->SetLocalVar("MochiTrustJob99StatLevel", trustdevelopment::ResolveStatScalingLevel(PMaster->GetMLevel(), charutils::getItemLevelDifference(PMaster)));
+        PTrust->SetMLevel(99);
+        PTrust->SetSLevel(99);
+    }
+
     LoadTrustStatsAndSkills(PTrust);
 
     // Use Mob formulas to work out base "weapon" damage, but scale down to reasonable values.
     // TODO: Verify trust base damage.
-    const float  mobStyleDamage   = static_cast<float>(mobutils::GetBaseWeaponDamage(PTrust, SLOT_MAIN));
+    const auto   statLevel        = static_cast<uint8>(PTrust->GetLocalVar("MochiTrustJob99StatLevel"));
+    const float  mobStyleDamage   = static_cast<float>(mobutils::GetBaseWeaponDamage(PTrust, SLOT_MAIN, statLevel));
     const float  baseDamage       = mobStyleDamage * 0.5f;
     const float  damageMultiplier = static_cast<float>(trustData->cmbDmgMult) / 100.0f;
     const float  adjustedDamage   = baseDamage * damageMultiplier;
@@ -2126,12 +2315,13 @@ auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*
     return PTrust;
 }
 
-void LoadTrustStatsAndSkills(CTrustEntity* PTrust)
+void LoadTrustStatsAndSkills(CTrustEntity* PTrust, bool refresh)
 {
-    auto* PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    auto*      PMaster   = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    const bool developed = trustdevelopment::IsEnabled(PTrust);
     // Keep the optional Expo stat campaign inside the explicit QA extension;
     // retail-control and ordinary Trusts retain upstream stats.
-    if (settings::get<uint8>("main.ENABLE_TRUST_ALTER_EGO_EXPO") > 0 &&
+    if (!refresh && settings::get<uint8>("main.ENABLE_TRUST_ALTER_EGO_EXPO") > 0 &&
         trustutils::IsTwillsFullAllianceActive(PMaster))
     {
         PTrust->addModifier(xi::Mod::HPP, 50);
@@ -2140,12 +2330,21 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust)
     }
 
     // add mob pool mods ahead of applying stats
-    mobutils::AddSqlModifiers(PTrust);
+    if (!refresh)
+    {
+        mobutils::AddSqlModifiers(PTrust);
+        if (developed)
+        {
+            // Both developed jobs earn this action gift, but shared SP recasts
+            // receive the native 2100-point reduction only once (15 minutes).
+            PTrust->addModifier(xi::Mod::ONE_HOUR_RECAST, 15);
+        }
+    }
 
     xi::Job mJob = PTrust->GetMJob();
     xi::Job sJob = PTrust->GetSJob();
-    uint8   mLvl = PTrust->GetMLevel();
-    uint8   sLvl = PTrust->GetSLevel();
+    uint8   mLvl = developed ? static_cast<uint8>(PTrust->GetLocalVar("MochiTrustJob99StatLevel")) : PTrust->GetMLevel();
+    uint8   sLvl = developed ? mLvl / 2 : PTrust->GetSLevel();
 
     // Helpers to map HP/MPScale around 100 to 1-7 grades
     // std::clamp doesn't play nice with uint8, so -> unsigned int
@@ -2226,7 +2425,7 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust)
 
     auto hpMultiplierTrust = settings::get<float>("map.ALTER_EGO_HP_MULTIPLIER");
     hpMultiplierTrust      = (hpMultiplierTrust >= 0.1f && hpMultiplierTrust <= 2.0f) ? hpMultiplierTrust : 1.0f;
-    PTrust->health.maxhp   = (int16)((raceStat + jobStat + bonusStat + sJobStat) * hpMultiplierTrust);
+    SetTrustBase(PTrust, "MochiTrustJob99BaseHP", PTrust->health.maxhp, static_cast<int32>(static_cast<int16>((raceStat + jobStat + bonusStat + sJobStat) * hpMultiplierTrust)), refresh);
 
     // MP
     raceStat = 0;
@@ -2264,12 +2463,29 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust)
 
     auto mpMultiplierTrust = settings::get<float>("map.ALTER_EGO_MP_MULTIPLIER");
     mpMultiplierTrust      = (mpMultiplierTrust >= 0.1f && mpMultiplierTrust <= 2.0f) ? mpMultiplierTrust : 1.0f;
-    PTrust->health.maxmp   = (int16)((raceStat + jobStat + sJobStat) * mpMultiplierTrust);
+    SetTrustBase(PTrust, "MochiTrustJob99BaseMP", PTrust->health.maxmp, static_cast<int32>(static_cast<int16>((raceStat + jobStat + sJobStat) * mpMultiplierTrust)), refresh);
 
-    PTrust->health.tp = 0;
+    const auto previousHP = PTrust->health.hp;
+    const auto previousMP = PTrust->health.mp;
     PTrust->UpdateHealth();
-    PTrust->health.hp = PTrust->GetMaxHP();
-    PTrust->health.mp = PTrust->GetMaxMP();
+    if (refresh)
+    {
+        // Preserve the existing earned native effective-vitals addition without
+        // rerunning its once-only modifier grant or the summon refill.
+        if (PTrust->GetLocalVar("MochiTrustAepVitalsEffectiveApplied") != 0)
+        {
+            PTrust->health.modhp = AddClamped(PTrust->health.modhp, PTrust->GetLocalVar("MochiTrustAepHpBonus"));
+            PTrust->health.modmp = AddClamped(PTrust->health.modmp, PTrust->GetLocalVar("MochiTrustAepMpBonus"));
+        }
+        PTrust->health.hp = std::clamp(previousHP, 0, PTrust->GetMaxHP());
+        PTrust->health.mp = std::clamp(previousMP, 0, PTrust->GetMaxMP());
+    }
+    else
+    {
+        PTrust->health.tp = 0;
+        PTrust->health.hp = PTrust->GetMaxHP();
+        PTrust->health.mp = PTrust->GetMaxMP();
+    }
 
     // Stats ========================
     uint16 fSTR = mobutils::GetBaseToRank(PTrust->strRank, mLvl);
@@ -2319,57 +2535,85 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust)
 
     auto statMultiplier = settings::get<float>("map.ALTER_EGO_STAT_MULTIPLIER");
     statMultiplier      = (statMultiplier >= 0.1f && statMultiplier <= 2.0f) ? statMultiplier : 1.0f;
-    PTrust->stats.STR   = static_cast<uint16>((fSTR + mSTR + sSTR) * statMultiplier);
-    PTrust->stats.DEX   = static_cast<uint16>((fDEX + mDEX + sDEX) * statMultiplier);
-    PTrust->stats.VIT   = static_cast<uint16>((fVIT + mVIT + sVIT) * statMultiplier);
-    PTrust->stats.AGI   = static_cast<uint16>((fAGI + mAGI + sAGI) * statMultiplier);
-    PTrust->stats.INT   = static_cast<uint16>((fINT + mINT + sINT) * statMultiplier);
-    PTrust->stats.MND   = static_cast<uint16>((fMND + mMND + sMND) * statMultiplier);
-    PTrust->stats.CHR   = static_cast<uint16>((fCHR + mCHR + sCHR) * statMultiplier);
+    SetTrustBase(PTrust, "MochiTrustJob99BaseSTR", PTrust->stats.STR, static_cast<uint16>((fSTR + mSTR + sSTR) * statMultiplier), refresh);
+    SetTrustBase(PTrust, "MochiTrustJob99BaseDEX", PTrust->stats.DEX, static_cast<uint16>((fDEX + mDEX + sDEX) * statMultiplier), refresh);
+    SetTrustBase(PTrust, "MochiTrustJob99BaseVIT", PTrust->stats.VIT, static_cast<uint16>((fVIT + mVIT + sVIT) * statMultiplier), refresh);
+    SetTrustBase(PTrust, "MochiTrustJob99BaseAGI", PTrust->stats.AGI, static_cast<uint16>((fAGI + mAGI + sAGI) * statMultiplier), refresh);
+    SetTrustBase(PTrust, "MochiTrustJob99BaseINT", PTrust->stats.INT, static_cast<uint16>((fINT + mINT + sINT) * statMultiplier), refresh);
+    SetTrustBase(PTrust, "MochiTrustJob99BaseMND", PTrust->stats.MND, static_cast<uint16>((fMND + mMND + sMND) * statMultiplier), refresh);
+    SetTrustBase(PTrust, "MochiTrustJob99BaseCHR", PTrust->stats.CHR, static_cast<uint16>((fCHR + mCHR + sCHR) * statMultiplier), refresh);
+
+    SetTrustBaseCombatModifiers(PTrust, developed ? mLvl : 0, refresh);
+
+    if (refresh)
+    {
+        return;
+    }
 
     // Skills =======================
-    for (int i = static_cast<int>(xi::SkillType::DivineMagic); i <= static_cast<int>(xi::SkillType::BlueMagic); i++)
+    if (developed)
     {
-        uint16 maxSkill = battleutils::GetMaxSkill((xi::SkillType)i, mJob, std::min<uint8>(mLvl, 99));
-        if (maxSkill != 0)
+        // Both assigned jobs have their own main-job-99 skill rank. The native
+        // skill table caps at 99; item level remains a separate stat input.
+        for (int i = static_cast<int>(xi::SkillType::HandToHand); i <= static_cast<int>(xi::SkillType::BlueMagic); ++i)
         {
-            PTrust->WorkingSkills.skill[i] = static_cast<uint16>(maxSkill * settings::get<float>("map.ALTER_EGO_SKILL_MULTIPLIER"));
+            const auto skill               = static_cast<xi::SkillType>(i);
+            const auto value               = std::max(battleutils::GetMaxSkill(skill, mJob, 99), battleutils::GetMaxSkill(skill, sJob, 99));
+            PTrust->WorkingSkills.skill[i] = static_cast<uint16>(value * settings::get<float>("map.ALTER_EGO_SKILL_MULTIPLIER"));
         }
-        else // if the mob is WAR/BLM and can cast spell
+    }
+    else
+    {
+        for (int i = static_cast<int>(xi::SkillType::DivineMagic); i <= static_cast<int>(xi::SkillType::BlueMagic); i++)
         {
-            // set skill as high as main level, so their spells won't get resisted
-            uint16 maxSubSkill = battleutils::GetMaxSkill((xi::SkillType)i, sJob, std::min<uint8>(mLvl, 99));
-
-            if (maxSubSkill != 0)
+            uint16 maxSkill = battleutils::GetMaxSkill((xi::SkillType)i, mJob, std::min<uint8>(mLvl, 99));
+            if (maxSkill != 0)
             {
-                PTrust->WorkingSkills.skill[i] = static_cast<uint16>(maxSubSkill * settings::get<float>("map.ALTER_EGO_SKILL_MULTIPLIER"));
+                PTrust->WorkingSkills.skill[i] = static_cast<uint16>(maxSkill * settings::get<float>("map.ALTER_EGO_SKILL_MULTIPLIER"));
+            }
+            else // if the mob is WAR/BLM and can cast spell
+            {
+                // set skill as high as main level, so their spells won't get resisted
+                uint16 maxSubSkill = battleutils::GetMaxSkill((xi::SkillType)i, sJob, std::min<uint8>(mLvl, 99));
+
+                if (maxSubSkill != 0)
+                {
+                    PTrust->WorkingSkills.skill[i] = static_cast<uint16>(maxSubSkill * settings::get<float>("map.ALTER_EGO_SKILL_MULTIPLIER"));
+                }
+            }
+        }
+
+        for (int i = static_cast<int>(xi::SkillType::HandToHand); i <= static_cast<int>(xi::SkillType::Staff); i++)
+        {
+            uint16 maxSkill = battleutils::GetMaxSkill(static_cast<uint8>(i), std::min<uint8>(mLvl, 99));
+            if (maxSkill != 0)
+            {
+                PTrust->WorkingSkills.skill[i] = static_cast<uint16>(maxSkill * settings::get<float>("map.ALTER_EGO_SKILL_MULTIPLIER"));
             }
         }
     }
 
-    for (int i = static_cast<int>(xi::SkillType::HandToHand); i <= static_cast<int>(xi::SkillType::Staff); i++)
+    // Add traits for sub and main
+    if (developed)
     {
-        uint16 maxSkill = battleutils::GetMaxSkill(static_cast<uint8>(i), std::min<uint8>(mLvl, 99));
-        if (maxSkill != 0)
+        for (const auto job : { mJob, sJob })
         {
-            PTrust->WorkingSkills.skill[i] = static_cast<uint16>(maxSkill * settings::get<float>("map.ALTER_EGO_SKILL_MULTIPLIER"));
+            TraitList_t selected;
+            for (auto* trait : *traits::GetTraits(job))
+            {
+                if (trait->getMeritID() == 0 || trustdevelopment::GetMeritValue(PTrust, static_cast<xi::Merit>(trait->getMeritID())) > 0)
+                {
+                    selected.push_back(trait);
+                }
+            }
+            battleutils::AddTraits(PTrust, &selected, 99);
         }
     }
-
-    PTrust->addModifier(xi::Mod::DEF, mobutils::GetBaseSkill(PTrust, PTrust->defRank));
-    PTrust->addModifier(xi::Mod::EVA, mobutils::GetBaseSkill(PTrust, PTrust->evaRank));
-    PTrust->addModifier(xi::Mod::ATT, mobutils::GetBaseSkill(PTrust, PTrust->attRank));
-    PTrust->addModifier(xi::Mod::ACC, mobutils::GetBaseSkill(PTrust, PTrust->accRank));
-
-    PTrust->addModifier(xi::Mod::RATT, mobutils::GetBaseSkill(PTrust, PTrust->attRank));
-    PTrust->addModifier(xi::Mod::RACC, mobutils::GetBaseSkill(PTrust, PTrust->accRank));
-
-    // Natural magic evasion
-    PTrust->addModifier(xi::Mod::MEVA, mobutils::GetMagicEvasion(PTrust));
-
-    // Add traits for sub and main
-    battleutils::AddTraits(PTrust, traits::GetTraits(mJob), mLvl);
-    battleutils::AddTraits(PTrust, traits::GetTraits(sJob), sLvl);
+    else
+    {
+        battleutils::AddTraits(PTrust, traits::GetTraits(mJob), mLvl);
+        battleutils::AddTraits(PTrust, traits::GetTraits(sJob), sLvl);
+    }
 
     mobutils::SetupJob(PTrust);
 
@@ -2439,5 +2683,110 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust)
         {
             controller->m_GambitsContainer->tp_skills.emplace_back(skill);
         }
+    }
+}
+
+void trustutils::RefreshDevelopedSpellCatalog(CTrustEntity* PTrust)
+{
+    if (!trustdevelopment::IsEnabled(PTrust) || !PTrust->SpellContainer)
+    {
+        return;
+    }
+
+    // This container belongs to the summoned entity. Never mutate the shared
+    // SQL list. Banish III is the single preserved baseline exception pending
+    // independent retail confirmation; it does not grant the WHM catalog.
+    const auto* baseline      = PTrust->m_SpellListContainer;
+    const bool  keepBanishIII = baseline && std::ranges::any_of(baseline->m_spellList, [](const MobSpell_t& entry)
+                                                                {
+                                                                   return entry.spellId == SpellID::Banish_III;
+                                                                });
+    PTrust->SpellContainer->ClearSpells();
+    for (uint16 id = 1; id < MAX_SPELL_ID; ++id)
+    {
+        auto* spell = spell::GetSpell(static_cast<SpellID>(id));
+        if (!spell)
+        {
+            continue;
+        }
+        const auto mainLevel = spell->getJob(PTrust->GetMJob());
+        const auto subLevel  = spell->getJob(PTrust->GetSJob());
+        if ((mainLevel > 0 && mainLevel <= 99) || (subLevel > 0 && subLevel <= 99) ||
+            (keepBanishIII && id == static_cast<uint16>(SpellID::Banish_III)))
+        {
+            PTrust->SpellContainer->AddSpell(static_cast<SpellID>(id));
+        }
+    }
+}
+
+void AppendDevelopedWeaponSkills(CTrustEntity* PTrust)
+{
+    if (!trustdevelopment::IsEnabled(PTrust))
+    {
+        return;
+    }
+    auto* controller = dynamic_cast<CTrustController*>(PTrust->PAI->GetController());
+    if (!controller)
+    {
+        return;
+    }
+    auto& skills = controller->m_GambitsContainer->tp_skills;
+    for (uint16 id = 1; id < MAX_WEAPONSKILL_ID; ++id)
+    {
+        auto* skill = battleutils::GetWeaponSkill(id);
+        if (!trustweaponskills::IsAvailableForWeapon(PTrust, skill) || std::ranges::any_of(skills, [id](const gambits::TrustSkill_t& existing)
+                                                                                           {
+                                                                                               return existing.skill_type == gambits::G_REACTION::WS && existing.skill_id == id;
+                                                                                           }))
+        {
+            continue;
+        }
+        skills.emplace_back(gambits::G_REACTION::WS, id, skill->getPrimarySkillchain(), skill->getSecondarySkillchain(), skill->getTertiarySkillchain(), battleutils::isValidSelfTargetWeaponskill(id) ? TARGET_SELF : TARGET_ENEMY);
+    }
+}
+
+void trustutils::RefreshDevelopedTrusts(CCharEntity* PMaster)
+{
+    if (!PMaster || PMaster->PTrusts.empty() || !settings::get<bool>("main.TRUST_JOB99_VALAINERAL"))
+    {
+        return;
+    }
+    // Called once after the player's equipment packet batch. A regular-level
+    // snapshot below 99 is fixed for this summon; ML is never a stat input.
+    const auto itemLevelDifference = charutils::getItemLevelDifference(PMaster);
+    for (auto* trust : PMaster->PTrusts)
+    {
+        if (!trustdevelopment::IsEnabled(trust) || trust->GetLocalVar("MochiTrustJob99SummonLevel") == 0)
+        {
+            continue;
+        }
+        const auto statLevel = trustdevelopment::ResolveStatScalingLevel(static_cast<uint8>(trust->GetLocalVar("MochiTrustJob99SummonLevel")), itemLevelDifference);
+        if (statLevel == trust->GetLocalVar("MochiTrustJob99StatLevel"))
+        {
+            continue;
+        }
+        const auto entry = g_PTrustData.find(trust->trustID());
+        if (entry == g_PTrustData.end())
+        {
+            continue;
+        }
+
+        trust->SetLocalVar("MochiTrustJob99StatLevel", statLevel);
+        LoadTrustStatsAndSkills(trust, true);
+
+        const float nativeDamage = static_cast<float>(mobutils::GetBaseWeaponDamage(trust, SLOT_MAIN, statLevel));
+        const auto  damage       = static_cast<uint16>(std::max(nativeDamage * 0.5f * static_cast<float>(entry->second->cmbDmgMult) / 100.0f, 1.0f));
+        for (const auto slot : { SLOT_MAIN, SLOT_SUB, SLOT_RANGED, SLOT_AMMO })
+        {
+            if (auto* weapon = dynamic_cast<CItemWeapon*>(trust->m_Weapons[slot]))
+            {
+                weapon->setDamage(damage);
+                if (weapon->getDelay() > 0)
+                {
+                    weapon->setDPS(static_cast<double>(damage) / (static_cast<double>(weapon->getDelay()) / 1000.0));
+                }
+            }
+        }
+        trust->updatemask |= UPDATE_HP;
     }
 }

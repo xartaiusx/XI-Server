@@ -23,6 +23,10 @@ def main():
     """Rendering is skipped while the stamp is newer than every input; `--validate` always runs."""
     parser = argparse.ArgumentParser()
     parser.add_argument("build_dir")
+    parser.add_argument("--schema-output-dir", type=Path, default=ROOT / "data" / "schemas",
+                        help="Read schemas for --validate from this directory.")
+    parser.add_argument("--lua-enum-output-dir", type=Path, default=ROOT / "scripts" / "enum",
+                        help="Write generated Lua enums into this directory.")
     parser.add_argument(
         "--validate",
         action="store_true",
@@ -31,15 +35,17 @@ def main():
     args = parser.parse_args()
 
     build_root = Path(args.build_dir)
-    schemas_dir = ROOT / "data" / "schemas"
+    schemas_dir = args.schema_output_dir.resolve()
+    lua_out_dir = args.lua_enum_output_dir.resolve()
+    out_dir = build_root / "generated" / "data" / "enums"
+    output_context = f"{schemas_dir}\n{lua_out_dir}\n"
     stamp = build_root / "generated" / ".enum_codegen.stamp"
-    if not enum_inputs_newer_than(stamp):
+    if (not enum_inputs_newer_than(stamp) and stamp.read_text(encoding="utf-8") == output_context
+            and out_dir.is_dir() and lua_out_dir.is_dir()):
         if args.validate:
             validate_data_yamls(schemas_dir)
         return
 
-    out_dir = build_root / "generated" / "data" / "enums"
-    lua_out_dir = ROOT / "scripts" / "enum"
     for directory in (out_dir, lua_out_dir):
         directory.mkdir(parents=True, exist_ok=True)
 
@@ -61,7 +67,7 @@ def main():
             write_if_changed(lua_out_dir / (enum["lua"]["name"] + ".codegen.lua"), enum["lua"]["content"])
 
     stamp.parent.mkdir(parents=True, exist_ok=True)
-    stamp.touch()
+    stamp.write_text(output_context, encoding="utf-8")
 
     if args.validate:
         validate_data_yamls(schemas_dir)

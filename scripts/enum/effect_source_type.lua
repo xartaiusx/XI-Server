@@ -12,4 +12,5 @@ xi.effectSourceType =
     MOB            = 3,
     FOOD           = 4,
     CORSAIR_ROLL   = 5,
+    DEVELOPED_TRUST = 6,
 }

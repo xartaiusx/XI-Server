@@ -30,8 +30,10 @@
 #include "ai/states/weaponskill_state.h"
 #include "enmity_container.h"
 #include "notoriety_container.h"
+#include "recast_container.h"
 #include "spell.h"
 #include "utils/battleutils.h"
+#include "utils/trust_job_development.h"
 #include "weapon_skill.h"
 
 #include "ai/controllers/player_controller.h"
@@ -955,7 +957,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                 {
                     target = POwner;
                 }
-                else
+                else if ((PAbility->getValidTarget() & TARGET_ENEMY) || !trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(POwner)))
                 {
                     target = POwner->GetBattleTarget();
                 }
@@ -1293,7 +1295,21 @@ auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const G
             case G_CONDITION::JA_ON_COOLDOWN:
             {
                 auto* PAbility = ability::GetAbility(static_cast<ABILITY>(predicate.condition_arg));
-                predicateResults.push_back(PAbility->getRecastTime() > 0s);
+                if (PAbility)
+                {
+                    if (trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(POwner)))
+                    {
+                        predicateResults.push_back(POwner->PRecastContainer->HasRecast(RECAST_ABILITY, PAbility->getRecastId(), 0s));
+                    }
+                    else
+                    {
+                        predicateResults.push_back(PAbility->getRecastTime() > 0s);
+                    }
+                }
+                else
+                {
+                    predicateResults.push_back(false);
+                }
                 continue;
             }
             case G_CONDITION::LVL_LT:

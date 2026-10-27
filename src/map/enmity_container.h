@@ -48,13 +48,14 @@ public:
 
     CBattleEntity* GetHighestEnmity(); // Decays VE and gets target with highest enmity
 
-    float         CalculateEnmityBonus(CBattleEntity* PEntity);
+    // The optional special term is native-dispatch-only and applies to approved Trusts.
+    float         CalculateEnmityBonus(CBattleEntity* PEntity, int32 specialEnmityBonus = 0);
     void          Clear(uint32 EntityID = 0);   // Removes Entries from list
     void          LogoutReset(uint32 EntityID); // Sets entry to inactive
     void          SetActive(uint32 EntityID, bool active);
     void          AddBaseEnmity(CBattleEntity* PEntity);
-    void          UpdateEnmity(CBattleEntity* PEntity, int32 CE, int32 VE, bool withMaster = false, bool tameable = false, bool directAction = true);
-    void          UpdateEnmityFromDamage(CBattleEntity* PEntity, int32 Damage);
+    void          UpdateEnmity(CBattleEntity* PEntity, int32 CE, int32 VE, bool withMaster = false, bool tameable = false, bool directAction = true, int32 specialEnmityBonus = 0);
+    void          UpdateEnmityFromDamage(CBattleEntity* PEntity, int32 Damage, int32 specialEnmityBonus = 0);
     void          UpdateEnmityFromCure(CBattleEntity* PEntity, uint8 level, int32 CureAmount, int32 fixedCE = 0, int32 fixedVE = 0);
     void          UpdateEnmityFromAttack(CBattleEntity* PEntity, int32 Damage);
     bool          HasID(uint32 ID);                                                                         // true if ID is in the container with non-zero enmity level

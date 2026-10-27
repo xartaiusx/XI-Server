@@ -84,7 +84,7 @@ local shieldSizeToBlockRateTable =
 ---@param actor CBaseEntity
 ---@param weaponType xi.skill
 ---@param weaponSlot xi.slot
-local function getMeleeAttack(actor, weaponType, weaponSlot)
+local function getMeleeAttack(actor, weaponType, weaponSlot, flatAttackBonus)
     local actorAttack = 0
 
     if
@@ -96,7 +96,7 @@ local function getMeleeAttack(actor, weaponType, weaponSlot)
         actorAttack = actor:getStat(xi.mod.ATT, weaponSlot)
     end
 
-    return math.max(1, actorAttack)
+    return math.max(1, actorAttack) + (flatAttackBonus or 0)
 end
 
 -- WARNING: This function is used in src/map/attack.cpp "ProcessDamage" function.
@@ -729,7 +729,8 @@ end
 ---@param isWeaponskill boolean
 ---@param weaponSlot xi.slot
 ---@param isCannonball boolean
-xi.combat.physical.calculateMeleePDIF = function(actor, target, weaponType, wsAttackMod, isCritical, applyLevelCorrection, tpIgnoresDefense, tpFactor, isWeaponskill, weaponSlot, isCannonball)
+---@param flatAttackBonus integer? Approved action-only attack input; absent preserves existing callers.
+xi.combat.physical.calculateMeleePDIF = function(actor, target, weaponType, wsAttackMod, isCritical, applyLevelCorrection, tpIgnoresDefense, tpFactor, isWeaponskill, weaponSlot, isCannonball, flatAttackBonus)
     local pDif = 0
 
     ----------------------------------------
@@ -752,7 +753,7 @@ xi.combat.physical.calculateMeleePDIF = function(actor, target, weaponType, wsAt
 
     -- TODO: it is unknown if ws attack mod and flourish bonus are additive or multiplicative
     -- TODO: do flourish and attack mods come before or after food?
-    local actorAttack = math.floor(getMeleeAttack(actor, weaponType, weaponSlot) * wsAttackMod * flourishBonus)
+    local actorAttack = math.floor(getMeleeAttack(actor, weaponType, weaponSlot, flatAttackBonus) * wsAttackMod * flourishBonus)
 
     -- handle attuner
     -- note: isAutomaton is checked inside xi.automaton.handleAttuner and could be removed

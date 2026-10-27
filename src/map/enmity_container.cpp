@@ -26,10 +26,13 @@
 #include "entities/battle_entity.h"
 #include "entities/char_entity.h"
 #include "entities/mob_entity.h"
+#include "entities/trust_entity.h"
+#include "job_points.h"
 #include "map_constants.h"
 #include "notoriety_container.h"
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
+#include "utils/trust_job_development.h"
 #include "utils/zoneutils.h"
 
 /************************************************************************
@@ -131,7 +134,7 @@ void CEnmityContainer::AddBaseEnmity(CBattleEntity* PChar)
  *                                                                       *
  ************************************************************************/
 
-float CEnmityContainer::CalculateEnmityBonus(CBattleEntity* PEntity)
+float CEnmityContainer::CalculateEnmityBonus(CBattleEntity* PEntity, int32 specialEnmityBonus)
 {
     TracyZoneScoped;
 
@@ -148,6 +151,16 @@ float CEnmityContainer::CalculateEnmityBonus(CBattleEntity* PEntity)
     }
 
     float bonus = (100.0f + std::clamp(enmityBonus, -50, 100)) / 100.0f;
+    if (trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(PEntity)))
+    {
+        // Approved action bonuses form one additive special-enmity term after
+        // the native ordinary cap. Only native divine spell dispatch supplies
+        // the optional Divine Emblem contribution; ordinary actions pass zero.
+        const int32 sentinel = PEntity->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Sentinel)
+                                   ? trustdevelopment::GetJobPointLevel(PEntity, JP_SENTINEL_EFFECT)
+                                   : 0;
+        bonus *= (100.0f + sentinel + std::max(specialEnmityBonus, 0)) / 100.0f;
+    }
 
     return bonus;
 }
@@ -158,7 +171,7 @@ float CEnmityContainer::CalculateEnmityBonus(CBattleEntity* PEntity)
  *                                                                       *
  ************************************************************************/
 
-void CEnmityContainer::UpdateEnmity(CBattleEntity* PEntity, int32 CE, int32 VE, bool withMaster, bool tameable, bool directAction)
+void CEnmityContainer::UpdateEnmity(CBattleEntity* PEntity, int32 CE, int32 VE, bool withMaster, bool tameable, bool directAction, int32 specialEnmityBonus)
 {
     TracyZoneScoped;
 
@@ -209,7 +222,7 @@ void CEnmityContainer::UpdateEnmity(CBattleEntity* PEntity, int32 CE, int32 VE, 
         {
             enmity_obj->second.PEnmityOwner = PEntity;
         }
-        float bonus = CalculateEnmityBonus(PEntity);
+        float bonus = CalculateEnmityBonus(PEntity, specialEnmityBonus);
 
         int32 newCE = (int32)(enmity_obj->second.CE + (CE > 0 ? CE * bonus : CE));
         int32 newVE = (int32)(enmity_obj->second.VE + (VE > 0 ? VE * bonus : VE));
@@ -241,7 +254,7 @@ void CEnmityContainer::UpdateEnmity(CBattleEntity* PEntity, int32 CE, int32 VE, 
             VE += 900;
         }
 
-        float bonus = CalculateEnmityBonus(PEntity);
+        float bonus = CalculateEnmityBonus(PEntity, specialEnmityBonus);
 
         CE = std::clamp((int32)(CE * bonus), 0, EnmityCap);
         VE = std::clamp((int32)(VE * bonus), 0, EnmityCap);
@@ -413,7 +426,7 @@ void CEnmityContainer::SetVE(CBattleEntity* PEntity, const int32 amount)
  *                                                                       *
  ************************************************************************/
 
-void CEnmityContainer::UpdateEnmityFromDamage(CBattleEntity* PEntity, int32 Damage)
+void CEnmityContainer::UpdateEnmityFromDamage(CBattleEntity* PEntity, int32 Damage, int32 specialEnmityBonus)
 {
     TracyZoneScoped;
 
@@ -431,7 +444,7 @@ void CEnmityContainer::UpdateEnmityFromDamage(CBattleEntity* PEntity, int32 Dama
         int32 CE = (int32)(80.0f / damageMod * Damage);
         int32 VE = (int32)(240.0f / damageMod * Damage);
 
-        UpdateEnmity(PEntity, CE, VE);
+        UpdateEnmity(PEntity, CE, VE, false, false, true, specialEnmityBonus);
 
         m_EnmityHolder->m_HiPCLvl = std::max(m_EnmityHolder->m_HiPCLvl, PEntity->GetMLevel());
     }
