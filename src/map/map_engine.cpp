@@ -271,7 +271,13 @@ auto MapEngine::init() -> Task<void>
 
     moduleutils::OnInit();
 
-    luautils::OnServerStart();
+    // Lazy test worlds load entities only when a fixture enters a zone. The
+    // current server-start Lua hook only sweeps seasonal world entities, so it
+    // belongs to production startup rather than unrelated isolated fixtures.
+    if (!config_.isTestServer)
+    {
+        luautils::OnServerStart();
+    }
 
     if (!config_.isTestServer)
     {

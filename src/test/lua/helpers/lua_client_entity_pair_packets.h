@@ -33,6 +33,12 @@ class CLuaClientEntityPair;
 class CLuaClientEntityPairPackets
 {
 public:
+    enum class CharacterLoadMode
+    {
+        Reload,
+        AlreadyLoaded,
+    };
+
     CLuaClientEntityPairPackets(CLuaClientEntityPair* parent);
     ~CLuaClientEntityPairPackets() = default;
 
@@ -42,7 +48,7 @@ public:
     auto createPacket(PacketC2S packetType) -> std::unique_ptr<CBasicPacket>;
     void sendBasicPacket(CBasicPacket& packet) const;
     void send(PacketC2S packetId, const sol::object& ffiData, size_t ffiSize);
-    void sendZonePackets();
+    void sendZonePackets(CharacterLoadMode loadMode = CharacterLoadMode::Reload);
 
     void parseIncoming();
     auto getIncoming() const -> sol::table;
