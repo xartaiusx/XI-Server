@@ -7096,10 +7096,21 @@ bool CLuaBaseEntity::hasMainJobAccess(xi::Job job)
     return trustdevelopment::HasMainJobAccess(dynamic_cast<CBattleEntity*>(m_PBaseEntity), job);
 }
 
-auto CLuaBaseEntity::getDevelopedHolyCircleMultiplier(CLuaBaseEntity* target) -> double
+auto CLuaBaseEntity::getDevelopedHolyCircleMultiplier(uint32 targetId, uint32 targetIndex) -> double
 {
-    return trustholycircle::GetMultiplier(dynamic_cast<CBattleEntity*>(m_PBaseEntity),
-                                          target ? dynamic_cast<CBattleEntity*>(target->GetBaseEntity()) : nullptr);
+    auto* actor = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
+    if (!actor || !actor->loc.zone || targetId == 0 || targetIndex == 0 || targetIndex >= 0x1000)
+    {
+        return 1.0;
+    }
+
+    auto* target = dynamic_cast<CBattleEntity*>(actor->GetEntity(static_cast<uint16>(targetIndex), TYPE_PC | TYPE_MOB | TYPE_PET | TYPE_TRUST));
+    if (!target || target->id != targetId || target->loc.zone != actor->loc.zone || target->PInstance != actor->PInstance)
+    {
+        return 1.0;
+    }
+
+    return trustholycircle::GetMultiplier(actor, target);
 }
 
 /************************************************************************

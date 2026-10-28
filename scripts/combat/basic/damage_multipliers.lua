@@ -79,7 +79,7 @@ end
 -- Only for damage paths that do not already consume ecosystemMultiplier.
 -- The snapshot source marker preserves the approved cast's normal lifetime.
 xi.combat.damage.applyDevelopedHolyCircle = function(actor, target, damage)
-    local multiplier = actor:getDevelopedHolyCircleMultiplier(target)
+    local multiplier = actor:getDevelopedHolyCircleMultiplier(target:getID(), target:getTargID())
     if damage > 0 and multiplier ~= 1 then
         return math.floor(damage * multiplier)
     end

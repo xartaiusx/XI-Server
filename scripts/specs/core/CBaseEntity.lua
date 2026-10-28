@@ -1596,9 +1596,10 @@ end
 
 ---Missing-path multiplier for an active Holy Circle with approved cast-time provenance.
 ---@nodiscard
----@param target CBaseEntity
+---@param targetId integer Full native entity ID, checked against the resolved slot.
+---@param targetIndex integer Target index in the actor's current zone and instance.
 ---@return number
-function CBaseEntity:getDevelopedHolyCircleMultiplier(target)
+function CBaseEntity:getDevelopedHolyCircleMultiplier(targetId, targetIndex)
 end
 
 ---@nodiscard
