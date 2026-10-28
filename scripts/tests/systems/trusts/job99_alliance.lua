@@ -151,6 +151,11 @@ describe('Ordinary entitled Trust alliance', function()
         end
 
         player:addSpell(xi.magic.spell.ULMIA)
+        assert(player.actions:prepareSoloTrustParty(), 'named fixture needs a native solo party leader')
+        local leader = player:getPartyLeader()
+        assert(leader and leader:getID() == player:getID(), 'native party leader must be this fixture PC')
+        assert(#player:getPartyWithTrusts() == 1)
+        assert(not player.actions:prepareSoloTrustParty(), 'bootstrap must not replace an existing party')
         assert(player:canUseTwillsTrustGameplay())
         assert(not player:canUseTwillsFullAlliance(), 'ordinary admission must not require or activate the QA feature')
         assert(player:getTwillsFullAllianceState() == 0 and player:getLocalVar('MochiriiTrustEvidenceMode') == 0)

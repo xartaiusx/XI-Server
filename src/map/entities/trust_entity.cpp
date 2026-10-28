@@ -48,6 +48,7 @@
 #include "zone.h"
 
 #include <algorithm>
+#include <array>
 #include <limits>
 
 namespace
@@ -302,10 +303,50 @@ void CTrustEntity::OnDeathTimer()
 
 void CTrustEntity::Spawn()
 {
+    // LoadTrust calculated these contributions before Spawn. Preserve only the
+    // developed profile's owned cache across the normal per-life local reset.
+    constexpr std::array<const char*, 18> developmentKeys = {
+        "MochiTrustJob99SummonLevel",
+        "MochiTrustJob99StatLevel",
+        "MochiTrustJob99BaseHP",
+        "MochiTrustJob99BaseMP",
+        "MochiTrustJob99BaseSTR",
+        "MochiTrustJob99BaseDEX",
+        "MochiTrustJob99BaseVIT",
+        "MochiTrustJob99BaseAGI",
+        "MochiTrustJob99BaseINT",
+        "MochiTrustJob99BaseMND",
+        "MochiTrustJob99BaseCHR",
+        "MochiTrustJob99BaseDEF",
+        "MochiTrustJob99BaseEVA",
+        "MochiTrustJob99BaseATT",
+        "MochiTrustJob99BaseACC",
+        "MochiTrustJob99BaseRATT",
+        "MochiTrustJob99BaseRACC",
+        "MochiTrustJob99BaseMEVA",
+    };
+    std::array<uint32, developmentKeys.size()> developmentValues{};
+    const bool                                 developed = trustdevelopment::IsEnabled(this);
+    if (developed)
+    {
+        for (size_t index = 0; index < developmentKeys.size(); ++index)
+        {
+            developmentValues[index] = GetLocalVar(developmentKeys[index]);
+        }
+    }
+
     // NOTE: This is purposefully calling CBattleEntity's impl.
     // TODO: Calling a grand-parent's impl. of an overridden function is bad
     // we need to skip CMobEntity's spawn because it calculates stats (and our stats are already calculated)
     CBattleEntity::Spawn();
+    if (developed)
+    {
+        for (size_t index = 0; index < developmentKeys.size(); ++index)
+        {
+            SetLocalVar(developmentKeys[index], developmentValues[index]);
+        }
+    }
+
     luautils::OnMobSpawn(this);
 
     // Recompute derived HP/MP after spawn-time modifiers (e.g. HPP/MPP)

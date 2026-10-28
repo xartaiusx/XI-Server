@@ -87,12 +87,17 @@ describe('Valaineral developed Holy Circle', function()
         finish(val)
         local damage = hp - undead:getHP()
         assert(damage > 0)
-        assert(packetDamage(val, undead, xi.action.category.JOBABILITY_FINISH) == damage,
+        -- Both native damaging JAs use SkillFinish (3), not AbilityFinish (6).
+        assert(packetDamage(val, undead, xi.action.category.WEAPONSKILL_FINISH) == damage,
             'the action packet must report the HP damage actually applied')
         return damage
     end
 
     local function weaponDamage(id)
+        -- Measure this WS's Circle term independently of prior resonance damage.
+        undead:delStatusEffect(xi.effect.SKILLCHAIN)
+        undead:delStatusEffect(xi.effect.CHAINBOUND)
+        assert(not undead:hasStatusEffect(xi.effect.SKILLCHAIN) and not undead:hasStatusEffect(xi.effect.CHAINBOUND))
         undead:addBaseEnmity(val)
         undead:setCE(val, 6000)
         undead:setVE(val, 6000)
@@ -128,7 +133,7 @@ describe('Valaineral developed Holy Circle', function()
         end)
 
         owner = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.PLD, level = 99 })
-        owner:setAutoAttackEnabled(false)
+        owner.actions:setAutoAttackEnabled(false)
         owner:setUnkillable(true)
         val = owner:spawnTrust(xi.magic.spell.VALAINERAL)
         assert(val)
@@ -149,7 +154,12 @@ describe('Valaineral developed Holy Circle', function()
         assert(undead:isUndead() and not undead:isNM())
         assert(notorious:isUndead() and notorious:isNM())
         assert(not other:isUndead())
-        xi.test.world:tick()
+        local x, y, z = owner:getXPos(), owner:getYPos(), owner:getZPos()
+        local visible = owner.entities:moveTo(undead) -- Refresh native self-centered AoE targets.
+        assert(visible and visible:getID() == undead:getID())
+        owner:setPos(x, y, z)
+        owner.actions:engage(undead)
+        val:engage(undead:getTargID())
     end)
 
     after_each(function()
@@ -232,10 +242,17 @@ describe('Valaineral developed Holy Circle', function()
     it('applies the native incoming undead resistance before HP and packet values', function()
         owner.actions:engage(undead)
         local function incoming()
+            val:setHP(val:getMaxHP()) -- Isolate this sample from the previous sample's damage.
+            val:setMod(xi.mod.UNDEAD_KILLER, 0)
+            undead:updateEnmity(val)
+            undead:setCE(val, 10000)
+            undead:setVE(val, 10000)
+            undead:engage(val:getTargID())
+            local target = undead:getTarget()
+            assert(target and target:getID() == val:getID(), 'incoming damage must target this Valaineral')
             owner.packets:clear()
             local hp = val:getHP()
             undead:setAutoAttackEnabled(true)
-            undead:updateEnmity(val)
             finish(undead, 4)
             undead:setAutoAttackEnabled(false)
             local damage = hp - val:getHP()
@@ -287,7 +304,15 @@ describe('Valaineral developed Holy Circle', function()
         val:setMod(xi.mod.DMG, 0)
         val:setMod(xi.mod.FIRE_SDT, 0)
         local function breath()
+            val:setHP(val:getMaxHP())
+            undead:updateEnmity(val)
+            undead:setCE(val, 10000)
+            undead:setVE(val, 10000)
+            undead:engage(val:getTargID()) -- Keep its HP stable in combat until the skill snapshots it.
+            local target = undead:getTarget()
+            assert(target and target:getID() == val:getID())
             undead:setHP(1000) -- Ten percent stays below Flame Breath's400 damage cap.
+            assert(undead:getHP() == 1000 and val:getHP() > 400)
             undead:setTP(3000)
             owner.packets:clear()
             local hp = val:getHP()
@@ -295,13 +320,16 @@ describe('Valaineral developed Holy Circle', function()
             undead:useMobAbility(642, val, 2000)
             finish(undead, 4)
             local damage = hp - val:getHP()
+            assert(undead:getHP() == 1000, 'the sampled breath source HP must remain stable')
             assert(damage > 0)
             assert(packetDamage(undead, val, xi.action.category.MOBABILITY_FINISH) == damage)
             return damage
         end
 
+        val:setMod(xi.mod.UNDEAD_KILLER, 0) -- Isolate damage resistance from intimidation.
         assert(breath() == 100)
         circle()
+        val:setMod(xi.mod.UNDEAD_KILLER, 0)
         assert(breath() == 65, 'the existing breath ecosystem path must apply the resistance only once')
     end)
 

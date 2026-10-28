@@ -1832,7 +1832,13 @@ void CBattleEntity::SetSLevel(uint8 slvl)
 {
     TracyZoneScoped;
 
-    if (!settings::get<bool>("map.INCLUDE_MOB_SJ") && this->objtype == TYPE_MOB && this->objtype != TYPE_PET)
+    if (trustdevelopment::IsEnabled(dynamic_cast<const CTrustEntity*>(this)))
+    {
+        // Approved Trust jobs use their literal developed levels independently
+        // of the player/mob subjob ratio setting.
+        m_slvl = std::min(slvl, m_mlvl);
+    }
+    else if (!settings::get<bool>("map.INCLUDE_MOB_SJ") && this->objtype == TYPE_MOB && this->objtype != TYPE_PET)
     {
         m_slvl = m_mlvl; // All mobs have a 1:1 ratio of MainJob/Subjob
     }
