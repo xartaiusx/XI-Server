@@ -14,6 +14,18 @@ describe('Valaineral developed Holy Circle', function()
         xi.test.world:tickEntity(actor)
         xi.test.world:skipTime(seconds or 3)
         xi.test.world:skipTime(3)
+        for _, packet in ipairs(owner.packets:actionPackets()) do
+            assert(packet.m_uID ~= owner:getID() or packet.cmd_no ~= xi.action.category.BASIC_ATTACK,
+                'the fixture owner must not contaminate Trust-only damage with a native swing')
+        end
+    end
+
+    local function engageOwnerFacingAway()
+        owner.actions:engage(undead)
+        local x, y, z = owner:getXPos(), owner:getYPos(), owner:getZPos()
+        -- Native PC CanAttack uses facing rather than the controller's mob-only attack flag.
+        owner:lookAt(2 * x - undead:getXPos(), y, 2 * z - undead:getZPos())
+        assert(not owner:isFacing(undead), 'the engaged fixture owner must face away from the sampled target')
     end
 
     local function dummy(group, zone, name)
@@ -146,7 +158,6 @@ describe('Valaineral developed Holy Circle', function()
         end)
 
         owner = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.PLD, level = 99 })
-        owner.actions:setAutoAttackEnabled(false)
         owner:setUnkillable(true)
         val = owner:spawnTrust(xi.magic.spell.VALAINERAL)
         assert(val)
@@ -171,7 +182,7 @@ describe('Valaineral developed Holy Circle', function()
         local visible = owner.entities:moveTo(undead) -- Refresh native self-centered AoE targets.
         assert(visible and visible:getID() == undead:getID())
         owner:setPos(x, y, z)
-        owner.actions:engage(undead)
+        engageOwnerFacingAway()
         val:engage(undead:getTargID())
     end)
 
@@ -231,16 +242,27 @@ describe('Valaineral developed Holy Circle', function()
     end)
 
     it('applies the modeled native melee bonus with packet and HP agreement', function()
-        owner.actions:engage(undead)
+        engageOwnerFacingAway()
         local function swing()
             owner.packets:clear()
             local hp = undead:getHP()
             val:setAutoAttackEnabled(true)
             val:engage(undead:getTargID())
-            finish(val, 4)
+            val:lookAt(undead:getPos())
+            -- Wait for one actual native swing, including any existing action lock.
+            -- Do not requeue the attack or assume skipped seconds equal engine ticks.
+            for _ = 1, 12 do
+                xi.test.world:tickEntity(val)
+                xi.test.world:skipTime(1)
+                local _, count = packetDamage(val, undead, xi.action.category.BASIC_ATTACK)
+                if count > 0 then
+                    break
+                end
+            end
+
             val:setAutoAttackEnabled(false)
             local damage = hp - undead:getHP()
-            assert(damage > 0)
+            assert(damage > 0, damageEvidence(val, undead, xi.action.category.BASIC_ATTACK, damage))
             local reported, count = packetDamage(val, undead, xi.action.category.BASIC_ATTACK)
             assert(reported == damage and count > 0,
                 damageEvidence(val, undead, xi.action.category.BASIC_ATTACK, damage))
@@ -254,7 +276,7 @@ describe('Valaineral developed Holy Circle', function()
     end)
 
     it('applies the native incoming undead resistance before HP and packet values', function()
-        owner.actions:engage(undead)
+        engageOwnerFacingAway()
         local function incoming()
             val:setHP(val:getMaxHP()) -- Isolate this sample from the previous sample's damage.
             val:setMod(xi.mod.UNDEAD_KILLER, 0)
@@ -314,7 +336,7 @@ describe('Valaineral developed Holy Circle', function()
     end)
 
     it('does not apply a second Circle term to an existing native breath move', function()
-        owner.actions:engage(undead)
+        engageOwnerFacingAway()
         val:setMod(xi.mod.UDMGBREATH, 0)
         val:setMod(xi.mod.DMGBREATH, 0)
         val:setMod(xi.mod.DMG, 0)

@@ -22,6 +22,15 @@ describe('Valaineral native combat consumers', function()
         end
     end
 
+    local function engageOwnerFacingAway()
+        owner.actions:engage(mob)
+        local x, y, z = owner:getXPos(), owner:getYPos(), owner:getZPos()
+
+        -- Native PC CanAttack ignores the controller flag; preserve range and Cover positions while blocking swings.
+        owner:lookAt(2 * x - mob:getXPos(), y, 2 * z - mob:getZPos())
+        assert(not owner:isFacing(mob), 'the engaged fixture owner must face away from the native target')
+    end
+
     before_each(function()
         xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', true)
         xi.test.world:setSetting('main.ENABLE_TRUST_ALTER_EGO_POINT_BONUSES', false)
@@ -30,7 +39,6 @@ describe('Valaineral native combat consumers', function()
         xi.test.world:setSetting('map.ENABLE_AUTO_ATTACK_LUA', false)
         xi.test.world:setSeed(123456)
         owner = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.PLD, level = 99 })
-        owner.actions:setAutoAttackEnabled(false)
         owner:setUnkillable(true)
         val = owner:spawnTrust(xi.magic.spell.VALAINERAL)
         assert(val)
@@ -66,7 +74,7 @@ describe('Valaineral native combat consumers', function()
         local visible = owner.entities:moveTo(mob) -- Refresh native spawn lists.
         assert(visible and visible:getID() == mob:getID())
         owner:setPos(x, y, z + 2.5)
-        owner.actions:engage(mob)
+        engageOwnerFacingAway()
         val:engage(mob:getTargID())
     end)
 
@@ -88,7 +96,7 @@ describe('Valaineral native combat consumers', function()
 
     local function sentinelFlash(withEmblem)
         stub('xi.combat.magicHitRate.calculateResistRate', 1)
-        owner.actions:engage(mob)
+        engageOwnerFacingAway()
         assert(owner.actions:useTrustAbility(val, val, xi.jobAbility.SENTINEL))
         xi.test.world:tickEntity(val)
         xi.test.world:skipTime(3)
@@ -132,7 +140,7 @@ describe('Valaineral native combat consumers', function()
     end)
 
     it('binds divine damage enmity to the actual cast and excludes counter or invalid spell inputs', function()
-        owner.actions:engage(mob)
+        engageOwnerFacingAway()
         assert(owner.actions:useTrustAbility(val, val, xi.jobAbility.SENTINEL))
         xi.test.world:tickEntity(val)
         xi.test.world:skipTime(3)
@@ -174,7 +182,7 @@ describe('Valaineral native combat consumers', function()
     end)
 
     it('does not apply Divine Emblem special enmity to an ordinary job ability', function()
-        owner.actions:engage(mob)
+        engageOwnerFacingAway()
         assert(owner.actions:useTrustAbility(val, val, xi.jobAbility.SENTINEL))
         xi.test.world:tickEntity(val)
         xi.test.world:skipTime(3)
@@ -318,7 +326,7 @@ describe('Valaineral native combat consumers', function()
         val:setMod(xi.mod.TRIPLE_ATTACK, 0)
         val:setMod(xi.mod.QUAD_ATTACK, 0)
         local attack = val:getStat(xi.mod.ATT)
-        owner.actions:engage(mob)
+        engageOwnerFacingAway()
         val:setAutoAttackEnabled(true)
         val:engage(mob:getTargID())
         advance(val, 2)
@@ -338,7 +346,20 @@ describe('Valaineral native combat consumers', function()
     end)
 
     it('adds flat conditional attack before the existing pDIF percentage without changing actor stats', function()
-        local ratios = {}
+        local ratios     = {}
+        local spikeRolls = 0
+        local randomInt  = math.randomInt
+
+        -- Exercise the ratio path instead of the native random spike early return.
+        stub('math.randomInt', function(minimum, maximum)
+            if minimum == 1 and maximum == 10000 then
+                spikeRolls = spikeRolls + 1
+                return 10000
+            end
+
+            return randomInt(minimum, maximum)
+        end)
+
         stub('xi.combat.physical.wRatioCapOthers', function(ratio, _cap)
             table.insert(ratios, ratio)
             return 1, 1
@@ -349,9 +370,14 @@ describe('Valaineral native combat consumers', function()
             val, mob, xi.skill.SWORD, 1, false, false, false, 0, false, xi.slot.MAIN, false)
         xi.combat.physical.calculateMeleePDIF(
             val, mob, xi.skill.SWORD, 1, false, false, false, 0, false, xi.slot.MAIN, false, 20)
-        assert(#ratios == 2)
-        assert(math.abs((ratios[2] - ratios[1]) * mob:getStat(xi.mod.DEF) - 20) < 0.0001)
-        assert(val:getStat(xi.mod.ATT) == attack)
+        assert(spikeRolls == 2, string.format('two pDIF calls must make exactly two spike decisions, got %d', spikeRolls))
+        assert(#ratios == 2, string.format('two non-spike pDIF calls must reach the ratio hook, got %d', #ratios))
+        local defense       = mob:getStat(xi.mod.DEF)
+        local impliedAttack = (ratios[2] - ratios[1]) * defense
+        assert(math.abs(impliedAttack - 20) < 0.0001,
+            string.format('flat20 attack: ratios %.9f/%.9f DEF %d implied %.9f', ratios[1], ratios[2], defense, impliedAttack))
+        assert(val:getStat(xi.mod.ATT) == attack,
+            string.format('conditional attack must leave native ATT %d unchanged, got %d', attack, val:getStat(xi.mod.ATT)))
     end)
 
     it('applies the native first-swing Restraint JP acceleration', function()
@@ -369,7 +395,7 @@ describe('Valaineral native combat consumers', function()
         val:setMod(xi.mod.TRIPLE_ATTACK, 0)
         val:setMod(xi.mod.QUAD_ATTACK, 0)
         val:addStatusEffect(xi.effect.RESTRAINT, { duration = 300, origin = val })
-        owner.actions:engage(mob)
+        engageOwnerFacingAway()
         val:setAutoAttackEnabled(true)
         val:engage(mob:getTargID())
         xi.test.world:tickEntity(val)
@@ -388,7 +414,7 @@ describe('Valaineral native combat consumers', function()
         xi.test.world:tickEntity(val)
         xi.test.world:skipTime(3)
         assert(val:hasStatusEffect(xi.effect.RETALIATION))
-        owner.actions:engage(mob)
+        engageOwnerFacingAway()
         val:engage(mob:getTargID())
         val:lookAt(mob:getPos()) -- Retaliation requires facing even with normal swings disabled.
         local enemyHP = mob:getHP()
