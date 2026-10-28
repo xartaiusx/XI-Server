@@ -25,6 +25,7 @@
 #include "login/login_helpers.h"
 #include "map/entities/base_entity.h"
 #include "map/entities/char_entity.h"
+#include "map/packets/c2s/0x077_group_change2.h"
 #include "map/party.h"
 #include "test_common.h"
 #include "zone.h"
@@ -263,7 +264,7 @@ bool TestChar::prepareSoloTrustParty() const
     // name for native leader setup, then let ReloadParty resolve its full ID.
     auto* PParty = new CParty(PChar);
     PParty->MarkFormedByTrusts();
-    PParty->SetLeader(charName_);
+    PParty->AssignPartyRole(charName_, GP_CLI_COMMAND_GROUP_CHANGE2_CHANGEKIND::SetPartyLeader);
     PParty->ReloadParty();
     return PChar->PParty == PParty && PParty->GetLeader() == PChar &&
            PParty->GetPartyID() == charId_ && PParty->m_PAlliance == nullptr &&
