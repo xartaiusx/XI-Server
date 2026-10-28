@@ -129,12 +129,6 @@ end
 function CClientEntityPairActions:prepareSoloTrustParty()
 end
 
----Enable or disable only this fixture PC's native controller auto-attack
----@param enabled boolean
----@return nil
-function CClientEntityPairActions:setAutoAttackEnabled(enabled)
-end
-
 ---Build a native two-PC party for Trust preflight tests
 ---@param member CBaseEntity Second player character
 ---@return boolean
