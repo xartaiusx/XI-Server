@@ -71,14 +71,14 @@ void CheckPacket(action_t batch)
         {
             REQUIRE(unpackBitsBE(data, offset + 27, 17) == result.param);
             offset += 85;
-            REQUIRE(unpackBitsBE(data, offset, 1) == result.hasAdditionalEffect());
+            REQUIRE(unpackBitsBE(data, offset, 1) == static_cast<uint64>(result.hasAdditionalEffect()));
             offset += 1;
             if (result.hasAdditionalEffect())
             {
                 REQUIRE(unpackBitsBE(data, offset + 10, 17) == result.addEffectParam);
                 offset += 37;
             }
-            REQUIRE(unpackBitsBE(data, offset, 1) == (result.spikesEffect != ActionReactKind::None));
+            REQUIRE(unpackBitsBE(data, offset, 1) == static_cast<uint64>(result.spikesEffect != ActionReactKind::None));
             offset += 1;
             if (result.spikesEffect != ActionReactKind::None)
             {
