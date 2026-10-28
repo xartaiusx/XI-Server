@@ -2273,6 +2273,23 @@ end)
 
 m:addOverride('xi.player.onPlayerDeath', function(player)
     super(player)
+    if
+        player ~= nil and
+        player:getName() == qaAdminName and
+        getSessionState(player) == sessionState.IDLE and
+        player:getLocalVar(evidenceModeVar) == evidenceMode.IDLE and
+        player:getLocalVar(evidenceSchemaVar) == 0 and
+        player:getLocalVar(sessionStartedVar) == 0 and
+        player:getLocalVar(sessionZoneVar) == 0 and
+        player:getLocalVar(evidenceSequenceVar) == 0 and
+        player:getLocalVar(pendingTimersVar) == 0 and
+        player:getLocalVar(logTruncatedVar) == 0
+    then
+        -- Native owner-death cleanup already retained only approved Trusts.
+        -- Evidence sessions and inconsistent states still use the teardown below.
+        return
+    end
+
     closeAndClearLifecycleSession(player, 'player_death')
 end)
 

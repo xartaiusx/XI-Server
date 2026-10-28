@@ -194,6 +194,62 @@ describe('Ordinary entitled Trust alliance', function()
         xi.trustActionLogger = originalLogger
     end)
 
+    it('logs native Weakness effect duration in milliseconds', function()
+        assert(player:spawnTrust(xi.magic.spell.VALAINERAL) ~= nil)
+        local val = findTrust(xi.magic.spell.VALAINERAL)
+        assert(val and val:isDevelopedTrust())
+        -- Suppress autonomous JAs before the first tick, preserving their recasts.
+        val:removeAllGambits()
+        val:setAutoAttackEnabled(false)
+        val:setMobAbilityEnabled(false)
+        xi.test.world:skipTime(3)
+        local ident = val:getID()
+        xi.test.world:setSetting('main.ENABLE_TRUST_ACTION_LOG', true)
+        xi.test.world:setSetting('main.TRUST_ACTION_LOG_PACKET_RESULTS', true)
+        xi.test.world:setSetting('main.TRUST_ACTION_LOG_MAP_ECHO', true)
+        xi.test.world:setSetting('main.TRUST_ACTION_LOG_PLAYER', 'Twills')
+        xi.test.world:setSetting('main.TRUST_ACTION_LOG_MAX_BYTES_PER_SESSION', 65536)
+        xi.test.world:setSetting('logging.LOG_INFO', true)
+
+        -- Actual effects and completed native JAs feed the production logger.
+        -- The private CTRF check pairs these native assertions with emitted rows.
+        local samples =
+        {
+            { seconds = 300, milliseconds = 300000, ability = xi.jobAbility.SENTINEL, effect = xi.effect.SENTINEL },
+            { seconds = 180, milliseconds = 180000, ability = xi.jobAbility.DIVINE_EMBLEM, effect = xi.effect.DIVINE_EMBLEM },
+            { seconds = 0, milliseconds = 0, ability = xi.jobAbility.DEFENDER, effect = xi.effect.DEFENDER },
+        }
+        for _, sample in ipairs(samples) do
+            val:delStatusEffect(xi.effect.WEAKNESS)
+            if sample.seconds > 0 then
+                val:addStatusEffect(xi.effect.WEAKNESS, { power = 1, duration = sample.seconds, origin = val })
+            end
+
+            local weakness = val:getStatusEffect(xi.effect.WEAKNESS)
+            if sample.seconds > 0 then
+                assert(weakness and weakness:getDuration() == sample.milliseconds)
+                assert(weakness:getPower() == 1)
+            else
+                assert(weakness == nil)
+            end
+
+            assert(player.actions:useTrustAbility(val, val, sample.ability), 'the native self-JA must be admitted')
+            xi.test.world:tickEntity(val)
+            xi.test.world:skipTime(3)
+            assert(val:hasStatusEffect(sample.effect), 'the native JA must have completed')
+            weakness = val:getStatusEffect(xi.effect.WEAKNESS)
+            if sample.seconds > 0 then
+                assert(weakness and weakness:getDuration() == sample.milliseconds and weakness:getPower() == 1)
+            else
+                assert(weakness == nil)
+            end
+
+            assert(val:getID() == ident and #player:getPartyWithTrusts() == 2)
+            assert(player:canUseTwillsTrustGameplay())
+            assert(player:getTwillsFullAllianceState() == 0 and player:getLocalVar('MochiriiTrustEvidenceMode') == 0)
+        end
+    end)
+
     it('summons seventeen individually and retains corpse capacity until native dismissal', function()
         for index, id in ipairs(roster) do
             attempt(id, index + 1, true)

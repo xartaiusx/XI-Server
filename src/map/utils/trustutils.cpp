@@ -1397,7 +1397,7 @@ void LogOrdinaryTrustPacket(CTrustEntity* trust, CCharEntity* master, const acti
     const auto* weakness = trust->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::Weakness);
     const auto* reraise  = trust->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::Reraise);
     context << "\tweakness_power=" << (weakness ? weakness->GetPower() : 0);
-    context << "\tweakness_duration_ms=" << (weakness ? weakness->GetDuration().count() : 0);
+    context << "\tweakness_duration_ms=" << (weakness ? timer::count_milliseconds(weakness->GetDuration()) : 0);
     context << "\treraise_power=" << (reraise ? reraise->GetPower() : 0);
     context << "\tmember_count=" << master->PTrusts.size() + 1;
     context << "\tsource=" << SafeLogValue(std::string(source ? source : "unknown").substr(0, 64));

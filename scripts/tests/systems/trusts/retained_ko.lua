@@ -135,6 +135,88 @@ describe('Approved Trust KO recovery', function()
         assert(requiredValaineral():getID() == ident)
     end)
 
+    it('retains ordinary exact Twills support through the real player-death hook', function()
+        -- The existing TrustKOProbe cases do not enter the Twills-only module
+        -- lifecycle override. This synthetic actor uses the exact policy name;
+        -- its DB identity remains the test engine's unique generated character.
+        owner = xi.test.world:spawnPlayer({ name = 'Twills', zone = xi.zone.WEST_RONFAURE, job = xi.job.RDM, level = 99 })
+        assert(owner:getName() == 'Twills')
+        assert(not owner:isInEvent())
+        assert(owner:getTwillsFullAllianceState() == xi.trustRetailParity.sessionState.IDLE)
+        assert(owner:getLocalVar('MochiriiTrustEvidenceMode') == xi.trustRetailParity.evidenceMode.IDLE)
+        assert(owner:spawnTrust(xi.magic.spell.VALAINERAL) ~= nil)
+        xi.test.world:skipTime(1)
+
+        local trust = requiredValaineral()
+        local ident = trust:getID()
+        assert(trust:isDevelopedTrust())
+        assert(trust:getMainLvl() == 99 and trust:getSubLvl() == 99)
+        assert(trust:getMP() >= 150, 'normal Valaineral must afford the native Raise MP cost')
+        assert(owner:spawnTrust(xi.magic.spell.SHANTOTTO) ~= nil)
+        local unapproved
+        for _, member in ipairs(owner:getPartyWithTrusts()) do
+            if member:isTrust() and member:getTrustID() == xi.magic.spell.SHANTOTTO then
+                unapproved = member
+            end
+        end
+
+        assert(unapproved and not unapproved:isDevelopedTrust())
+        local unapprovedId = unapproved:getID()
+        assert(#owner:getPartyWithTrusts() == 3)
+
+        -- Native die/tick invokes CCharEntity::Die and the actual
+        -- xi.player.onPlayerDeath override, including super. No hook is stubbed
+        -- and no Trust cast, player Raise acceptance or recast is forced here.
+        owner:die({ expLoss = false, mijin = false })
+        xi.test.world:tickEntity(owner)
+        assert(owner:isDead())
+        assert(requiredValaineral():getID() == ident, 'the real Twills hook must preserve the exact approved native actor')
+        assert(#owner:getPartyWithTrusts() == 2, 'native owner-KO cleanup must still remove the unapproved Trust')
+        xi.test.world:tickEntity(trust)
+        xi.test.world:skipTime(3)
+        xi.test.world:skipTime(3)
+        assert(not owner.actions:hasTrustEntity(unapprovedId), 'the unapproved native entity must retire without an orphan')
+        assert(requiredValaineral():getID() == ident)
+        xi.test.world:skipTime(20)
+        xi.test.world:skipTime(13)
+
+        assert(owner:isDead(), 'the retained healer must leave PC Raise acceptance manual')
+        assert(owner:hasRaiseTractorMenu(), 'ordinary exact Twills must receive a natural native Raise offer')
+        owner.actions:acceptRaise()
+        xi.test.world:skipTime(3)
+        xi.test.world:skipTime(3)
+        assert(not owner:isDead())
+        assert(requiredValaineral():getID() == ident)
+        assert(owner:getTwillsFullAllianceState() == xi.trustRetailParity.sessionState.IDLE)
+        assert(owner:getLocalVar('MochiriiTrustEvidenceMode') == xi.trustRetailParity.evidenceMode.IDLE)
+    end)
+
+    it('keeps stale Twills evidence cleanup after native owner-KO retention', function()
+        owner = xi.test.world:spawnPlayer({ name = 'Twills', zone = xi.zone.WEST_RONFAURE, job = xi.job.RDM, level = 99 })
+        assert(owner:getName() == 'Twills')
+        assert(owner:getTwillsFullAllianceState() == xi.trustRetailParity.sessionState.IDLE)
+        assert(owner:getLocalVar('MochiriiTrustEvidenceMode') == xi.trustRetailParity.evidenceMode.IDLE)
+        assert(owner:spawnTrust(xi.magic.spell.VALAINERAL) ~= nil)
+        xi.test.world:skipTime(1)
+        local trust = requiredValaineral()
+        local ident = trust:getID()
+        assert(trust:isDevelopedTrust())
+
+        -- A stale evidence schema must not be reclassified as clean ordinary
+        -- gameplay. Native eligibility still retains this Valaineral first;
+        -- the actual Lua death hook must then preserve its old cleanup.
+        owner:setLocalVar('MochiriiTrustEvidenceSchema', 1)
+        owner:die({ expLoss = false, mijin = false })
+        xi.test.world:tickEntity(owner)
+        assert(owner:isDead())
+        assert(valaineral() == nil, 'stale evidence state must keep the previous fail-closed lifecycle cleanup')
+        assert(#owner:getPartyWithTrusts() == 1)
+        xi.test.world:skipTime(3)
+        xi.test.world:skipTime(3)
+        assert(not owner.actions:hasTrustEntity(ident), 'stale cleanup must retire the exact native actor')
+        assert(owner:getLocalVar('MochiriiTrustEvidenceSchema') == 0)
+    end)
+
     it('allows a friendly party PC to cast Raise on another owners retained Trust', function()
         owner = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.PLD, level = 99 })
         local healer = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.WHM, level = 99 })
