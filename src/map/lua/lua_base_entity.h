@@ -391,7 +391,7 @@ public:
     auto getSubJob() -> xi::Job;
     bool isDevelopedTrust();
     bool hasMainJobAccess(xi::Job job);
-    auto getDevelopedHolyCircleMultiplier(CLuaBaseEntity* target) -> double;
+    auto getDevelopedHolyCircleMultiplier(uint32 targetId, uint32 targetIndex) -> double;
     void changeJob(uint8 newJob);
     void changesJob(uint8 subJob);
     void unlockJob(uint8 JobID);
