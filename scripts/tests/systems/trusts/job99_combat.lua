@@ -23,8 +23,9 @@ describe('Valaineral native combat consumers', function()
     end
 
     local function engageOwnerFacingAway()
-        owner.actions:engage(mob)
         local x, y, z = owner:getXPos(), owner:getYPos(), owner:getZPos()
+        owner.actions:engage(mob)
+        owner:setPos(x, y, z) -- The native engage helper moves the PC; restore the fixture's intended geometry.
 
         -- Native PC CanAttack ignores the controller flag; preserve range and Cover positions while blocking swings.
         owner:lookAt(2 * x - mob:getXPos(), y, 2 * z - mob:getZPos())
@@ -256,23 +257,61 @@ describe('Valaineral native combat consumers', function()
     end)
 
     it('redirects real incoming melee to the approved Cover protector and stops at expiration', function()
+        local function assertCoverGeometry()
+            local x, y, z    = mob:getXPos(), mob:getYPos(), mob:getZPos()
+            local ox, oy, oz = owner:getXPos() - x, owner:getYPos() - y, owner:getZPos() - z
+            local vx, vy, vz = val:getXPos() - x, val:getYPos() - y, val:getZPos() - z
+
+            local ownerSquared = ox * ox + oy * oy + oz * oz
+            local valSquared   = vx * vx + vy * vy + vz * vz
+            local dot          = vx * ox + vy * oy + vz * oz
+            local crossSquared = valSquared * ownerSquared - dot * dot
+            local geometry     = string.format('owner2 %.6f Val2 %.6f dot %.6f cross2 %.6f', ownerSquared, valSquared, dot, crossSquared)
+
+            assert(valSquared < ownerSquared, 'Cover protector must be strictly closer to the attacker: ' .. geometry)
+            assert(dot > 0 and dot < ownerSquared and math.abs(crossSquared) < 0.0001,
+                'Cover protector must be collinear and between attacker and owner: ' .. geometry)
+        end
+
         fixedContact()
         stub('xi.combat.physical.calculateMeleePDIF', 1)
         assert(owner.actions:useTrustAbility(val, owner, xi.jobAbility.COVER))
         xi.test.world:tickEntity(val)
         xi.test.world:skipTime(3)
         assert(val:hasStatusEffect(xi.effect.COVER))
+        assertCoverGeometry()
         local ownerHP, valHP = owner:getHP(), val:getHP()
         mob:setAutoAttackEnabled(true)
+        -- Cover adds protector CE and lowers recipient hate; test redirection while the owner remains the actual target.
+        mob:addBaseEnmity(owner)
+        mob:setCE(owner, 10000)
+        mob:setVE(owner, 0)
         mob:updateEnmity(owner)
         advance(mob, 2)
-        assert(owner:getHP() == ownerHP, 'the protected PC must avoid the covered melee damage')
-        assert(val:getHP() < valHP, 'native incoming melee must damage the Trust protector')
+        local actualTarget = mob:getTarget()
+        assert(actualTarget and actualTarget:getID() == owner:getID(),
+            string.format('covered melee must target owner %d, got %d; owner CE %d Val CE %d',
+                owner:getID(), actualTarget and actualTarget:getID() or 0, mob:getCE(owner), mob:getCE(val)))
+        assert(owner:getHP() == ownerHP,
+            string.format('covered owner HP must remain %d, got %d; Val HP %d/%d', ownerHP, owner:getHP(), val:getHP(), valHP))
+        assert(val:getHP() < valHP,
+            string.format('native Cover must damage Val: HP %d/%d owner %d/%d', val:getHP(), valHP, owner:getHP(), ownerHP))
         assert(not val:isDead())
         val:delStatusEffect(xi.effect.COVER)
+        assertCoverGeometry()
         ownerHP = owner:getHP()
+        -- Compare expiration against the same native hostile target, rather than inherited Cover enmity.
+        mob:addBaseEnmity(owner)
+        mob:setCE(owner, 10000)
+        mob:setVE(owner, 0)
+        mob:updateEnmity(owner)
         advance(mob, 2)
-        assert(owner:getHP() < ownerHP, 'expired Cover must restore the original melee recipient')
+        actualTarget = mob:getTarget()
+        assert(actualTarget and actualTarget:getID() == owner:getID(),
+            string.format('expired Cover melee must target owner %d, got %d; owner CE %d Val CE %d',
+                owner:getID(), actualTarget and actualTarget:getID() or 0, mob:getCE(owner), mob:getCE(val)))
+        assert(owner:getHP() < ownerHP,
+            string.format('expired Cover must damage owner: HP %d/%d Val %d', owner:getHP(), ownerHP, val:getHP()))
     end)
 
     it('covers a same-party Trust recipient through real melee and restores it after expiration', function()

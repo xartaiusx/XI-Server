@@ -21,8 +21,9 @@ describe('Valaineral developed Holy Circle', function()
     end
 
     local function engageOwnerFacingAway()
-        owner.actions:engage(undead)
         local x, y, z = owner:getXPos(), owner:getYPos(), owner:getZPos()
+        owner.actions:engage(undead) -- The test helper moves the PC next to its target.
+        owner:setPos(x, y, z)
         -- Native PC CanAttack uses facing rather than the controller's mob-only attack flag.
         owner:lookAt(2 * x - undead:getXPos(), y, 2 * z - undead:getZPos())
         assert(not owner:isFacing(undead), 'the engaged fixture owner must face away from the sampled target')
@@ -318,7 +319,8 @@ describe('Valaineral developed Holy Circle', function()
         local function holy()
             owner.packets:clear()
             local hp = undead:getHP()
-            assert(owner.actions:useTrustSpell(val, undead, xi.magic.spell.HOLY_II))
+            assert(owner.actions:useTrustSpell(val, undead, xi.magic.spell.HOLY_II),
+                string.format('native HolyII admission: MP %d recast %s', val:getMP(), tostring(val:hasRecast(xi.recast.MAGIC, xi.magic.spell.HOLY_II))))
             finish(val, 5)
             local damage = hp - undead:getHP()
             assert(damage > 0)
@@ -328,7 +330,10 @@ describe('Valaineral developed Holy Circle', function()
         end
 
         local base = holy()
-        xi.test.world:skipTime(40)
+        assert(val:hasRecast(xi.recast.MAGIC, xi.magic.spell.HOLY_II), 'the completed first cast must retain its native recast')
+        -- The accepted native spell definition has a 60-second base recast.
+        xi.test.world:skipTime(60)
+        assert(not val:hasRecast(xi.recast.MAGIC, xi.magic.spell.HOLY_II), 'the second sample must wait for the native recast')
         circle()
         local enhanced = holy()
         assert(math.abs(enhanced - base * 1.15) < 3)
