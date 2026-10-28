@@ -90,7 +90,7 @@ describe('Ordinary entitled Trust alliance', function()
         assert(player:getTwillsFullAllianceState() == 0 and player:getLocalVar('MochiriiTrustEvidenceMode') == 0)
     end
 
-    local function assertWarcryScope(expectFar)
+    local function assertWarcryScope(legacyQA)
         local caster = findTrust(xi.magic.spell.NAJI)
         local near = findTrust(xi.magic.spell.PRISHE)
         local far = findTrust(xi.magic.spell.KUPIPI)
@@ -114,21 +114,50 @@ describe('Ordinary entitled Trust alliance', function()
         assert(near:checkDistance(caster) < 14 and far:checkDistance(caster) > 14, 'the native action must retain a near/far control')
         assert(near:hasStatusEffect(xi.effect.WARCRY), 'a near last-group recipient must receive party support across UI projection')
         assert(near:getStatusEffect(xi.effect.WARCRY):getOriginID() == caster:getID())
-        assert(far:hasStatusEffect(xi.effect.WARCRY) == expectFar, 'only qualified lanes should change the legacy radius bypass')
+        assert(far:hasStatusEffect(xi.effect.WARCRY) == legacyQA, 'only qualified lanes should change the legacy radius bypass')
         local targets = {}
+        local ordered = {}
+        local packetCount = 0
         for _, packet in ipairs(player.packets:actionPackets()) do
             if
                 packet.m_uID == caster:getID() and
-                packet.cmd_no == xi.action.category.JOBABILITY_FINISH
+                packet.cmd_no == xi.action.category.JOBABILITY_FINISH and
+                packet.cmd_arg == xi.jobAbility.WARCRY
             then
+                packetCount = packetCount + 1
+                assert(packet.trg_sum <= 15, 'each native action packet must retain its target bound')
                 for _, victim in ipairs(packet.target) do
+                    assert(not targets[victim.m_uID], 'a completed action must not serialize a recipient twice')
                     targets[victim.m_uID] = true
+                    table.insert(ordered, victim.m_uID)
                 end
             end
         end
 
-        assert(targets[near:getID()] == true)
-        assert((targets[far:getID()] == true) == expectFar, 'native action recipients must match applied buff scope')
+        -- Native target finding places the caster first, then the owner and
+        -- owned Trusts in summon order. Legacy QA still serializes only15;
+        -- ordinary gameplay must now deliver every actual recipient in order.
+        local expected = { caster:getID(), player:getID() }
+        for _, spell in ipairs(roster) do
+            local trust = findTrust(spell)
+            assert(trust)
+            if
+                trust:getID() ~= caster:getID() and
+                (legacyQA or trust:getID() ~= far:getID())
+            then
+                table.insert(expected, trust:getID())
+            end
+        end
+
+        local expectedCount = legacyQA and 15 or #expected
+        assert(packetCount == (legacyQA and 1 or 2), 'native batching must preserve the legacy QA path')
+        assert(#ordered == expectedCount, 'every expected native packet recipient must be present')
+        for index = 1, expectedCount do
+            assert(ordered[index] == expected[index], 'native batching must preserve target order')
+        end
+
+        assert((targets[near:getID()] == true) == not legacyQA, 'ordinary packets must include the seventeenth Trust')
+        assert((targets[far:getID()] == true) == legacyQA, 'native action recipients must match the qualified radius')
     end
 
     before_each(function()

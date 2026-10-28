@@ -29,6 +29,7 @@
 #include <common/types/hash_map.h>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstring>
 #include <ctime>
@@ -51,9 +52,11 @@
 #include "grades.h"
 #include "mob_spell_container.h"
 #include "mob_spell_list.h"
+#include "packets/s2c/0x028_battle2.h"
 #include "party.h"
 
 #include "action/action.h"
+#include "action/action_packet_batch.h"
 #include "ai/ai_container.h"
 #include "ai/controllers/trust_controller.h"
 #include "ai/helpers/gambits_container.h"
@@ -1506,6 +1509,82 @@ void trustutils::LogTrustActionSkip(CBattleEntity* PActor, const CBattleEntity* 
     AddEnmityFields(line, PTrust, PTarget);
 
     AppendTrustLogLine(PMaster, *session, line.str());
+}
+
+bool trustutils::BroadcastOrdinaryTrustPartyAction(CBattleEntity* PActor, action_t& action)
+{
+    if (!PActor || action.actorId != PActor->id || action.targets.size() <= actionpacket::MaxTargets ||
+        action.targets.size() > kFullAllianceMemberLimit)
+    {
+        return false;
+    }
+
+    auto* master = dynamic_cast<CCharEntity*>(PActor);
+    if (!master)
+    {
+        const auto* trust = dynamic_cast<CTrustEntity*>(PActor);
+        master            = trust ? dynamic_cast<CCharEntity*>(trust->PMaster) : nullptr;
+    }
+    if (!master || !CanUseTwillsTrustGameplay(master) || !master->loc.zone || master->PTrusts.size() > kFullAllianceTrustLimit)
+    {
+        return false;
+    }
+
+    std::array<CBattleEntity*, kFullAllianceMemberLimit> roster{};
+    roster[0]         = master;
+    std::size_t count = 1;
+    for (auto* trust : master->PTrusts)
+    {
+        if (!trust || trust->id == 0 || trust->PMaster != master || trust->loc.zone != master->loc.zone ||
+            trust->PInstance != master->PInstance || trust->allegiance != master->allegiance)
+        {
+            return false;
+        }
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            if (roster[index]->id == trust->id)
+            {
+                return false;
+            }
+        }
+        roster[count++] = trust;
+    }
+
+    bool actorInRoster = false;
+    for (std::size_t index = 0; index < count; ++index)
+    {
+        actorInRoster |= roster[index] == PActor;
+    }
+    if (!actorInRoster)
+    {
+        return false;
+    }
+    for (const auto& target : action.targets)
+    {
+        bool targetInRoster = false;
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            targetInRoster |= roster[index]->id == target.actorId;
+        }
+        if (!targetInRoster)
+        {
+            return false;
+        }
+    }
+
+    auto batches = actionpacket::BuildBatches(action);
+    if (!batches)
+    {
+        return false;
+    }
+    // The legacy constructor normalizes the native action before ABILITY_TAKE.
+    // Preserve that listener-visible state while serializing independent slices.
+    action.normalize();
+    for (auto& batch : *batches)
+    {
+        PActor->loc.zone->PushPacket(PActor, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(batch));
+    }
+    return true;
 }
 
 void trustutils::LogTrustActionPacket(CBattleEntity* PActor, const action_t& action, const CBattleEntity* PPrimaryTarget, const char* source)

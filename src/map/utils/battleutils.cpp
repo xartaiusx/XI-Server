@@ -2277,6 +2277,20 @@ auto TakePhysicalDamage(CBattleEntity* PAttacker, CBattleEntity* PDefender, PHYS
                     }
                 }
                 break;
+            case TYPE_TRUST:
+                if (PAttacker->objtype == TYPE_MOB && trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(PDefender)))
+                {
+                    auto* attacker = static_cast<CMobEntity*>(PAttacker);
+                    if (isCovered)
+                    {
+                        attacker->PEnmityContainer->UpdateEnmityFromCover(POriginalTarget, PDefender);
+                    }
+                    else
+                    {
+                        attacker->PEnmityContainer->UpdateEnmityFromAttack(PDefender, damage);
+                    }
+                }
+                break;
             default:
                 break;
         }

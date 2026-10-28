@@ -70,6 +70,7 @@ xi_add_executable(xi_test testserver.rc
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/item_container_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/rng_runtime_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/security_boundary_tests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/trust_action_packet_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/trust_full_alliance_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/trust_holy_circle_tests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/trust_job_development_tests.cpp

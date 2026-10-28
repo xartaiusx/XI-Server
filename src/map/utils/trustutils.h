@@ -114,6 +114,8 @@ void MarkTrustEvidenceTruncated(CCharEntity* PMaster, std::string_view reason);
 // We cache all of this so we don't have to hit the database every time a trust is spawned
 void LoadTrustList();
 auto SpawnTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*;
+// Returns true only when the ordinary roster action was broadcast in complete wire-sized batches.
+bool BroadcastOrdinaryTrustPartyAction(CBattleEntity* PActor, action_t& action);
 void LogTrustActionPacket(CBattleEntity* PActor, const action_t& action, const CBattleEntity* PPrimaryTarget, const char* source);
 void LogTrustActionSkip(CBattleEntity* PActor, const CBattleEntity* PTarget, uint16 actionId, const char* source, const char* reason);
 
