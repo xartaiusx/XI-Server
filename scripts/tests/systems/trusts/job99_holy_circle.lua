@@ -95,10 +95,40 @@ describe('Valaineral developed Holy Circle', function()
     end
 
     local function damageEvidence(actor, target, category, damage)
+        local function unsignedLE(data, offset, bytes)
+            local value = 0
+            for index = bytes - 1, 0, -1 do
+                value = value * 256 + assert(data[offset + index])
+            end
+
+            return value
+        end
+
         local reported, count = packetDamage(actor, target, category)
         local packets = {}
         for _, packet in ipairs(owner.packets:actionPackets()) do
-            table.insert(packets, string.format('%d/%d/%d', packet.m_uID, packet.cmd_no, packet.trg_sum))
+            local targets = {}
+            for _, victim in ipairs(packet.target) do
+                local results = {}
+                for _, result in ipairs(victim.result) do
+                    table.insert(results, string.format('msg%d:value%d:proc%d/%d',
+                        result.message, result.value, result.proc_message, result.proc_value))
+                end
+
+                table.insert(targets, string.format('%d{%s}', victim.m_uID, table.concat(results, ',')))
+            end
+
+            table.insert(packets, string.format('%d/%d/%d/%d[%s]',
+                packet.m_uID, packet.cmd_no, packet.cmd_arg, packet.trg_sum, table.concat(targets, ',')))
+        end
+
+        for _, packet in ipairs(owner.packets:getIncoming()) do
+            if packet.type == 0x029 and packet.size >= 0x1C then
+                -- GP_SERV_COMMAND_BATTLE_MESSAGE::PacketData, including its four-byte header.
+                table.insert(packets, string.format('message actor%d target%d id%d data%d/%d',
+                    unsignedLE(packet.data, 0x04, 4), unsignedLE(packet.data, 0x08, 4),
+                    unsignedLE(packet.data, 0x18, 2), unsignedLE(packet.data, 0x0C, 4), unsignedLE(packet.data, 0x10, 4)))
+            end
         end
 
         return string.format('actor=%d target=%d category=%d HPdamage=%d reported=%d hits=%d packets=%s',
@@ -316,14 +346,51 @@ describe('Valaineral developed Holy Circle', function()
     end)
 
     it('does not apply a second Circle term to the existing divine-spell path', function()
+        local events = {}
+        local function record(phase, actor, target, spell)
+            if spell:getID() == xi.magic.spell.HOLY_II then
+                table.insert(events, string.format('%s actor%d target%d MP%d state%d',
+                    phase, actor:getID(), target and target:getID() or 0, actor:getMP(), actor:getCurrentAction()))
+            end
+        end
+
+        val:addListener('MAGIC_START', 'HOLY_SAMPLE_START', function(actor, target, spell)
+            record('start', actor, target, spell)
+        end)
+
+        val:addListener('MAGIC_USE', 'HOLY_SAMPLE_USE', function(actor, target, spell)
+            record('use', actor, target, spell)
+        end)
+
+        val:addListener('MAGIC_INTERRUPTED', 'HOLY_SAMPLE_INTERRUPTED', function(actor, target, spell)
+            record('interrupted', actor, target, spell)
+        end)
+
+        local damageSpell = xi.spells.damage.useDamageSpell
+        stub('xi.spells.damage.useDamageSpell', function(actor, target, spell)
+            local damage = damageSpell(actor, target, spell)
+            record('damage=' .. tostring(damage), actor, target, spell)
+            return damage
+        end)
+
         local function holy()
+            events = {}
             owner.packets:clear()
             local hp = undead:getHP()
+            local mp = val:getMP()
             assert(owner.actions:useTrustSpell(val, undead, xi.magic.spell.HOLY_II),
                 string.format('native HolyII admission: MP %d recast %s', val:getMP(), tostring(val:hasRecast(xi.recast.MAGIC, xi.magic.spell.HOLY_II))))
             finish(val, 5)
             local damage = hp - undead:getHP()
-            assert(damage > 0)
+            local ownerTarget, valTarget = owner:getTarget(), val:getTarget()
+            assert(damage > 0,
+                string.format('HP %d/%d MP %d/%d recast%s state%d ownerEngaged%s valEngaged%s ownerTarget%d valTarget%d claim%s ' ..
+                    'Val(%.3f,%.3f,%.3f) target(%.3f,%.3f,%.3f) events=%s; %s',
+                    hp, undead:getHP(), mp, val:getMP(), tostring(val:hasRecast(xi.recast.MAGIC, xi.magic.spell.HOLY_II)),
+                    val:getCurrentAction(), tostring(owner:isEngaged()), tostring(val:isEngaged()),
+                    ownerTarget and ownerTarget:getID() or 0, valTarget and valTarget:getID() or 0, tostring(owner:hasClaim(undead)),
+                    val:getXPos(), val:getYPos(), val:getZPos(), undead:getXPos(), undead:getYPos(), undead:getZPos(),
+                    table.concat(events, ','), damageEvidence(val, undead, xi.action.category.MAGIC_FINISH, damage)))
             assert(packetDamage(val, undead, xi.action.category.MAGIC_FINISH) == damage,
                 damageEvidence(val, undead, xi.action.category.MAGIC_FINISH, damage))
             return damage
