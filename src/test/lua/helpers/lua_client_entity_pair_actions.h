@@ -47,6 +47,8 @@ public:
     bool useTrustWeaponskill(CLuaBaseEntity* trust, CLuaBaseEntity* target, uint16 wsId) const;
     void flushEquipmentBatch() const;
     bool hasTrustEntity(uint32 id) const;
+    bool prepareSoloTrustParty() const;
+    void setAutoAttackEnabled(bool enabled) const;
     void useMonsterSkill(CLuaBaseEntity* target, uint16 datSkillId) const;
     void changeTarget(CLuaBaseEntity* target) const;
     void rangedAttack(CLuaBaseEntity* target) const;

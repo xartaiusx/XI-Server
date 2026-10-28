@@ -25,6 +25,7 @@
 #include "login/login_helpers.h"
 #include "map/entities/base_entity.h"
 #include "map/entities/char_entity.h"
+#include "map/party.h"
 #include "test_common.h"
 #include "zone.h"
 
@@ -248,6 +249,25 @@ auto TestChar::entity() const -> CCharEntity*
     }
 
     return nullptr;
+}
+
+bool TestChar::prepareSoloTrustParty() const
+{
+    auto* PChar = entity();
+    if (!PChar || PChar->id != charId_ || charName_.empty() || PChar->PParty || !PChar->PTrusts.empty())
+    {
+        return false;
+    }
+
+    // Policy aliases exist only in memory. Use the fixture's unique database
+    // name for native leader setup, then let ReloadParty resolve its full ID.
+    auto* PParty = new CParty(PChar);
+    PParty->MarkFormedByTrusts();
+    PParty->SetLeader(charName_);
+    PParty->ReloadParty();
+    return PChar->PParty == PParty && PParty->GetLeader() == PChar &&
+           PParty->GetPartyID() == charId_ && PParty->m_PAlliance == nullptr &&
+           PParty->members.size() == 1 && PParty->members.front() == PChar && PChar->PTrusts.empty();
 }
 
 void TestChar::setEntity(std::unique_ptr<CCharEntity> entity) const

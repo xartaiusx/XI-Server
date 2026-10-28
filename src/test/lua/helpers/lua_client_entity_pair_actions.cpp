@@ -551,6 +551,38 @@ void CLuaClientEntityPairActions::acceptPartyInvite() const
 }
 
 /************************************************************************
+ *  Function: prepareSoloTrustParty()
+ *  Purpose : Initializes the fixture PC's native solo Trust party leader.
+ *  Example : player.actions:prepareSoloTrustParty()
+ *  Notes   : Test-only; refuses an existing party or Trust roster.
+ ************************************************************************/
+
+bool CLuaClientEntityPairActions::prepareSoloTrustParty() const
+{
+    return parent_->testChar()->prepareSoloTrustParty();
+}
+
+/************************************************************************
+ *  Function: setAutoAttackEnabled()
+ *  Purpose : Changes only this fixture PC's actual controller flag.
+ *  Example : player.actions:setAutoAttackEnabled(false)
+ *  Notes   : Test-only; the production Lua setter is restricted to mobs.
+ ************************************************************************/
+
+void CLuaClientEntityPairActions::setAutoAttackEnabled(const bool enabled) const
+{
+    const auto* testChar = parent_->testChar();
+    auto*       PChar    = testChar->entity();
+    if (!PChar || PChar->id != testChar->charId() || !PChar->PAI || !PChar->PAI->GetController())
+    {
+        TestError("setAutoAttackEnabled: Expected this fixture's player controller");
+        return;
+    }
+
+    PChar->PAI->GetController()->SetAutoAttackEnabled(enabled);
+}
+
+/************************************************************************
  *  Function: formPartyForInvalidTrustState()
  *  Purpose : Builds a native two-PC party for Trust preflight tests.
  *  Example : player.actions:formPartyForInvalidTrustState(member)
@@ -1521,6 +1553,8 @@ void CLuaClientEntityPairActions::Register()
     SOL_REGISTER("useTrustWeaponskill", CLuaClientEntityPairActions::useTrustWeaponskill);
     SOL_REGISTER("flushEquipmentBatch", CLuaClientEntityPairActions::flushEquipmentBatch);
     SOL_REGISTER("hasTrustEntity", CLuaClientEntityPairActions::hasTrustEntity);
+    SOL_REGISTER("prepareSoloTrustParty", CLuaClientEntityPairActions::prepareSoloTrustParty);
+    SOL_REGISTER("setAutoAttackEnabled", CLuaClientEntityPairActions::setAutoAttackEnabled);
     SOL_REGISTER("useMonsterSkill", CLuaClientEntityPairActions::useMonsterSkill);
     SOL_REGISTER("changeTarget", CLuaClientEntityPairActions::changeTarget);
     SOL_REGISTER("rangedAttack", CLuaClientEntityPairActions::rangedAttack);
