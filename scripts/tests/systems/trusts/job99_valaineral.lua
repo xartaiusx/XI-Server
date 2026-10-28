@@ -131,10 +131,18 @@ describe('Valaineral developed jobs', function()
         xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', false)
         local _, native = spawn()
         local hp, mp, strength = native:getMaxHP(), native:getMaxMP(), native:getStat(xi.mod.STR)
+        local nativeHpTrait, nativeHpp = native:getMod(xi.mod.BASE_HP), native:getMod(xi.mod.HPP)
         xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', true)
         local _, developed = spawn()
         assert(developed:getMainLvl() == 99 and developed:getSubLvl() == 99)
-        assert(developed:getMaxHP() == hp and developed:getMaxMP() == mp)
+        -- WAR99 legitimately upgrades Max HP Boost beyond PLD99/WAR49. Its
+        -- flat trait is separate from the unchanged half-level stat formula.
+        assert(nativeHpTrait == 60 and developed:getMod(xi.mod.BASE_HP) == 180,
+            string.format('native/developed Max HP Boost must be 60/180, got %d/%d', nativeHpTrait, developed:getMod(xi.mod.BASE_HP)))
+        assert(developed:getMod(xi.mod.HPP) == nativeHpp, 'the developed trait must not add a percentage gift-stat package')
+        local traitHp = math.floor((180 - 60) * (100 + nativeHpp) / 100)
+        assert(developed:getMaxHP() == hp + traitHp and developed:getMaxMP() == mp,
+            string.format('base/multiplier parity plus %d trait HP: HP %d/%d MP %d/%d', traitHp, developed:getMaxHP(), hp + traitHp, developed:getMaxMP(), mp))
         assert(developed:getStat(xi.mod.STR) == strength, 'literal support99 must not double the native support stat contribution')
         local pld = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.PLD, level = 99 })
         pld:capAllSkills()
@@ -262,16 +270,29 @@ describe('Valaineral developed jobs', function()
 
     it('shares both assigned firstSPs on the native2700-second recast without repeated Lua reductions', function()
         local owner, val = spawn()
+        local recasts = {}
+        val:addListener('ABILITY_USE', 'JOB99_SP_RECAST', function(_actor, _target, ability, action)
+            if ability:getID() == xi.jobAbility.MIGHTY_STRIKES then
+                table.insert(recasts, { ability = ability:getRecast(), action = action:getRecast() })
+            end
+        end)
+
         assert(owner.actions:useTrustAbility(val, val, xi.jobAbility.MIGHTY_STRIKES))
         xi.test.world:tickEntity(val)
         xi.test.world:skipTime(1) -- Execute, then measure recast elapsed from this native dispatch.
         xi.test.world:skipTime(3)
         assert(val:hasStatusEffect(xi.effect.MIGHTY_STRIKES))
+        assert(#recasts == 1, 'the native SP must complete exactly once')
+        local recast = assert(recasts[1])
+        assert(recast.ability == 2700 and recast.action == 2700,
+            string.format('SP native ability/action recasts must be 2700, got %d/%d', recast.ability, recast.action))
         assert(not owner.actions:useTrustAbility(val, val, xi.jobAbility.INVINCIBLE))
-        xi.test.world:skipTime(2695) -- Check at 2699 elapsed; the exact 2700-second boundary is already expired.
+        -- skipTime also adds a 400ms zone tick. Keep a safe pre-expiry margin;
+        -- exact duration is asserted from both native completion values above.
+        xi.test.world:skipTime(2685)
         assert(val:hasRecast(xi.recast.ABILITY, xi.recastID.SPECIAL), 'two Lua checks must not shorten2700to1800')
         assert(not owner.actions:useTrustAbility(val, val, xi.jobAbility.INVINCIBLE))
-        xi.test.world:skipTime(2)
+        xi.test.world:skipTime(11)
         assert(not val:hasRecast(xi.recast.ABILITY, xi.recastID.SPECIAL))
         assert(owner.actions:useTrustAbility(val, val, xi.jobAbility.INVINCIBLE))
     end)

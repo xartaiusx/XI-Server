@@ -225,7 +225,10 @@ auto CAbilityState::Update(const timer::time_point tick) -> bool
         if (!action.targets.empty())
         {
             trustutils::LogTrustActionPacket(m_PEntity, action, target().resolve<CBattleEntity>(), "ability_state_finish");
-            m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
+            if (!trustutils::BroadcastOrdinaryTrustPartyAction(m_PEntity, action))
+            {
+                m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
+            }
         }
 
         for (auto& actionTarget : action.targets)

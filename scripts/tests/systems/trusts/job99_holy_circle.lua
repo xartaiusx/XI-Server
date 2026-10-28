@@ -37,6 +37,7 @@ describe('Valaineral developed Holy Circle', function()
         mob:setMagicCastingEnabled(false)
         mob:setMobAbilityEnabled(false)
         mob:setMobMod(xi.mobMod.NO_MOVE, 1)
+        mob:setMobMod(xi.mobMod.NO_REST, 1) -- Keep the controlled damage samples free of native idle regeneration.
         mob:setDropID(0)
         mob:setPos(owner:getXPos() + 1, owner:getYPos(), owner:getZPos())
         for _, mod in ipairs({
@@ -80,6 +81,17 @@ describe('Valaineral developed Holy Circle', function()
         return total, count
     end
 
+    local function damageEvidence(actor, target, category, damage)
+        local reported, count = packetDamage(actor, target, category)
+        local packets = {}
+        for _, packet in ipairs(owner.packets:actionPackets()) do
+            table.insert(packets, string.format('%d/%d/%d', packet.m_uID, packet.cmd_no, packet.trg_sum))
+        end
+
+        return string.format('actor=%d target=%d category=%d HPdamage=%d reported=%d hits=%d packets=%s',
+            actor:getID(), target:getID(), category, damage, reported, count, table.concat(packets, ','))
+    end
+
     local function abilityDamage(id)
         owner.packets:clear()
         local hp = undead:getHP()
@@ -89,7 +101,7 @@ describe('Valaineral developed Holy Circle', function()
         assert(damage > 0)
         -- Both native damaging JAs use SkillFinish (3), not AbilityFinish (6).
         assert(packetDamage(val, undead, xi.action.category.WEAPONSKILL_FINISH) == damage,
-            'the action packet must report the HP damage actually applied')
+            damageEvidence(val, undead, xi.action.category.WEAPONSKILL_FINISH, damage))
         return damage
     end
 
@@ -108,7 +120,8 @@ describe('Valaineral developed Holy Circle', function()
         finish(val)
         local damage = hp - undead:getHP()
         assert(damage > 0 and val:getTP() < 1000)
-        assert(packetDamage(val, undead, xi.action.category.WEAPONSKILL_FINISH) == damage)
+        assert(packetDamage(val, undead, xi.action.category.WEAPONSKILL_FINISH) == damage,
+            damageEvidence(val, undead, xi.action.category.WEAPONSKILL_FINISH, damage))
         return damage
     end
 
@@ -229,7 +242,8 @@ describe('Valaineral developed Holy Circle', function()
             local damage = hp - undead:getHP()
             assert(damage > 0)
             local reported, count = packetDamage(val, undead, xi.action.category.BASIC_ATTACK)
-            assert(reported == damage and count > 0)
+            assert(reported == damage and count > 0,
+                damageEvidence(val, undead, xi.action.category.BASIC_ATTACK, damage))
             return damage / count
         end
 
@@ -244,6 +258,7 @@ describe('Valaineral developed Holy Circle', function()
         local function incoming()
             val:setHP(val:getMaxHP()) -- Isolate this sample from the previous sample's damage.
             val:setMod(xi.mod.UNDEAD_KILLER, 0)
+            undead:addBaseEnmity(val)
             undead:updateEnmity(val)
             undead:setCE(val, 10000)
             undead:setVE(val, 10000)
@@ -285,7 +300,8 @@ describe('Valaineral developed Holy Circle', function()
             finish(val, 5)
             local damage = hp - undead:getHP()
             assert(damage > 0)
-            assert(packetDamage(val, undead, xi.action.category.MAGIC_FINISH) == damage)
+            assert(packetDamage(val, undead, xi.action.category.MAGIC_FINISH) == damage,
+                damageEvidence(val, undead, xi.action.category.MAGIC_FINISH, damage))
             return damage
         end
 
@@ -305,6 +321,7 @@ describe('Valaineral developed Holy Circle', function()
         val:setMod(xi.mod.FIRE_SDT, 0)
         local function breath()
             val:setHP(val:getMaxHP())
+            undead:addBaseEnmity(val)
             undead:updateEnmity(val)
             undead:setCE(val, 10000)
             undead:setVE(val, 10000)
@@ -320,7 +337,7 @@ describe('Valaineral developed Holy Circle', function()
             undead:useMobAbility(642, val, 2000)
             finish(undead, 4)
             local damage = hp - val:getHP()
-            assert(undead:getHP() == 1000, 'the sampled breath source HP must remain stable')
+            assert(undead:getHP() == 1000, 'the sampled breath source HP must remain 1000, observed ' .. undead:getHP())
             assert(damage > 0)
             assert(packetDamage(undead, val, xi.action.category.MOBABILITY_FINISH) == damage)
             return damage
@@ -344,7 +361,10 @@ describe('Valaineral developed Holy Circle', function()
             assert(damage > 0)
             local reported = packetDamage(val, undead, xi.action.category.MOBABILITY_FINISH) +
                 packetDamage(val, undead, xi.action.category.WEAPONSKILL_FINISH)
-            assert(reported == damage)
+            assert(reported == damage,
+                string.format('combined=%d; %s; %s', reported,
+                    damageEvidence(val, undead, xi.action.category.MOBABILITY_FINISH, damage),
+                    damageEvidence(val, undead, xi.action.category.WEAPONSKILL_FINISH, damage)))
             return damage
         end
 
