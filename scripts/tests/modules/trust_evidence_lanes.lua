@@ -742,13 +742,24 @@ describe('Module: Trust evidence lanes', function()
         player:gotoZone(xi.zone.ALZADAAL_UNDERSEA_RUINS)
         configureTwills(player)
         assert(player:spawnTrust(xi.magic.spell.VALAINERAL) ~= nil)
-        -- Instance7702's entrance callback expects the Runic Seal's native event
-        -- context. Direct creation in Alzadaal otherwise has no event target.
+        -- Start the entrance event inside its real NPC trigger, while native
+        -- eventPreparation still owns the target. Only the unrelated quest menu
+        -- is replaced; instance creation and Trust eligibility remain native.
         local seal = player.entities:moveTo('_20m')
         assert(seal)
-        player.actions:trigger(seal)
         assert(not player:isInEvent())
-        player:startEvent(405, 60, -34, 0, 99, 5, 1, 0, 14)
+        local menuCalls = 0
+        stub('xi.instance.onTrigger', function(actor, npc, instanceZone)
+            assert(actor:getID() == player:getID() and npc:getID() == seal:getID())
+            assert(actor:getZoneID() == xi.zone.ALZADAAL_UNDERSEA_RUINS and npc:getZoneID() == actor:getZoneID())
+            assert(instanceZone == xi.zone.NYZUL_ISLE)
+            menuCalls = menuCalls + 1
+            actor:startEvent(405, 60, -34, 0, 99, 5, 1, 0, 14)
+            return true
+        end)
+
+        player.actions:trigger(seal)
+        assert(menuCalls == 1, 'the native NPC trigger must open this fixture event exactly once')
         local eventTarget = player:getEventTarget()
         assert(player:isInEvent() and eventTarget and eventTarget:getID() == seal:getID())
         player:createInstance(7702)
