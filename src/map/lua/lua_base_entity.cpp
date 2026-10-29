@@ -16476,7 +16476,7 @@ bool CLuaBaseEntity::canUseTwillsTrustGameplay()
     return m_PBaseEntity->objtype == TYPE_PC && trustutils::CanUseTwillsTrustGameplay(static_cast<CCharEntity*>(m_PBaseEntity));
 }
 
-auto CLuaBaseEntity::returnOrdinaryTrusts(std::string request) -> std::string
+auto CLuaBaseEntity::returnOrdinaryTrusts(const std::string& request) -> std::string
 {
     return m_PBaseEntity->objtype == TYPE_PC ? trustutils::ReturnOrdinaryTrusts(static_cast<CCharEntity*>(m_PBaseEntity), request) : std::string{};
 }
