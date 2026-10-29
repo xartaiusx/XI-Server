@@ -42,6 +42,7 @@
 #include "map/items/item.h"
 #include "map/items/transactions/player_trade.h"
 #include "map/lua/lua_base_entity.h"
+#include "map/mob_spell_container.h"
 #include "map/packets/c2s/0x01a_action.h"
 #include "map/packets/c2s/0x028_item_dump.h"
 #include "map/packets/c2s/0x029_item_move.h"
@@ -245,6 +246,26 @@ bool CLuaClientEntityPairActions::useTrustSpell(CLuaBaseEntity* actor, CLuaBaseE
 {
     auto* trust = FixtureTrust(parent_, actor, target);
     return trust && trust->PAI->Cast(target->GetBaseEntity()->entityId(), spellId);
+}
+
+bool CLuaClientEntityPairActions::hasTrustSpell(CLuaBaseEntity* actor, SpellID spellId) const
+{
+    auto* trust = FixtureTrust(parent_, actor, actor);
+    if (!trust || !trust->SpellContainer)
+    {
+        return false;
+    }
+
+    // Read actual per-entity learning without eligibility checks, RNG or mutation.
+    const auto* spells = trust->SpellContainer;
+    return std::ranges::contains(spells->m_gaList, spellId) ||
+           std::ranges::contains(spells->m_damageList, spellId) ||
+           std::ranges::contains(spells->m_buffList, spellId) ||
+           std::ranges::contains(spells->m_debuffList, spellId) ||
+           std::ranges::contains(spells->m_healList, spellId) ||
+           std::ranges::contains(spells->m_naList, spellId) ||
+           std::ranges::contains(spells->m_raiseList, spellId) ||
+           std::ranges::contains(spells->m_severeList, spellId);
 }
 
 bool CLuaClientEntityPairActions::useTrustAbility(CLuaBaseEntity* actor, CLuaBaseEntity* target, ABILITY abilityId) const
@@ -1529,6 +1550,7 @@ void CLuaClientEntityPairActions::Register()
     SOL_REGISTER("useWeaponskill", CLuaClientEntityPairActions::useWeaponskill);
     SOL_REGISTER("useAbility", CLuaClientEntityPairActions::useAbility);
     SOL_REGISTER("useTrustSpell", CLuaClientEntityPairActions::useTrustSpell);
+    SOL_REGISTER("hasTrustSpell", CLuaClientEntityPairActions::hasTrustSpell);
     SOL_REGISTER("useTrustAbility", CLuaClientEntityPairActions::useTrustAbility);
     SOL_REGISTER("useTrustWeaponskill", CLuaClientEntityPairActions::useTrustWeaponskill);
     SOL_REGISTER("flushEquipmentBatch", CLuaClientEntityPairActions::flushEquipmentBatch);

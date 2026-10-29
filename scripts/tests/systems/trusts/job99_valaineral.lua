@@ -48,6 +48,20 @@ describe('Valaineral developed jobs', function()
         xi.test.world:skipTime(3)
     end
 
+    local function engageWithoutOwnerSwings(owner, val, mob)
+        owner.actions:engage(mob)
+        local x, y, z = owner:getXPos(), owner:getYPos(), owner:getZPos()
+        -- Native owner engagement keeps the Trust target valid; facing away
+        -- prevents PC swings from contaminating the spell HP measurements.
+        owner:lookAt(2 * x - mob:getXPos(), y, 2 * z - mob:getZPos())
+        local ownerTarget = owner:getTarget()
+        assert(owner:isEngaged() and ownerTarget and ownerTarget:getID() == mob:getID())
+        assert(not owner:isFacing(mob), 'the engaged fixture owner must face away from the target')
+        val:engage(mob:getTargID())
+        local trustTarget = val:getTarget()
+        assert(trustTarget and trustTarget:getID() == mob:getID(), 'Valaineral must retain the actual native cast target')
+    end
+
     before_each(function()
         xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', true)
         xi.test.world:setSetting('main.ENABLE_TRUST_ALTER_EGO_POINT_BONUSES', false)
@@ -228,6 +242,59 @@ describe('Valaineral developed jobs', function()
         assert(not owner.actions:useTrustSpell(val, mob, xi.magic.spell.METEOR))
         val:setMP(0)
         assert(not owner.actions:useTrustSpell(val, val, xi.magic.spell.CRUSADE), 'provided supplies must not remove MP cost')
+    end)
+
+    it('learns and casts Banish I and II but rejects unqualified developed Banish III', function()
+        local owner, val = spawn()
+        assert(owner.actions:hasTrustSpell(val, xi.magic.spell.BANISH))
+        assert(owner.actions:hasTrustSpell(val, xi.magic.spell.BANISH_II))
+        assert(not owner.actions:hasTrustSpell(val, xi.magic.spell.BANISH_III), 'developed learning must exclude the unqualified legacy exception')
+        local mob = target(owner)
+        engageWithoutOwnerSwings(owner, val, mob)
+        local hp, mp = mob:getHP(), val:getMP()
+        assert(not owner.actions:useTrustSpell(val, mob, xi.magic.spell.BANISH_III), 'native controller/state admission must also reject Banish III')
+        xi.test.world:tickEntity(val)
+        xi.test.world:skipTime(1)
+        assert(mob:getHP() == hp and val:getMP() == mp, 'rejected Banish III must spend no MP or target HP')
+        assert(not val:hasRecast(xi.recast.MAGIC, xi.magic.spell.BANISH_III))
+
+        for _, spellId in ipairs({ xi.magic.spell.BANISH, xi.magic.spell.BANISH_II }) do
+            hp, mp = mob:getHP(), val:getMP()
+            assert(owner.actions:useTrustSpell(val, mob, spellId), string.format('native Banish admission failed for spell %d', spellId))
+            finish(val)
+            assert(mob:getHP() < hp and val:getMP() < mp,
+                string.format('spell %d must damage and spend MP: HP %d/%d MP %d/%d', spellId, mob:getHP(), hp, val:getMP(), mp))
+            assert(val:hasRecast(xi.recast.MAGIC, spellId), string.format('spell %d must retain its native recast', spellId))
+        end
+    end)
+
+    it('preserves legacy Valaineral Banish III learning and native execution', function()
+        xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', false)
+        local owner, val = spawn()
+        assert(not val:isDevelopedTrust())
+        assert(owner.actions:hasTrustSpell(val, xi.magic.spell.BANISH_III), 'unchanged legacy SQL list must still supply Banish III')
+        local mob = target(owner)
+        engageWithoutOwnerSwings(owner, val, mob)
+        local hp, mp = mob:getHP(), val:getMP()
+        assert(owner.actions:useTrustSpell(val, mob, xi.magic.spell.BANISH_III))
+        finish(val)
+        assert(mob:getHP() < hp and val:getMP() < mp,
+            string.format('legacy Banish III must damage and spend MP: HP %d/%d MP %d/%d', mob:getHP(), hp, val:getMP(), mp))
+        assert(val:hasRecast(xi.recast.MAGIC, xi.magic.spell.BANISH_III))
+    end)
+
+    it('restricts learned-membership reads to current owned fixture Trusts', function()
+        local owner, val = spawn()
+        local foreignOwner, foreignVal = spawn()
+        assert(owner.actions:hasTrustSpell(val, xi.magic.spell.BANISH_II))
+        assert(not owner.actions:hasTrustSpell(owner, xi.magic.spell.BANISH_II), 'PC actor must be rejected')
+        assert(not owner.actions:hasTrustSpell(foreignVal, xi.magic.spell.BANISH_II), 'another fixture owner must be rejected')
+        assert(foreignOwner.actions:hasTrustSpell(foreignVal, xi.magic.spell.BANISH_II))
+        foreignOwner:clearTrusts()
+        -- No tick or expired userdata: native ClearTrusts removes the roster
+        -- synchronously, while the existing three-second despawn still owns it.
+        assert(#foreignOwner:getPartyWithTrusts() == 1)
+        assert(not foreignOwner.actions:hasTrustSpell(foreignVal, xi.magic.spell.BANISH_II), 'removed roster membership must be rejected')
     end)
 
     it('offers native Raise while ownerKO and keeps PC acceptance manual', function()

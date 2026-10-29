@@ -100,7 +100,8 @@
   ],
   "counts": {
     "normal_job_spells": 24,
-    "baseline_spell_exceptions": 1,
+    "baseline_spell_exceptions": 0,
+    "legacy_unqualified_excluded_spells": 1,
     "defined_gift_additions": 1,
     "job_abilities": 25,
     "trait_families": 20,
@@ -401,7 +402,7 @@
         "weapon": "native_spell",
         "content_tag": null
       },
-      "ai": "Learned lower Banish tiers; preserved BanishIII undead rule takes priority, no dedicated new lower-tier trigger.",
+      "ai": "Learned assigned-job Banish I remains available; the developed undead gambit selects Banish II.",
       "implementation": "candidate_native",
       "action_source": {
         "path": "scripts/actions/spells/white/banish.lua",
@@ -439,7 +440,7 @@
         "weapon": "native_spell",
         "content_tag": null
       },
-      "ai": "Learned lower Banish tiers; preserved BanishIII undead rule takes priority, no dedicated new lower-tier trigger.",
+      "ai": "Developed undead-target gambit selects Banish II with the existing45-second AI retry; native MP and recast still apply.",
       "implementation": "candidate_native",
       "action_source": {
         "path": "scripts/actions/spells/white/banish_ii.lua",
@@ -455,11 +456,11 @@
     {
       "id": 30,
       "name": "banish_iii",
-      "classification": "preserved_baseline_exception_unverified",
+      "classification": "legacy_unqualified_excluded_from_developed",
       "unlock": {
         "job_levels": {},
-        "learned": "trained_job_catalog",
-        "extra": "Existing enrolled module list322 entry; not a WHM job grant."
+        "learned": "legacy_unqualified_excluded",
+        "extra": "Existing enrolled module list322 entry is retained for legacy Valaineral only. Developed PLD/WAR grants no Banish III; no universal retail-absence claim."
       },
       "cost": {
         "mp": 96,
@@ -475,7 +476,7 @@
         "weapon": "native_spell",
         "content_tag": "COP"
       },
-      "ai": "Preserved baseline BanishIII against undead,45-second AI retry; retail Trust provenance remains unverified.",
+      "ai": "Excluded from developed learning, admission and AI. Legacy Valaineral retains its unchanged BanishIII undead rule and45-second AI retry.",
       "implementation": "candidate_native",
       "action_source": {
         "path": "scripts/actions/spells/white/banish_iii.lua",
@@ -8985,8 +8986,8 @@
   },
   "blockers": [
     "Native/ASAN/Lua/gameplay verification not yet run for this catalog snapshot.",
-    "Val BanishIII Trust provenance remains unverified; preserve only the existing enrolled list exception.",
-    "EnlightII460-skill anomaly and exact retail formula unresolved.",
+    "BanishIII is unqualified under the developed PLD/WAR plus documented-signatures model and is excluded only there. Legacy SQL/history and PC learning remain unchanged; universal retail absence is not established.",
+    "The measured EnlightII460-skill result is an unresolved observation, not a code threshold. The candidate formula branches at500; no formula/stat change or exact retail numerical claim is made.",
     "All20 PLD/WAR JP consumer paths have a candidate source audit; actual native behavior is not yet verified. Double Attack JP on WS remains unqualified beyond native DOUBLE swings.",
     "Cover PC/Trust interception, special-enmity composition, actual Intervene damage and HolyCircle packet/HP agreement have native fixture sources but no successful execution yet.",
     "Warcry/BloodRage complementary NOT_STATUS guards exist in the candidate; autonomous rotation and role behavior still require qualification.",
@@ -9048,6 +9049,7 @@
   },
   "entry_contracts": {
     "trained_job_catalog": "The approved developed job profile includes ordinary permanent/quest learning. Learning does not waive current use conditions or modify any PC data.",
+    "legacy_unqualified_excluded": "Historical enrolled membership only; not a developed job/signature grant. Legacy spell behavior, shared SQL and PC learning remain unchanged.",
     "native_spell": "Normal MP, recast, target, native requirement bits, equipment and stance checks apply. Catalog membership is not cast proof.",
     "native_ability": "Normal native action-specific resources, charges, statuses, equipment, targets, range, LOS and recasts apply.",
     "native_ws_tp": "At least1000TP. CWeaponSkillState spends actual TP using normal Sekkanoki/Meikyo Shisui/conserve rules. No mob-formula substitution.",

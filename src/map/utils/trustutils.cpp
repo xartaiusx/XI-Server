@@ -2773,13 +2773,7 @@ void trustutils::RefreshDevelopedSpellCatalog(CTrustEntity* PTrust)
     }
 
     // This container belongs to the summoned entity. Never mutate the shared
-    // SQL list. Banish III is the single preserved baseline exception pending
-    // independent retail confirmation; it does not grant the WHM catalog.
-    const auto* baseline      = PTrust->m_SpellListContainer;
-    const bool  keepBanishIII = baseline && std::ranges::any_of(baseline->m_spellList, [](const MobSpell_t& entry)
-                                                                {
-                                                                   return entry.spellId == SpellID::Banish_III;
-                                                                });
+    // SQL list. Only qualified assigned-job spells belong to this catalog.
     PTrust->SpellContainer->ClearSpells();
     for (uint16 id = 1; id < MAX_SPELL_ID; ++id)
     {
@@ -2790,8 +2784,7 @@ void trustutils::RefreshDevelopedSpellCatalog(CTrustEntity* PTrust)
         }
         const auto mainLevel = spell->getJob(PTrust->GetMJob());
         const auto subLevel  = spell->getJob(PTrust->GetSJob());
-        if ((mainLevel > 0 && mainLevel <= 99) || (subLevel > 0 && subLevel <= 99) ||
-            (keepBanishIII && id == static_cast<uint16>(SpellID::Banish_III)))
+        if ((mainLevel > 0 && mainLevel <= 99) || (subLevel > 0 && subLevel <= 99))
         {
             PTrust->SpellContainer->AddSpell(static_cast<SpellID>(id));
         }

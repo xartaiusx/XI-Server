@@ -43,6 +43,7 @@ public:
     void useWeaponskill(CLuaBaseEntity* target, uint16 wsId) const;
     void useAbility(CLuaBaseEntity* target, ABILITY abilityId) const;
     bool useTrustSpell(CLuaBaseEntity* trust, CLuaBaseEntity* target, SpellID spellId) const;
+    bool hasTrustSpell(CLuaBaseEntity* trust, SpellID spellId) const;
     bool useTrustAbility(CLuaBaseEntity* trust, CLuaBaseEntity* target, ABILITY abilityId) const;
     bool useTrustWeaponskill(CLuaBaseEntity* trust, CLuaBaseEntity* target, uint16 wsId) const;
     void flushEquipmentBatch() const;

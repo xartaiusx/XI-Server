@@ -114,7 +114,7 @@ spellObject.onMobSpawn = function(mob)
     mob:addGambit(ai.t.PARTY,  { ai.c.STATUS,     xi.effect.SLEEP_I  }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.CURE         })
 
     if lvl >= 65 then
-        mob:addGambit(ai.t.TARGET, { ai.c.IS_ECOSYSTEM, xi.ecosystem.UNDEAD }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.BANISH_III }, 45)
+        mob:addGambit(ai.t.TARGET, { ai.c.IS_ECOSYSTEM, xi.ecosystem.UNDEAD }, { ai.r.MA, ai.s.SPECIFIC, developed and xi.magic.spell.BANISH_II or xi.magic.spell.BANISH_III }, 45)
     end
 
     if developed then

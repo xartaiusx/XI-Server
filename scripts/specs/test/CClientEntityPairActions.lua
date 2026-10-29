@@ -48,6 +48,14 @@ end
 function CClientEntityPairActions:useTrustSpell(trust, target, spellId)
 end
 
+---Read-only per-entity learned membership for a currently owned fixture Trust.
+---Does not establish current spell admission or expose a production Lua API.
+---@param trust CBaseEntity
+---@param spellId xi.magic.spell
+---@return boolean
+function CClientEntityPairActions:hasTrustSpell(trust, spellId)
+end
+
 ---@param trust CBaseEntity
 ---@param target CBaseEntity
 ---@param abilityId xi.jobAbility
