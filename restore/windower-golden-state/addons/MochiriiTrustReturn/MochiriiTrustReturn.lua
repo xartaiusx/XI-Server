@@ -128,14 +128,14 @@ local function parse_reply(text)
     return { nonce = nonce, owner = owner, zone = zone, op = op, id = id, index = index, status = status, count = count, reason = reason }
 end
 
-windower.register_event('outgoing text', function(_, modified, _, blocked)
+windower.register_event('outgoing text', function(_, modified, blocked)
     if blocked or type(modified) ~= 'string' or modified == '' then
         return
     end
 
     -- This check precedes character/zone gating to consume a delayed emitted
     -- passthrough after authorizing state was invalidated.
-    if bypass and modified == bypass.text then
+    if bypass and modified == bypass.native_text then
         local saved = bypass
         bypass = nil
         if saved.active and matches(saved, clock()) then
@@ -191,6 +191,8 @@ windower.register_event('outgoing text', function(_, modified, _, blocked)
         owner = owner, zone = zone, op = op,
         id = target and target.id or 0, index = target and target.index or 0,
         text = modified, deadline = now + 5,
+        -- Pin an explicit current target before Shortcuts can rewrite a bare command.
+        native_text = op == 'one' and argument == '' and '/' .. alias .. ' <t>' or modified,
     }
     local request = string.format('!trustreturn %s %u %u %s %u %u', pending.nonce, owner, zone, op, pending.id, pending.index)
     local ok = #request <= 126 and pcall(windower.chat.input, request)
@@ -230,7 +232,7 @@ windower.register_event('incoming chunk', function(id, original, _, injected, bl
         bypass.active = true
         -- Existing native API, not a queued Windower @input command. The API
         -- does not promise withdrawal after emission or synchronous callbacks.
-        if not pcall(windower.chat.input, request.text) then
+        if not pcall(windower.chat.input, request.native_text) then
             invalidate()
             message('native dispatch failed; no retry')
         end

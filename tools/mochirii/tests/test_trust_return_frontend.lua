@@ -1,5 +1,5 @@
 -- Standalone LuaJIT fake tests. Only the explicitly supplied addon file is read.
--- No installed addon, packet/native API, process, network, DB or credentials.
+-- No installed addon is loaded; no packet/native API, process, network, DB or credentials.
 local addon_path = assert(arg[1], 'pass the candidate MochiriiTrustReturn.lua path')
 local groups = 0
 
@@ -9,8 +9,9 @@ local function fixture()
         now = 1000,
         player = { id = 42, name = 'Twills' },
         info = { logged_in = true, zone = 100 },
-        target = { id = 17188881, index = 1809 },
-        events = {}, inputs = {}, messages = {},
+        target = { id = 17188881, index = 1809, name = 'Prishe', hpp = 100, is_npc = true, spawn_type = 14 },
+        party = { p0 = { name = 'Twills' }, a25 = { name = 'Prishe' } },
+        events = {}, inputs = {}, messages = {}, shortcuts_inputs = {},
     }
     local windower =
     {
@@ -59,8 +60,8 @@ local function fixture()
     }
     local chunk = assert(loadfile(addon_path))
     setfenv(chunk, env)()
-    function f:out(original, modified, blocked)
-        return self.events['outgoing text'](original, modified, 1, blocked or false)
+    function f:out(original, modified, blocked, ffxi)
+        return self.events['outgoing text'](original, modified, blocked or false, ffxi ~= false)
     end
     function f:reply(status, reason, count, mutate)
         local request = self.inputs[1]
@@ -77,11 +78,118 @@ local function fixture()
     return f
 end
 
+-- Isolated model of Shortcuts 2.903's bare return-command path, not a
+-- replacement addon. Its independent party-key classification and @input
+-- rewrite follow shortcuts.lua:164-181/242-290, targets.lua:96-136 and
+-- statics.lua:51/156-159 (installed source hashes are in the proposal).
+-- In particular, a25 remains Ally; the return command allows Party and Self.
+local function shortcuts_fixture(f)
+    local lastsent = ''
+    return function(_, modified)
+        if modified:sub(1, 1) ~= '/' then return modified end
+        if modified == lastsent then
+            lastsent = ''
+            return modified
+        end
+
+        local command = modified:match('^/(%a+)$')
+        local commands = { retr = true, returntrust = true, refa = true, returnfaith = true }
+        if not commands[command] then return modified end
+        local target_type = 'Ally'
+        if not f.target then
+            target_type = ''
+        elseif f.target.hpp == 0 then
+            target_type = 'Corpse'
+        elseif f.target.is_npc and f.target.spawn_type ~= 14 then
+            target_type = 'Enemy'
+        else
+            for key, member in pairs(f.party) do
+                if member.name == f.target.name then
+                    if key:sub(1, 1) == 'p' then
+                        target_type = key:sub(1, 2) == 'p0' and 'Self' or 'Party'
+                    end
+                    break
+                end
+            end
+        end
+
+        local target = (target_type == 'Party' or target_type == 'Corpse') and '<t>' or '<me>'
+        lastsent = '/' .. command .. ' ' .. target
+        f.shortcuts_inputs[#f.shortcuts_inputs + 1] = '@input ' .. lastsent
+        return ''
+    end
+end
+
+local function route_outgoing(handlers, text, blocked, ffxi)
+    local modified = text
+    for _, handler in ipairs(handlers) do
+        local result = handler(text, modified, blocked or false, ffxi ~= false)
+        if type(result) == 'string' then modified = result end
+    end
+    return modified
+end
+
 local function check(name, body)
     body()
     groups = groups + 1
     io.write('PASS ', name, '\n')
 end
+
+check('outgoing text uses third blocked and fourth FFXI arguments', function()
+    for _, ffxi in ipairs({ true, false }) do
+        local allowed = fixture()
+        assert(allowed:out('/retr all', '/retr all', false, ffxi) == '')
+        assert(#allowed.inputs == 1, 'FFXI-generated text is not upstream-blocked text')
+        local blocked = fixture()
+        assert(blocked:out('/retr all', '/retr all', true, ffxi) == nil)
+        assert(#blocked.inputs == 0, 'the third argument must prevent dispatch')
+    end
+end)
+
+check('Mochirii before Shortcuts captures bare high-slot target before rewrite', function()
+    for _, alias in ipairs({ 'retr', 'returntrust', 'refa', 'returnfaith' }) do
+        local text = '/' .. alias
+        local f = fixture()
+        assert(route_outgoing({ f.events['outgoing text'], shortcuts_fixture(f) }, text, false, true) == '')
+        assert(#f.shortcuts_inputs == 0, 'Shortcuts must only receive the consumed empty text')
+        assert(#f.inputs == 1 and f.inputs[1]:match(' one 17188881 1809$'))
+        f:reply('ACCEPTED', 'OK', 1)
+        assert(#f.inputs == 1, 'accepted ordinary release must not also emit native input')
+
+        local reversed = fixture()
+        assert(route_outgoing({ shortcuts_fixture(reversed), reversed.events['outgoing text'] }, text, false, true) == '')
+        assert(#reversed.inputs == 0, 'negative control: the downstream addon only sees empty text')
+        assert(reversed.shortcuts_inputs[1] == '@input ' .. text .. ' <me>')
+        assert(reversed:out(text .. ' <me>', text .. ' <me>', false, true) == nil)
+        assert(#reversed.inputs == 0, 'the rewritten Self target cannot select the high-slot Trust')
+
+        local party = fixture()
+        party.party = { p0 = { name = 'Twills' }, p1 = { name = 'Prishe' } }
+        shortcuts_fixture(party)(text, text, false, true)
+        assert(party.shortcuts_inputs[1] == '@input ' .. text .. ' <t>', 'the independent model must distinguish p1 from a25')
+    end
+end)
+
+check('native bare one uses one explicit target passthrough through Shortcuts', function()
+    for _, alias in ipairs({ 'retr', 'returntrust', 'refa', 'returnfaith', 'ReTr' }) do
+        for _, slot in ipairs({ 'p1', 'a25' }) do
+            local f = fixture()
+            f.party = { p0 = { name = 'Twills' }, [slot] = { name = 'Prishe' } }
+            local shortcuts = shortcuts_fixture(f)
+            local text = '/' .. alias .. '  '
+            local handlers = { f.events['outgoing text'], shortcuts }
+            assert(route_outgoing(handlers, text, false, true) == '')
+            assert(#f.inputs == 1 and f.inputs[1]:match(' one 17188881 1809$'))
+            f:reply('NATIVE', 'RETAIL')
+            local emitted = '/' .. alias .. ' <t>'
+            assert(#f.inputs == 2 and f.inputs[2] == emitted)
+            assert(route_outgoing(handlers, emitted, false, true) == emitted)
+            assert(#f.inputs == 2 and #f.shortcuts_inputs == 0, 'no rewritten third input or second classification')
+            f:reply('NATIVE', 'RETAIL')
+            assert(#f.inputs == 2, 'a duplicate reply cannot emit another native command')
+        end
+    end
+end)
 
 check('four aliases use modified blank then one retransmission', function()
     for _, alias in ipairs({ 'retr', 'returntrust', 'refa', 'returnfaith' }) do
@@ -161,12 +269,15 @@ check('passthrough consumption revalidates target owner zone and original deadli
         function(f) f.info.zone = 101 end,
         function(f) f.now = 1005 end,
     }) do
-        local f = fixture()
-        f:out('/retr <t>', '/retr <t>')
-        f:reply('NATIVE', 'RETAIL')
-        change(f)
-        assert(f:out('/retr <t>', '/retr <t>') == '')
-        assert(#f.inputs == 2, 'cancelled native input cannot become a backend request')
+        for _, text in ipairs({ '/retr', '/retr <t>' }) do
+            local f = fixture()
+            f:out(text, text)
+            f:reply('NATIVE', 'RETAIL')
+            local emitted = f.inputs[2]
+            change(f)
+            assert(f:out(emitted, emitted) == '')
+            assert(#f.inputs == 2, 'cancelled native input cannot become a backend request')
+        end
     end
 end)
 

@@ -7,8 +7,8 @@ config ClippingPlane 5
 config FrameRateDivisor 1
 config save
 
-lua load shortcuts
 lua load MochiriiTrustReturn
+lua load shortcuts
 lua load battlemod
 lua load DressUp
 lua load findAll

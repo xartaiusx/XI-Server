@@ -25,8 +25,8 @@
     },
     {
       "relativePath": "addons/MochiriiTrustReturn/MochiriiTrustReturn.lua",
-      "bytes": 8356,
-      "sha256": "888cc269d5f40ae3bc4bf96cc81537a9523e850ad84a6430bfa264deb3df5bf1"
+      "bytes": 8547,
+      "sha256": "e86d92a089d8132f9a3e8a1de82910d0f098fcc599aa8212f78f6677ad2fa70d"
     },
     {
       "relativePath": "addons/XICamera/data/settings.xml",
@@ -116,7 +116,7 @@
     {
       "relativePath": "scripts/init.txt",
       "bytes": 443,
-      "sha256": "b368dc4d4000cf3bae0f41459147aba9aaf52d1e5d192740773e655baa30828a"
+      "sha256": "f715c88ab4b8b93e1cb55b7dd1425ceea7b668b0eb176a1928411cde90913ba5"
     },
     {
       "relativePath": "settings.xml",
