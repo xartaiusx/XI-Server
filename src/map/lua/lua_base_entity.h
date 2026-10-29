@@ -818,7 +818,7 @@ public:
     void   clearTrusts();
     bool   canUseTwillsFullAlliance();
     bool   canUseTwillsTrustGameplay();
-    auto   returnOrdinaryTrusts(std::string request) -> std::string;
+    auto   returnOrdinaryTrusts(const std::string& request) -> std::string;
     bool   isTwillsFullAllianceActive();
     uint8  getTwillsFullAllianceState();
     bool   setTwillsFullAllianceState(uint32 state);
