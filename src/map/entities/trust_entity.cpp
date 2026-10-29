@@ -127,6 +127,26 @@ auto CTrustEntity::HasPendingRaise() const -> bool
     return pendingRaise_.has_value();
 }
 
+// Reuse native visibility removal/addition; never spawn or replace this entity.
+void CTrustEntity::SyncRecoveryView()
+{
+    const auto* master = dynamic_cast<const CCharEntity*>(PMaster);
+    if (!master || !loc.zone || released_ || master->loc.zone != loc.zone || master->PInstance != PInstance ||
+        master->status == xi::Status::Disappear || master->status == xi::Status::Shutdown ||
+        !std::ranges::contains(master->PTrusts, this))
+    {
+        return;
+    }
+
+    loc.zone->ForEachCharInstance(this, [this](CCharEntity* observer)
+                                  {
+                                      if (observer->loc.zone == loc.zone && observer->PInstance == PInstance)
+                                      {
+                                          loc.zone->SpawnTRUSTs(observer);
+                                      }
+                                  });
+}
+
 auto CTrustEntity::OfferRaise(TrustRaiseOptions options) -> bool
 {
     auto* state = dynamic_cast<CDeathState*>(PAI->GetCurrentState());
@@ -137,6 +157,7 @@ auto CTrustEntity::OfferRaise(TrustRaiseOptions options) -> bool
 
     pendingRaise_ = options;
     state->allowSendRaise();
+    SyncRecoveryView();
     return true;
 }
 
@@ -150,6 +171,7 @@ auto CTrustEntity::OfferReraise(uint8 tier) -> bool
 
     // The death state's existing eight-second Reraise delay remains in force.
     pendingRaise_ = options;
+    SyncRecoveryView();
     return true;
 }
 
@@ -175,21 +197,11 @@ auto CTrustEntity::CompleteRaise() -> bool
         StatusEffectContainer->AddStatusEffect(xi::StatusEffect::Reraise, static_cast<uint16>(xi::StatusEffect::Reraise), 3, 0s, 1h);
     }
 
-    // A retail Trust's client model may have dissolved while this same native
-    // entity was retained. Publish a complete living visual before Raise starts.
-    // CDeathState still owns the two-second recovery lock; this is not Spawn().
+    // The admitted offer culled the old client view during its native wait.
+    // Re-add the same living entity before Raise; do not call native Spawn().
+    // CDeathState still owns the unchanged two-second recovery lock.
     animation = xi::Animation::None;
-    loc.zone->ForEachCharInstance(this, [this](CCharEntity* observer)
-                                  {
-                                      const auto visible = observer->SpawnTRUSTList.find(id);
-                                      if (observer->loc.zone == loc.zone && observer->PInstance == PInstance &&
-                                          visible != observer->SpawnTRUSTList.end() && visible->second == this)
-                                      {
-                                          // Use the normal per-entity queue so any pending dead update is
-                                          // replaced, stays before BATTLE2, and PostTick keeps the living pose.
-                                          observer->updateEntityPacket(this, ENTITY_SPAWN, UPDATE_ALL_MOB);
-                                      }
-                                  });
+    SyncRecoveryView();
 
     action_t action{ .actorId = id, .actiontype = ActionCategory::MagicFinish };
     auto&    result = action.addTarget(id).addResult();
@@ -296,6 +308,11 @@ void CTrustEntity::Die()
     if (retainedCorpse_)
     {
         m_OwnerID = owner;
+        if (pendingRaise_)
+        {
+            // Includes native Reraise modifiers and effect-loss callbacks.
+            SyncRecoveryView();
+        }
     }
 }
 

@@ -75,6 +75,8 @@ public:
     bool GetUntargetable() const override;
 
 private:
+    void SyncRecoveryView();
+
     uint32                           trustID_{};
     bool                             released_{};
     IsPassiveTrust                   passiveTrust_ = IsPassiveTrust::No;

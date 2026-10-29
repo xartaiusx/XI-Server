@@ -1043,7 +1043,12 @@ void CZoneEntities::SpawnTRUSTs(CCharEntity* PChar)
         UPDATE_ALL_MOB,
         /*Fn: visible*/ [&](CBaseEntity* entity)
         {
-            return (entity->status == xi::Status::Normal || entity->status == xi::Status::Update) &&
+            const auto* trust = static_cast<const CTrustEntity*>(entity);
+            // A completed recovery offer owns the native wait. Retain the
+            // server corpse/slot while retiring only its dissolved client view.
+            const bool recoveryWait = trust->IsRetainedCorpse() && trust->HasPendingRaise() && trust->health.hp == 0;
+            return !recoveryWait &&
+                   (entity->status == xi::Status::Normal || entity->status == xi::Status::Update) &&
                    isWithinVerticalDistance(PChar, entity) &&
                    isWithinDistance(PChar->loc.p, entity->loc.p, ENTITY_RENDER_DISTANCE);
         });
