@@ -40,6 +40,71 @@ describe('Approved Trust KO recovery', function()
         return value
     end
 
+    local function assertRaiseVisual(packets, ident, targetIndex, cullIndex)
+        local visualIndex
+        local raiseIndex
+        for index, packet in ipairs(packets) do
+            if packet.type == 0x0E and packetUnsigned(packet, 4, 4) == ident then
+                if math.floor(packet.data[0x0A] / 32) % 2 == 1 then
+                    assert(index == cullIndex, 'only the earlier pending-offer view cull is allowed')
+                end
+
+                if packet.data[0x0A] == 0x0F then
+                    assert(packetUnsigned(packet, 8, 2) == targetIndex, 'target index must remain unchanged')
+                    assert(packet.data[0x1F] == xi.animation.NONE, 'PostTick must not coalesce Death back over the visual')
+                    assert(packetUnsigned(packet, 0x30, 2) == 0, 'Val uses a standard model')
+                    assert(packetUnsigned(packet, 0x32, 2) == 3014, 'Val fixed model must remain unchanged')
+                    visualIndex = visualIndex or index
+                end
+            elseif packet.type == 0x028 and packetUnsigned(packet, 5, 4) == ident then
+                raiseIndex = raiseIndex or index
+            end
+        end
+
+        assert(cullIndex and visualIndex and raiseIndex and cullIndex < visualIndex and visualIndex < raiseIndex, 'delivered cull then complete living view must precede the unchanged Raise BATTLE2')
+    end
+
+    local function assertRecoveryAnimation(actions, ident, animation, message)
+        local count = 0
+        for _, action in ipairs(actions) do
+            if
+                action.m_uID == ident and
+                action.cmd_no == xi.action.category.MAGIC_FINISH
+            then
+                for _, target in ipairs(action.target) do
+                    for _, result in ipairs(target.result) do
+                        if
+                            target.m_uID == ident and
+                            result.sub_kind == animation
+                        then
+                            count = count + 1
+                        end
+                    end
+                end
+            end
+        end
+
+        assert(count == 1, message)
+    end
+
+    local function assertArrivingRecoveryVisual(packets, ident)
+        local visualIndex
+        local raiseIndex
+        for index, packet in ipairs(packets) do
+            if
+                packet.type == 0x0E and
+                packetUnsigned(packet, 4, 4) == ident and
+                packet.data[0x0A] == 0x0F
+            then
+                visualIndex = visualIndex or index
+            elseif packet.type == 0x028 and packetUnsigned(packet, 5, 4) == ident then
+                raiseIndex = raiseIndex or index
+            end
+        end
+
+        assert(visualIndex and raiseIndex and visualIndex < raiseIndex, 'an arriving same-zone observer needs a full live view before Raise')
+    end
+
     before_each(function()
         xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', true)
         owner = xi.test.world:spawnPlayer({ name = 'TrustKOProbe', zone = xi.zone.WEST_RONFAURE, job = xi.job.PLD, level = 99 })
@@ -67,6 +132,10 @@ describe('Approved Trust KO recovery', function()
         local targetIndex = trust:getTargID()
         local distant = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.WHM, level = 99 })
         distant:setPos(owner:getXPos() + 1000, owner:getYPos(), owner:getZPos() + 1000)
+        distant.actions:move(distant:getXPos(), distant:getYPos(), distant:getZPos())
+        local arriving = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.WHM, level = 99 })
+        arriving:setPos(owner:getXPos() + 900, owner:getYPos(), owner:getZPos() + 900)
+        arriving.actions:move(arriving:getXPos(), arriving:getYPos(), arriving:getZPos())
         xi.test.world:skipTime(1)
         -- This drains packets without clearing native client spawn lists.
         owner.packets:clear()
@@ -90,8 +159,43 @@ describe('Approved Trust KO recovery', function()
         trust:setLocalVar('RecoveryVisualSentinel', 77)
         trust:addRecast(xi.recast.MAGIC, xi.magic.spell.CRUSADE, 300)
         assert(trust:offerTrustRaise(1, false, false))
-        xi.test.world:skipTime(11)
+        xi.test.world:skipTime(1)
+        local cullIndex
+        local cullCount = 0
+        for index, packet in ipairs(owner.packets:getIncoming()) do
+            if
+                packet.type == 0x0E and
+                packetUnsigned(packet, 4, 4) == ident and
+                math.floor(packet.data[0x0A] / 32) % 2 == 1
+            then
+                cullIndex = index
+                cullCount = cullCount + 1
+            end
+        end
+
+        assert(cullIndex and cullCount == 1, 'native pending-offer cull must be delivered once before recovery')
+        assert(requiredValaineral():getID() == ident and #owner:getPartyWithTrusts() == 2, 'view removal must not remove the server corpse or slot')
+        assert(not trust:offerTrustRaise(1, false, false), 'a rejected duplicate offer must not recull')
+        arriving.packets:clear()
+        arriving:setPos(owner:getXPos(), owner:getYPos(), owner:getZPos())
+        arriving.actions:move(arriving:getXPos(), arriving:getYPos(), arriving:getZPos())
+        xi.test.world:skipTime(1)
+        for _, packet in ipairs(arriving.packets:getIncoming()) do
+            assert(packet.type ~= 0x0E or packetUnsigned(packet, 4, 4) ~= ident, 'an arriving observer must not recreate a pending dead model')
+        end
+
+        xi.test.world:skipTime(9)
         assert(trust:isDead(), 'ordinary Raise must wait for the native twelve-second offer delay')
+        for index, packet in ipairs(owner.packets:getIncoming()) do
+            if
+                index > cullIndex and
+                packet.type == 0x0E and
+                packetUnsigned(packet, 4, 4) == ident
+            then
+                assert(packet.data[0x0A] ~= 0x0F, 'ordinary pending updates must not re-add a model during the native wait')
+            end
+        end
+
         xi.test.world:skipTime(2)
         assert(trust:isDead(), 'the native stand-up state must still block actions')
         assert(trust:getAnimation() == xi.animation.NONE, 'the visual must publish a living pose before Raise')
@@ -103,39 +207,9 @@ describe('Approved Trust KO recovery', function()
         assert(trust:hasRecast(xi.recast.MAGIC, xi.magic.spell.CRUSADE), 'existing cooldown must survive')
         assert(not owner.actions:useTrustAbility(trust, trust, xi.jobAbility.SENTINEL), 'visual alive must not end the recovery lock')
 
-        local visualIndex
-        local raiseIndex
-        for index, packet in ipairs(owner.packets:getIncoming()) do
-            if packet.type == 0x0E and packetUnsigned(packet, 4, 4) == ident then
-                assert(math.floor(packet.data[0x0A] / 32) % 2 == 0, 'recovery must not despawn the native client identity')
-                if packet.data[0x0A] == 0x0F then
-                    assert(packetUnsigned(packet, 8, 2) == targetIndex, 'target index must remain unchanged')
-                    assert(packet.data[0x1F] == xi.animation.NONE, 'PostTick must not coalesce Death back over the visual')
-                    assert(packetUnsigned(packet, 0x30, 2) == 0, 'Val uses a standard model')
-                    assert(packetUnsigned(packet, 0x32, 2) == 3014, 'Val fixed model must remain unchanged')
-                    visualIndex = visualIndex or index
-                end
-            elseif packet.type == 0x028 and packetUnsigned(packet, 5, 4) == ident then
-                raiseIndex = raiseIndex or index
-            end
-        end
-
-        assert(visualIndex and raiseIndex and visualIndex < raiseIndex, 'complete living visual must precede native Raise BATTLE2')
-        local sawRaise = false
-        for _, action in ipairs(owner.packets:actionPackets()) do
-            if
-                action.m_uID == ident and
-                action.cmd_no == xi.action.category.MAGIC_FINISH
-            then
-                for _, target in ipairs(action.target) do
-                    for _, result in ipairs(target.result) do
-                        sawRaise = sawRaise or (target.m_uID == ident and result.sub_kind == 511)
-                    end
-                end
-            end
-        end
-
-        assert(sawRaise, 'native Raise511 must remain on the same entity')
+        assertRaiseVisual(owner.packets:getIncoming(), ident, targetIndex, cullIndex)
+        assertRecoveryAnimation(owner.packets:actionPackets(), ident, 511, 'exactly one native Raise511 must remain on the same entity')
+        assertArrivingRecoveryVisual(arriving.packets:getIncoming(), ident)
         for _, packet in ipairs(distant.packets:getIncoming()) do
             assert(packet.type ~= 0x0E or packetUnsigned(packet, 4, 4) ~= ident, 'an observer outside the native spawn list must not receive the visual')
         end
@@ -227,11 +301,46 @@ describe('Approved Trust KO recovery', function()
     it('consumes Reraise IV with short weakness without granting Reraise III', function()
         local trust = requiredValaineral()
         local ident = trust:getID()
+        local targetIndex = trust:getTargID()
         trust:addStatusEffect(xi.effect.RERAISE, { power = 4, duration = 3600, origin = trust })
+        owner.packets:clear()
         knockOut(trust)
         xi.test.world:skipTime(7)
         assert(trust:isDead(), 'self Reraise must wait for the native eight-second delay')
+        local cullIndex
+        local cullCount = 0
+        for index, packet in ipairs(owner.packets:getIncoming()) do
+            if
+                packet.type == 0x0E and
+                packetUnsigned(packet, 4, 4) == ident and
+                math.floor(packet.data[0x0A] / 32) % 2 == 1
+            then
+                cullIndex = index
+                cullCount = cullCount + 1
+            end
+        end
+
+        assert(cullIndex and cullCount == 1, 'automatic Reraise must retire the old view once during the existing eight-second wait')
         xi.test.world:skipTime(2)
+        assert(trust:isDead() and trust:getAnimation() == xi.animation.NONE, 'Reraise visual setup must preserve the native stand lock')
+        local visualIndex
+        local raiseIndex
+        for index, packet in ipairs(owner.packets:getIncoming()) do
+            if
+                packet.type == 0x0E and
+                packetUnsigned(packet, 4, 4) == ident and
+                packet.data[0x0A] == 0x0F
+            then
+                assert(packetUnsigned(packet, 8, 2) == targetIndex, 'Reraise view must keep the exact native index')
+                assert(packetUnsigned(packet, 0x32, 2) == 3014, 'Reraise must keep the Val model')
+                visualIndex = visualIndex or index
+            elseif packet.type == 0x028 and packetUnsigned(packet, 5, 4) == ident then
+                raiseIndex = raiseIndex or index
+            end
+        end
+
+        assert(visualIndex and raiseIndex and cullIndex < visualIndex and visualIndex < raiseIndex, 'Reraise must publish the full live view before its native animation')
+        assertRecoveryAnimation(owner.packets:actionPackets(), ident, 847, 'exactly one native tier-four Reraise animation must be retained')
         xi.test.world:skipTime(3)
 
         assert(not trust:isDead())
@@ -408,15 +517,33 @@ describe('Approved Trust KO recovery', function()
     end)
 
     it('cancels pending recovery on dismissal without reviving a replacement entity', function()
-        local trust = requiredValaineral()
-        local ident = trust:getID()
-        knockOut(trust)
-        assert(trust:offerTrustRaise(1, false, false))
-        owner:clearTrusts()
-        xi.test.world:skipTime(20)
-        assert(valaineral() == nil)
-        assert(#owner:getPartyWithTrusts() == 1)
-        assert(not owner.actions:hasTrustEntity(ident), 'dismissal must remove the exact native entity')
+        for _, accepted in ipairs({ false, true }) do
+            local trust = requiredValaineral()
+            local ident = trust:getID()
+            knockOut(trust)
+            assert(trust:offerTrustRaise(1, false, false))
+            if accepted then
+                xi.test.world:skipTime(13)
+                assert(trust:isDead() and trust:getHP() > 0, 'the second control must cancel an accepted but still locked recovery')
+            end
+
+            owner.packets:clear()
+            owner:clearTrusts()
+            xi.test.world:skipTime(20)
+            assert(valaineral() == nil)
+            assert(#owner:getPartyWithTrusts() == 1)
+            assert(not owner.actions:hasTrustEntity(ident), 'dismissal must remove the exact native entity')
+            for _, packet in ipairs(owner.packets:getIncoming()) do
+                if packet.type == 0x0E and packetUnsigned(packet, 4, 4) == ident then
+                    assert(packet.data[0x0A] ~= 0x0F, 'cancelled recovery must not republish a living model')
+                end
+            end
+
+            if not accepted then
+                assert(owner:spawnTrust(xi.magic.spell.VALAINERAL) ~= nil)
+                xi.test.world:skipTime(1)
+            end
+        end
     end)
 
     it('clears pending recovery through native zoning and logout lifecycle callbacks', function()
