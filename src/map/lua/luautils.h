@@ -443,7 +443,7 @@ void OnMobUnfollow(CBaseEntity* PMob, CBaseEntity* PTarget);
 void OnMobFight(CBaseEntity* PMob, CBaseEntity* PTarget);
 void OnCriticalHit(CBattleEntity* PMob, CBattleEntity* PAttacker);
 void OnMobDeath(CBaseEntity* PMob, CBaseEntity* PKiller);
-void OnMobDespawn(CBaseEntity* PMob);
+bool OnMobDespawn(CBaseEntity* PMob);
 
 void OnPlayerAbilityUse(CBaseEntity* PMob, CBaseEntity* PPlayer, CAbility* PAbility); // when a player uses an ability and mob is in notoriety container
 

@@ -25,6 +25,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <string>
 #include <string_view>
 
 class CCharEntity;
@@ -34,6 +35,16 @@ struct action_t;
 
 namespace trustutils
 {
+
+// Native Talk uses the legacy delayed lookup; the ordinary command binds the captured identity.
+enum class TrustReleaseResult : uint8
+{
+    Rejected,
+    Queued,
+    QueuedCallbackError,
+};
+auto QueueTrustRelease(CCharEntity* PMaster, CTrustEntity* PTrust, bool bindIdentity = false) -> TrustReleaseResult;
+auto ReturnOrdinaryTrusts(CCharEntity* PMaster, std::string_view request) -> std::string;
 
 void RefreshDevelopedTrusts(CCharEntity* PMaster);
 void RefreshDevelopedSpellCatalog(CTrustEntity* PTrust);

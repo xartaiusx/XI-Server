@@ -37,6 +37,7 @@
 #include <fstream>
 #include <limits>
 #include <sstream>
+#include <tuple>
 #include <vector>
 
 #include "battleutils.h"
@@ -45,6 +46,7 @@
 #include "mobutils.h"
 #include "roe.h"
 #include "trust_job_development.h"
+#include "trust_return.h"
 #include "trust_weapon_skills.h"
 #include "zoneutils.h"
 
@@ -68,6 +70,7 @@
 #include "enums/action/info.h"
 #include "enums/action/resolution.h"
 #include "items/item_weapon.h"
+#include "lua/luautils.h"
 #include "mobskill.h"
 #include "status_effect_container.h"
 #include "trait.h"
@@ -181,7 +184,188 @@ auto HasSupportedTrustSessionPartyShape(CCharEntity* PMaster) -> bool
            PParty->members.front() == PMaster;
 }
 
+trustutils::TrustReturnNonceCache trustReturnNonces{ static_cast<uint64>(std::time(nullptr)) };
+
+bool IsOwnedTrustReturnTarget(CCharEntity* PMaster, CTrustEntity* PTrust)
+{
+    return PMaster && PTrust && PTrust->objtype == TYPE_TRUST && PTrust->PMaster == PMaster &&
+           PTrust->loc.zone == PMaster->loc.zone && PTrust->PInstance == PMaster->PInstance &&
+           std::ranges::find(PMaster->PTrusts, PTrust) != PMaster->PTrusts.end();
+}
+
 } // namespace
+
+auto trustutils::QueueTrustRelease(CCharEntity* PMaster, CTrustEntity* PTrust, bool bindIdentity) -> TrustReleaseResult
+{
+    if (!PMaster || !PTrust || PTrust->PMaster != PMaster || PTrust->released() ||
+        (bindIdentity && !IsOwnedTrustReturnTarget(PMaster, PTrust)))
+    {
+        return TrustReleaseResult::Rejected;
+    }
+    const auto index    = PTrust->targid;
+    const auto id       = PTrust->id;
+    const auto serial   = PTrust->serial();
+    const auto owner    = PMaster->id;
+    const auto zone     = PMaster->loc.zone;
+    const auto instance = PMaster->PInstance;
+    PTrust->setReleased(true);
+    // Preserve both native lifecycle calls: the initial release message here,
+    // and the natural terminal OnMobDespawn after PMaster becomes null.
+    const auto callbackSucceeded = luautils::OnMobDespawn(PTrust);
+    PMaster->PAI->QueueAction(queueAction_t(2s, false, [index, id, serial, owner, zone, instance, bindIdentity](CBaseEntity* entity)
+                                            {
+                                                auto* trust  = dynamic_cast<CTrustEntity*>(entity->GetEntity(index, TYPE_TRUST));
+                                                auto* master = dynamic_cast<CCharEntity*>(entity);
+                                                if (trust && master && trust->PMaster == master &&
+                                                    (!bindIdentity || (master->id == owner && master->loc.zone == zone && master->PInstance == instance &&
+                                                                       trust->id == id && trust->serial() == serial && trust->released() && IsOwnedTrustReturnTarget(master, trust))))
+                                                {
+                                                    trust->animation = xi::Animation::Death;
+                                                    trust->updatemask |= UPDATE_HP;
+                                                    master->RemoveTrust(trust);
+                                                }
+                                            }));
+    return callbackSucceeded ? TrustReleaseResult::Queued : TrustReleaseResult::QueuedCallbackError;
+}
+
+auto trustutils::ReturnOrdinaryTrusts(CCharEntity* PMaster, std::string_view request) -> std::string
+{
+    const auto parsed = ParseTrustReturn(request);
+    if (!PMaster || !parsed)
+    {
+        return {}; // No untrusted/malformed request text is echoed.
+    }
+    const auto& value = *parsed;
+    const auto  reply = [&](const char* status, const char* reason, std::size_t count = 0)
+    {
+        return fmt::format("MTR1 {} {} {} {} {} {} {} {} {}", value.nonceText, value.owner, value.zone, value.all ? "all" : "one", value.id, value.index, status, count, reason);
+    };
+    if (PMaster->getName() == TwillsCharacterName)
+    {
+        auto lease  = value;
+        lease.owner = PMaster->id; // The invoker, never a claimed owner, keys the reservation.
+        if (const auto* failure = trustReturnNonces.reserve(lease, static_cast<uint64>(std::time(nullptr))))
+        {
+            return reply("DENIED", failure);
+        }
+    }
+    if (PMaster->id != value.owner || !PMaster->loc.zone || static_cast<uint16>(PMaster->getZone()) != value.zone)
+    {
+        return reply("DENIED", "CONTEXT");
+    }
+    if (PMaster->getName() != TwillsCharacterName)
+    {
+        return reply("NATIVE", "OTHER");
+    }
+    const auto mode  = GetTwillsTrustEvidenceMode(PMaster);
+    const auto state = GetTwillsFullAllianceState(PMaster);
+    if (!mode || !HasSupportedTrustSessionPartyShape(PMaster))
+    {
+        return reply("DENIED", "POLICY");
+    }
+    if (!CanUseTwillsTrustGameplay(PMaster))
+    {
+        const bool evidence = CanUseTwillsFullAlliance(PMaster) &&
+                              (state == TwillsFullAllianceState::Spawning || state == TwillsFullAllianceState::Ready) &&
+                              (*mode == TwillsTrustEvidenceMode::RetailControl || *mode == TwillsTrustEvidenceMode::FullAllianceQualityAssurance);
+        if (evidence)
+        {
+            return reply("NATIVE", "QA");
+        }
+        const auto limit = ResolveTrustMemberLimit(PMaster);
+        if (state == TwillsFullAllianceState::Idle && *mode == TwillsTrustEvidenceMode::Idle &&
+            limit && *limit == kRetailPartyMemberLimit && PMaster->PTrusts.size() <= kRetailTrustSummonLimit)
+        {
+            return reply("NATIVE", "RETAIL");
+        }
+        return reply("DENIED", "POLICY");
+    }
+    // Sheathed and unambiguously idle. Do not force disengage or guess whether
+    // an active event/cast/item state can safely admit an ordinary return.
+    const auto originalZone     = PMaster->loc.zone;
+    const auto originalInstance = PMaster->PInstance;
+    const auto validContext     = [&]()
+    {
+        return PMaster->loc.zone && PMaster->loc.zone == originalZone && PMaster->PInstance == originalInstance &&
+               PMaster->PAI && !PMaster->PAI->IsEngaged() && PMaster->PAI->IsStateStackEmpty() &&
+               PMaster->animation == xi::Animation::None && !PMaster->isInEvent() && PMaster->m_Costume == 0 &&
+               !PMaster->isCrafting() && !PMaster->isMounted() && !PMaster->isDead() && !PMaster->isFishing() &&
+               !PMaster->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Gestation);
+    };
+    if (!validContext())
+    {
+        return reply("DENIED", "CONTEXT");
+    }
+    std::vector<std::tuple<uint32, uint16, uint64>> targets;
+    if (value.all)
+    {
+        if (PMaster->PTrusts.size() > kFullAllianceTrustLimit)
+        {
+            return reply("DENIED", "POLICY");
+        }
+        for (auto* trust : PMaster->PTrusts)
+        {
+            if (!IsOwnedTrustReturnTarget(PMaster, trust) || trust->released() ||
+                std::ranges::any_of(targets, [trust](const auto& target)
+                                    {
+                                        return std::get<0>(target) == trust->id;
+                                    }))
+            {
+                return reply("DENIED", "BUSY");
+            }
+            targets.emplace_back(trust->id, trust->targid, trust->serial());
+        }
+    }
+    else
+    {
+        auto* trust = dynamic_cast<CTrustEntity*>(PMaster->GetEntity(value.index, TYPE_TRUST));
+        if (!IsOwnedTrustReturnTarget(PMaster, trust) || trust->id != value.id)
+        {
+            return reply("DENIED", "TARGET");
+        }
+        if (trust->released())
+        {
+            return reply("DENIED", "BUSY");
+        }
+        targets.emplace_back(value.id, value.index, trust->serial());
+    }
+    PMaster->StatusEffectContainer->DelStatusEffectSilent(xi::StatusEffect::Healing);
+    std::size_t queued = 0;
+    for (const auto& [id, index, serial] : targets)
+    {
+        if (!validContext() || !CanUseTwillsTrustGameplay(PMaster))
+        {
+            return reply("UNCERTAIN", "PARTIAL", queued);
+        }
+        auto* trust = dynamic_cast<CTrustEntity*>(PMaster->GetEntity(index, TYPE_TRUST));
+        if (!trust || trust->id != id || trust->serial() != serial)
+        {
+            return reply("UNCERTAIN", "PARTIAL", queued);
+        }
+        const auto release = QueueTrustRelease(PMaster, trust, true);
+        if (release == TrustReleaseResult::Rejected)
+        {
+            return reply("UNCERTAIN", "PARTIAL", queued);
+        }
+        ++queued;
+        if (release == TrustReleaseResult::QueuedCallbackError)
+        {
+            return reply("UNCERTAIN", "PARTIAL", queued);
+        }
+        // OnMobDespawn is re-entrant Lua. Never dereference the pre-callback
+        // pointer here, nor report success after it changed admission/context.
+        if (!validContext() || !CanUseTwillsTrustGameplay(PMaster))
+        {
+            return reply("UNCERTAIN", "PARTIAL", queued);
+        }
+        auto* current = dynamic_cast<CTrustEntity*>(PMaster->GetEntity(index, TYPE_TRUST));
+        if (!IsOwnedTrustReturnTarget(PMaster, current) || current->id != id || current->serial() != serial || !current->released())
+        {
+            return reply("UNCERTAIN", "PARTIAL", queued);
+        }
+    }
+    return reply("ACCEPTED", "OK", queued);
+}
 
 auto trustutils::CanUseTwillsFullAlliance(const TwillsFullAllianceAccessContext& context) -> bool
 {

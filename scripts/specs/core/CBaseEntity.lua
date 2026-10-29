@@ -3539,6 +3539,12 @@ end
 function CBaseEntity:canUseTwillsTrustGameplay()
 end
 
+---Native ordinary Trust return request; empty result rejects malformed input.
+---@param request string
+---@return string
+function CBaseEntity:returnOrdinaryTrusts(request)
+end
+
 ---@nodiscard
 ---@return boolean
 function CBaseEntity:isTwillsFullAllianceActive()
