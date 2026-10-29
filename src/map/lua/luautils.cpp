@@ -4363,19 +4363,19 @@ void OnMobRoam(CBaseEntity* PMob)
     }
 }
 
-void OnMobDespawn(CBaseEntity* PMob)
+bool OnMobDespawn(CBaseEntity* PMob)
 {
     TracyZoneScoped;
 
     if (PMob == nullptr)
     {
-        return;
+        return false;
     }
 
     auto onMobDespawn = getEntityCachedFunction(PMob, "onMobDespawn");
     if (!onMobDespawn.valid())
     {
-        return;
+        return true;
     }
 
     auto result = onMobDespawn(PMob);
@@ -4383,7 +4383,9 @@ void OnMobDespawn(CBaseEntity* PMob)
     {
         sol::error err = result;
         ShowError("luautils::onMobDespawn: %s", err.what());
+        return false;
     }
+    return true;
 }
 
 void OnPlayerAbilityUse(CBaseEntity* PMob, CBaseEntity* PPlayer, CAbility* PAbility)

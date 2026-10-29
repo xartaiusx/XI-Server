@@ -175,6 +175,22 @@ auto CTrustEntity::CompleteRaise() -> bool
         StatusEffectContainer->AddStatusEffect(xi::StatusEffect::Reraise, static_cast<uint16>(xi::StatusEffect::Reraise), 3, 0s, 1h);
     }
 
+    // A retail Trust's client model may have dissolved while this same native
+    // entity was retained. Publish a complete living visual before Raise starts.
+    // CDeathState still owns the two-second recovery lock; this is not Spawn().
+    animation = xi::Animation::None;
+    loc.zone->ForEachCharInstance(this, [this](CCharEntity* observer)
+                                  {
+                                      const auto visible = observer->SpawnTRUSTList.find(id);
+                                      if (observer->loc.zone == loc.zone && observer->PInstance == PInstance &&
+                                          visible != observer->SpawnTRUSTList.end() && visible->second == this)
+                                      {
+                                          // Use the normal per-entity queue so any pending dead update is
+                                          // replaced, stays before BATTLE2, and PostTick keeps the living pose.
+                                          observer->updateEntityPacket(this, ENTITY_SPAWN, UPDATE_ALL_MOB);
+                                      }
+                                  });
+
     action_t action{ .actorId = id, .actiontype = ActionCategory::MagicFinish };
     auto&    result = action.addTarget(id).addResult();
     switch (options.tier)

@@ -16476,6 +16476,11 @@ bool CLuaBaseEntity::canUseTwillsTrustGameplay()
     return m_PBaseEntity->objtype == TYPE_PC && trustutils::CanUseTwillsTrustGameplay(static_cast<CCharEntity*>(m_PBaseEntity));
 }
 
+auto CLuaBaseEntity::returnOrdinaryTrusts(std::string request) -> std::string
+{
+    return m_PBaseEntity->objtype == TYPE_PC ? trustutils::ReturnOrdinaryTrusts(static_cast<CCharEntity*>(m_PBaseEntity), request) : std::string{};
+}
+
 bool CLuaBaseEntity::isTwillsFullAllianceActive()
 {
     return m_PBaseEntity->objtype == TYPE_PC &&
@@ -21717,6 +21722,7 @@ void CLuaBaseEntity::Register()
     SOL_REGISTER("clearTrusts", CLuaBaseEntity::clearTrusts);
     SOL_REGISTER("canUseTwillsFullAlliance", CLuaBaseEntity::canUseTwillsFullAlliance);
     SOL_REGISTER("canUseTwillsTrustGameplay", CLuaBaseEntity::canUseTwillsTrustGameplay);
+    SOL_REGISTER("returnOrdinaryTrusts", CLuaBaseEntity::returnOrdinaryTrusts);
     SOL_REGISTER("isTwillsFullAllianceActive", CLuaBaseEntity::isTwillsFullAllianceActive);
     SOL_REGISTER("getTwillsFullAllianceState", CLuaBaseEntity::getTwillsFullAllianceState);
     SOL_REGISTER("setTwillsFullAllianceState", CLuaBaseEntity::setTwillsFullAllianceState);
