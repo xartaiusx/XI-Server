@@ -87,7 +87,7 @@ describe('Ordinary Trust return compatibility', function()
         local savedMessage = xi.trust.message
         local threw = false
         local text = request(false, first)
-        xi.trust.message = function(mob, offset)
+        rawset(xi.trust, 'message', function(mob, offset)
             savedMessage(mob, offset)
             if
                 not threw and
@@ -97,13 +97,13 @@ describe('Ordinary Trust return compatibility', function()
                 threw = true
                 error('ordinary_return_intentional_callback_error', 0)
             end
-        end
+        end)
 
         local ok, result = pcall(function()
             return owner:returnOrdinaryTrusts(text)
         end)
 
-        xi.trust.message = savedMessage -- Finally restore before an assertion can exit.
+        rawset(xi.trust, 'message', savedMessage) -- Finally restore before an assertion can exit.
         assert(ok, result)
         ending(result, 'UNCERTAIN 1 PARTIAL')
         assert(threw and owner:canUseTwillsTrustGameplay(), 'callback error must be observed without policy drift')
@@ -121,7 +121,7 @@ describe('Ordinary Trust return compatibility', function()
         local secondId = second:getID()
         local revoked = false
         local secondText = request(false, second)
-        xi.trust.message = function(mob, offset)
+        rawset(xi.trust, 'message', function(mob, offset)
             savedMessage(mob, offset)
             if
                 not revoked and
@@ -131,13 +131,13 @@ describe('Ordinary Trust return compatibility', function()
                 revoked = true
                 owner:setCharVar('MochiriiTrustAllianceAccess', 0)
             end
-        end
+        end)
 
         local secondOk, secondResult = pcall(function()
             return owner:returnOrdinaryTrusts(secondText)
         end)
 
-        xi.trust.message = savedMessage -- Finally restore before an assertion can exit.
+        rawset(xi.trust, 'message', savedMessage) -- Finally restore before an assertion can exit.
         assert(secondOk, secondResult)
         ending(secondResult, 'UNCERTAIN 1 PARTIAL')
         assert(revoked and not owner:canUseTwillsTrustGameplay(), 'the second real callback must change admission without throwing')
@@ -163,7 +163,7 @@ describe('Ordinary Trust return compatibility', function()
 
     it('rejects a native blocked state without force disengagement or release', function()
         summon(1)
-        owner:addStatusEffect(xi.effect.GESTATION, { power = 1, duration = 60 })
+        owner:addStatusEffect(xi.effect.GESTATION, { origin = owner, power = 1, duration = 60 })
         ending(owner:returnOrdinaryTrusts(request(true)), 'DENIED 0 CONTEXT')
         assert(owner:hasStatusEffect(xi.effect.GESTATION))
         assert(#owner:getPartyWithTrusts() == 2)
