@@ -499,7 +499,7 @@ local function applyValaineral(trust, profile)
     end
 
     if lvl >= 65 then
-        trust:addGambit(ai.t.TARGET, { ai.c.IS_ECOSYSTEM, xi.ecosystem.UNDEAD }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.BANISH_III }, 45)
+        trust:addGambit(ai.t.TARGET, { ai.c.IS_ECOSYSTEM, xi.ecosystem.UNDEAD }, { ai.r.MA, ai.s.SPECIFIC, trust:isDevelopedTrust() and xi.magic.spell.BANISH_II or xi.magic.spell.BANISH_III }, 45)
         changed = true
     end
 

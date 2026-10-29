@@ -875,13 +875,6 @@ bool CanUseSpell(CBattleEntity* PCaster, CSpell* spell)
                     return false;
                 }
 
-                // Preserve the existing, explicitly unverified Valaineral exception.
-                if (PTrust->trustID() == 910 && spell->getID() == SpellID::Banish_III &&
-                    PTrust->m_SpellListContainer && PTrust->m_SpellListContainer->GetSpellMinLevel(spell->getID()) <= 99)
-                {
-                    return true;
-                }
-
                 const auto* profile = trustdevelopment::GetProfile(PTrust->trustID());
                 for (const auto job : { profile->mainJob, profile->supportJob })
                 {
