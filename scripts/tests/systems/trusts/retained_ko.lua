@@ -174,10 +174,19 @@ describe('Approved Trust KO recovery', function()
         owner:clearTrusts()
         xi.test.world:skipTime(6)
         local healer = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.WHM, level = 99 })
-        healer:setPos(owner:getXPos(), owner:getYPos(), owner:getZPos())
+        -- A real position packet requests the native PC visibility list.
+        healer.actions:move(owner:getXPos(), owner:getYPos(), owner:getZPos())
         healer:addSpell(xi.magic.spell.RAISE)
         xi.test.world:skipTime(1)
         local ownerID = owner:getID()
+        local sawPlayerSpawn = false
+        for _, packet in ipairs(healer.packets:getIncoming()) do
+            if packet.type == 0x0D and packetUnsigned(packet, 4, 4) == ownerID then
+                sawPlayerSpawn = true
+            end
+        end
+
+        assert(sawPlayerSpawn, 'the PC control must establish native observer visibility before KO')
         owner:die({ expLoss = false })
         xi.test.world:tickEntity(owner)
         healer.packets:clear()
