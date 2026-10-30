@@ -15,6 +15,7 @@ describe('Valaineral developed jobs', function()
         if not keepSpawnGambits then
             val:removeAllGambits()
         end
+
         val:setAutoAttackEnabled(false)
         val:setMobAbilityEnabled(false) -- Disable autonomous TP selection, not controller admission.
         return owner, val
@@ -449,34 +450,36 @@ describe('Valaineral developed jobs', function()
             })
             pinRole()
         end)
+
         val:addListener('COMBAT_TICK', 'JOB99_STANCE_ROLE', pinRole)
         stanceCleanup = function()
             val:removeListener('JOB99_STANCE_ACTIONS')
             val:removeListener('JOB99_STANCE_ROLE')
         end
+
         pinRole()
         engageWithoutOwnerSwings(owner, val, mob)
         pinRole()
         assert(not val:hasStatusEffect(xi.effect.DEFENDER) and not val:hasStatusEffect(xi.effect.BERSERK),
             'stance setup must not preapply either action')
 
-        function state:count(id)
-            return #(self.events[id] or {})
+        function state.count(id)
+            return #(state.events[id] or {})
         end
 
-        function state:step(seconds)
+        function state.step(seconds)
             pinRole()
             xi.test.world:tickEntity(val)
             xi.test.world:skipTime(seconds or 3)
         end
 
-        function state:waitForAbility(id, count)
+        function state.waitForAbility(id, count)
             for _ = 1, 80 do
-                if self:count(id) >= (count or 1) then
+                if state.count(id) >= (count or 1) then
                     return
                 end
 
-                self:step()
+                state.step()
             end
 
             assert(false, string.format('actual spawn gambits did not complete action %d in the bounded fixture', id))
@@ -487,30 +490,30 @@ describe('Valaineral developed jobs', function()
 
     it('chooses Defender while tanking and retains native150/180/250 timing with spawn gambits intact', function()
         local state = stanceContext('tank')
-        state:waitForAbility(xi.jobAbility.DEFENDER)
+        state.waitForAbility(xi.jobAbility.DEFENDER)
         assert(state.events[xi.jobAbility.SENTINEL][1].recast == 250)
         assert(state.events[xi.jobAbility.DEFENDER][1].recast == 150)
         assert(state.events[xi.jobAbility.DEFENDER][1].duration == 180000)
-        assert(state:count(xi.jobAbility.BERSERK) == 0)
+        assert(state.count(xi.jobAbility.BERSERK) == 0)
         -- Native time/expiry only: no status deletion or recast reset. The
         -- existing focused recast case above checks the250-second boundary.
         for _ = 1, 85 do
-            state:step()
+            state.step()
         end
 
-        assert(state:count(xi.jobAbility.SENTINEL) >= 2, 'native Sentinel recast must eventually return')
-        assert(state:count(xi.jobAbility.DEFENDER) >= 2, 'native Defender upkeep must remain available')
-        assert(state:count(xi.jobAbility.BERSERK) == 0, 'known tank must not select offensive Berserk')
+        assert(state.count(xi.jobAbility.SENTINEL) >= 2, 'native Sentinel recast must eventually return')
+        assert(state.count(xi.jobAbility.DEFENDER) >= 2, 'native Defender upkeep must remain available')
+        assert(state.count(xi.jobAbility.BERSERK) == 0, 'known tank must not select offensive Berserk')
     end)
 
     it('chooses healthy off-tank Berserk and preserves it when native Defender is later needed', function()
         local state = stanceContext('other')
-        state:waitForAbility(xi.jobAbility.BERSERK)
-        assert(state:count(xi.jobAbility.DEFENDER) == 0)
+        state.waitForAbility(xi.jobAbility.BERSERK)
+        assert(state.count(xi.jobAbility.DEFENDER) == 0)
         local first = state.events[xi.jobAbility.BERSERK][1]
         assert(first.recast == 300 and first.duration == 180000)
         state.role = 'tank'
-        state:waitForAbility(xi.jobAbility.DEFENDER)
+        state.waitForAbility(xi.jobAbility.DEFENDER)
         local remaining = assert(state.val:getStatusEffect(xi.effect.BERSERK), 'role change must not cancel Berserk')
         assert(remaining:getStartTime() == first.start and remaining:getDuration() == first.duration,
             'adding native Defender must not refresh or replace existing Berserk')
@@ -519,48 +522,48 @@ describe('Valaineral developed jobs', function()
 
     it('rejects both stance choices with unknown highest enmity while later spawn gambits still execute', function()
         local state = stanceContext('unknown')
-        state:waitForAbility(xi.jobAbility.AGGRESSOR)
+        state.waitForAbility(xi.jobAbility.AGGRESSOR)
         assert(state.val:hasRecast(xi.recast.ABILITY, 75), 'actual Sentinel cooldown must make the old Defender guard otherwise eligible')
         assert(state.val:getHPP() == 100 and not state.val:hasStatusEffect(xi.effect.DEFENDER))
-        assert(state:count(xi.jobAbility.DEFENDER) == 0 and state:count(xi.jobAbility.BERSERK) == 0,
+        assert(state.count(xi.jobAbility.DEFENDER) == 0 and state.count(xi.jobAbility.BERSERK) == 0,
             'neither known-role predicate may treat missing hate as off-tanking')
         assert(#state.mob:getEnmityList() == 0)
     end)
 
     it('honors the healthy off-tank Berserk boundary without suppressing other normal actions', function()
         local state = stanceContext('other', 89)
-        state:waitForAbility(xi.jobAbility.AGGRESSOR)
-        assert(state.val:getHPP() == 89 and state:count(xi.jobAbility.BERSERK) == 0)
-        assert(state:count(xi.jobAbility.DEFENDER) == 0)
+        state.waitForAbility(xi.jobAbility.AGGRESSOR)
+        assert(state.val:getHPP() == 89 and state.count(xi.jobAbility.BERSERK) == 0)
+        assert(state.count(xi.jobAbility.DEFENDER) == 0)
         state.val:setHP(math.ceil(state.val:getMaxHP() * 0.90))
         assert(state.val:getHPP() == 90)
-        state:waitForAbility(xi.jobAbility.BERSERK)
-        assert(state:count(xi.jobAbility.DEFENDER) == 0)
+        state.waitForAbility(xi.jobAbility.BERSERK)
+        assert(state.count(xi.jobAbility.DEFENDER) == 0)
     end)
 
     it('waits for existing Defender to expire after losing hate instead of refreshing or cancelling it', function()
         local state = stanceContext('tank')
-        state:waitForAbility(xi.jobAbility.DEFENDER)
+        state.waitForAbility(xi.jobAbility.DEFENDER)
         local first = state.events[xi.jobAbility.DEFENDER][1]
         state.role = 'other'
-        state:step(151)
+        state.step(151)
         assert(not state.val:hasRecast(xi.recast.ABILITY, 3), 'native150-second Defender recast must be ready')
         local remaining = assert(state.val:getStatusEffect(xi.effect.DEFENDER), 'native180-second effect must not be cancelled on role loss')
         assert(remaining:getStartTime() == first.start and remaining:getDuration() == 180000)
-        assert(state:count(xi.jobAbility.DEFENDER) == 1 and state:count(xi.jobAbility.BERSERK) == 0)
-        state:step(31)
-        state:waitForAbility(xi.jobAbility.BERSERK)
+        assert(state.count(xi.jobAbility.DEFENDER) == 1 and state.count(xi.jobAbility.BERSERK) == 0)
+        state.step(31)
+        state.waitForAbility(xi.jobAbility.BERSERK)
         assert(not state.val:hasStatusEffect(xi.effect.DEFENDER))
-        assert(state:count(xi.jobAbility.DEFENDER) == 1, 'off-tank must not refresh Defender ahead of Berserk')
+        assert(state.count(xi.jobAbility.DEFENDER) == 1, 'off-tank must not refresh Defender ahead of Berserk')
     end)
 
     it('preserves legacy Defender choice when the developed profile is disabled', function()
         xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', false)
         local state = stanceContext('other')
         assert(not state.val:isDevelopedTrust())
-        state:waitForAbility(xi.jobAbility.DEFENDER)
+        state.waitForAbility(xi.jobAbility.DEFENDER)
         assert(state.val:getStatusEffect(xi.effect.DEFENDER):getPower() == 25)
-        assert(state:count(xi.jobAbility.BERSERK) == 0)
+        assert(state.count(xi.jobAbility.BERSERK) == 0)
     end)
 
     it('rejects another fixture owner using the test-only action adapter', function()
