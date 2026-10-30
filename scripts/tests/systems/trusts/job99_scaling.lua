@@ -163,16 +163,19 @@ describe('Valaineral scaling with earned progression', function()
     end)
 
     it('serializes native AEP rank boundaries and authoritative category slots', function()
-        local menuOwner = xi.test.world:spawnPlayer({ job = xi.job.PLD, level = 99 })
-        menuOwner:gotoZone(xi.zone.WINDURST_WOODS)
+        local menuOwner = xi.test.world:spawnPlayer({ zone = xi.zone.WINDURST_WOODS })
+        assert(menuOwner:getMainLvl() == 1, 'enter the Mog House using the native level-one fixture')
         if menuOwner:isInEvent() then
-            menuOwner.events:expect({ eventId = 30035 })
+            menuOwner.events:finish()
         end
 
-        assert(not menuOwner:isInEvent(), 'complete the native town intro before entering the Mog House')
         menuOwner:gotoMogHouse(xi.zone.WINDURST_WOODS)
+        assert(not menuOwner:isInEvent(), 'the level-one Mog House entry must finish native events')
+        menuOwner:changeJob(xi.job.PLD)
+        menuOwner:setLevel(99)
         menuOwner:addKeyItem(xi.keyItem.CIPHER_BRACELET)
         assert(not menuOwner:isInEvent(), 'the native AEP menu requires no active event')
+        assert(menuOwner:getMainJob() == xi.job.PLD)
         assert(menuOwner:inMogHouse() and menuOwner:getMainLvl() == 99 and menuOwner:hasKeyItem(xi.keyItem.CIPHER_BRACELET))
         local keys = { 'AlterEgoPoints_HP', 'AlterEgoPoints_MP', 'AlterEgoPoints_CombatSkills', 'AlterEgoPoints_MagicSkills' }
         local indexes = { 8, 9, 17, 18 }
