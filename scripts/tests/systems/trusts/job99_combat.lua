@@ -107,6 +107,7 @@ describe('Valaineral native combat consumers', function()
 
             return false
         end)
+
         stub('xi.combat.physical.calculateMeleePDIF', 1)
         stub('xi.combat.physicalHitRate.getRangedHitRate', 1)
         stub('xi.combat.physical.calculateRangedPDIF', 1)
@@ -140,16 +141,19 @@ describe('Valaineral native combat consumers', function()
                 started = started + 1
             end
         end)
+
         actor:addListener('MAGIC_USE', 'JOB99_SHIELD_USE', function(_, _, spell)
             if spell:getID() == spellId then
                 completed = completed + 1
             end
         end)
+
         actor:addListener('MAGIC_INTERRUPTED', 'JOB99_SHIELD_INTERRUPTED', function(_, _, spell)
             if spell:getID() == spellId then
                 interrupted = interrupted + 1
             end
         end)
+
         mob:addListener('RANGE_START', 'JOB99_SHIELD_RANGED', function()
             rangedStarts = rangedStarts + 1
         end)
