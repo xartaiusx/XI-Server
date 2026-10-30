@@ -81,7 +81,15 @@ spellObject.onMobSpawn = function(mob)
 
     if lvl >= 50 then
         mob:addGambit(ai.t.SELF, { { ai.c.MPP_LT,         50             }, { ai.c.TP_GTE,     1000               } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.CHIVALRY })
-        mob:addGambit(ai.t.SELF, { { ai.c.JA_ON_COOLDOWN, xi.ja.SENTINEL }, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.DEFENDER } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.DEFENDER })
+        local defenderConditions = {
+            { ai.c.JA_ON_COOLDOWN, xi.ja.SENTINEL },
+            { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.DEFENDER },
+        }
+        if developed then
+            table.insert(defenderConditions, { ai.c.HAS_TOP_ENMITY, 0 })
+        end
+
+        mob:addGambit(ai.t.SELF, defenderConditions, { ai.r.JA, ai.s.SPECIFIC, xi.ja.DEFENDER })
     end
 
     if lvl >= 62 then
@@ -137,6 +145,7 @@ spellObject.onMobSpawn = function(mob)
         mob:addGambit(ai.t.TARGET, { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.TOMAHAWK }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.TOMAHAWK })
         mob:addGambit(ai.t.SELF, {
             { ai.c.HPP_GTE, 90 },
+            { ai.c.NOT_HAS_TOP_ENMITY, 0 },
             { ai.c.NOT_STATUS, xi.effect.DEFENDER },
             { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.BERSERK },
         }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.BERSERK })

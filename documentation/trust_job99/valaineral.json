@@ -96,6 +96,14 @@
       "reviewed_on": "2026-10-28",
       "class": "community_primary_testing_prior_review_current_fetch_unavailable",
       "supports": "Measured EnlightII model through605 Divine skill;460-skill result anomalous. No exact SE formula claim."
+    },
+    {
+      "id": "official_shield_mastery_block_interrupt",
+      "url": "https://www.playonline.com/pcd2/topics/ff11us/detail/1077/detail.html",
+      "published_on": "2006-12-01",
+      "reviewed_on": "2026-10-30",
+      "class": "primary_official",
+      "supports": "Shield Mastery adds TP on shield block and protects casting from that blocked hit. Developed-Trust eligibility and99/99 role decisions are Mochirii extensions."
     }
   ],
   "counts": {
@@ -1190,7 +1198,7 @@
         "weapon": "native_ability",
         "resources": "native_ability"
       },
-      "ai": "Self HP at least90%, Defender absent, Berserk missing/expiring.",
+      "ai": "Developed profile: HP at least90%, known other highest enmity on the current enemy, Defender absent, and Berserk missing/expiring. Unknown highest enmity rejects this stance; existing effects are not cancelled.",
       "implementation": "candidate_native",
       "action_source": {
         "path": "scripts/actions/abilities/berserk.lua",
@@ -1264,7 +1272,7 @@
         "weapon": "native_ability",
         "resources": "native_ability"
       },
-      "ai": "Sentinel on actual recast and Defender missing/expiring.",
+      "ai": "Developed profile: confirmed highest enmity on the current enemy, Sentinel on actual recast, and Defender missing/expiring. Unknown highest enmity rejects this stance. Legacy conditions remain unchanged.",
       "implementation": "candidate_native",
       "action_source": {
         "path": "scripts/actions/abilities/defender.lua",
@@ -2457,7 +2465,12 @@
       "name": "shield mastery",
       "selected_merit_rank": null,
       "application": "highest_native_trait",
-      "conditions": "native_ability",
+      "conditions": "Native shield block; developed Trust plus actual Shield Mastery trait protects casting from the blocked melee hit. Native ranged and PC behavior remain.",
+      "consumer_source": {
+        "path": "src/map/utils/battleutils.cpp",
+        "test_path": "scripts/tests/systems/trusts/job99_combat.lua",
+        "qualification": "Source correction and native cases; execution remains a separate validation layer."
+      },
       "tiers": [
         {
           "job": "WAR",

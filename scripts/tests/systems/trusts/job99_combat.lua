@@ -8,11 +8,11 @@ describe('Valaineral native combat consumers', function()
     local mob
     local dummyId
 
-    local function fixedContact()
+    local function fixedContact(blocked)
         stub('xi.combat.physicalHitRate.getPhysicalHitRate', 1)
         stub('xi.combat.physical.isParried', false)
         stub('xi.combat.physical.isGuarded', false)
-        stub('xi.combat.physical.isBlocked', false)
+        stub('xi.combat.physical.isBlocked', blocked or false)
     end
 
     local function advance(entity, count)
@@ -93,6 +93,146 @@ describe('Valaineral native combat consumers', function()
         end
 
         dummyId = nil
+    end)
+
+    -- Keep native casting, swings, damage, interruption and MP spending. Only contact
+    -- outcomes and fixture timing are controlled; no spell/effect handler is called directly.
+    local function castUnderNativeHit(actor, recipient, spellId, blocked, ranged)
+        local blockChecks = 0
+        fixedContact(function(defender, attacker)
+            if defender:getID() == actor:getID() and attacker:getID() == mob:getID() then
+                blockChecks = blockChecks + 1
+                return blocked
+            end
+
+            return false
+        end)
+        stub('xi.combat.physical.calculateMeleePDIF', 1)
+        stub('xi.combat.physicalHitRate.getRangedHitRate', 1)
+        stub('xi.combat.physical.calculateRangedPDIF', 1)
+
+        actor:setAutoAttackEnabled(false)
+        actor:setMod(xi.mod.FASTCAST, 0)
+        actor:setMod(xi.mod.QUICK_MAGIC, 0)
+        actor:setMod(xi.mod.REFRESH, 0)
+        -- At equal levels the native ratio is .5 * 11 = 5.5: every unprotected
+        -- melee hit interrupts, independently of the random roll in [0, 1).
+        actor:setMod(xi.mod.SPELLINTERRUPT, -1000)
+        actor:setMP(actor:getMaxMP())
+        mob:setAutoAttackEnabled(false)
+        mob:setRangedAttackEnabled(false)
+        mob:setMobMod(xi.mobMod.SPECIAL_SKILL, 0)
+        mob:setDamage(100, xi.slot.MAIN)
+        mob:setDamage(100, xi.slot.RANGED)
+        mob:setMod(xi.mod.DOUBLE_ATTACK, 0)
+        mob:setMod(xi.mod.TRIPLE_ATTACK, 0)
+        mob:setMod(xi.mod.QUAD_ATTACK, 0)
+        mob:setMod(xi.mod.RANGED_DELAYP, -100)
+        mob:addBaseEnmity(actor)
+        mob:setCE(actor, 10000)
+        mob:setVE(actor, 0)
+        mob:updateEnmity(actor)
+        xi.test.world:skipTime(10) -- Run down attack timers while every attack path is disabled.
+
+        local started, completed, interrupted, rangedStarts = 0, 0, 0, 0
+        actor:addListener('MAGIC_START', 'JOB99_SHIELD_START', function(_, _, spell)
+            if spell:getID() == spellId then
+                started = started + 1
+            end
+        end)
+        actor:addListener('MAGIC_USE', 'JOB99_SHIELD_USE', function(_, _, spell)
+            if spell:getID() == spellId then
+                completed = completed + 1
+            end
+        end)
+        actor:addListener('MAGIC_INTERRUPTED', 'JOB99_SHIELD_INTERRUPTED', function(_, _, spell)
+            if spell:getID() == spellId then
+                interrupted = interrupted + 1
+            end
+        end)
+        mob:addListener('RANGE_START', 'JOB99_SHIELD_RANGED', function()
+            rangedStarts = rangedStarts + 1
+        end)
+
+        local mpBefore, hpBefore = actor:getMP(), actor:getHP()
+        if actor:getID() == owner:getID() then
+            owner.actions:useSpell(recipient, spellId)
+        else
+            assert(owner.actions:useTrustSpell(actor, recipient, spellId), 'native cast admission must succeed')
+        end
+
+        assert(started == 1 and actor:getCurrentAction() == 30, 'the native spell must be casting before contact')
+        mob:setAutoAttackEnabled(not ranged)
+        mob:setRangedAttackEnabled(ranged)
+        xi.test.world:tickEntity(mob)
+        xi.test.world:skipTime(1)
+        mob:setAutoAttackEnabled(false)
+        mob:setRangedAttackEnabled(false)
+        assert(actor:getHP() < hpBefore, 'a real native hit must damage the caster before its spell completes')
+        assert(completed == 0, 'contact must occur inside the native cast window')
+        if ranged then
+            assert(rangedStarts > 0 and blockChecks == 0, 'only the native ranged attack path may deliver this hit')
+        else
+            assert(blockChecks > 0 and rangedStarts == 0, 'the native melee path must evaluate the selected block outcome')
+        end
+
+        xi.test.world:skipTime(5)
+        actor:removeListener('JOB99_SHIELD_START')
+        actor:removeListener('JOB99_SHIELD_USE')
+        actor:removeListener('JOB99_SHIELD_INTERRUPTED')
+        mob:removeListener('JOB99_SHIELD_RANGED')
+        return { completed = completed, interrupted = interrupted, mpBefore = mpBefore, mpAfter = actor:getMP() }
+    end
+
+    it('preserves developed Shield Mastery casting through a real blocked melee hit', function()
+        assert(val:hasTrait(xi.trait.SHIELD_MASTERY))
+        local result = castUnderNativeHit(val, val, xi.magic.spell.CURE_IV, true, false)
+        assert(result.completed == 1 and result.interrupted == 0)
+        assert(result.mpAfter == result.mpBefore - 88, 'native CureIV must spend its actual MP cost once')
+    end)
+
+    it('still interrupts developed Shield Mastery casting on a real unblocked melee hit', function()
+        assert(val:hasTrait(xi.trait.SHIELD_MASTERY))
+        local result = castUnderNativeHit(val, val, xi.magic.spell.CURE_IV, false, false)
+        assert(result.completed == 0 and result.interrupted == 1)
+        assert(result.mpAfter == result.mpBefore, 'an interrupted spell must not spend MP')
+    end)
+
+    it('does not extend blocked-hit immunity after developed-Trust approval is disabled', function()
+        xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', false)
+        assert(val:hasTrait(xi.trait.SHIELD_MASTERY))
+        local result = castUnderNativeHit(val, val, xi.magic.spell.CURE_IV, true, false)
+        assert(result.completed == 0 and result.interrupted == 1)
+        assert(result.mpAfter == result.mpBefore)
+    end)
+
+    it('preserves PC Shield Mastery independently of the developed-Trust setting', function()
+        xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', false)
+        owner:addSpell(xi.magic.spell.CURE_IV)
+        assert(owner:hasTrait(xi.trait.SHIELD_MASTERY))
+        local result = castUnderNativeHit(owner, owner, xi.magic.spell.CURE_IV, true, false)
+        assert(result.completed == 1 and result.interrupted == 0)
+        assert(result.mpAfter == result.mpBefore - 88)
+    end)
+
+    it('does not grant blocked-hit immunity to an unapproved Trust without Shield Mastery', function()
+        local other = owner:spawnTrust(xi.magic.spell.SHANTOTTO)
+        assert(other and not other:hasTrait(xi.trait.SHIELD_MASTERY))
+        other:removeAllGambits()
+        other:setUnkillable(true)
+        other:setMobAbilityEnabled(false)
+        other:setMobMod(xi.mobMod.NO_MOVE, 1)
+        other:setPos(val:getPos())
+        local result = castUnderNativeHit(other, mob, xi.magic.spell.STONE, true, false)
+        assert(result.completed == 0 and result.interrupted == 1)
+        assert(result.mpAfter == result.mpBefore)
+    end)
+
+    it('preserves the native ranged noninterruption rule with developed approval disabled', function()
+        xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', false)
+        local result = castUnderNativeHit(val, val, xi.magic.spell.CURE_IV, false, true)
+        assert(result.completed == 1 and result.interrupted == 0)
+        assert(result.mpAfter == result.mpBefore - 88)
     end)
 
     local function sentinelFlash(withEmblem)
