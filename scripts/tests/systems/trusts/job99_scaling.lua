@@ -1,5 +1,3 @@
-local ffi = require('ffi')
-
 -----------------------------------
 -- Earned native progression and active effects survive equipment refresh.
 -- All progression changes below belong only to disposable isolated fixtures.
@@ -28,6 +26,8 @@ describe('Valaineral scaling with earned progression', function()
     end
 
     local function requestAlterEgoPacket(player)
+        local ffi = require('ffi')
+        assert(not player:isInEvent(), 'native AEP requests require completed zone events')
         local request = ffi.new('uint8_t[8]')
         request[4] = 8 -- Native AlterEgoCategory::HP; the current handler returns the menu.
         player.packets:clear()
@@ -39,7 +39,7 @@ describe('Valaineral scaling with earned progression', function()
             end
         end
 
-        assert(#matching == 1, 'one native AEP request must serialize exactly one menu packet')
+        assert(#matching == 1, string.format('one native AEP request must serialize exactly one menu packet, got %d', #matching))
         assert(matching[1].size == 0x68, 'native AEP menu must contain its complete 32-category arrays')
         return matching[1]
     end
@@ -164,8 +164,15 @@ describe('Valaineral scaling with earned progression', function()
 
     it('serializes native AEP rank boundaries and authoritative category slots', function()
         local menuOwner = xi.test.world:spawnPlayer({ job = xi.job.PLD, level = 99 })
+        menuOwner:gotoZone(xi.zone.WINDURST_WOODS)
+        if menuOwner:isInEvent() then
+            menuOwner.events:expect({ eventId = 30035 })
+        end
+
+        assert(not menuOwner:isInEvent(), 'complete the native town intro before entering the Mog House')
         menuOwner:gotoMogHouse(xi.zone.WINDURST_WOODS)
         menuOwner:addKeyItem(xi.keyItem.CIPHER_BRACELET)
+        assert(not menuOwner:isInEvent(), 'the native AEP menu requires no active event')
         assert(menuOwner:inMogHouse() and menuOwner:getMainLvl() == 99 and menuOwner:hasKeyItem(xi.keyItem.CIPHER_BRACELET))
         local keys = { 'AlterEgoPoints_HP', 'AlterEgoPoints_MP', 'AlterEgoPoints_CombatSkills', 'AlterEgoPoints_MagicSkills' }
         local indexes = { 8, 9, 17, 18 }
