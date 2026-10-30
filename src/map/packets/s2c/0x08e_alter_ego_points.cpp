@@ -29,7 +29,7 @@
 namespace
 {
 
-constexpr uint8 kAlterEgoCategoryCap            = 50;
+constexpr uint8 kAlterEgoCategoryCap            = 60;
 constexpr uint8 kLegacyCombatSkillsDisplayIndex = 0;
 constexpr uint8 kLegacyMagicSkillsDisplayIndex  = 1;
 

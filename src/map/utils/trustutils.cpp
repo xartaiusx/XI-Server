@@ -2005,7 +2005,7 @@ HashMap<uint16, std::unique_ptr<TrustData>> g_PTrustData;
 
 auto ClampAlterEgoPointRank(int32 value) -> uint8
 {
-    return static_cast<uint8>(std::clamp(value, 0, 50));
+    return static_cast<uint8>(std::clamp(value, 0, 60));
 }
 
 auto GetAlterEgoPointRank(CCharEntity* PMaster, const std::string& varName) -> uint8
@@ -2202,13 +2202,8 @@ void ApplyTrustMasterProgressionBonuses(CTrustEntity* PTrust)
     ApplyTrustUnityRankParity(PTrust);
     ApplyTrustAlterEgoPointSkills(PTrust);
 
+    // Native HP/MP modifiers already participate in UpdateHealth.
     PTrust->UpdateHealth();
-    if (PTrust->GetLocalVar("MochiTrustAepVitalsEffectiveApplied") == 0)
-    {
-        PTrust->health.modhp = AddClamped(PTrust->health.modhp, static_cast<uint32>(PTrust->GetLocalVar("MochiTrustAepHpBonus")));
-        PTrust->health.modmp = AddClamped(PTrust->health.modmp, static_cast<uint32>(PTrust->GetLocalVar("MochiTrustAepMpBonus")));
-        PTrust->SetLocalVar("MochiTrustAepVitalsEffectiveApplied", 1);
-    }
 
     PTrust->health.hp = PTrust->GetMaxHP();
     PTrust->health.mp = PTrust->GetMaxMP();
@@ -2733,13 +2728,6 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust, bool refresh)
     PTrust->UpdateHealth();
     if (refresh)
     {
-        // Preserve the existing earned native effective-vitals addition without
-        // rerunning its once-only modifier grant or the summon refill.
-        if (PTrust->GetLocalVar("MochiTrustAepVitalsEffectiveApplied") != 0)
-        {
-            PTrust->health.modhp = AddClamped(PTrust->health.modhp, PTrust->GetLocalVar("MochiTrustAepHpBonus"));
-            PTrust->health.modmp = AddClamped(PTrust->health.modmp, PTrust->GetLocalVar("MochiTrustAepMpBonus"));
-        }
         PTrust->health.hp = std::clamp(previousHP, 0, PTrust->GetMaxHP());
         PTrust->health.mp = std::clamp(previousMP, 0, PTrust->GetMaxMP());
     }
