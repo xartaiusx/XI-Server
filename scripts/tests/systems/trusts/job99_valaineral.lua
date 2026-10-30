@@ -438,12 +438,12 @@ describe('Valaineral developed jobs', function()
             end
         end
 
-        val:addListener('ABILITY_USE', 'JOB99_STANCE_ACTIONS', function(_actor, _target, ability)
+        val:addListener('ABILITY_USE', 'JOB99_STANCE_ACTIONS', function(_actor, _target, ability, action)
             local id = ability:getID()
             state.events[id] = state.events[id] or {}
             local effect = effects[id] and val:getStatusEffect(effects[id])
             table.insert(state.events[id], {
-                recast = ability:getRecast(),
+                recast = action:getRecast(),
                 start = effect and effect:getStartTime(),
                 duration = effect and effect:getDuration(),
             })
