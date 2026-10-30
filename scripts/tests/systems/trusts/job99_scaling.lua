@@ -165,8 +165,8 @@ describe('Valaineral scaling with earned progression', function()
     it('serializes native AEP rank boundaries and authoritative category slots', function()
         local menuOwner = xi.test.world:spawnPlayer({ job = xi.job.PLD, level = 99 })
         menuOwner:gotoMogHouse(xi.zone.WINDURST_WOODS)
-        menuOwner:addKeyItem(xi.ki.CIPHER_BRACELET)
-        assert(menuOwner:inMogHouse() and menuOwner:getMainLvl() == 99 and menuOwner:hasKeyItem(xi.ki.CIPHER_BRACELET))
+        menuOwner:addKeyItem(xi.keyItem.CIPHER_BRACELET)
+        assert(menuOwner:inMogHouse() and menuOwner:getMainLvl() == 99 and menuOwner:hasKeyItem(xi.keyItem.CIPHER_BRACELET))
         local keys = { 'AlterEgoPoints_HP', 'AlterEgoPoints_MP', 'AlterEgoPoints_CombatSkills', 'AlterEgoPoints_MagicSkills' }
         local indexes = { 8, 9, 17, 18 }
         -- Cost 6 preserves the existing next-cost formula; it is not a new retail-cost claim.
