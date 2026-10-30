@@ -5,13 +5,16 @@
 -----------------------------------
 describe('Valaineral developed jobs', function()
     local dummyId
+    local stanceCleanup
 
-    local function spawn(level)
+    local function spawn(level, keepSpawnGambits)
         local owner = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.PLD, level = level or 99 })
         assert(owner:getID() > 0 and owner:getZoneID() == xi.zone.WEST_RONFAURE, 'initial fixture wrapper must have its native character')
         local val = owner:spawnTrust(xi.magic.spell.VALAINERAL)
         assert(val, 'fixture Valaineral must spawn')
-        val:removeAllGambits()
+        if not keepSpawnGambits then
+            val:removeAllGambits()
+        end
         val:setAutoAttackEnabled(false)
         val:setMobAbilityEnabled(false) -- Disable autonomous TP selection, not controller admission.
         return owner, val
@@ -70,6 +73,11 @@ describe('Valaineral developed jobs', function()
     end)
 
     after_each(function()
+        if stanceCleanup then
+            stanceCleanup()
+            stanceCleanup = nil
+        end
+
         if dummyId and GetEntityByID(dummyId, nil, true) then
             DespawnMob(dummyId)
             for _ = 1, 10 do
@@ -392,6 +400,167 @@ describe('Valaineral developed jobs', function()
         assert(val:hasRecast(xi.recast.ABILITY, xi.recastID.SPECIAL2))
         assert(not owner.actions:useTrustAbility(val, mob, xi.jobAbility.INTERVENE))
         assert(not val:hasRecast(xi.recast.ABILITY, xi.recastID.SPECIAL), 'first and second native SP keys remain separate')
+    end)
+
+    -- These cases exercise the actual registered spawn gambits, not copied
+    -- stance condition tables or the direct test-only JA adapter.
+    local function stanceContext(role, hpPercent)
+        xi.test.world:setSeed(123456)
+        local owner, val = spawn(99, true)
+        local mob = target(owner)
+        val:setMobMod(xi.mobMod.NO_MOVE, 1)
+        mob:setMobMod(xi.mobMod.NO_MOVE, 1)
+        val:setHP(math.ceil(val:getMaxHP() * (hpPercent or 100) / 100))
+        local state = { owner = owner, val = val, mob = mob, role = role, events = {} }
+        local effects = {
+            [xi.jobAbility.SENTINEL] = xi.effect.SENTINEL,
+            [xi.jobAbility.DEFENDER] = xi.effect.DEFENDER,
+            [xi.jobAbility.BERSERK] = xi.effect.BERSERK,
+        }
+
+        local function pinRole()
+            if state.role == 'unknown' then
+                mob:clearEnmityForEntity(owner)
+                mob:clearEnmityForEntity(val)
+                assert(#mob:getEnmityList() == 0, 'unknown-hate fixture must have no candidate highest entity')
+                -- Keep hostile spells from creating a different role between
+                -- AI decisions. This is an isolated fixture resource condition.
+                val:setMP(0)
+            else
+                mob:addBaseEnmity(owner)
+                mob:addBaseEnmity(val)
+                mob:setEnmityActive(owner, true)
+                mob:setEnmityActive(val, true)
+                mob:setCE(owner, state.role == 'other' and 30000 or 0)
+                mob:setVE(owner, state.role == 'other' and 30000 or 0)
+                mob:setCE(val, state.role == 'tank' and 30000 or 0)
+                mob:setVE(val, state.role == 'tank' and 30000 or 0)
+            end
+        end
+
+        val:addListener('ABILITY_USE', 'JOB99_STANCE_ACTIONS', function(_actor, _target, ability)
+            local id = ability:getID()
+            state.events[id] = state.events[id] or {}
+            local effect = effects[id] and val:getStatusEffect(effects[id])
+            table.insert(state.events[id], {
+                recast = ability:getRecast(),
+                start = effect and effect:getStartTime(),
+                duration = effect and effect:getDuration(),
+            })
+            pinRole()
+        end)
+        val:addListener('COMBAT_TICK', 'JOB99_STANCE_ROLE', pinRole)
+        stanceCleanup = function()
+            val:removeListener('JOB99_STANCE_ACTIONS')
+            val:removeListener('JOB99_STANCE_ROLE')
+        end
+        pinRole()
+        engageWithoutOwnerSwings(owner, val, mob)
+        pinRole()
+        assert(not val:hasStatusEffect(xi.effect.DEFENDER) and not val:hasStatusEffect(xi.effect.BERSERK),
+            'stance setup must not preapply either action')
+
+        function state:count(id)
+            return #(self.events[id] or {})
+        end
+
+        function state:step(seconds)
+            pinRole()
+            xi.test.world:tickEntity(val)
+            xi.test.world:skipTime(seconds or 3)
+        end
+
+        function state:waitForAbility(id, count)
+            for _ = 1, 80 do
+                if self:count(id) >= (count or 1) then
+                    return
+                end
+
+                self:step()
+            end
+
+            assert(false, string.format('actual spawn gambits did not complete action %d in the bounded fixture', id))
+        end
+
+        return state
+    end
+
+    it('chooses Defender while tanking and retains native150/180/250 timing with spawn gambits intact', function()
+        local state = stanceContext('tank')
+        state:waitForAbility(xi.jobAbility.DEFENDER)
+        assert(state.events[xi.jobAbility.SENTINEL][1].recast == 250)
+        assert(state.events[xi.jobAbility.DEFENDER][1].recast == 150)
+        assert(state.events[xi.jobAbility.DEFENDER][1].duration == 180000)
+        assert(state:count(xi.jobAbility.BERSERK) == 0)
+        -- Native time/expiry only: no status deletion or recast reset. The
+        -- existing focused recast case above checks the250-second boundary.
+        for _ = 1, 85 do
+            state:step()
+        end
+
+        assert(state:count(xi.jobAbility.SENTINEL) >= 2, 'native Sentinel recast must eventually return')
+        assert(state:count(xi.jobAbility.DEFENDER) >= 2, 'native Defender upkeep must remain available')
+        assert(state:count(xi.jobAbility.BERSERK) == 0, 'known tank must not select offensive Berserk')
+    end)
+
+    it('chooses healthy off-tank Berserk and preserves it when native Defender is later needed', function()
+        local state = stanceContext('other')
+        state:waitForAbility(xi.jobAbility.BERSERK)
+        assert(state:count(xi.jobAbility.DEFENDER) == 0)
+        local first = state.events[xi.jobAbility.BERSERK][1]
+        assert(first.recast == 300 and first.duration == 180000)
+        state.role = 'tank'
+        state:waitForAbility(xi.jobAbility.DEFENDER)
+        local remaining = assert(state.val:getStatusEffect(xi.effect.BERSERK), 'role change must not cancel Berserk')
+        assert(remaining:getStartTime() == first.start and remaining:getDuration() == first.duration,
+            'adding native Defender must not refresh or replace existing Berserk')
+        assert(state.val:hasStatusEffect(xi.effect.DEFENDER), 'native effects may coexist without custom cancellation')
+    end)
+
+    it('rejects both stance choices with unknown highest enmity while later spawn gambits still execute', function()
+        local state = stanceContext('unknown')
+        state:waitForAbility(xi.jobAbility.AGGRESSOR)
+        assert(state.val:hasRecast(xi.recast.ABILITY, 75), 'actual Sentinel cooldown must make the old Defender guard otherwise eligible')
+        assert(state.val:getHPP() == 100 and not state.val:hasStatusEffect(xi.effect.DEFENDER))
+        assert(state:count(xi.jobAbility.DEFENDER) == 0 and state:count(xi.jobAbility.BERSERK) == 0,
+            'neither known-role predicate may treat missing hate as off-tanking')
+        assert(#state.mob:getEnmityList() == 0)
+    end)
+
+    it('honors the healthy off-tank Berserk boundary without suppressing other normal actions', function()
+        local state = stanceContext('other', 89)
+        state:waitForAbility(xi.jobAbility.AGGRESSOR)
+        assert(state.val:getHPP() == 89 and state:count(xi.jobAbility.BERSERK) == 0)
+        assert(state:count(xi.jobAbility.DEFENDER) == 0)
+        state.val:setHP(math.ceil(state.val:getMaxHP() * 0.90))
+        assert(state.val:getHPP() == 90)
+        state:waitForAbility(xi.jobAbility.BERSERK)
+        assert(state:count(xi.jobAbility.DEFENDER) == 0)
+    end)
+
+    it('waits for existing Defender to expire after losing hate instead of refreshing or cancelling it', function()
+        local state = stanceContext('tank')
+        state:waitForAbility(xi.jobAbility.DEFENDER)
+        local first = state.events[xi.jobAbility.DEFENDER][1]
+        state.role = 'other'
+        state:step(151)
+        assert(not state.val:hasRecast(xi.recast.ABILITY, 3), 'native150-second Defender recast must be ready')
+        local remaining = assert(state.val:getStatusEffect(xi.effect.DEFENDER), 'native180-second effect must not be cancelled on role loss')
+        assert(remaining:getStartTime() == first.start and remaining:getDuration() == 180000)
+        assert(state:count(xi.jobAbility.DEFENDER) == 1 and state:count(xi.jobAbility.BERSERK) == 0)
+        state:step(31)
+        state:waitForAbility(xi.jobAbility.BERSERK)
+        assert(not state.val:hasStatusEffect(xi.effect.DEFENDER))
+        assert(state:count(xi.jobAbility.DEFENDER) == 1, 'off-tank must not refresh Defender ahead of Berserk')
+    end)
+
+    it('preserves legacy Defender choice when the developed profile is disabled', function()
+        xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', false)
+        local state = stanceContext('other')
+        assert(not state.val:isDevelopedTrust())
+        state:waitForAbility(xi.jobAbility.DEFENDER)
+        assert(state.val:getStatusEffect(xi.effect.DEFENDER):getPower() == 25)
+        assert(state:count(xi.jobAbility.BERSERK) == 0)
     end)
 
     it('rejects another fixture owner using the test-only action adapter', function()

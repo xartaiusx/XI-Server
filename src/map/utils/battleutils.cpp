@@ -2296,7 +2296,9 @@ auto TakePhysicalDamage(CBattleEntity* PAttacker, CBattleEntity* PDefender, PHYS
         }
 
         // try to interrupt spell if not a ranged attack and not blocked by Shield Mastery
-        if (auto* PChar = dynamic_cast<CCharEntity*>(PDefender); (!isRanged) && !((isBlocked) && (PChar) && (charutils::hasTrait(PChar, TRAIT_SHIELD_MASTERY))))
+        if (auto* PChar = dynamic_cast<CCharEntity*>(PDefender);
+            !isRanged && !(isBlocked && ((PChar && charutils::hasTrait(PChar, TRAIT_SHIELD_MASTERY)) ||
+                                         (trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(PDefender)) && PDefender->hasTrait(TRAIT_SHIELD_MASTERY)))))
         {
             PDefender->TryHitInterrupt(PAttacker);
         }
