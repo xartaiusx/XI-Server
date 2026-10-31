@@ -42,6 +42,7 @@
 #include "map/map_engine.h"
 #include "map/map_networking.h"
 #include "map/spawn_slot.h"
+#include "map/status_effect_container.h"
 #include "map/time_server.h"
 #include "map/utils/charutils.h"
 #include "map/utils/zoneutils.h"
@@ -148,6 +149,31 @@ void CLuaSimulation::skipTime(uint32 seconds) const
     // Advance time by the requested amount
     timer::add_offset(std::chrono::seconds(seconds));
     tick();
+}
+
+// Test-only read: copy a native monotonic start without retaining effect userdata
+// or remapping through UTC and the simulation's current timer offset.
+auto CLuaSimulation::getStatusEffectStartTime(CLuaBaseEntity* entity, const uint16 effectId) const -> Maybe<int64>
+{
+    const auto* battle = entity ? dynamic_cast<CBattleEntity*>(entity->GetBaseEntity()) : nullptr;
+    if (!battle || !battle->StatusEffectContainer || effectId == 0 || effectId >= MAX_EFFECTID)
+    {
+        return std::nullopt;
+    }
+
+    const auto* effect = battle->StatusEffectContainer->GetStatusEffect(static_cast<xi::StatusEffect>(effectId));
+    if (!effect)
+    {
+        return std::nullopt;
+    }
+
+    const auto      start              = timer::count_milliseconds(effect->GetStartTime().time_since_epoch());
+    constexpr int64 maxExactLuaInteger = (int64{ 1 } << 53) - 1;
+    if (start < -maxExactLuaInteger || start > maxExactLuaInteger)
+    {
+        return std::nullopt;
+    }
+    return start;
 }
 
 /************************************************************************
@@ -464,6 +490,9 @@ void CLuaSimulation::tick(const Maybe<TickType> boundary) const
             const auto timePoint = timer::now() + 1ms;
             for (auto* PZone : g_PZoneList | std::views::values)
             {
+                // Test servers omit session cleanup; retired IDs still need native maintenance, including in idle zones.
+                PZone->GetZoneEntities()->EraseStaleDynamicTargIDs();
+
                 if (!PZone->GetZoneEntities()->CharListEmpty()) // Only tick zones with players
                 {
                     // We cannot co_await within a Lua binding - the suspension will obliterate the Lua stack.
@@ -729,6 +758,24 @@ auto CLuaSimulation::getPartyTargetTraversal(CLuaBaseEntity& entity) const -> so
 }
 
 /************************************************************************
+ *  Function: getDynamicTargIDsCount()
+ *  Purpose : Read native allocated/reserved dynamic target IDs for a zone.
+ *  Notes   : Includes IDs awaiting native retirement; does not change them.
+ ************************************************************************/
+
+auto CLuaSimulation::getDynamicTargIDsCount(const xi::ZoneId zoneId) const -> uint32
+{
+    auto* PZone = zoneutils::GetZone(zoneId);
+    if (!PZone)
+    {
+        TestError("Zone {} not found", static_cast<uint16_t>(zoneId));
+        return 0;
+    }
+
+    return static_cast<uint32>(PZone->GetZoneEntities()->GetUsedDynamicTargIDsCount());
+}
+
+/************************************************************************
  *  Function: getSpawnSlot()
  *  Purpose : Returns mobs in a spawn slot as a Lua table.
  *  Example : local mobs = xi.test.world:getSpawnSlot(xi.zone.GHELSBA_OUTPOST, 1)
@@ -793,6 +840,7 @@ void CLuaSimulation::Register()
     SOL_REGISTER("tick", CLuaSimulation::tick);
     SOL_REGISTER("tickEntity", CLuaSimulation::tickEntity);
     SOL_REGISTER("skipTime", CLuaSimulation::skipTime);
+    SOL_REGISTER("getStatusEffectStartTime", CLuaSimulation::getStatusEffectStartTime);
     SOL_REGISTER("setVanaTime", CLuaSimulation::setVanaTime);
     SOL_REGISTER("setVanaDay", CLuaSimulation::setVanaDay);
     SOL_REGISTER("skipToNextVanaDay", CLuaSimulation::skipToNextVanaDay);
@@ -804,6 +852,7 @@ void CLuaSimulation::Register()
     SOL_REGISTER("seed", CLuaSimulation::seed);
     SOL_REGISTER("spawnPlayer", CLuaSimulation::spawnPlayer);
     SOL_REGISTER("getPartyTargetTraversal", CLuaSimulation::getPartyTargetTraversal);
+    SOL_REGISTER("getDynamicTargIDsCount", CLuaSimulation::getDynamicTargIDsCount);
     SOL_REGISTER("getSpawnSlot", CLuaSimulation::getSpawnSlot);
     SOL_REGISTER("setSlotChance", CLuaSimulation::setSlotChance);
 };

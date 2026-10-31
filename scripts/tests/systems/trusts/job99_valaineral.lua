@@ -445,7 +445,7 @@ describe('Valaineral developed jobs', function()
             local effect = effects[id] and val:getStatusEffect(effects[id])
             table.insert(state.events[id], {
                 recast = action:getRecast(),
-                start = effect and effect:getStartTime(),
+                start = effect and assert(xi.test.world:getStatusEffectStartTime(val, effects[id]), 'active native effect must have an exact start'),
                 duration = effect and effect:getDuration(),
             })
             pinRole()
@@ -462,6 +462,12 @@ describe('Valaineral developed jobs', function()
         pinRole()
         assert(not val:hasStatusEffect(xi.effect.DEFENDER) and not val:hasStatusEffect(xi.effect.BERSERK),
             'stance setup must not preapply either action')
+        assert(
+            xi.test.world:getStatusEffectStartTime(nil, xi.effect.DEFENDER) == nil and
+            xi.test.world:getStatusEffectStartTime(val, xi.effect.DEFENDER) == nil and
+            xi.test.world:getStatusEffectStartTime(val, xi.effect.BERSERK) == nil,
+            'timing reads must reject a missing actor or effect without creating one'
+        )
 
         function state.count(id)
             return #(state.events[id] or {})
@@ -503,6 +509,8 @@ describe('Valaineral developed jobs', function()
 
         assert(state.count(xi.jobAbility.SENTINEL) >= 2, 'native Sentinel recast must eventually return')
         assert(state.count(xi.jobAbility.DEFENDER) >= 2, 'native Defender upkeep must remain available')
+        assert(state.events[xi.jobAbility.DEFENDER][2].start > state.events[xi.jobAbility.DEFENDER][1].start,
+            'a later native Defender application must have a new monotonic start')
         assert(state.count(xi.jobAbility.BERSERK) == 0, 'known tank must not select offensive Berserk')
     end)
 
@@ -515,7 +523,7 @@ describe('Valaineral developed jobs', function()
         state.role = 'tank'
         state.waitForAbility(xi.jobAbility.DEFENDER)
         local remaining = assert(state.val:getStatusEffect(xi.effect.BERSERK), 'role change must not cancel Berserk')
-        assert(remaining:getStartTime() == first.start and remaining:getDuration() == first.duration,
+        assert(xi.test.world:getStatusEffectStartTime(state.val, xi.effect.BERSERK) == first.start and remaining:getDuration() == first.duration,
             'adding native Defender must not refresh or replace existing Berserk')
         assert(state.val:hasStatusEffect(xi.effect.DEFENDER), 'native effects may coexist without custom cancellation')
     end)
@@ -549,7 +557,7 @@ describe('Valaineral developed jobs', function()
         state.step(151)
         assert(not state.val:hasRecast(xi.recast.ABILITY, 3), 'native150-second Defender recast must be ready')
         local remaining = assert(state.val:getStatusEffect(xi.effect.DEFENDER), 'native180-second effect must not be cancelled on role loss')
-        assert(remaining:getStartTime() == first.start and remaining:getDuration() == 180000)
+        assert(xi.test.world:getStatusEffectStartTime(state.val, xi.effect.DEFENDER) == first.start and remaining:getDuration() == 180000)
         assert(state.count(xi.jobAbility.DEFENDER) == 1 and state.count(xi.jobAbility.BERSERK) == 0)
         state.step(31)
         state.waitForAbility(xi.jobAbility.BERSERK)
