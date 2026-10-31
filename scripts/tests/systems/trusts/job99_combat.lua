@@ -220,14 +220,15 @@ describe('Valaineral native combat consumers', function()
     end)
 
     it('does not grant blocked-hit immunity to an unapproved Trust without Shield Mastery', function()
-        local other = owner:spawnTrust(xi.magic.spell.SHANTOTTO)
+        local other = owner:spawnTrust(xi.magic.spell.KUPIPI)
         assert(other and not other:hasTrait(xi.trait.SHIELD_MASTERY))
         other:removeAllGambits()
         other:setUnkillable(true)
         other:setMobAbilityEnabled(false)
         other:setMobMod(xi.mobMod.NO_MOVE, 1)
         other:setPos(val:getPos())
-        local result = castUnderNativeHit(other, mob, xi.magic.spell.STONE, true, false)
+        assert(owner.actions:hasTrustSpell(other, xi.magic.spell.CURE_IV))
+        local result = castUnderNativeHit(other, other, xi.magic.spell.CURE_IV, true, false)
         assert(result.completed == 0 and result.interrupted == 1)
         assert(result.mpAfter == result.mpBefore)
     end)
@@ -614,5 +615,108 @@ describe('Valaineral native combat consumers', function()
         assert(mob:getHP() < enemyHP,
             string.format('only native Retaliation can damage this enemy: HP %d/%d Val %d/%d', mob:getHP(), enemyHP, val:getHP(), valHP))
         assert(not val:isDead())
+    end)
+end)
+
+-- Test-server maintenance must retain the native retirement quarantine even when a zone becomes idle.
+describe('Trust simulation dynamic target maintenance', function()
+    local owner
+    local zone
+    local dynamicIds
+
+    local function usedIds()
+        return xi.test.world:getDynamicTargIDsCount(xi.zone.LEAFALLIA)
+    end
+
+    local function spawnProbe()
+        local probe = zone:insertDynamicEntity({
+            objtype              = xi.objType.MOB,
+            name                 = 'Dynamic_Target_Probe',
+            groupId              = 5,
+            groupZoneId          = 154,
+            minLevel             = 99,
+            maxLevel             = 99,
+            respawn              = 0,
+            releaseIdOnDisappear = true,
+        })
+        assert(probe, 'native dynamic probe was not allocated')
+        local id = probe:getID()
+        table.insert(dynamicIds, id)
+        SpawnMob(id)
+        probe:setAutoAttackEnabled(false)
+        probe:setMagicCastingEnabled(false)
+        probe:setMobAbilityEnabled(false)
+        probe:setMobMod(xi.mobMod.NO_MOVE, 1)
+        probe:setAggressive(false)
+        probe:setDropID(0)
+        assert(probe:getTargID() >= 0x700 and probe:getTargID() <= 0x8FF, 'native allocation left the dynamic target range')
+        return probe
+    end
+
+    local function retireProbe(id)
+        DespawnMob(id)
+        -- Native non-instant CDespawnState fades for three seconds; ten ZoneTicks advance four seconds.
+        for _ = 1, 10 do
+            xi.test.world:tick()
+            if GetEntityByID(id, nil, true) == nil then
+                break
+            end
+        end
+
+        assert(GetEntityByID(id, nil, true) == nil, 'native despawn did not delete the dynamic probe')
+    end
+
+    before_each(function()
+        dynamicIds = {}
+        owner = xi.test.world:spawnPlayer({ zone = xi.zone.LEAFALLIA, job = xi.job.PLD, level = 99 })
+        zone = owner:getZone()
+        assert(#zone:getPlayers() == 1, 'the maintenance fixture must own its otherwise idle zone')
+        xi.test.world:skipTime(61)
+        assert(usedIds() == 0, 'the dedicated fixture zone had outstanding dynamic allocations')
+    end)
+
+    after_each(function()
+        for _, id in ipairs(dynamicIds) do
+            if GetEntityByID(id, nil, true) then
+                retireProbe(id)
+            end
+        end
+
+        -- Deleted slots remain quarantined; retire them through the same native path before the next case.
+        xi.test.world:skipTime(61)
+    end)
+
+    it('quarantines deleted targets before sixty seconds and reclaims capacity afterward without freeing live targets', function()
+        local retired = spawnProbe()
+        local retiredId = retired:getID()
+        local live = spawnProbe()
+        local liveId = live:getID()
+        assert(usedIds() == 2)
+
+        retireProbe(retiredId)
+        assert(usedIds() == 2, 'native deletion must not immediately release its quarantined target')
+        xi.test.world:skipTime(50) -- Adds 50.4 simulated seconds; deliberately below the native sixty-second boundary.
+        assert(usedIds() == 2, 'the retired target was released before its quarantine ended')
+        xi.test.world:skipTime(11) -- Total explicit advance is 61.8 seconds, beyond the unchanged strict >60s test.
+        assert(usedIds() == 1, 'the native retired-target queue did not reclaim allocation capacity')
+        assert(GetEntityByID(liveId, nil, true) and live:getHP() > 0, 'native maintenance must preserve the live probe')
+
+        local replacement = spawnProbe()
+        assert(usedIds() == 2, 'a fresh native allocation must consume reclaimed capacity')
+        assert(replacement:getID() ~= liveId, 'native allocation collided with a live entity')
+    end)
+
+    it('maintains retired targets after logout hooks and actual zone removal leave no players', function()
+        local retired = spawnProbe()
+        retireProbe(retired:getID())
+        assert(usedIds() == 1)
+        owner:simulateZoneOutLifecycle(true) -- Exercises logout callbacks; this seam restores the actor status.
+        owner:gotoZone(xi.zone.WINDURST_WOODS) -- Native removeCharFromZone actually empties the original zone.
+        assert(#zone:getPlayers() == 0, 'logout callbacks alone do not establish an idle zone')
+        assert(usedIds() == 1)
+
+        xi.test.world:skipTime(61)
+        assert(#zone:getPlayers() == 0)
+        assert(usedIds() == 0, 'native target maintenance was incorrectly gated on the presence of players')
     end)
 end)

@@ -64,6 +64,7 @@ public:
     void processClientUpdates() const;
     void tickEntity(CLuaBaseEntity& entity) const;
     void skipTime(uint32 seconds) const;
+    auto getStatusEffectStartTime(CLuaBaseEntity* entity, uint16 effectId) const -> Maybe<int64>;
     void setVanaTime(uint8 vanaHour, uint8 vanaMinute) const;
     void setVanaDay(uint8 day) const;
     void skipToNextVanaDay() const;
@@ -78,6 +79,7 @@ public:
     void setSetupContext(bool inSetup);
     auto spawnPlayer(sol::optional<sol::table> params) -> CLuaClientEntityPair*;
     auto getPartyTargetTraversal(CLuaBaseEntity& entity) const -> sol::table;
+    auto getDynamicTargIDsCount(xi::ZoneId zoneId) const -> uint32;
     auto getSpawnSlot(xi::ZoneId zoneId, uint32 slotId) const -> sol::table;
     void setSlotChance(CLuaBaseEntity& entity, uint8 chance) const;
 

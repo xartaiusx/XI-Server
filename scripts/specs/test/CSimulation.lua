@@ -72,6 +72,16 @@ end
 function CSimulation:skipTime(seconds)
 end
 
+---Read an active effect's signed monotonic start in integer milliseconds; no state change.
+---Returns nil for a missing/nonbattle actor, invalid effect ID or missing effect.
+---Also returns nil if the native milliseconds cannot be represented exactly in Lua.
+---@param entity CBaseEntity?
+---@param effectId xi.effect
+---@nodiscard
+---@return integer?
+function CSimulation:getStatusEffectStartTime(entity, effectId)
+end
+
 ---@param hour integer
 ---@param minute integer
 ---@return nil
@@ -92,6 +102,13 @@ end
 ---@param days integer
 ---@return nil
 function CSimulation:skipVanaDays(days)
+end
+
+---Read the native dynamic-target allocation count, including quarantined IDs.
+---Test-only observation; never retires or allocates an ID.
+---@param zoneId xi.zone
+---@return integer
+function CSimulation:getDynamicTargIDsCount(zoneId)
 end
 
 ---Returns mobs in a spawn slot as a table
