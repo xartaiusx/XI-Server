@@ -698,7 +698,7 @@ describe('Valaineral native combat consumers', function()
         end
 
         maintenanceOwner = xi.test.world:spawnPlayer({ zone = xi.zone.LEAFALLIA, job = xi.job.PLD, level = 99 })
-        zone = maintenanceOwner:getZone()
+        zone = assert(maintenanceOwner:getZone(), 'retirement fixture owner must occupy a native zone')
         assert(#zone:getPlayers() == 1, 'the maintenance fixture must own its otherwise idle zone')
         xi.test.world:skipTime(61)
         assert(usedIds() == 0, 'the dedicated fixture zone had outstanding dynamic allocations')
