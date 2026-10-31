@@ -7,6 +7,7 @@ describe('Valaineral native combat consumers', function()
     local val
     local mob
     local dummyId
+    local retirementCleanup
 
     local function fixedContact(blocked)
         stub('xi.combat.physicalHitRate.getPhysicalHitRate', 1)
@@ -80,19 +81,39 @@ describe('Valaineral native combat consumers', function()
     end)
 
     after_each(function()
-        if dummyId and GetEntityByID(dummyId, nil, true) then
-            DespawnMob(dummyId)
-            for _ = 1, 10 do
-                xi.test.world:tick()
-                if GetEntityByID(dummyId, nil, true) == nil then
-                    break
+        local cleanup = retirementCleanup
+        retirementCleanup = nil
+        local errors = {}
+        local ok, message = pcall(function()
+            if dummyId and GetEntityByID(dummyId, nil, true) then
+                DespawnMob(dummyId)
+                for _ = 1, 10 do
+                    xi.test.world:tick()
+                    if GetEntityByID(dummyId, nil, true) == nil then
+                        break
+                    end
                 end
+
+                assert(GetEntityByID(dummyId, nil, true) == nil)
             end
 
-            assert(GetEntityByID(dummyId, nil, true) == nil)
+            dummyId = nil
+        end)
+
+        if not ok then
+            table.insert(errors, 'combat cleanup: ' .. tostring(message))
         end
 
-        dummyId = nil
+        if cleanup then
+            ok, message = pcall(cleanup)
+            if not ok then
+                table.insert(errors, 'retirement cleanup: ' .. tostring(message))
+            end
+        end
+
+        if #errors > 0 then
+            error(table.concat(errors, '\n'), 0)
+        end
     end)
 
     -- Keep native casting, swings, damage, interruption and MP spending. Only contact
@@ -616,77 +637,87 @@ describe('Valaineral native combat consumers', function()
             string.format('only native Retaliation can damage this enemy: HP %d/%d Val %d/%d', mob:getHP(), enemyHP, val:getHP(), valHP))
         assert(not val:isDead())
     end)
-end)
 
--- Test-server maintenance must retain the native retirement quarantine even when a zone becomes idle.
-describe('Trust simulation dynamic target maintenance', function()
-    local owner
-    local zone
-    local dynamicIds
+    -- Keep retirement setup case-local; the shared combat before_each remains unchanged.
+    local function retirementContext()
+        local maintenanceOwner
+        local zone
+        local dynamicIds = {}
 
-    local function usedIds()
-        return xi.test.world:getDynamicTargIDsCount(xi.zone.LEAFALLIA)
-    end
-
-    local function spawnProbe()
-        local probe = zone:insertDynamicEntity({
-            objtype              = xi.objType.MOB,
-            name                 = 'Dynamic_Target_Probe',
-            groupId              = 5,
-            groupZoneId          = 154,
-            minLevel             = 99,
-            maxLevel             = 99,
-            respawn              = 0,
-            releaseIdOnDisappear = true,
-        })
-        assert(probe, 'native dynamic probe was not allocated')
-        local id = probe:getID()
-        table.insert(dynamicIds, id)
-        SpawnMob(id)
-        probe:setAutoAttackEnabled(false)
-        probe:setMagicCastingEnabled(false)
-        probe:setMobAbilityEnabled(false)
-        probe:setMobMod(xi.mobMod.NO_MOVE, 1)
-        probe:setAggressive(false)
-        probe:setDropID(0)
-        assert(probe:getTargID() >= 0x700 and probe:getTargID() <= 0x8FF, 'native allocation left the dynamic target range')
-        return probe
-    end
-
-    local function retireProbe(id)
-        DespawnMob(id)
-        -- Native non-instant CDespawnState fades for three seconds; ten ZoneTicks advance four seconds.
-        for _ = 1, 10 do
-            xi.test.world:tick()
-            if GetEntityByID(id, nil, true) == nil then
-                break
-            end
+        local function usedIds()
+            return xi.test.world:getDynamicTargIDsCount(xi.zone.LEAFALLIA)
         end
 
-        assert(GetEntityByID(id, nil, true) == nil, 'native despawn did not delete the dynamic probe')
-    end
+        local function spawnProbe()
+            local probe = zone:insertDynamicEntity({
+                objtype              = xi.objType.MOB,
+                name                 = 'Dynamic_Target_Probe',
+                groupId              = 5,
+                groupZoneId          = 154,
+                minLevel             = 99,
+                maxLevel             = 99,
+                respawn              = 0,
+                releaseIdOnDisappear = true,
+            })
+            assert(probe, 'native dynamic probe was not allocated')
+            local id = probe:getID()
+            table.insert(dynamicIds, id)
+            SpawnMob(id)
+            probe:setAutoAttackEnabled(false)
+            probe:setMagicCastingEnabled(false)
+            probe:setMobAbilityEnabled(false)
+            probe:setMobMod(xi.mobMod.NO_MOVE, 1)
+            probe:setAggressive(false)
+            probe:setDropID(0)
+            assert(probe:getTargID() >= 0x700 and probe:getTargID() <= 0x8FF, 'native allocation left the dynamic target range')
+            return probe
+        end
 
-    before_each(function()
-        dynamicIds = {}
-        owner = xi.test.world:spawnPlayer({ zone = xi.zone.LEAFALLIA, job = xi.job.PLD, level = 99 })
-        zone = owner:getZone()
+        local function retireProbe(id)
+            DespawnMob(id)
+            -- Native non-instant CDespawnState fades for three seconds; ten ZoneTicks advance four seconds.
+            for _ = 1, 10 do
+                xi.test.world:tick()
+                if GetEntityByID(id, nil, true) == nil then
+                    break
+                end
+            end
+
+            assert(GetEntityByID(id, nil, true) == nil, 'native despawn did not delete the dynamic probe')
+        end
+
+        retirementCleanup = function()
+            for _, id in ipairs(dynamicIds) do
+                if GetEntityByID(id, nil, true) then
+                    retireProbe(id)
+                end
+            end
+
+            -- Deleted slots remain quarantined; retire them through the same native path before the next case.
+            xi.test.world:skipTime(61)
+        end
+
+        maintenanceOwner = xi.test.world:spawnPlayer({ zone = xi.zone.LEAFALLIA, job = xi.job.PLD, level = 99 })
+        zone = maintenanceOwner:getZone()
         assert(#zone:getPlayers() == 1, 'the maintenance fixture must own its otherwise idle zone')
         xi.test.world:skipTime(61)
         assert(usedIds() == 0, 'the dedicated fixture zone had outstanding dynamic allocations')
-    end)
 
-    after_each(function()
-        for _, id in ipairs(dynamicIds) do
-            if GetEntityByID(id, nil, true) then
-                retireProbe(id)
-            end
-        end
-
-        -- Deleted slots remain quarantined; retire them through the same native path before the next case.
-        xi.test.world:skipTime(61)
-    end)
+        return {
+            owner = maintenanceOwner,
+            zone = zone,
+            usedIds = usedIds,
+            spawnProbe = spawnProbe,
+            retireProbe = retireProbe,
+        }
+    end
 
     it('quarantines deleted targets before sixty seconds and reclaims capacity afterward without freeing live targets', function()
+        local context = retirementContext()
+        local spawnProbe = context.spawnProbe
+        local retireProbe = context.retireProbe
+        local usedIds = context.usedIds
+
         local retired = spawnProbe()
         local retiredId = retired:getID()
         local live = spawnProbe()
@@ -707,11 +738,18 @@ describe('Trust simulation dynamic target maintenance', function()
     end)
 
     it('maintains retired targets after logout hooks and actual zone removal leave no players', function()
+        local context = retirementContext()
+        local spawnProbe = context.spawnProbe
+        local retireProbe = context.retireProbe
+        local usedIds = context.usedIds
+        local fixtureOwner = context.owner
+        local zone = context.zone
+
         local retired = spawnProbe()
         retireProbe(retired:getID())
         assert(usedIds() == 1)
-        owner:simulateZoneOutLifecycle(true) -- Exercises logout callbacks; this seam restores the actor status.
-        owner:gotoZone(xi.zone.WINDURST_WOODS) -- Native removeCharFromZone actually empties the original zone.
+        fixtureOwner:simulateZoneOutLifecycle(true) -- Exercises logout callbacks; this seam restores the actor status.
+        fixtureOwner:gotoZone(xi.zone.WINDURST_WOODS) -- Native removeCharFromZone actually empties the original zone.
         assert(#zone:getPlayers() == 0, 'logout callbacks alone do not establish an idle zone')
         assert(usedIds() == 1)
 
