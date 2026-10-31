@@ -133,7 +133,10 @@ describe('Valaineral native combat consumers', function()
         stub('xi.combat.physicalHitRate.getRangedHitRate', 1)
         stub('xi.combat.physical.calculateRangedPDIF', 1)
 
-        actor:setAutoAttackEnabled(false)
+        if actor:getID() ~= owner:getID() then
+            actor:setAutoAttackEnabled(false)
+        end
+
         actor:setMod(xi.mod.FASTCAST, 0)
         actor:setMod(xi.mod.QUICK_MAGIC, 0)
         actor:setMod(xi.mod.REFRESH, 0)
