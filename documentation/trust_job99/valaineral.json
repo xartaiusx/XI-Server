@@ -104,6 +104,38 @@
       "reviewed_on": "2026-10-30",
       "class": "primary_official",
       "supports": "Shield Mastery adds TP on shield block and protects casting from that blocked hit. Developed-Trust eligibility and99/99 role decisions are Mochirii extensions."
+    },
+    {
+      "id": "se_shield_barrier_2020",
+      "url": "https://forum.square-enix.com/ffxi/threads/57008",
+      "source_date": "2020-07-08",
+      "reviewed_on": "2026-11-01",
+      "class": "official_primary",
+      "supports": "PLD learns Shield Barrier at70; shield-equipped self-cast Protect gains a bonus, and Majesty extends Protect to party AoE. No Trust shield DEF value is published."
+    },
+    {
+      "id": "se_trust_special_shield_2021",
+      "url": "https://forum.square-enix.com/ffxi/threads/58758",
+      "source_date": "2021-11-04",
+      "reviewed_on": "2026-11-01",
+      "class": "official_primary",
+      "supports": "A system-side special shield improves high-level shield-using alter egos without changing their appearance. It does not identify a player shield item or numeric DEF."
+    },
+    {
+      "id": "se_trust_shield_update_2021",
+      "url": "https://forum.square-enix.com/ffxi/threads/58770",
+      "source_date": "2021-11-10",
+      "reviewed_on": "2026-11-01",
+      "class": "official_primary",
+      "supports": "Valaineral is among the listed alter egos whose shield attributes improve when the summoner item level is at least100. No DEF curve or130 value is specified."
+    },
+    {
+      "id": "geriond_val_protect_measurement_2022",
+      "url": "https://www.ffxiah.com/forum/topic/29127/random-question-thread-ffxi-related/753/",
+      "source_date": "2022-09-20 16:47:57 forum timestamp",
+      "reviewed_on": "2026-11-01",
+      "class": "first_hand_community_observation",
+      "supports": "Geriond reported Valaineral Protect V granting350 DEF,130 above ordinary Protect V. The summoner item level and complete measurement conditions are not specified; this does not prove an exact119 context or lower-level curve."
     }
   ],
   "counts": {
@@ -3095,7 +3127,7 @@
       "name": "fencer",
       "selected_merit_rank": null,
       "application": "highest_native_trait",
-      "conditions": "One-handed current main weapon and empty/shield sub; no dual-wield/2H grant.",
+      "conditions": "One-handed current main weapon and empty/shield sub; no dual-wield/2H grant. Candidate Lua critical-WS consumption delegates to the same native eligibility helper as melee critical rate and WS TP; fixture sources are not execution proof.",
       "tiers": [
         {
           "job": "WAR",
@@ -3338,7 +3370,7 @@
       "name": "shield barrier",
       "selected_merit_rank": null,
       "application": "highest_native_trait",
-      "conditions": "native_ability",
+      "conditions": "User-approved modeled shield DEF130 only for developed Valaineral910 with current cached stat level119 and native CAN_SHIELD_BLOCK. Protect still separately requires SHIELD_BARRIER>0. Other levels/actors retain prior behavior; no player shield item, passive DEF or lower-level curve is assigned.",
       "tiers": [
         {
           "job": "PLD",
@@ -8982,6 +9014,19 @@
       "limits": "Existing model's floored NM halves and multiplier cap are preserved. No blanket hook changes fixed HP/percentage mechanics. Exact retail numerical parity, party-wide JP interpretation and hybrid rounding are not established."
     },
     "shield_requirements": "Native Valaineral models shield size3 with CAN_SHIELD_BLOCK. Intervene and Shield Bash use the existing nonzero-shield check. Zero is not a legal override of this Trust default; the negative shield fixture uses a genuinely unequipped PC.",
+    "fencer_critical_ws_adapter": {
+      "model": "Use the existing approved-Trust modeled main/sub weapon predicate for the Lua critical-rate consumer, without PC storage access or duplicated weapon rules. Native melee critical rate and WS TP already use that predicate.",
+      "fixtures": "Real Valaineral Vorpal Blade completion and native HP/TP; legacy/unapproved rejection; actual PC one-handed/two-handed equipment; item-only native 2H/H2H/offhand rejection.",
+      "test_status": "new_source_fixtures_not_run"
+    },
+    "shield_barrier_qualification": {
+      "model": "The human approved modeled shield DEF130 ONLY at current cached Trust stat level119. Native getter requires developed Valaineral910 and CAN_SHIELD_BLOCK>0; every other level/actor returns the prior zero contribution. This is not a player shield-item assignment or passive DEF modifier.",
+      "consumer": "The existing Protect family adds the caster shield getter once, separately requiring SHIELD_BARRIER>0; its PC actual-inventory path is preserved. Normal target bonuses, Majesty AoE, costs and recasts remain native.",
+      "evidence": "Official2020/2021 sources establish the trait and system-side Trust shield mechanism. Geriond2022 reports ProtectV350/+130 without a stated summoner item level. The exact119 restriction is an explicit user choice, not a proven measurement context or retail level curve.",
+      "refresh": "The getter reads the existing stat cache after normal equipment batches. Landed Protect remains its cast-time snapshot; scaling does not rerun spawn, stack this contribution, refill resources or reset recasts.",
+      "test_status": "new_source_fixtures_not_run",
+      "source_ids": ["se_shield_barrier_2020", "se_trust_special_shield_2021", "se_trust_shield_update_2021", "geriond_val_protect_measurement_2022"]
+    },
     "ordinary_observation": "Optional ordinary records use the existing native map logger and independent conservative64MiB charged budget. Capture also requires LOG_INFO, Trust LOG/PACKET/MAP_ECHO flags, configured owner and ordinary entitlement/state admission. Trace truncation does not alter QA or gameplay state.",
     "test_sources": [
       "src/test/tests/trust_job_development_tests.cpp",
@@ -9004,7 +9049,9 @@
     "All20 PLD/WAR JP consumer paths have a candidate source audit; actual native behavior is not yet verified. Double Attack JP on WS remains unqualified beyond native DOUBLE swings.",
     "Cover PC/Trust interception, special-enmity composition, actual Intervene damage and HolyCircle packet/HP agreement have native fixture sources but no successful execution yet.",
     "Warcry/BloodRage complementary NOT_STATUS guards exist in the candidate; autonomous rotation and role behavior still require qualification.",
-    "Selected merit WS rank conversion has been source-reviewed; alternate weapon use still requires the correct modeled weapon and native tests."
+    "Selected merit WS rank conversion has been source-reviewed; alternate weapon use still requires the correct modeled weapon and native tests.",
+    "Shield Barrier uses an explicitly user-approved130 model ONLY at stat119; other levels remain unchanged. The exact retail DEF curve and the item-level context of the community350 ProtectV observation remain unproven. New compatibility fixtures and gameplay acceptance are not yet run.",
+    "The Fencer critical-WS adapter and focused fixtures are source candidates only; actual native execution and autonomous critical-WS use remain separately unverified."
   ],
   "signature_moves": [
     {

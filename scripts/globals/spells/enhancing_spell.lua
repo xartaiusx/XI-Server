@@ -341,7 +341,7 @@ xi.spells.enhancing.calculateEnhancingFinalPower = function(caster, target, spel
 
         -- Handle "Shield Barrier" Job Trait.
         if
-            caster:isPC() and
+            (caster:isPC() or caster:isDevelopedTrust()) and
             caster:getMod(xi.mod.SHIELD_BARRIER) > 0
         then
             finalPower = finalPower + caster:getShieldDefense()

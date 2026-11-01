@@ -93,6 +93,19 @@ auto CTrustEntity::shieldSize() -> int8
     return shieldSizeMod > 0 ? shieldSizeMod : kTrustDefaultShieldSize;
 }
 
+auto CTrustEntity::getShieldDefense() -> int16
+{
+    // Approved Valaineral Shield Barrier model, only at stat level119.
+    // This is not a shield-item assignment or a passive DEF modifier.
+    if (trustID_ != 910 || !trustdevelopment::IsEnabled(this) ||
+        GetLocalVar("MochiTrustJob99StatLevel") != 119 || getMobMod(xi::MobMod::CanShieldBlock) <= 0)
+    {
+        return 0;
+    }
+
+    return 130;
+}
+
 auto CTrustEntity::released() -> bool
 {
     return released_;
