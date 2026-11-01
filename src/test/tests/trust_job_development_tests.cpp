@@ -19,8 +19,10 @@
 
 #include "map/ability.h"
 #include "map/data/datasets/merits/dataset.h"
+#include "map/items/item_weapon.h"
 #include "map/utils/dataset_loader.h"
 #include "map/utils/trust_job_development.h"
+#include "map/utils/trust_weapon_skills.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -199,4 +201,29 @@ TEST_CASE("Valaineral admits all13PLD and12WAR native ability definitions includ
         CHECK_FALSE(CanUseAbility(profile, xi::Job::WAR, 1, flags, none));
     }
     CHECK_FALSE(CanUseAbility(*GetProfile(1018), xi::Job::SAM, 1, ADDTYPE_NORMAL, none));
+}
+
+TEST_CASE("Developed Fencer weapon admission preserves native one-hand and offhand restrictions", "[trust][development]")
+{
+    CItemWeapon sword(0);
+    sword.setSkillType(xi::SkillType::Sword);
+    CItemWeapon shield(0);
+    shield.setShieldSize(3);
+    CItemWeapon empty(0);
+    CItemWeapon greatSword(0);
+    greatSword.setSkillType(xi::SkillType::GreatSword);
+    CItemWeapon handToHand(0);
+    handToHand.setSkillType(xi::SkillType::HandToHand);
+    CItemWeapon offhand(0);
+    offhand.setSkillType(xi::SkillType::Sword);
+
+    REQUIRE(shield.IsShield());
+    CHECK(trustweaponskills::HasFencerWeapon(&sword, &shield));
+    CHECK(trustweaponskills::HasFencerWeapon(&sword, nullptr));
+    CHECK(trustweaponskills::HasFencerWeapon(&sword, &empty));
+    CHECK_FALSE(trustweaponskills::HasFencerWeapon(nullptr, &shield));
+    CHECK_FALSE(trustweaponskills::HasFencerWeapon(&empty, &shield));
+    CHECK_FALSE(trustweaponskills::HasFencerWeapon(&greatSword, &shield));
+    CHECK_FALSE(trustweaponskills::HasFencerWeapon(&handToHand, &shield));
+    CHECK_FALSE(trustweaponskills::HasFencerWeapon(&sword, &offhand));
 }

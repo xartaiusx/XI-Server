@@ -1248,6 +1248,8 @@ end
 function CBaseEntity:getShieldSize()
 end
 
+---Actual PC shield DEF, or the approved developed Valaineral model at stat119.
+---Other Trust actors/contexts return zero without accessing PC storage.
 ---@nodiscard
 ---@return integer
 function CBaseEntity:getShieldDefense()
@@ -1585,6 +1587,12 @@ end
 ---@nodiscard
 ---@return boolean
 function CBaseEntity:isDevelopedTrust()
+end
+
+---Current modeled Fencer weapon eligibility for an approved developed Trust.
+---@nodiscard
+---@return boolean
+function CBaseEntity:hasDevelopedTrustFencerWeapon()
 end
 
 ---Actual main-job access, or either approved developed Trust job at main-job privilege.

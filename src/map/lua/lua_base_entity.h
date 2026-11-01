@@ -390,6 +390,7 @@ public:
     auto getMainJob() -> xi::Job;
     auto getSubJob() -> xi::Job;
     bool isDevelopedTrust();
+    bool hasDevelopedTrustFencerWeapon();
     bool hasMainJobAccess(xi::Job job);
     auto getDevelopedHolyCircleMultiplier(uint32 targetId, uint32 targetIndex) -> double;
     void changeJob(uint8 newJob);

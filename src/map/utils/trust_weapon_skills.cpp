@@ -98,6 +98,12 @@ auto CanUse(CTrustEntity* trust, CWeaponSkill* skill) -> bool
     return !impairment || (impairment->GetPower() != 2 && impairment->GetPower() != 3);
 }
 
+auto HasFencerWeapon(const CItemWeapon* main, const CItemWeapon* sub) -> bool
+{
+    return main && main->getSkillType() != xi::SkillType::None && !main->isTwoHanded() && !main->isHandToHand() &&
+           (!sub || sub->getSkillType() == xi::SkillType::None);
+}
+
 auto HasFencerWeapon(CBattleEntity* entity) -> bool
 {
     auto* trust = dynamic_cast<CTrustEntity*>(entity);
@@ -107,8 +113,7 @@ auto HasFencerWeapon(CBattleEntity* entity) -> bool
     }
     const auto* main = dynamic_cast<CItemWeapon*>(trust->m_Weapons[SLOT_MAIN]);
     const auto* sub  = dynamic_cast<CItemWeapon*>(trust->m_Weapons[SLOT_SUB]);
-    return main && main->getSkillType() != xi::SkillType::None && !main->isTwoHanded() && !main->isHandToHand() &&
-           (!sub || sub->getSkillType() == xi::SkillType::None);
+    return HasFencerWeapon(main, sub);
 }
 
 } // namespace trustweaponskills

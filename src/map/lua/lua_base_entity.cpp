@@ -172,6 +172,7 @@
 #include "utils/puppetutils.h"
 #include "utils/trust_holy_circle.h"
 #include "utils/trust_job_development.h"
+#include "utils/trust_weapon_skills.h"
 #include "utils/trustutils.h"
 #include "utils/zoneutils.h"
 #include "ximesh/ximesh.h"
@@ -5709,9 +5710,9 @@ int8 CLuaBaseEntity::getShieldSize()
 
 /************************************************************************
  *  Function: getShieldDefense()
- *  Purpose : Return the defense of the equipped shield
- *  Example : player:getShieldDefense()
- *  Notes   : Returns 0 if player does not have shield equipped
+ *  Purpose : Return equipped PC shield defense or the approved Trust shield model
+ *  Example : player:getShieldDefense(); trust:getShieldDefense()
+ *  Notes   : Returns 0 without an eligible shield/model
  ************************************************************************/
 
 int16 CLuaBaseEntity::getShieldDefense()
@@ -5719,6 +5720,10 @@ int16 CLuaBaseEntity::getShieldDefense()
     if (m_PBaseEntity->objtype == TYPE_PC)
     {
         return static_cast<CCharEntity*>(m_PBaseEntity)->getShieldDefense();
+    }
+    else if (m_PBaseEntity->objtype == TYPE_TRUST)
+    {
+        return static_cast<CTrustEntity*>(m_PBaseEntity)->getShieldDefense();
     }
     else
     {
@@ -7089,6 +7094,11 @@ auto CLuaBaseEntity::getMainJob() -> xi::Job
 bool CLuaBaseEntity::isDevelopedTrust()
 {
     return trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(m_PBaseEntity));
+}
+
+bool CLuaBaseEntity::hasDevelopedTrustFencerWeapon()
+{
+    return trustweaponskills::HasFencerWeapon(dynamic_cast<CBattleEntity*>(m_PBaseEntity));
 }
 
 bool CLuaBaseEntity::hasMainJobAccess(xi::Job job)
@@ -21240,6 +21250,7 @@ void CLuaBaseEntity::Register()
     // Player Jobs and Levels
     SOL_REGISTER("getMainJob", CLuaBaseEntity::getMainJob);
     SOL_REGISTER("isDevelopedTrust", CLuaBaseEntity::isDevelopedTrust);
+    SOL_REGISTER("hasDevelopedTrustFencerWeapon", CLuaBaseEntity::hasDevelopedTrustFencerWeapon);
     SOL_REGISTER("getDevelopedHolyCircleMultiplier", CLuaBaseEntity::getDevelopedHolyCircleMultiplier);
     SOL_REGISTER("hasMainJobAccess", CLuaBaseEntity::hasMainJobAccess);
     SOL_REGISTER("getSubJob", CLuaBaseEntity::getSubJob);

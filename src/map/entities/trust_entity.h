@@ -42,6 +42,7 @@ public:
     auto trustID() const -> uint32;
 
     auto shieldSize() -> int8;
+    auto getShieldDefense() -> int16;
 
     auto released() -> bool;
     void setReleased(bool released);

@@ -20,6 +20,7 @@
 #pragma once
 
 class CBattleEntity;
+class CItemWeapon;
 class CTrustEntity;
 class CWeaponSkill;
 
@@ -30,6 +31,7 @@ namespace trustweaponskills
 // transient TP/status conditions. A wrong weapon does not erase learning.
 auto IsAvailableForWeapon(CTrustEntity* trust, CWeaponSkill* skill) -> bool;
 auto CanUse(CTrustEntity* trust, CWeaponSkill* skill) -> bool;
+auto HasFencerWeapon(const CItemWeapon* main, const CItemWeapon* sub) -> bool;
 auto HasFencerWeapon(CBattleEntity* entity) -> bool;
 
 } // namespace trustweaponskills

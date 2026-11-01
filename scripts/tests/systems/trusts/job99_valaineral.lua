@@ -403,6 +403,254 @@ describe('Valaineral developed jobs', function()
         assert(not val:hasRecast(xi.recast.ABILITY, xi.recastID.SPECIAL), 'first and second native SP keys remain separate')
     end)
 
+    it('uses developed Fencer in a real modeled Sword critical weapon skill', function()
+        xi.test.world:setSeed(123456)
+        local owner, val = spawn()
+        local mob = target(owner)
+        assert(val:getWeaponSkillType(xi.slot.MAIN) == xi.skill.SWORD)
+        assert(val:hasDevelopedTrustFencerWeapon())
+        assert(val:getMod(xi.mod.FENCER_CRITHITRATE) == 10)
+        local original = xi.combat.physical.criticalRateFromFencer
+        local observed = {}
+        xi.test.stub('xi.combat.physical.criticalRateFromFencer', function(actor)
+            local bonus = original(actor)
+            if actor:getID() == val:getID() then
+                table.insert(observed, bonus)
+            end
+
+            return bonus
+        end)
+
+        val:setTP(3000)
+        local beforeHP = mob:getHP()
+        assert(owner.actions:useTrustWeaponskill(val, mob, xi.weaponskill.VORPAL_BLADE))
+        finish(val, 3)
+        assert(#observed > 0, 'the actual critical WS path must consume Fencer')
+        for _, bonus in ipairs(observed) do
+            assert(bonus == 0.10, 'native Fencer V contributes ten percentage points once')
+        end
+
+        assert(mob:getHP() < beforeHP, 'the real weapon skill must apply native HP damage')
+        assert(val:getTP() < 1000, 'the real weapon skill must spend native TP')
+    end)
+
+    it('does not extend the Fencer Lua consumer to legacy Valaineral', function()
+        xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', false)
+        local _, val = spawn()
+        val:addMod(xi.mod.FENCER_CRITHITRATE, 10)
+        assert(not val:isDevelopedTrust() and not val:hasDevelopedTrustFencerWeapon())
+        assert(xi.combat.physical.criticalRateFromFencer(val) == 0)
+    end)
+
+    it('does not grant developed Fencer to an unapproved Trust with a critical-rate modifier', function()
+        local owner = spawn()
+        local other = assert(owner:spawnTrust(xi.magic.spell.KUPIPI))
+        other:addMod(xi.mod.FENCER_CRITHITRATE, 10)
+        assert(not other:isDevelopedTrust() and not other:hasDevelopedTrustFencerWeapon())
+        assert(xi.combat.physical.criticalRateFromFencer(other) == 0)
+    end)
+
+    it('preserves the PC Fencer path with real one-handed and two-handed equipment', function()
+        local owner = spawn()
+        owner:setMod(xi.mod.FENCER_CRITHITRATE, 10)
+        assert(not owner:hasDevelopedTrustFencerWeapon())
+        local function equipMain(itemId)
+            owner:addItem(itemId)
+            local index = assert(owner:getItemInvSlot(itemId, 1))
+            owner.actions:equipSet({ { index = index, kind = xi.slot.MAIN, container = xi.inv.INVENTORY } })
+            owner.actions:flushEquipmentBatch()
+            assert(owner:getEquipID(xi.slot.MAIN) == itemId)
+        end
+
+        equipMain(xi.item.NAEGLING)
+        assert(not owner:isWeaponTwoHanded())
+        assert(xi.combat.physical.criticalRateFromFencer(owner) == 0.10)
+        xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', false)
+        assert(xi.combat.physical.criticalRateFromFencer(owner) == 0.10)
+        equipMain(xi.item.CLAYMORE)
+        assert(owner:isWeaponTwoHanded())
+        assert(xi.combat.physical.criticalRateFromFencer(owner) == 0)
+    end)
+
+    -- These disposable fixtures use real equipment batches and native casts.
+    -- Refresh is disabled only to isolate the exact native MP charge.
+    local function shieldContext(stat119)
+        local owner, val = spawn()
+        val:setMod(xi.mod.REFRESH, 0)
+        local equipment = {}
+        if stat119 then
+            local items = {
+                { xi.item.NAEGLING, xi.slot.MAIN },
+                { xi.item.SULEVIAS_MASK_P2, xi.slot.HEAD },
+                { xi.item.SULEVIAS_PLATEMAIL_P2, xi.slot.BODY },
+                { xi.item.SULEVIAS_GAUNTLETS_P2, xi.slot.HANDS },
+                { xi.item.SULEVIAS_CUISSES_P2, xi.slot.LEGS },
+                { xi.item.SULEVIAS_LEGGINGS_P2, xi.slot.FEET },
+            }
+            for _, item in ipairs(items) do
+                owner:addItem(item[1])
+                table.insert(equipment, {
+                    index = assert(owner:getItemInvSlot(item[1], 1)),
+                    kind = item[2], container = xi.inv.INVENTORY,
+                })
+            end
+
+            owner.actions:equipSet(equipment)
+            owner.actions:flushEquipmentBatch()
+            assert(owner:getAverageItemLevel() == 119)
+            assert(val:getLocalVar('MochiTrustJob99StatLevel') == 119)
+        end
+
+        return owner, val, equipment
+    end
+
+    local function completeProtect(owner, caster)
+        local completed, params = 0, {}
+        caster:addListener('MAGIC_USE', 'JOB99_SHIELD_BARRIER_CAST', function(_, _, spell, action)
+            if spell:getID() == xi.magic.spell.PROTECT_V then
+                completed = completed + 1
+                params[caster:getID()] = action:getParam(caster:getID())
+                params[owner:getID()] = action:getParam(owner:getID())
+            end
+        end)
+
+        local beforeMP = caster:getMP()
+        if caster:getID() == owner:getID() then
+            owner.actions:useSpell(caster, xi.magic.spell.PROTECT_V)
+        else
+            assert(owner.actions:useTrustSpell(caster, caster, xi.magic.spell.PROTECT_V))
+        end
+
+        for _ = 1, 12 do
+            xi.test.world:tickEntity(caster)
+            xi.test.world:skipTime(1)
+            if completed > 0 then
+                break
+            end
+        end
+
+        caster:removeListener('JOB99_SHIELD_BARRIER_CAST')
+        assert(completed == 1, 'one native Protect V cast must complete exactly once')
+        assert(caster:getMP() == beforeMP - 84, 'native Protect V must charge its actual MP cost')
+        assert(caster:hasRecast(xi.recast.MAGIC, xi.magic.spell.PROTECT_V))
+        assert(params[caster:getID()] == xi.effect.PROTECT, 'native action params identify Protect, not its DEF power')
+        return params
+    end
+
+    it('applies the approved119 shield model once through real Majesty ProtectV AoE', function()
+        local owner, val = shieldContext(true)
+        assert(val:getMobMod(xi.mobMod.CAN_SHIELD_BLOCK) > 0 and val:getMod(xi.mod.SHIELD_BARRIER) > 0)
+        assert(val:getShieldDefense() == 130)
+        assert(owner:getMod(xi.mod.ENHANCES_PROT_SHELL_RCVD) == 0 and val:getMod(xi.mod.ENHANCES_PROT_SHELL_RCVD) == 0)
+        assert(not owner:hasStatusEffect(xi.effect.PROTECT) and not val:hasStatusEffect(xi.effect.PROTECT))
+        local ownerDEF, valDEF = owner:getMod(xi.mod.DEF), val:getMod(xi.mod.DEF)
+        assert(owner.actions:useTrustAbility(val, val, xi.jobAbility.MAJESTY))
+        finish(val, 1)
+        assert(val:hasStatusEffect(xi.effect.MAJESTY))
+        local params = completeProtect(owner, val)
+        assert(params[owner:getID()] == xi.effect.PROTECT, 'Majesty must include the real owner recipient')
+        assert(owner:getStatusEffect(xi.effect.PROTECT):getPower() == 350)
+        assert(val:getStatusEffect(xi.effect.PROTECT):getPower() == 350)
+        assert(owner:getMod(xi.mod.DEF) == ownerDEF + 350 and val:getMod(xi.mod.DEF) == valDEF + 350)
+    end)
+
+    it('retains the prior ProtectV power below stat119', function()
+        local owner, val = shieldContext(false)
+        assert(val:getLocalVar('MochiTrustJob99StatLevel') == 99)
+        assert(val:getShieldDefense() == 0)
+        completeProtect(owner, val)
+        assert(val:getStatusEffect(xi.effect.PROTECT):getPower() == 220)
+    end)
+
+    it('requires the native modeledshield presence flag despite the default shield size', function()
+        local owner, val = shieldContext(true)
+        val:setMobMod(xi.mobMod.CAN_SHIELD_BLOCK, 0)
+        assert(val:getShieldSize() == 3 and val:getShieldDefense() == 0)
+        completeProtect(owner, val)
+        assert(val:getStatusEffect(xi.effect.PROTECT):getPower() == 220)
+    end)
+
+    it('does not grant the119 shield model after developed approval is disabled', function()
+        local owner, val = shieldContext(true)
+        xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', false)
+        assert(val:getLocalVar('MochiTrustJob99StatLevel') == 119)
+        assert(not val:isDevelopedTrust() and val:getShieldDefense() == 0)
+        completeProtect(owner, val)
+        assert(val:getStatusEffect(xi.effect.PROTECT):getPower() == 220)
+    end)
+
+    it('rejects an otherwiseeligible unapproved Trust from the shield model getter', function()
+        local owner = spawn()
+        local other = assert(owner:spawnTrust(xi.magic.spell.TRION))
+        -- Deliberately isolate the profile gate in this disposable fixture.
+        other:setLocalVar('MochiTrustJob99StatLevel', 119)
+        other:setMobMod(xi.mobMod.CAN_SHIELD_BLOCK, 1)
+        assert(not other:isDevelopedTrust() and other:getShieldDefense() == 0)
+    end)
+
+    it('keeps the modeled shield value separate from the ShieldBarrier trait condition', function()
+        local owner, val = shieldContext(true)
+        val:setMod(xi.mod.SHIELD_BARRIER, 0)
+        assert(val:getShieldDefense() == 130)
+        completeProtect(owner, val)
+        assert(val:getStatusEffect(xi.effect.PROTECT):getPower() == 220)
+    end)
+
+    it('preserves PC ShieldBarrier with a real inventory shield and featureoff', function()
+        local owner = spawn()
+        owner:setMod(xi.mod.REFRESH, 0)
+        owner:addSpell(xi.magic.spell.PROTECT_V)
+        owner:addItem(xi.item.GENMEI_SHIELD)
+        local index = assert(owner:getItemInvSlot(xi.item.GENMEI_SHIELD, 1))
+        owner.actions:equipSet({ { index = index, kind = xi.slot.SUB, container = xi.inv.INVENTORY } })
+        owner.actions:flushEquipmentBatch()
+        local shieldDEF = owner:getShieldDefense()
+        assert(shieldDEF > 0 and owner:getMod(xi.mod.SHIELD_BARRIER) > 0)
+        assert(owner:getMod(xi.mod.ENHANCES_PROT_SHELL_RCVD) == 0)
+        local beforeDEF = owner:getMod(xi.mod.DEF)
+        xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', false)
+        completeProtect(owner, owner)
+        assert(owner:getStatusEffect(xi.effect.PROTECT):getPower() == 220 + shieldDEF)
+        assert(owner:getMod(xi.mod.DEF) == beforeDEF + 220 + shieldDEF)
+        owner.actions:equipSet({ { index = 0, kind = xi.slot.SUB, container = xi.inv.INVENTORY } })
+        owner.actions:flushEquipmentBatch()
+        assert(owner:getShieldDefense() == 0)
+    end)
+
+    it('refreshes119 shield eligibility without stacking or changing landedProtect resources or recasts', function()
+        local owner, val, equipment = shieldContext(true)
+        assert(owner.actions:useTrustAbility(val, val, xi.jobAbility.MAJESTY))
+        finish(val, 1)
+        completeProtect(owner, val)
+        local effect = assert(val:getStatusEffect(xi.effect.PROTECT))
+        local start = assert(xi.test.world:getStatusEffectStartTime(val, xi.effect.PROTECT), 'active Protect must have an exact native start')
+        local duration, protectedDEF = effect:getDuration(), val:getMod(xi.mod.DEF)
+        val:setHP(1)
+        val:setMP(1)
+        val:setTP(1234)
+        local clear = {}
+        for _, item in ipairs(equipment) do
+            table.insert(clear, { index = 0, kind = item.kind, container = xi.inv.INVENTORY })
+        end
+
+        for _ = 1, 2 do
+            owner.actions:equipSet(clear)
+            owner.actions:flushEquipmentBatch()
+            assert(val:getLocalVar('MochiTrustJob99StatLevel') == 99 and val:getShieldDefense() == 0)
+            assert(val:getStatusEffect(xi.effect.PROTECT):getPower() == 350, 'landed Protect remains a cast-time snapshot')
+            assert(val:getHP() == 1 and val:getMP() == 1 and val:getTP() == 1234)
+            assert(val:hasRecast(xi.recast.MAGIC, xi.magic.spell.PROTECT_V))
+            owner.actions:equipSet(equipment)
+            owner.actions:flushEquipmentBatch()
+            assert(val:getLocalVar('MochiTrustJob99StatLevel') == 119 and val:getShieldDefense() == 130)
+            assert(val:getStatusEffect(xi.effect.PROTECT):getPower() == 350 and val:getMod(xi.mod.DEF) == protectedDEF)
+            assert(val:getStatusEffect(xi.effect.PROTECT):getDuration() == duration)
+            assert(xi.test.world:getStatusEffectStartTime(val, xi.effect.PROTECT) == start)
+            assert(val:getHP() == 1 and val:getMP() == 1 and val:getTP() == 1234)
+            assert(val:hasRecast(xi.recast.MAGIC, xi.magic.spell.PROTECT_V))
+        end
+    end)
+
     -- These cases exercise the actual registered spawn gambits, not copied
     -- stance condition tables or the direct test-only JA adapter.
     local function stanceContext(role, hpPercent)
