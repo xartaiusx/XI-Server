@@ -412,7 +412,7 @@ describe('Valaineral developed jobs', function()
         assert(val:getMod(xi.mod.FENCER_CRITHITRATE) == 10)
         local original = xi.combat.physical.criticalRateFromFencer
         local observed = {}
-        xi.test.stub('xi.combat.physical.criticalRateFromFencer', function(actor)
+        stub('xi.combat.physical.criticalRateFromFencer', function(actor)
             local bonus = original(actor)
             if actor:getID() == val:getID() then
                 table.insert(observed, bonus)
@@ -514,6 +514,12 @@ describe('Valaineral developed jobs', function()
             end
         end)
 
+        -- Isolate native cost from the Trust controller's idle5% MP recovery.
+        if caster:getID() ~= owner:getID() then
+            local mob = target(owner)
+            engageWithoutOwnerSwings(owner, caster, mob)
+        end
+
         local beforeMP = caster:getMP()
         if caster:getID() == owner:getID() then
             owner.actions:useSpell(caster, xi.magic.spell.PROTECT_V)
@@ -600,10 +606,11 @@ describe('Valaineral developed jobs', function()
         local owner = spawn()
         owner:setMod(xi.mod.REFRESH, 0)
         owner:addSpell(xi.magic.spell.PROTECT_V)
-        owner:addItem(xi.item.GENMEI_SHIELD)
-        local index = assert(owner:getItemInvSlot(xi.item.GENMEI_SHIELD, 1))
+        owner:addItem(xi.item.PRIWEN)
+        local index = assert(owner:getItemInvSlot(xi.item.PRIWEN, 1))
         owner.actions:equipSet({ { index = index, kind = xi.slot.SUB, container = xi.inv.INVENTORY } })
         owner.actions:flushEquipmentBatch()
+        assert(owner:getEquipID(xi.slot.SUB) == xi.item.PRIWEN, 'the native PLD fixture must equip its legal shield')
         local shieldDEF = owner:getShieldDefense()
         assert(shieldDEF > 0 and owner:getMod(xi.mod.SHIELD_BARRIER) > 0)
         assert(owner:getMod(xi.mod.ENHANCES_PROT_SHELL_RCVD) == 0)
