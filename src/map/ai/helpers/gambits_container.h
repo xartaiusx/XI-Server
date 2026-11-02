@@ -311,7 +311,8 @@ public:
     auto AddGambit(const Gambit_t& gambit) -> std::string;
     void RemoveGambit(const std::string& id);
     void RemoveAllGambits();
-    auto Tick(timer::time_point tick) -> Task<void>;
+    auto HasRaiseRecoveryTarget() const -> bool;
+    auto Tick(timer::time_point tick, bool raiseRecoveryOnly = false) -> Task<void>;
 
     // TODO: make private
     std::vector<TrustSkill_t> tp_skills;

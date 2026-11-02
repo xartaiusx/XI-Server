@@ -821,6 +821,17 @@ auto CTrustController::Tick(timer::time_point tick) -> Task<void>
         co_return;
     }
 
+    // Baseline healers use only an installed Raise gambit for an authorized
+    // retained corpse. Never run hostile/TP gambits while idle.
+    if (!trustdevelopment::IsEnabled(PTrust) && !POwner->PAI->IsEngaged() && m_GambitsContainer->HasRaiseRecoveryTarget())
+    {
+        co_await m_GambitsContainer->Tick(tick, true);
+        if (POwner->PAI->IsCurrentState<CMagicState>())
+        {
+            co_return;
+        }
+    }
+
     const bool nonCombatFollowTrust = PTrust->getMobMod(xi::MobMod::TrustDistance) == TRUST_MOVEMENT_TYPE::NON_COMBAT;
 
     if (PTrust->PMaster->PAI->IsEngaged() && nonCombatFollowTrust)
