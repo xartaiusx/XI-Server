@@ -34,6 +34,7 @@
 #include "spell.h"
 #include "utils/battleutils.h"
 #include "utils/trust_job_development.h"
+#include "utils/trustutils.h"
 #include "weapon_skill.h"
 
 #include "ai/controllers/player_controller.h"
@@ -49,6 +50,21 @@ namespace gambits
 
 namespace
 {
+
+auto IsRaiseRecoveryGambit(const Gambit_t& gambit) -> bool
+{
+    return gambit.target_selector == G_TARGET::PARTY_DEAD && gambit.actions.size() == 1 &&
+           gambit.actions.front().reaction == G_REACTION::MA && gambit.actions.front().select == G_SELECT::HIGHEST &&
+           gambit.actions.front().select_arg == SPELLFAMILY_RAISE;
+}
+
+auto IsAttachedRecoveryCorpse(CTrustEntity* healer, CBattleEntity* target) -> bool
+{
+    auto* corpse = dynamic_cast<CTrustEntity*>(target);
+    return corpse && corpse != healer && corpse->PMaster == healer->PMaster && corpse->loc.zone == healer->loc.zone &&
+           corpse->PInstance == healer->PInstance && corpse->getBattleID() == healer->getBattleID() &&
+           corpse->CanReceiveRaise() && !corpse->HasPendingRaise();
+}
 
 auto TrustRefreshWindow(timer::duration duration) -> timer::duration
 {
@@ -215,9 +231,31 @@ void CGambitsContainer::RemoveAllGambits()
     m_timerConditionLastTrigger.clear();
 }
 
-auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
+auto CGambitsContainer::HasRaiseRecoveryTarget() const -> bool
+{
+    auto* master = dynamic_cast<CCharEntity*>(POwner->PMaster);
+    if (!master || !trustutils::CanUseTwillsTrustGameplay(master) ||
+        !std::ranges::any_of(gambits, IsRaiseRecoveryGambit))
+    {
+        return false;
+    }
+
+    bool found = false;
+    master->ForPartyWithTrusts([&](CBattleEntity* member)
+                               {
+                                   found = found || IsAttachedRecoveryCorpse(POwner, member);
+                               });
+    return found;
+}
+
+auto CGambitsContainer::Tick(timer::time_point tick, bool raiseRecoveryOnly) -> Task<void>
 {
     TracyZoneScoped;
+
+    if (raiseRecoveryOnly && !HasRaiseRecoveryTarget())
+    {
+        co_return;
+    }
 
     auto* controller      = static_cast<CTrustController*>(POwner->PAI->GetController());
     uint8 currentPartyPos = controller->GetPartyPosition();
@@ -242,7 +280,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
 
     // Deal with TP skills before any gambits
     // TODO: Should this be its own special gambit?
-    if (POwner->health.tp >= 1000 && TryTrustSkill())
+    if (!raiseRecoveryOnly && POwner->health.tp >= 1000 && TryTrustSkill())
     {
         co_return;
     }
@@ -250,6 +288,11 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
     // Didn't WS/MS, go for other Gambits
     for (auto& gambit : gambits)
     {
+        if (raiseRecoveryOnly && !IsRaiseRecoveryGambit(gambit))
+        {
+            continue;
+        }
+
         if (tick < gambit.last_used + std::chrono::seconds(gambit.retry_delay))
         {
             continue;
@@ -305,7 +348,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
         else if (targetType == G_TARGET::PARTY_DEAD)
         {
             auto* mob = POwner->GetBattleTarget();
-            if (mob != nullptr)
+            if (!raiseRecoveryOnly && mob != nullptr)
             {
                 // clang-format off
                     static_cast<CCharEntity*>(POwner->PMaster)->ForParty([&](CBattleEntity* PMember) {
@@ -315,6 +358,16 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                         }
                     });
                 // clang-format on
+            }
+            if (IsRaiseRecoveryGambit(gambit) && trustutils::CanUseTwillsTrustGameplay(static_cast<CCharEntity*>(POwner->PMaster)))
+            {
+                static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* member)
+                                                                               {
+                                                                                   if (IsAttachedRecoveryCorpse(POwner, member))
+                                                                                   {
+                                                                                       potentialTargets.push_back(member);
+                                                                                   }
+                                                                               });
             }
         }
         else if (targetType == G_TARGET::TANK)
@@ -590,6 +643,14 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                 {
                     firstMAIndex    = static_cast<int>(i);
                     auto maybeSpell = ResolveMA(action, target);
+                    if (raiseRecoveryOnly && maybeSpell.has_value())
+                    {
+                        auto* recoverySpell = spell::GetSpell(maybeSpell.value());
+                        if (!recoverySpell || !recoverySpell->isRaise())
+                        {
+                            maybeSpell = std::nullopt;
+                        }
+                    }
                     if (!maybeSpell.has_value())
                     {
                         // Couldn't resolve first spell -> cannot use this gambit now
@@ -674,6 +735,14 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
             }
 
             const auto& action = gambit.actions[i];
+            if (raiseRecoveryOnly)
+            {
+                auto* recoverySpell = resolvedSpells[i].has_value() ? spell::GetSpell(resolvedSpells[i].value()) : nullptr;
+                if (action.reaction != G_REACTION::MA || !recoverySpell || !recoverySpell->isRaise())
+                {
+                    continue;
+                }
+            }
 
             if (action.reaction == G_REACTION::RATTACK)
             {
@@ -685,8 +754,8 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                 // Use the pre resolved spell if present, otherwise fall back
                 if (resolvedSpells[i].has_value())
                 {
-                    controller->Cast(target->entityId(), resolvedSpells[i].value());
-                    executedAnyAction = true;
+                    const bool started = controller->Cast(target->entityId(), resolvedSpells[i].value());
+                    executedAnyAction  = !raiseRecoveryOnly || started;
                 }
                 else
                 {
@@ -1150,6 +1219,10 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
         if (executedAnyAction && gambit.retry_delay != 0)
         {
             gambit.last_used = tick;
+        }
+        if (raiseRecoveryOnly && executedAnyAction)
+        {
+            co_return;
         }
     }
 }

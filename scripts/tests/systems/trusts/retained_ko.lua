@@ -105,11 +105,199 @@ describe('Approved Trust KO recovery', function()
         assert(visualIndex and raiseIndex and visualIndex < raiseIndex, 'an arriving same-zone observer needs a full live view before Raise')
     end
 
+    local function recoveryHealer(name)
+        owner:clearTrusts()
+        xi.test.world:setSetting('main.ENABLE_TRUST_CASTING', 1)
+        xi.test.world:setSetting('main.ENABLE_MOCHIRII_TWILLS_TRUST_GAMEPLAY', true)
+        xi.test.world:setSetting('main.ENABLE_MOCHIRII_TWILLS_FULL_ALLIANCE', false)
+        owner = xi.test.world:spawnPlayer({ name = name or 'Twills', zone = xi.zone.WEST_RONFAURE, job = xi.job.RDM, level = 99 })
+        owner:setGMLevel(5)
+        owner:setVisibleGMLevel(0)
+        owner:setCharVar('MochiriiTrustAllianceAccess', 1)
+        owner:addKeyItem(xi.keyItem.SAN_DORIA_TRUST_PERMIT)
+        owner:addKeyItem(xi.keyItem.RHAPSODY_IN_WHITE)
+        owner:addKeyItem(xi.keyItem.RHAPSODY_IN_CRIMSON)
+        assert(owner.actions:prepareSoloTrustParty())
+        assert(owner:spawnTrust(xi.magic.spell.VALAINERAL) ~= nil)
+        assert(owner:spawnTrust(xi.magic.spell.FERREOUS_COFFIN) ~= nil)
+        local healer
+        for _, member in ipairs(owner:getPartyWithTrusts()) do
+            if
+                member:isTrust() and
+                member:getTrustID() == xi.magic.spell.FERREOUS_COFFIN
+            then
+                healer = member
+            end
+        end
+
+        assert(healer and not healer:isDevelopedTrust(), 'the healer must keep its baseline profile')
+        local starts = {}
+        local finishes = {}
+        healer:addListener('MAGIC_START', 'RETAINED_BASELINE_RAISE_START', function(_, target, spell)
+            table.insert(starts, { target = target:getID(), spell = spell:getID() })
+        end)
+
+        healer:addListener('MAGIC_USE', 'RETAINED_BASELINE_RAISE_USE', function(_, target, spell)
+            table.insert(finishes, { target = target:getID(), spell = spell:getID() })
+        end)
+
+        return healer, starts, finishes
+    end
+
+    local function waitForRecovery(predicate)
+        for _ = 1, 45 do
+            xi.test.world:skipTime(1)
+            if predicate() then
+                return
+            end
+        end
+
+        assert(false, 'the bounded native recovery observation did not complete')
+    end
+
     before_each(function()
         xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', true)
         owner = xi.test.world:spawnPlayer({ name = 'TrustKOProbe', zone = xi.zone.WEST_RONFAURE, job = xi.job.PLD, level = 99 })
         assert(owner:spawnTrust(xi.magic.spell.VALAINERAL) ~= nil)
         xi.test.world:skipTime(1)
+    end)
+
+    it('lets a baseline healer naturally Raise the retained Val without an enemy or job conversion', function()
+        local healer, starts, finishes = recoveryHealer()
+        assert(owner:canUseTwillsTrustGameplay())
+        local trust = requiredValaineral()
+        local ident = trust:getID()
+        local index = trust:getTargID()
+        local mainJob, subJob = healer:getMainJob(), healer:getSubJob()
+        local mainLevel, subLevel = healer:getMainLvl(), healer:getSubLvl()
+        local mp = healer:getMP()
+        local spawned = 0
+        trust:addListener('SPAWN', 'BASELINE_RAISE_NO_SPAWN', function()
+            spawned = spawned + 1
+        end)
+
+        knockOut(trust)
+        waitForRecovery(function()
+            return not trust:isDead()
+        end)
+
+        assert(#starts == 1 and #finishes == 1)
+        assert(starts[1].target == ident and finishes[1].target == ident)
+        assert(starts[1].spell == xi.magic.spell.RAISE_III and finishes[1].spell == xi.magic.spell.RAISE_III)
+        assert(requiredValaineral():getID() == ident and trust:getTargID() == index)
+        assert(#owner:getPartyWithTrusts() == 3 and spawned == 0)
+        assert(trust:hasStatusEffect(xi.effect.WEAKNESS))
+        assert(healer:getMP() < mp and healer:hasRecast(xi.recast.MAGIC, xi.magic.spell.RAISE_III))
+        assert(healer:getMainJob() == mainJob and healer:getSubJob() == subJob)
+        assert(healer:getMainLvl() == mainLevel and healer:getSubLvl() == subLevel and not healer:isDevelopedTrust())
+        assert(not owner:isEngaged() and not healer:isEngaged())
+    end)
+
+    it('keeps baseline idle Raise out of other characters evidence modes missing gambits and foreign corpses', function()
+        for _, mode in ipairs({ 'other', 'qa', 'retail', 'no_gambit', 'foreign', 'owner_ko' }) do
+            local healer, starts = recoveryHealer(mode == 'other' and 'OtherRaiseProbe' or 'Twills')
+            local trust = requiredValaineral()
+            local dismissedHealerId
+            if mode == 'foreign' then
+                local foreign = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.PLD, level = 99 })
+                assert(foreign:spawnTrust(xi.magic.spell.VALAINERAL) ~= nil)
+                for _, member in ipairs(foreign:getPartyWithTrusts()) do
+                    if member:isTrust() then
+                        knockOut(member)
+                    end
+                end
+            elseif mode == 'owner_ko' then
+                dismissedHealerId = healer:getID()
+                owner:die({ expLoss = false, mijin = false })
+                xi.test.world:tickEntity(owner)
+            else
+                knockOut(trust)
+                if mode == 'qa' then
+                    owner:setLocalVar('MochiriiTrustEvidenceMode', xi.trustRetailParity.evidenceMode.QA)
+                elseif mode == 'retail' then
+                    owner:setLocalVar('MochiriiTrustEvidenceMode', xi.trustRetailParity.evidenceMode.RETAIL)
+                elseif mode == 'no_gambit' then
+                    healer:removeAllGambits()
+                end
+            end
+
+            xi.test.world:skipTime(3)
+            xi.test.world:skipTime(3)
+            assert(#starts == 0, mode .. ' must not start baseline idle Raise')
+            if dismissedHealerId then
+                assert(not owner.actions:hasTrustEntity(dismissedHealerId), 'baseline owner-KO cleanup must stay native')
+            end
+        end
+    end)
+
+    it('keeps native MP Silence and range admission on baseline corpse recovery', function()
+        for _, blocked in ipairs({ 'mp', 'silence', 'range' }) do
+            local healer, starts = recoveryHealer()
+            local trust = requiredValaineral()
+            knockOut(trust)
+            if blocked == 'mp' then
+                healer:setMP(0)
+            elseif blocked == 'silence' then
+                assert(healer:addStatusEffect(xi.effect.SILENCE, { power = 1, duration = 30, origin = healer }))
+            else
+                trust:setPos(owner:getXPos() + 1000, owner:getYPos(), owner:getZPos())
+            end
+
+            xi.test.world:skipTime(3)
+            xi.test.world:skipTime(3)
+            assert(#starts == 0, blocked .. ' must reject the normal cast')
+            assert(trust:getHP() == 0 and trust:canReceiveTrustRaise())
+            assert(not healer:hasRecast(xi.recast.MAGIC, xi.magic.spell.RAISE_III))
+        end
+    end)
+
+    it('does not redirect an in-flight baseline Raise to a replacement after native dismissal', function()
+        -- Match the existing native return fixture's real-time nonce contract.
+        -- This normalizes test calendar offset before casting, not native timers.
+        SetTimeOffset(0)
+        local healer, starts, finishes = recoveryHealer()
+        local trust = requiredValaineral()
+        local ident = trust:getID()
+        local index = trust:getTargID()
+        local healerId = healer:getID()
+        local function assertHealerRetained()
+            for _, member in ipairs(owner:getPartyWithTrusts()) do
+                if member:isTrust() and member:getID() == healerId then
+                    assert(not member:isDead() and not member:isDevelopedTrust(), 'the same living baseline caster must survive')
+                    return
+                end
+            end
+
+            assert(false, 'Val-only release must not remove the in-flight Coffin caster')
+        end
+
+        knockOut(trust)
+        waitForRecovery(function()
+            return #starts > 0
+        end)
+
+        assert(#starts == 1 and #finishes == 0)
+        assertHealerRetained()
+        local request = string.format('%08x%08x %u %u one %u %u', GetSystemTime(), owner:getID(),
+            owner:getID(), owner:getZoneID(), ident, index)
+        local reply = owner:returnOrdinaryTrusts(request)
+        assert(reply:match(' ACCEPTED 1 OK$'), reply)
+        xi.test.world:skipTime(3)
+        xi.test.world:skipTime(3)
+        assert(not owner.actions:hasTrustEntity(ident), 'only the old Val identity must retire')
+        assert(#owner:getPartyWithTrusts() == 2, 'owner and the same Coffin must remain')
+        assertHealerRetained()
+        assert(owner:spawnTrust(xi.magic.spell.VALAINERAL) ~= nil)
+        local replacement = requiredValaineral()
+        assert(replacement:getID() ~= ident)
+        assert(#owner:getPartyWithTrusts() == 3)
+        xi.test.world:skipTime(20)
+        xi.test.world:skipTime(13)
+        assert(#starts == 1 and #finishes == 0, 'the surviving caster must not retarget its stale Raise')
+        assert(not owner.actions:hasTrustEntity(ident))
+        assert(not replacement:isDead() and not replacement:hasStatusEffect(xi.effect.WEAKNESS))
+        assert(#owner:getPartyWithTrusts() == 3)
+        assertHealerRetained()
     end)
 
     it('retains a corpse identity and rejects duplicate summons and duplicate offers', function()
