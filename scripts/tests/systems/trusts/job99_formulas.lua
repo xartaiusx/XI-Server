@@ -10,6 +10,7 @@ describe('Valaineral action formula boundaries', function()
     before_each(function()
         xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', true)
         xi.test.world:setSetting('main.USE_ADOULIN_WEAPON_SKILL_CHANGES', true)
+        xi.test.world:setSetting('map.ALTER_EGO_SKILL_MULTIPLIER', 1.0)
         owner = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.PLD, level = 99 })
         val = owner:spawnTrust(xi.magic.spell.VALAINERAL)
         assert(val)
@@ -114,5 +115,80 @@ describe('Valaineral action formula boundaries', function()
         assert(elemental() == elementalBefore)
         val:delStatusEffect(xi.effect.DIVINE_EMBLEM)
         assert(divine() == divineBefore)
+    end)
+
+    local function parryActors()
+        local attacker = owner:getZone():insertDynamicEntity({
+            objtype              = xi.objType.MOB,
+            name                 = 'Job99_Parry',
+            groupId              = 5,
+            groupZoneId          = 154,
+            minLevel             = 90,
+            maxLevel             = 90,
+            respawn              = 0,
+            releaseIdOnDisappear = true,
+        })
+        assert(attacker)
+        dummyId = attacker:getID()
+        SpawnMob(dummyId)
+        attacker:setPos(owner:getXPos() + 1, owner:getYPos(), owner:getZPos())
+        attacker:setUnkillable(true)
+        attacker:setAutoAttackEnabled(false)
+        attacker:setMagicCastingEnabled(false)
+        attacker:setMobAbilityEnabled(false)
+        attacker:setDropID(0)
+
+        local reference = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.RUN, level = 99 })
+        -- RUN is rank1/A+; NIN and SAM are rank2/A and clamp the424 control to417.
+        assert(reference:getMaxSkillLevel(99, xi.job.RUN, xi.skill.PARRY) == 424)
+        reference:setMod(xi.mod.INQUARTATA, 0) -- Normalize only this isolated PC reference.
+        assert(reference and not reference:isDevelopedTrust())
+        assert(val:isDevelopedTrust() and val:getMainJob() == xi.job.PLD and val:getSubJob() == xi.job.WAR)
+        assert(val:getILvlParry() == 0 and reference:getILvlParry() == 0)
+        assert(val:getMod(xi.mod.PARRY) == 0 and reference:getMod(xi.mod.PARRY) == 0)
+        assert(val:getMod(xi.mod.INQUARTATA) == 0 and reference:getMod(xi.mod.INQUARTATA) == 0)
+        assert(not val:hasStatusEffect(xi.effect.ISSEKIGAN) and not reference:hasStatusEffect(xi.effect.ISSEKIGAN))
+        return attacker, reference
+    end
+
+    local function setReferenceParry(reference, skill)
+        -- Native PC setter takes tenths; this changes only the isolated fixture.
+        reference:setSkillLevel(xi.skill.PARRY, skill * 10)
+        assert(reference:getSkillLevel(xi.skill.PARRY) == skill, 'reference must carry the exact consumer input')
+    end
+
+    it('uses actual developed Valaineral parry training rather than the generic NPC A+ input', function()
+        local attacker, reference = parryActors()
+        local trained = val:getSkillLevel(xi.skill.PARRY)
+        local generic = xi.data.skillLevel.getSkillCap(val:getMainLvl(), xi.skillRank.A_PLUS)
+        assert(trained ~= generic, 'the native fixture must distinguish trained PLD/WAR parry from NPC A+')
+        setReferenceParry(reference, trained)
+        local expected = xi.combat.physical.calculateParryRate(reference, attacker)
+        assert(xi.combat.physical.calculateParryRate(val, attacker) == expected)
+        setReferenceParry(reference, generic)
+        local legacy = xi.combat.physical.calculateParryRate(reference, attacker)
+        assert(expected ~= legacy, 'fixture rates must not both be hidden by the native clamp')
+        xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', false)
+        assert(not val:isDevelopedTrust())
+        assert(xi.combat.physical.calculateParryRate(val, attacker) == legacy, 'disabled profile must keep the existing NPC calculation')
+    end)
+
+    it('preserves unapproved Trust and NPC parry inputs alongside the unchanged PC reference', function()
+        local attacker, reference = parryActors()
+        local kupipi = owner:spawnTrust(xi.magic.spell.KUPIPI)
+        assert(kupipi and not kupipi:isDevelopedTrust())
+        setReferenceParry(reference, xi.data.skillLevel.getSkillCap(kupipi:getMainLvl(), xi.skillRank.A_PLUS))
+        assert(xi.combat.physical.calculateParryRate(kupipi, attacker) == xi.combat.physical.calculateParryRate(reference, attacker))
+        setReferenceParry(reference, xi.data.skillLevel.getSkillCap(attacker:getMainLvl(), xi.skillRank.A_PLUS))
+        assert(xi.combat.physical.calculateParryRate(attacker, val) == xi.combat.physical.calculateParryRate(reference, val))
+    end)
+
+    it('consumes ordinary parry modifiers while preserving idle parry rejection', function()
+        local attacker = parryActors()
+        local eligible = xi.combat.physical.canParry(val, attacker)
+        local before = xi.combat.physical.calculateParryRate(val, attacker)
+        val:addMod(xi.mod.PARRY, 40)
+        assert(xi.combat.physical.calculateParryRate(val, attacker) > before)
+        assert(xi.combat.physical.canParry(val, attacker) == eligible, 'modifier consumption must preserve this idle negative eligibility condition')
     end)
 end)

@@ -1278,7 +1278,8 @@ xi.combat.physical.calculateParryRate = function(defender, attacker)
     local attackerSkill = 0
     local defenderSkill = 0
 
-    if defender:isPC() then
+    -- Developed Trusts consume their trained skill and the existing modeled-weapon inputs.
+    if defender:isPC() or defender:isDevelopedTrust() then
         defenderSkill = defender:getSkillLevel(xi.skill.PARRY) + defender:getMod(xi.mod.PARRY) + defender:getILvlParry()
     else
         defenderSkill = xi.data.skillLevel.getSkillCap(defender:getMainLvl(), xi.skillRank.A_PLUS)
