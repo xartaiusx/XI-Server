@@ -2,11 +2,12 @@
 -- Native isolated fixtures only. LIVE validation keeps the full approved default18.
 -----------------------------------
 describe('Ordinary default WHM recovery', function()
-    ---@type CClientEntityPair
+    ---@type CClientEntityPair|nil
     local owner
     local healers = { xi.magic.spell.CHERUKIKI, xi.magic.spell.KARAHA_BARUHA }
 
     local function findTrust(spell)
+        local owner = assert(owner)
         for _, member in ipairs(owner:getPartyWithTrusts()) do
             if member:isTrust() and member:getTrustID() == spell then
                 return member
@@ -76,6 +77,7 @@ describe('Ordinary default WHM recovery', function()
 
     local function natural(spell, level, expected)
         local healer, val = fixture(spell, level)
+        local owner = assert(owner)
         local rows = observe(healer, val)
         local id, index = val:getID(), val:getTargID()
         local main, sub, mlvl, slvl = healer:getMainJob(), healer:getSubJob(), healer:getMainLvl(), healer:getSubLvl()
@@ -137,6 +139,7 @@ describe('Ordinary default WHM recovery', function()
         for _, spell in ipairs(healers) do
             for _, blocked in ipairs({ 'mp', 'silence', 'recast', 'range' }) do
                 local healer, val = fixture(spell, 99)
+                local owner = assert(owner)
                 local rows = observe(healer, val)
                 knockOut(val)
                 if blocked == 'mp' then
@@ -174,6 +177,7 @@ describe('Ordinary default WHM recovery', function()
     it('does not install ordinary default healer recovery for another character', function()
         for _, spell in ipairs(healers) do
             local healer, val = fixture(spell, 99, 'OtherRaiseProbe')
+            local owner = assert(owner)
             assert(not owner:canUseTwillsTrustGameplay())
             local rows = observe(healer, val)
             knockOut(val)
@@ -200,6 +204,7 @@ describe('Ordinary default WHM recovery', function()
 
     it('lets two default WHM healers produce one effective native recovery without suppressing their AI', function()
         local first, val = fixture(xi.magic.spell.CHERUKIKI, 99)
+        local owner = assert(owner)
         assert(owner:spawnTrust(xi.magic.spell.KARAHA_BARUHA) ~= nil)
         local second = assert(findTrust(xi.magic.spell.KARAHA_BARUHA))
         local rows = observe(first, val)
@@ -293,6 +298,7 @@ describe('Ordinary default WHM recovery', function()
     it('rechecks the new native seam under explicit private QA and retail modes', function()
         for _, spell in ipairs(healers) do
             local healer = fixture(spell, 99)
+            local owner = assert(owner)
             assert(probe(healer).selected == 140)
             -- Deliberate isolated synchronous query fixture; no tick/action while mode is changed.
             -- This is not a live/public transition workflow and does not replace its clear controls.
@@ -325,6 +331,7 @@ describe('Ordinary default WHM recovery', function()
     it('naturally interrupts a queued default Raise when ordinary entitlement is revoked', function()
         for _, spell in ipairs(healers) do
             local healer, val = fixture(spell, 99)
+            local owner = assert(owner)
             local rows = observe(healer, val)
             assert(healer:getMP() == healer:getMaxMP(), 'full native spawn mana makes a zero-cost rejection observable')
             knockOut(val)
@@ -387,6 +394,7 @@ describe('Ordinary default WHM recovery', function()
 
     it('rejects wrong actors and bounded invalid probe rows without changing a native catalog', function()
         local healer = fixture(xi.magic.spell.CHERUKIKI, 99)
+        local owner = assert(owner)
         assert(not xi.test.world:probeTrustRaiseCatalog(owner).valid, 'a simulation PC is not a Trust actor')
         for _, rows in ipairs({
             { { spellId = 1, minLevel = 1, maxLevel = 255 } },
