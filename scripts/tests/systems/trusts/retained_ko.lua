@@ -194,7 +194,19 @@ describe('Approved Trust KO recovery', function()
     end)
 
     it('keeps baseline idle Raise out of other characters evidence modes missing gambits and foreign corpses', function()
-        for _, mode in ipairs({ 'other', 'qa', 'retail', 'no_gambit', 'foreign', 'owner_ko' }) do
+        recoveryHealer()
+        owner:clearTrusts()
+        assert(#owner:getPartyWithTrusts() == 1)
+        assert(owner:canUseTwillsTrustGameplay(), 'the empty ordinary roster must pass admission before the mode checks')
+        -- Exercise mode admission without assigning an ordinary roster to an evidence lane.
+        for _, mode in ipairs({ xi.trustRetailParity.evidenceMode.QA, xi.trustRetailParity.evidenceMode.RETAIL }) do
+            owner:setLocalVar('MochiriiTrustEvidenceMode', mode)
+            assert(not owner:canUseTwillsTrustGameplay(), 'an evidence mode must deny ordinary gameplay admission')
+            owner:setLocalVar('MochiriiTrustEvidenceMode', xi.trustRetailParity.evidenceMode.IDLE)
+            assert(owner:canUseTwillsTrustGameplay(), 'returning to idle must restore ordinary gameplay admission')
+        end
+
+        for _, mode in ipairs({ 'other', 'no_gambit', 'foreign', 'owner_ko' }) do
             local healer, starts = recoveryHealer(mode == 'other' and 'OtherRaiseProbe' or 'Twills')
             local trust = requiredValaineral()
             local dismissedHealerId
@@ -212,11 +224,7 @@ describe('Approved Trust KO recovery', function()
                 xi.test.world:tickEntity(owner)
             else
                 knockOut(trust)
-                if mode == 'qa' then
-                    owner:setLocalVar('MochiriiTrustEvidenceMode', xi.trustRetailParity.evidenceMode.QA)
-                elseif mode == 'retail' then
-                    owner:setLocalVar('MochiriiTrustEvidenceMode', xi.trustRetailParity.evidenceMode.RETAIL)
-                elseif mode == 'no_gambit' then
+                if mode == 'no_gambit' then
                     healer:removeAllGambits()
                 end
             end
