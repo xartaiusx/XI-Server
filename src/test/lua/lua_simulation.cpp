@@ -969,8 +969,8 @@ auto CLuaSimulation::probeTrustRaiseCatalog(CLuaBaseEntity* entity, sol::optiona
         trust->m_SpellListContainer = &nativeList;
         const auto selected         = container.GetBestAvailable(SPELLFAMILY_RAISE);
         const auto repeated         = container.GetBestAvailable(SPELLFAMILY_RAISE);
-        result["selected"]          = selected ? sol::make_object(lua, static_cast<uint16>(*selected)) : sol::make_object(lua, sol::nil);
-        result["repeated"]          = repeated ? sol::make_object(lua, static_cast<uint16>(*repeated)) : sol::make_object(lua, sol::nil);
+        result["selected"]          = selected ? sol::make_object(lua, static_cast<uint16>(*selected)) : sol::make_object(lua, sol::lua_nil);
+        result["repeated"]          = repeated ? sol::make_object(lua, static_cast<uint16>(*repeated)) : sol::make_object(lua, sol::lua_nil);
         for (const auto id : { SpellID::Raise, SpellID::Raise_II, SpellID::Raise_III, SpellID::Arise })
         {
             auto* spell                                         = spell::GetSpell(id);
