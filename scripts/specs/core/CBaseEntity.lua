@@ -2400,6 +2400,12 @@ end
 function CBaseEntity:getSkillLevel(skillId)
 end
 
+---Returns the parry skill bonus of the actor's main-hand weapon.
+---@nodiscard
+---@return integer
+function CBaseEntity:getILvlParry()
+end
+
 ---@param SkillID integer
 ---@param SkillAmount integer
 ---@return nil
