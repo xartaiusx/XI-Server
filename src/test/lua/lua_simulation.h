@@ -65,6 +65,7 @@ public:
     void tickEntity(CLuaBaseEntity& entity) const;
     void skipTime(uint32 seconds) const;
     auto getStatusEffectStartTime(CLuaBaseEntity* entity, uint16 effectId) const -> Maybe<int64>;
+    auto probeTrustRaiseCatalog(CLuaBaseEntity* entity, sol::optional<sol::table> overrides, sol::optional<bool> exerciseException) const -> sol::table;
     void setVanaTime(uint8 vanaHour, uint8 vanaMinute) const;
     void setVanaDay(uint8 day) const;
     void skipToNextVanaDay() const;

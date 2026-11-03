@@ -31,6 +31,11 @@ spellObject.onMobSpawn = function(mob)
 
     mob:addGambit(ai.t.PARTY, { ai.c.HPP_LT, 25 }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.CURE })
 
+    -- Ordinary Mochirii role support only; retail/evidence births retain native gambits.
+    if mob:getMaster():canUseTwillsTrustGameplay() then
+        mob:addGambit(ai.t.PARTY_DEAD, { ai.c.ALWAYS, 0 }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.RAISE })
+    end
+
     mob:addGambit(ai.t.PARTY, { ai.c.STATUS, xi.effect.SLEEP_I }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spellFamily.CURE })
     mob:addGambit(ai.t.PARTY, { ai.c.STATUS, xi.effect.SLEEP_II }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spellFamily.CURE })
 

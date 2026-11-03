@@ -36,15 +36,20 @@
 #include "map/entities/battle_entity.h"
 #include "map/entities/char_entity.h"
 #include "map/entities/mob_entity.h"
+#include "map/entities/trust_entity.h"
 #include "map/lua/lua_base_entity.h"
 #include "map/lua/luautils.h"
 #include "map/map_constants.h"
 #include "map/map_engine.h"
 #include "map/map_networking.h"
+#include "map/mob_spell_container.h"
+#include "map/mob_spell_list.h"
 #include "map/spawn_slot.h"
+#include "map/spell.h"
 #include "map/status_effect_container.h"
 #include "map/time_server.h"
 #include "map/utils/charutils.h"
+#include "map/utils/trustutils.h"
 #include "map/utils/zoneutils.h"
 #include "map/zone.h"
 #include "map/zone_entities.h"
@@ -53,7 +58,10 @@
 #include "test_common.h"
 
 #include <algorithm>
+#include <cmath>
 #include <ranges>
+#include <string>
+#include <string_view>
 
 namespace
 {
@@ -834,6 +842,165 @@ void CLuaSimulation::setSlotChance(CLuaBaseEntity& entity, const uint8 chance) c
     PMob->GetSpawnSlot()->SetChance(PMob, chance);
 }
 
+// Test-only synchronous native query: no tick, cast, resource or shared-list mutation.
+auto CLuaSimulation::probeTrustRaiseCatalog(CLuaBaseEntity* entity, sol::optional<sol::table> overrides, sol::optional<bool> exerciseException) const -> sol::table
+{
+    const auto reject = [](std::string_view reason)
+    {
+        sol::table rejected = lua.create_table();
+        rejected["valid"]   = false;
+        rejected["reason"]  = std::string(reason);
+        return rejected;
+    };
+    auto*      trust                = entity ? dynamic_cast<CTrustEntity*>(entity->GetBaseEntity()) : nullptr;
+    auto*      master               = trust ? dynamic_cast<CCharEntity*>(trust->PMaster) : nullptr;
+    const bool simulationOwnsMaster = master && std::ranges::any_of(clients_, [master](const ClientInfo& info)
+                                                                    {
+                                                                        return info.client && info.client->GetBaseEntity() == master;
+                                                                    });
+    if (!trust || !simulationOwnsMaster || trust->released() || !trust->loc.zone ||
+        trust->loc.zone != master->loc.zone || trust->PInstance != master->PInstance ||
+        !std::ranges::contains(master->PTrusts, trust) || !trust->m_SpellListContainer || !trust->SpellContainer)
+    {
+        return reject("probeTrustRaiseCatalog requires a current simulation-owned Trust");
+    }
+
+    auto*                   originalList      = trust->m_SpellListContainer;
+    const auto              originalEntries   = originalList->m_spellList;
+    const auto              originalContainer = *trust->SpellContainer;
+    auto                    nativeList        = *originalList;
+    std::vector<MobSpell_t> replacementRows;
+    if (overrides)
+    {
+        for (const auto& pair : overrides.value())
+        {
+            if (replacementRows.size() >= 4 || !pair.second.is<sol::table>())
+            {
+                return reject("probeTrustRaiseCatalog accepts at most four bounded Raise rows");
+            }
+            const auto        row       = pair.second.as<sol::table>();
+            const sol::object idObject  = row["spellId"];
+            const sol::object minObject = row["minLevel"];
+            const sol::object maxObject = row["maxLevel"];
+            if (!idObject.is<double>() || !minObject.is<double>() || !maxObject.is<double>())
+            {
+                return reject("probeTrustRaiseCatalog row fields must be integers");
+            }
+            const auto idNumber = idObject.as<double>();
+            const auto minimum  = minObject.as<double>();
+            const auto maximum  = maxObject.as<double>();
+            if (!std::isfinite(idNumber) || !std::isfinite(minimum) || !std::isfinite(maximum) ||
+                std::floor(idNumber) != idNumber || std::floor(minimum) != minimum || std::floor(maximum) != maximum ||
+                (idNumber != 12 && idNumber != 13 && idNumber != 140 && idNumber != 494) ||
+                minimum < 1 || maximum > 255 || minimum > maximum)
+            {
+                return reject("probeTrustRaiseCatalog row is outside the four native Raise tiers or level bounds");
+            }
+            const auto id = static_cast<SpellID>(idNumber);
+            if (std::ranges::find(replacementRows, id, &MobSpell_t::spellId) != replacementRows.end())
+            {
+                return reject("probeTrustRaiseCatalog rejects duplicate override rows");
+            }
+            replacementRows.push_back({ id, static_cast<uint16>(minimum), static_cast<uint16>(maximum) });
+        }
+    }
+    for (const auto& row : replacementRows)
+    {
+        std::erase_if(nativeList.m_spellList, [&row](const MobSpell_t& item)
+                      {
+                          return item.spellId == row.spellId;
+                      });
+        nativeList.AddSpell(row.spellId, row.min_level, row.max_level);
+    }
+    auto container = originalContainer;
+    if (!replacementRows.empty())
+    {
+        // Match the real NPC loader's ORDER BY min_level ASC, without touching its list.
+        std::stable_sort(nativeList.m_spellList.begin(), nativeList.m_spellList.end(), [](const MobSpell_t& left, const MobSpell_t& right)
+                         {
+                             return left.min_level < right.min_level;
+                         });
+        container.ClearSpells();
+        for (const auto& row : nativeList.m_spellList)
+        {
+            if (trust->GetMLevel() >= row.min_level && trust->GetMLevel() <= row.max_level)
+            {
+                container.AddSpell(row.spellId);
+            }
+        }
+    }
+    const auto sameVectors = [](const CMobSpellContainer& left, const CMobSpellContainer& right)
+    {
+        return left.m_gaList == right.m_gaList && left.m_damageList == right.m_damageList &&
+               left.m_buffList == right.m_buffList && left.m_debuffList == right.m_debuffList &&
+               left.m_healList == right.m_healList && left.m_naList == right.m_naList &&
+               left.m_raiseList == right.m_raiseList && left.m_severeList == right.m_severeList &&
+               left.HasSpells() == right.HasSpells();
+    };
+    const auto probeBefore     = container;
+    const auto hp              = trust->health.hp;
+    const auto mp              = trust->health.mp;
+    const auto tp              = trust->health.tp;
+    sol::table result          = lua.create_table();
+    result["valid"]            = true;
+    result["compatibility"]    = lua.create_table();
+    result["canUse"]           = lua.create_table();
+    result["minimums"]         = lua.create_table();
+    result["originalMinimums"] = lua.create_table();
+
+    struct ProbeRestorationCheck
+    {
+    };
+
+    bool exceptionExercised = false;
+    try
+    {
+        struct RestoreNativeList
+        {
+            CTrustEntity*  trust;
+            CMobSpellList* original;
+
+            ~RestoreNativeList()
+            {
+                trust->m_SpellListContainer = original;
+            }
+        } restore{ trust, originalList };
+
+        trust->m_SpellListContainer = &nativeList;
+        const auto selected         = container.GetBestAvailable(SPELLFAMILY_RAISE);
+        const auto repeated         = container.GetBestAvailable(SPELLFAMILY_RAISE);
+        result["selected"]          = selected ? sol::make_object(lua, static_cast<uint16>(*selected)) : sol::make_object(lua, sol::nil);
+        result["repeated"]          = repeated ? sol::make_object(lua, static_cast<uint16>(*repeated)) : sol::make_object(lua, sol::nil);
+        for (const auto id : { SpellID::Raise, SpellID::Raise_II, SpellID::Raise_III, SpellID::Arise })
+        {
+            auto* spell                                         = spell::GetSpell(id);
+            result["compatibility"][static_cast<uint16>(id)]    = trustutils::CanUseOrdinaryBaselineRaise(trust, spell);
+            result["canUse"][static_cast<uint16>(id)]           = trust->CanUseSpell(spell);
+            result["minimums"][static_cast<uint16>(id)]         = nativeList.GetSpellMinLevel(id);
+            result["originalMinimums"][static_cast<uint16>(id)] = originalList->GetSpellMinLevel(id);
+        }
+        if (exerciseException.value_or(false))
+        {
+            throw ProbeRestorationCheck{};
+        }
+    } // Restore the pointer on every path, including C++/sol exceptions; nothing yields or ticks.
+    catch (const ProbeRestorationCheck&)
+    {
+        exceptionExercised = true; // Private exception-path fixture, caught before returning to Lua.
+    }
+    result["exceptionExercised"]     = exceptionExercised;
+    result["storedCatalogUnchanged"] = trust->m_SpellListContainer == originalList &&
+                                       std::ranges::equal(originalEntries, originalList->m_spellList, [](const MobSpell_t& left, const MobSpell_t& right)
+                                                          {
+                                                              return left.spellId == right.spellId && left.min_level == right.min_level && left.max_level == right.max_level;
+                                                          });
+    result["storedVectorsUnchanged"] = sameVectors(originalContainer, *trust->SpellContainer);
+    result["probeVectorsUnchanged"]  = sameVectors(probeBefore, container);
+    result["probeRaiseCount"]        = container.m_raiseList.size();
+    result["resourcesUnchanged"]     = hp == trust->health.hp && mp == trust->health.mp && tp == trust->health.tp;
+    return result;
+}
+
 void CLuaSimulation::Register()
 {
     SOL_USERTYPE("CSimulation", CLuaSimulation);
@@ -841,6 +1008,7 @@ void CLuaSimulation::Register()
     SOL_REGISTER("tickEntity", CLuaSimulation::tickEntity);
     SOL_REGISTER("skipTime", CLuaSimulation::skipTime);
     SOL_REGISTER("getStatusEffectStartTime", CLuaSimulation::getStatusEffectStartTime);
+    SOL_REGISTER("probeTrustRaiseCatalog", CLuaSimulation::probeTrustRaiseCatalog);
     SOL_REGISTER("setVanaTime", CLuaSimulation::setVanaTime);
     SOL_REGISTER("setVanaDay", CLuaSimulation::setVanaDay);
     SOL_REGISTER("skipToNextVanaDay", CLuaSimulation::skipToNextVanaDay);

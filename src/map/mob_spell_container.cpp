@@ -22,12 +22,14 @@
 #include <algorithm>
 
 #include "entities/pet_entity.h"
+#include "entities/trust_entity.h"
 
 #include "data/enums/mob_mod.h"
 #include "mob_spell_container.h"
 #include "recast_container.h"
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
+#include "utils/trustutils.h"
 
 CMobSpellContainer::CMobSpellContainer(CMobEntity* PMob)
 {
@@ -182,6 +184,30 @@ Maybe<SpellID> CMobSpellContainer::GetBestAvailable(SPELLFAMILY family)
         searchInList(m_healList);
         searchInList(m_naList);
         searchInList(m_raiseList);
+    }
+
+    // This per-query view leaves the shared NPC list and stored entity catalog unchanged.
+    // Native costs/recasts still decide which of the three WHM tiers is usable now.
+    if (family == SPELLFAMILY_RAISE)
+    {
+        auto* PTrust           = dynamic_cast<CTrustEntity*>(m_PMob);
+        bool  ordinaryRecovery = false;
+        for (const auto id : { SpellID::Raise, SpellID::Raise_II, SpellID::Raise_III })
+        {
+            if (trustutils::CanUseOrdinaryBaselineRaise(PTrust, spell::GetSpell(id)))
+            {
+                ordinaryRecovery = true;
+                if (GetAvailable(id).has_value() && !std::ranges::contains(matches, id))
+                {
+                    matches.emplace_back(id);
+                }
+            }
+        }
+        if (ordinaryRecovery && !matches.empty())
+        {
+            // Preserve any higher native catalog entry (for example Arise), without duplicates.
+            return Maybe<SpellID>{ std::ranges::max(matches) };
+        }
     }
 
     // Assume the highest ID is the best (back of the vector)

@@ -124,3 +124,32 @@ end
 ---@return nil
 function CSimulation:setSlotChance(entity, chance)
 end
+
+---Synchronous test-only native query using a private copy of a simulation-owned Trust's catalog.
+---No shared/stored catalog, tick, cast, job, stat or resource mutation; pointer restored on exceptions.
+---@class TrustRaiseProbeRow
+---@field spellId integer One of12,13,140,494; unique, maximum four rows.
+---@field minLevel integer Native minimum1..255, including explicit255.
+---@field maxLevel integer Native maximum at least minLevel and at most255.
+---@class TrustRaiseProbe
+---@field valid boolean
+---@field reason? string
+---@field exceptionExercised boolean
+---@field selected integer?
+---@field repeated integer?
+---@field compatibility table<integer, boolean>
+---@field canUse table<integer, boolean>
+---@field minimums table<integer, integer>
+---@field originalMinimums table<integer, integer>
+---@field storedCatalogUnchanged boolean
+---@field storedVectorsUnchanged boolean
+---@field probeVectorsUnchanged boolean
+---@field probeRaiseCount integer
+---@field resourcesUnchanged boolean
+---@param entity CBaseEntity Current Trust attached to one of this simulation's clients.
+---@param overrides? TrustRaiseProbeRow[] Bounded private native-list replacements, never shared SQL.
+---@nodiscard
+---@param exerciseException? boolean Test-only caught C++ unwind to verify RAII restoration.
+---@return TrustRaiseProbe
+function CSimulation:probeTrustRaiseCatalog(entity, overrides, exerciseException)
+end
