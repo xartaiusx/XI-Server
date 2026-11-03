@@ -133,12 +133,12 @@ describe('Approved Trust KO recovery', function()
         assert(healer and not healer:isDevelopedTrust(), 'the healer must keep its baseline profile')
         local starts = {}
         local finishes = {}
-        healer:addListener('MAGIC_START', 'RETAINED_BASELINE_RAISE_START', function(_, target, spell)
-            table.insert(starts, { target = target:getID(), spell = spell:getID() })
+        healer:addListener('MAGIC_START', 'RETAINED_BASELINE_RAISE_START', function(caster, target, spell)
+            table.insert(starts, { target = target:getID(), spell = spell:getID(), mp = caster:getMP() })
         end)
 
-        healer:addListener('MAGIC_USE', 'RETAINED_BASELINE_RAISE_USE', function(_, target, spell)
-            table.insert(finishes, { target = target:getID(), spell = spell:getID() })
+        healer:addListener('MAGIC_USE', 'RETAINED_BASELINE_RAISE_USE', function(caster, target, spell)
+            table.insert(finishes, { target = target:getID(), spell = spell:getID(), mp = caster:getMP() })
         end)
 
         return healer, starts, finishes
@@ -170,7 +170,6 @@ describe('Approved Trust KO recovery', function()
         local index = trust:getTargID()
         local mainJob, subJob = healer:getMainJob(), healer:getSubJob()
         local mainLevel, subLevel = healer:getMainLvl(), healer:getSubLvl()
-        local mp = healer:getMP()
         local spawned = 0
         trust:addListener('SPAWN', 'BASELINE_RAISE_NO_SPAWN', function()
             spawned = spawned + 1
@@ -187,7 +186,8 @@ describe('Approved Trust KO recovery', function()
         assert(requiredValaineral():getID() == ident and trust:getTargID() == index)
         assert(#owner:getPartyWithTrusts() == 3 and spawned == 0)
         assert(trust:hasStatusEffect(xi.effect.WEAKNESS))
-        assert(healer:getMP() < mp and healer:hasRecast(xi.recast.MAGIC, xi.magic.spell.RAISE_III))
+        assert(finishes[1].mp < starts[1].mp, 'native Raise must debit MP at completion before idle recovery')
+        assert(healer:hasRecast(xi.recast.MAGIC, xi.magic.spell.RAISE_III))
         assert(healer:getMainJob() == mainJob and healer:getSubJob() == subJob)
         assert(healer:getMainLvl() == mainLevel and healer:getSubLvl() == subLevel and not healer:isDevelopedTrust())
         assert(not owner:isEngaged() and not healer:isEngaged())
@@ -236,6 +236,8 @@ describe('Approved Trust KO recovery', function()
             local trust = requiredValaineral()
             knockOut(trust)
             if blocked == 'mp' then
+                -- Native Plague blocks idle rest and outweighs Coffin's Refresh +2.
+                assert(healer:addStatusEffect(xi.effect.PLAGUE, { power = 5, duration = 30, origin = healer }))
                 healer:setMP(0)
             elseif blocked == 'silence' then
                 assert(healer:addStatusEffect(xi.effect.SILENCE, { power = 1, duration = 30, origin = healer }))
@@ -245,6 +247,11 @@ describe('Approved Trust KO recovery', function()
 
             xi.test.world:skipTime(3)
             xi.test.world:skipTime(3)
+            if blocked == 'mp' then
+                assert(healer:hasStatusEffect(xi.effect.PLAGUE), 'native Plague must remain active during the rejection phase')
+                assert(healer:getMP() == 0, 'native resource rules must preserve the insufficient-MP premise')
+            end
+
             assert(#starts == 0, blocked .. ' must reject the normal cast')
             assert(trust:getHP() == 0 and trust:canReceiveTrustRaise())
             assert(not healer:hasRecast(xi.recast.MAGIC, xi.magic.spell.RAISE_III))
