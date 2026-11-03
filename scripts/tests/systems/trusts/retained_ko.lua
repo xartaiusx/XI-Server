@@ -118,8 +118,8 @@ describe('Approved Trust KO recovery', function()
         owner:addKeyItem(xi.keyItem.RHAPSODY_IN_WHITE)
         owner:addKeyItem(xi.keyItem.RHAPSODY_IN_CRIMSON)
         assert(owner.actions:prepareSoloTrustParty())
-        assert(owner:spawnTrust(xi.magic.spell.VALAINERAL) ~= nil)
         assert(owner:spawnTrust(xi.magic.spell.FERREOUS_COFFIN) ~= nil)
+        assert(owner:spawnTrust(xi.magic.spell.VALAINERAL) ~= nil)
         local healer
         for _, member in ipairs(owner:getPartyWithTrusts()) do
             if
@@ -243,10 +243,19 @@ describe('Approved Trust KO recovery', function()
                 assert(healer:addStatusEffect(xi.effect.SILENCE, { power = 1, duration = 30, origin = healer }))
             else
                 trust:setPos(owner:getXPos() + 1000, owner:getYPos(), owner:getZPos())
+                assert(healer:checkDistance(trust) > 40, 'range fixture must begin outside native cast distance')
             end
 
             xi.test.world:skipTime(3)
+            if blocked == 'range' then
+                assert(healer:checkDistance(trust) > 40, 'range fixture must remain outside native cast distance')
+            end
+
             xi.test.world:skipTime(3)
+            if blocked == 'range' then
+                assert(healer:checkDistance(trust) > 40, 'range fixture must remain outside native cast distance')
+            end
+
             if blocked == 'mp' then
                 assert(healer:hasStatusEffect(xi.effect.PLAGUE), 'native Plague must remain active during the rejection phase')
                 assert(healer:getMP() == 0, 'native resource rules must preserve the insufficient-MP premise')
