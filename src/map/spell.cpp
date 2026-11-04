@@ -39,6 +39,7 @@
 #include "status_effect_container.h"
 #include "utils/blueutils.h"
 #include "utils/trust_job_development.h"
+#include "utils/trustutils.h"
 
 CSpell::CSpell(SpellID id)
 : m_ID(id)
@@ -905,6 +906,11 @@ bool CanUseSpell(CBattleEntity* PCaster, CSpell* spell)
                     return true;
                 }
                 return false;
+            }
+
+            if (trustutils::CanUseOrdinaryBaselineRaise(dynamic_cast<CTrustEntity*>(PCaster), spell))
+            {
+                return true;
             }
 
             // Ensure pet or trust is level appropriate

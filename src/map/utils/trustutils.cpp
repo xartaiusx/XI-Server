@@ -2937,6 +2937,32 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust, bool refresh)
     }
 }
 
+auto trustutils::CanUseOrdinaryBaselineRaise(CTrustEntity* PTrust, CSpell* PSpell) -> bool
+{
+    if (!PTrust || !PSpell || trustdevelopment::IsEnabled(PTrust) || PTrust->GetMJob() != xi::Job::WHM ||
+        (PTrust->trustID() != 916 && PTrust->trustID() != 936) || PTrust->released())
+    {
+        return false;
+    }
+    const auto id = PSpell->getID();
+    if (id != SpellID::Raise && id != SpellID::Raise_II && id != SpellID::Raise_III)
+    {
+        return false;
+    }
+    // A real native row always wins, including an explicitly present minimum255.
+    // Only absence (whose native GetSpellMinLevel result is255) gets compatibility.
+    const auto* nativeList = PTrust->m_SpellListContainer;
+    if (!nativeList || std::ranges::find(nativeList->m_spellList, id, &MobSpell_t::spellId) != nativeList->m_spellList.end())
+    {
+        return false;
+    }
+    auto*      master        = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    const auto requiredLevel = PSpell->getJob(xi::Job::WHM);
+    return master && CanUseTwillsTrustGameplay(master) && std::ranges::contains(master->PTrusts, PTrust) &&
+           PTrust->loc.zone && master->loc.zone == PTrust->loc.zone && master->PInstance == PTrust->PInstance &&
+           requiredLevel > 0 && requiredLevel <= PTrust->GetMLevel();
+}
+
 void trustutils::RefreshDevelopedSpellCatalog(CTrustEntity* PTrust)
 {
     if (!trustdevelopment::IsEnabled(PTrust) || !PTrust->SpellContainer)

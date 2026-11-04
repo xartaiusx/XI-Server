@@ -31,6 +31,7 @@
 class CCharEntity;
 class CBattleEntity;
 class CTrustEntity;
+class CSpell;
 struct action_t;
 
 namespace trustutils
@@ -48,6 +49,8 @@ auto ReturnOrdinaryTrusts(CCharEntity* PMaster, std::string_view request) -> std
 
 void RefreshDevelopedTrusts(CCharEntity* PMaster);
 void RefreshDevelopedSpellCatalog(CTrustEntity* PTrust);
+// Only the ordinary baseline default WHM healers gain these three native Raise tiers.
+auto CanUseOrdinaryBaselineRaise(CTrustEntity* PTrust, CSpell* PSpell) -> bool;
 
 inline constexpr std::size_t kRetailPartyMemberLimit  = 6;
 inline constexpr std::size_t kFullAlliancePartyLimit  = 3;
