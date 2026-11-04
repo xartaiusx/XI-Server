@@ -960,6 +960,17 @@ auto CLuaSimulation::probeTrustRaiseCatalog(CLuaBaseEntity* entity, sol::optiona
             CTrustEntity*  trust;
             CMobSpellList* original;
 
+            explicit RestoreNativeList(CTrustEntity* entity, CMobSpellList* previousList)
+            : trust(entity)
+            , original(previousList)
+            {
+            }
+
+            RestoreNativeList(const RestoreNativeList&)                    = delete;
+            RestoreNativeList(RestoreNativeList&&)                         = delete;
+            auto operator=(const RestoreNativeList&) -> RestoreNativeList& = delete;
+            auto operator=(RestoreNativeList&&) -> RestoreNativeList&      = delete;
+
             ~RestoreNativeList()
             {
                 trust->m_SpellListContainer = original;
