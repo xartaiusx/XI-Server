@@ -469,6 +469,27 @@ auto trustutils::SetTwillsFullAllianceState(CCharEntity* PMaster, TwillsFullAlli
     return true;
 }
 
+namespace
+{
+
+// Keep the extended formation within normal entity streaming distance.
+constexpr float ExtendedTrustSpacing = 2.0f;
+
+} // namespace
+
+auto trustutils::GetTrustSpawnDistance(std::size_t trustCount) -> float
+{
+    const auto retailCount   = std::min(trustCount, kRetailTrustSummonLimit);
+    const auto extendedCount = trustCount - retailCount;
+    return static_cast<float>(retailCount) * CTrustController::SpawnDistance +
+           static_cast<float>(extendedCount) * ExtendedTrustSpacing;
+}
+
+auto trustutils::GetTrustFollowDistance(std::size_t trustIndex) -> float
+{
+    return trustIndex < kRetailTrustSummonLimit ? CTrustController::RoamDistance : ExtendedTrustSpacing;
+}
+
 auto trustutils::MapTwillsFullAllianceSlot(std::size_t globalMemberIndex) -> std::optional<TrustPartySlot>
 {
     if (globalMemberIndex >= kFullAllianceMemberLimit)
@@ -2450,8 +2471,8 @@ auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*
     PTrust->loc       = PMaster->loc;
     PTrust->m_OwnerID = EntityId(PMaster);
 
-    // spawn me randomly around master
-    PTrust->loc.p = nearPosition(PMaster->loc.p, CTrustController::SpawnDistance + (PMaster->PTrusts.size() * CTrustController::SpawnDistance), (float)M_PI);
+    // Spawn behind the master in summon order.
+    PTrust->loc.p = nearPosition(PMaster->loc.p, trustutils::GetTrustSpawnDistance(PMaster->PTrusts.size() + 1), (float)M_PI);
     PTrust->look  = trustData->look;
     PTrust->name  = trustData->name;
 

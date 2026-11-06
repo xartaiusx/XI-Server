@@ -117,6 +117,28 @@ TEST_CASE("Twills full-alliance session transitions reject unsafe jumps", "[trus
     CHECK_FALSE(trustutils::IsTwillsFullAllianceTransitionAllowed(State::Failed, State::Failed));
 }
 
+TEST_CASE("Extended Trust formations retain retail spacing and fit within entity streaming range", "[trust][projection]")
+{
+    float settledRoamLength = 2.0f; // First Trust follows the summoner at the native roam threshold.
+    for (std::size_t index = 0; index < trustutils::kFullAllianceTrustLimit; ++index)
+    {
+        const auto count           = index + 1;
+        const auto spacing         = index < trustutils::kRetailTrustSummonLimit ? 3.0f : 2.0f;
+        const auto spawnSeparation = trustutils::GetTrustSpawnDistance(count) - trustutils::GetTrustSpawnDistance(index);
+
+        CHECK(spawnSeparation == spacing);
+        CHECK(trustutils::GetTrustFollowDistance(index) == spacing);
+        if (index > 0)
+        {
+            settledRoamLength += trustutils::GetTrustFollowDistance(index) + 0.5f;
+        }
+    }
+
+    CHECK(trustutils::GetTrustSpawnDistance(trustutils::kRetailTrustSummonLimit) == 15.0f);
+    CHECK(trustutils::GetTrustSpawnDistance(trustutils::kFullAllianceTrustLimit) == 39.0f);
+    CHECK(settledRoamLength == 46.0f);
+}
+
 TEST_CASE("Virtual Trust slots map exactly to three parties of six", "[trust][projection]")
 {
     struct ExpectedSlot

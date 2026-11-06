@@ -58,6 +58,9 @@ inline constexpr std::size_t kFullAllianceMemberLimit = 18;
 inline constexpr std::size_t kRetailTrustSummonLimit  = kRetailPartyMemberLimit - 1;
 inline constexpr std::size_t kFullAllianceTrustLimit  = kFullAllianceMemberLimit - 1;
 
+auto GetTrustSpawnDistance(std::size_t trustCount) -> float;
+auto GetTrustFollowDistance(std::size_t trustIndex) -> float;
+
 enum class TwillsFullAllianceState : uint8
 {
     Idle     = 0,
