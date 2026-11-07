@@ -211,9 +211,8 @@ auto CTrustEntity::CompleteRaise() -> bool
     }
 
     // The admitted offer culled the old client view during its native wait.
-    // Re-add the same living entity before Raise; do not call native Spawn().
-    // CDeathState still owns the unchanged two-second recovery lock.
-    animation = xi::Animation::None;
+    // Re-add the same recovering entity without clearing its native Death pose.
+    // CDeathState transitions to None after the unchanged two-second Raise lock.
     SyncRecoveryView();
 
     action_t action{ .actorId = id, .actiontype = ActionCategory::MagicFinish };
