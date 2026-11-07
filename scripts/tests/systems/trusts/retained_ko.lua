@@ -51,7 +51,9 @@ describe('Approved Trust KO recovery', function()
 
                 if packet.data[0x0A] == 0x0F then
                     assert(packetUnsigned(packet, 8, 2) == targetIndex, 'target index must remain unchanged')
-                    assert(packet.data[0x1F] == xi.animation.NONE, 'PostTick must not coalesce Death back over the visual')
+                    assert(packet.data[0x1E] > 0, 'the recovery view must carry returned native HP')
+                    assert(packet.data[0x1F] == xi.animation.DEATH, 'the native Raise must start from the retained Death pose')
+                    assert(math.floor(packet.data[0x28] / 8) % 2 == 1, 'positive HP plus Death must use the existing native packet flag')
                     assert(packetUnsigned(packet, 0x30, 2) == 0, 'Val uses a standard model')
                     assert(packetUnsigned(packet, 0x32, 2) == 3014, 'Val fixed model must remain unchanged')
                     visualIndex = visualIndex or index
@@ -61,7 +63,7 @@ describe('Approved Trust KO recovery', function()
             end
         end
 
-        assert(cullIndex and visualIndex and raiseIndex and cullIndex < visualIndex and visualIndex < raiseIndex, 'delivered cull then complete living view must precede the unchanged Raise BATTLE2')
+        assert(cullIndex and visualIndex and raiseIndex and cullIndex < visualIndex and visualIndex < raiseIndex, 'delivered cull then complete recovering Death view must precede the unchanged Raise BATTLE2')
     end
 
     local function assertRecoveryAnimation(actions, ident, animation, message)
@@ -96,13 +98,15 @@ describe('Approved Trust KO recovery', function()
                 packetUnsigned(packet, 4, 4) == ident and
                 packet.data[0x0A] == 0x0F
             then
+                assert(packet.data[0x1E] > 0 and packet.data[0x1F] == xi.animation.DEATH, 'the arriving observer needs the native recovering Death pose')
+                assert(math.floor(packet.data[0x28] / 8) % 2 == 1, 'the arriving recovery view must preserve the native Death flag')
                 visualIndex = visualIndex or index
             elseif packet.type == 0x028 and packetUnsigned(packet, 5, 4) == ident then
                 raiseIndex = raiseIndex or index
             end
         end
 
-        assert(visualIndex and raiseIndex and visualIndex < raiseIndex, 'an arriving same-zone observer needs a full live view before Raise')
+        assert(visualIndex and raiseIndex and visualIndex < raiseIndex, 'an arriving same-zone observer needs a full recovery view before Raise')
     end
 
     local function recoveryHealer(name)
@@ -410,7 +414,7 @@ describe('Approved Trust KO recovery', function()
 
         xi.test.world:skipTime(2)
         assert(trust:isDead() and trust:getHP() > 0, 'the native stand-up state must still block actions')
-        assert(trust:getAnimation() == xi.animation.NONE, 'the visual must publish a living pose before Raise')
+        assert(trust:getAnimation() == xi.animation.DEATH, 'the native Raise must preserve Death pose during its stand lock')
         assert(trust:getMP() == 1, 'the visual must not refill MP')
         assert(trust:getHP() == math.max(1, math.floor(trust:getMaxHP() / 10)), 'RaiseI returns native weakened HP')
         assert(trust:getTP() == 0, 'the visual must not grant TP')
@@ -431,9 +435,9 @@ describe('Approved Trust KO recovery', function()
         end
 
         xi.test.world:skipTime(1)
-        assert(trust:isDead(), 'the visible pose must retain the two-second native lock')
+        assert(trust:isDead() and trust:getAnimation() == xi.animation.DEATH, 'the recovering Death pose must retain the two-second native lock')
         xi.test.world:skipTime(2)
-        assert(not trust:isDead())
+        assert(not trust:isDead() and trust:getAnimation() == xi.animation.NONE, 'only native stand completion may clear the Death pose')
         assert(requiredValaineral():getID() == ident and trust:getTargID() == targetIndex)
         assert(#owner:getPartyWithTrusts() == 2)
         assert(trust:hasStatusEffect(xi.effect.WEAKNESS))
@@ -541,7 +545,7 @@ describe('Approved Trust KO recovery', function()
         -- Snapshot inspection alone does not drain the native coalescing queue.
         owner.packets:clear()
         xi.test.world:skipTime(2)
-        assert(trust:isDead() and trust:getHP() > 0 and trust:getAnimation() == xi.animation.NONE, 'Reraise visual setup must preserve the native stand lock')
+        assert(trust:isDead() and trust:getHP() > 0 and trust:getAnimation() == xi.animation.DEATH, 'Reraise must preserve the native recovering Death pose')
         for _, packet in ipairs(owner.packets:getIncoming()) do
             table.insert(cullPackets, packet)
         end
@@ -554,6 +558,8 @@ describe('Approved Trust KO recovery', function()
                 packetUnsigned(packet, 4, 4) == ident and
                 packet.data[0x0A] == 0x0F
             then
+                assert(packet.data[0x1E] > 0 and packet.data[0x1F] == xi.animation.DEATH, 'Reraise must publish native returned HP with the Death pose')
+                assert(math.floor(packet.data[0x28] / 8) % 2 == 1, 'Reraise must preserve the existing native Death flag')
                 assert(packetUnsigned(packet, 8, 2) == targetIndex, 'Reraise view must keep the exact native index')
                 assert(packetUnsigned(packet, 0x32, 2) == 3014, 'Reraise must keep the Val model')
                 visualIndex = visualIndex or index
