@@ -1117,7 +1117,7 @@ auto CTrustController::DoNonCombatTick(const timer::time_point tick) -> Task<voi
 
     // First trust keeps a bit more space from master.
     constexpr float FirstTrustFollowDistance = 3.0f; // tune as needed
-    const float     desiredFollowDistance    = (currentPartyPos == 0) ? FirstTrustFollowDistance : RoamDistance;
+    const float     desiredFollowDistance    = (currentPartyPos == 0) ? FirstTrustFollowDistance : trustutils::GetTrustFollowDistance(currentPartyPos);
 
     float currentDistance = distance(PTrust->loc.p, PFollowTarget->loc.p);
 
@@ -1250,8 +1250,8 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
     const bool isFirstTrust = (currentPartyPos == 0);
 
     const float declumpDistance = isFirstTrust ? 1.0f : 1.5f; // Too close, need to move away
-    const float followMax       = isFirstTrust ? 2.0f : 3.5f; // Maximum follow distance before moving closer
-    const float followTarget    = isFirstTrust ? 1.5f : 3.0f; // Ideal follow distance
+    const float followTarget    = isFirstTrust ? 1.5f : trustutils::GetTrustFollowDistance(currentPartyPos);
+    const float followMax       = followTarget + 0.5f; // Maximum follow distance before moving closer
 
     if (casterResting && IsTrustResting(PTrust))
     {
