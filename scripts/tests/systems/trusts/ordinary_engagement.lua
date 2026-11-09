@@ -195,10 +195,36 @@ describe('Ordinary Trust engagement', function()
         local mob = fixtureMob('Ordinary_Trust_Queued', 0)
         playerSpell(mob, xi.magic.spell.PARALYZE)
         assert(onTarget(val, mob))
-        assert(owner.actions:useTrustSpell(val, mob, xi.magic.spell.HOLY_II))
+        local targetId = mob:getID()
+        local spellId = xi.magic.spell.HOLY_II
+        local started = false
+        local completed = false
+        local retired = false
+        val:addListener('MAGIC_START', 'ORDINARY_TRUST_QUEUED_START', function(_, target, spell)
+            started = target:getID() == targetId and spell:getID() == spellId
+        end)
+
+        val:addListener('MAGIC_USE', 'ORDINARY_TRUST_QUEUED_FINISH', function(_, target, spell)
+            completed = target:getID() == targetId and spell:getID() == spellId
+        end)
+
+        val:addListener('MAGIC_STATE_EXIT', 'ORDINARY_TRUST_QUEUED_EXIT', function(_, spell)
+            retired = spell:getID() == spellId
+        end)
+
         local startingHp = mob:getHP()
-        assert(mob:addStatusEffect(xi.effect.SLEEP_I, { power = 1, duration = 60 }))
+        local startingMp = val:getMP()
+        assert(owner.actions:useTrustSpell(val, mob, spellId))
+        assert(started, 'Holy II must enter the native cast state before Sleep is applied')
+        assert(mob:addStatusEffect(xi.effect.SLEEP_I, { power = 1, duration = 60, origin = owner }))
         xi.test.world:skipTime(8)
+        xi.test.world:tickEntity(val)
+        val:removeListener('ORDINARY_TRUST_QUEUED_START')
+        val:removeListener('ORDINARY_TRUST_QUEUED_FINISH')
+        val:removeListener('ORDINARY_TRUST_QUEUED_EXIT')
+
+        assert(retired, 'the exact queued cast must leave its native state')
+        assert(not completed and val:getMP() == startingMp, 'protected Sleep cancels the cast before completion or MP cost')
         assert(mob:getHP() == startingHp and mob:hasStatusEffect(xi.effect.SLEEP_I))
         assert(not owner.actions:useTrustSpell(val, mob, xi.magic.spell.FLASH), 'protected Sleep also blocks admission')
     end)
@@ -207,7 +233,7 @@ describe('Ordinary Trust engagement', function()
         local primary = fixtureMob('Ordinary_Trust_Aoe_Primary', 0)
         local sleeping = fixtureMob('Ordinary_Trust_Aoe_Collateral', 2)
         playerSpell(sleeping, xi.magic.spell.PARALYZE)
-        assert(sleeping:addStatusEffect(xi.effect.SLEEP_I, { power = 1, duration = 60 }))
+        assert(sleeping:addStatusEffect(xi.effect.SLEEP_I, { power = 1, duration = 60, origin = owner }))
         playerSpell(primary, xi.magic.spell.PARALYZE)
         assert(onTarget(val, primary))
         local primaryHp = primary:getHP()
@@ -229,7 +255,7 @@ describe('Ordinary Trust engagement', function()
 
     it('releases only the current Sleep application after a resisted damaging spell', function()
         local mob = fixtureMob('Ordinary_Trust_Sleep', 0)
-        assert(mob:addStatusEffect(xi.effect.SLEEP_I, { power = 1, duration = 60 }))
+        assert(mob:addStatusEffect(xi.effect.SLEEP_I, { power = 1, duration = 60, origin = owner }))
         playerSpell(mob, xi.magic.spell.PARALYZE)
         assert(not val:isEngaged(), 'a non-damaging enfeeble cannot release Sleep')
 
@@ -243,7 +269,7 @@ describe('Ordinary Trust engagement', function()
         assert(onTarget(val, mob) and onTarget(iroha, mob), 'both Trusts may engage after a completed damaging attempt')
 
         mob:delStatusEffect(xi.effect.SLEEP_I)
-        assert(mob:addStatusEffect(xi.effect.SLEEP_I, { power = 1, duration = 60 }))
+        assert(mob:addStatusEffect(xi.effect.SLEEP_I, { power = 1, duration = 60, origin = owner }))
         assert(not owner.actions:useTrustSpell(val, mob, xi.magic.spell.FLASH), 'a fresh application must be protected')
     end)
 
@@ -297,7 +323,7 @@ describe('Ordinary Trust engagement', function()
         outsider:setPos(x + 2, y, z)
         for _, member in ipairs({ owner, val, outsider }) do
             member:setHP(math.floor(member:getMaxHP() / 2))
-            assert(member:addStatusEffect(xi.effect.SLEEP_I, { power = 1, duration = 60 }))
+            assert(member:addStatusEffect(xi.effect.SLEEP_I, { power = 1, duration = 60, origin = mob }))
         end
 
         local ownerHp = owner:getHP()
