@@ -232,10 +232,30 @@ describe('Ordinary Trust engagement', function()
     it('keeps a sleeping collateral target out of Uriel Blade', function()
         local primary = fixtureMob('Ordinary_Trust_Aoe_Primary', 0)
         local sleeping = fixtureMob('Ordinary_Trust_Aoe_Collateral', 2)
+        local awake = fixtureMob('Ordinary_Trust_Aoe_Awake', 2)
+        owner:addSpell(xi.magic.spell.BLIND)
+        owner:addSpell(xi.magic.spell.SLOW)
         playerSpell(sleeping, xi.magic.spell.PARALYZE)
         assert(sleeping:addStatusEffect(xi.effect.SLEEP_I, { power = 1, duration = 60, origin = owner }))
-        playerSpell(primary, xi.magic.spell.PARALYZE)
+        playerSpell(awake, xi.magic.spell.BLIND)
+        playerSpell(primary, xi.magic.spell.SLOW)
         assert(onTarget(val, primary))
+
+        local actorId = val:getID()
+        local primaryId = primary:getID()
+        local awakeId = awake:getID()
+        local sleepingId = sleeping:getID()
+        local recipients = {}
+        val:addListener('WEAPONSKILL_USE', 'ORDINARY_TRUST_URIEL_RECIPIENT', function(actor, recipient, skill, spentTp)
+            if
+                actor:getID() == actorId and
+                skill:getID() == xi.mobSkill.URIEL_BLADE_1 and
+                spentTp == 3000
+            then
+                recipients[recipient:getID()] = true
+            end
+        end)
+
         local primaryHp = primary:getHP()
         local sleepingHp = sleeping:getHP()
         val:setMobAbilityEnabled(true)
@@ -243,14 +263,16 @@ describe('Ordinary Trust engagement', function()
         val:addGambit(ai.t.TARGET, { ai.c.ALWAYS, 0 }, { ai.r.MS, ai.s.SPECIFIC, xi.mobSkill.URIEL_BLADE_1 })
         for _ = 1, 6 do
             xi.test.world:skipTime(2)
-            if primary:getHP() < primaryHp then
+            if recipients[primaryId] then
                 break
             end
         end
 
-        assert(primary:getHP() < primaryHp, 'the native signature must reach its primary target')
-        assert(sleeping:getHP() == sleepingHp and sleeping:hasStatusEffect(xi.effect.SLEEP_I),
-            'the nearby sleeping enemy cannot take collateral damage or lose Sleep')
+        val:removeListener('ORDINARY_TRUST_URIEL_RECIPIENT')
+        assert(recipients[primaryId] and primary:getHP() < primaryHp, 'the native signature must damage its selected focus')
+        assert(recipients[awakeId], 'the same native signature must resolve on the awake collateral at the same point')
+        assert(not recipients[sleepingId] and sleeping:getHP() == sleepingHp and sleeping:hasStatusEffect(xi.effect.SLEEP_I),
+            'the protected sleeper cannot be a recipient, take damage, or lose Sleep')
     end)
 
     it('releases only the current Sleep application after a resisted damaging spell', function()
