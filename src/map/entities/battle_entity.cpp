@@ -1824,20 +1824,14 @@ void CBattleEntity::SetSLevel(uint8 slvl)
     // All mobs have a 1:1 ratio of MainJob/Subjob. A Monipulator's sub job is MON at its main level.
     const bool mobWithoutSubJob = !settings::get<bool>("map.INCLUDE_MOB_SJ") && this->objtype == TYPE_MOB && this->objtype != TYPE_PET;
     const bool isMonipulator    = monstrosity::AsMonipulator(this) != nullptr;
-    if (trustdevelopment::IsEnabled(dynamic_cast<const CTrustEntity*>(this)))
-    {
-        // Approved Trust jobs use their literal developed levels independently
-        // of the player/mob subjob ratio setting.
-        m_slvl = std::min(slvl, m_mlvl);
-    }
-    else if (mobWithoutSubJob || isMonipulator)
+    const bool developedTrust   = trustdevelopment::IsEnabled(dynamic_cast<const CTrustEntity*>(this));
+    if (!developedTrust && (mobWithoutSubJob || isMonipulator))
     {
         m_slvl = m_mlvl;
     }
-    else if (this->objtype == TYPE_PET)
+    else if (developedTrust || this->objtype == TYPE_PET)
     {
-        // Player pets have varying sub job ratios depending on pet type
-        // Sub level will be what is defined in petutils.cpp for the corresponding pet
+        // Developed Trusts and player pets use their supplied subjob level independently of the global ratio.
         m_slvl = std::min(slvl, m_mlvl);
     }
     else

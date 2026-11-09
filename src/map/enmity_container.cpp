@@ -145,7 +145,7 @@ void CEnmityContainer::AddBaseEnmity(CBattleEntity* PChar)
  *                                                                       *
  ************************************************************************/
 
-float CEnmityContainer::CalculateEnmityBonus(CBattleEntity* PEntity, int32 specialEnmityBonus)
+auto CEnmityContainer::CalculateEnmityBonus(CBattleEntity* PEntity, int32 specialEnmityBonus) -> float
 {
     TracyZoneScoped;
 

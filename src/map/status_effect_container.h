@@ -133,7 +133,7 @@ public:
     auto IsAsleep() -> bool;
     auto OrdinaryTrustSleepApplication() -> uint64;
     void ReleaseOrdinaryTrustSleepProtection(uint64 ownerSerial, uint64 application);
-    bool IsOrdinaryTrustSleepProtected(uint64 ownerSerial);
+    auto IsOrdinaryTrustSleepProtected(uint64 ownerSerial) -> bool;
     auto HasPreventActionEffect(bool ignoreCharm = false) -> bool; // checks if owner has an effect that prevents actions, like stun, petrify, sleep etc
 
     auto GetConfrontationEffect() -> uint16;              // gets confrontation number (bcnm, confrontation, campaign, reive mark)

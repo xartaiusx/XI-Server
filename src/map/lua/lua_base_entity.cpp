@@ -7080,17 +7080,17 @@ auto CLuaBaseEntity::getMainJob() -> xi::Job
     return static_cast<CBattleEntity*>(m_PBaseEntity)->GetMJob();
 }
 
-bool CLuaBaseEntity::isDevelopedTrust()
+auto CLuaBaseEntity::isDevelopedTrust() -> bool
 {
     return trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(m_PBaseEntity));
 }
 
-bool CLuaBaseEntity::hasDevelopedTrustFencerWeapon()
+auto CLuaBaseEntity::hasDevelopedTrustFencerWeapon() -> bool
 {
     return trustweaponskills::HasFencerWeapon(dynamic_cast<CBattleEntity*>(m_PBaseEntity));
 }
 
-bool CLuaBaseEntity::hasMainJobAccess(xi::Job job)
+auto CLuaBaseEntity::hasMainJobAccess(xi::Job job) -> bool
 {
     return trustdevelopment::HasMainJobAccess(dynamic_cast<CBattleEntity*>(m_PBaseEntity), job);
 }
@@ -12932,13 +12932,13 @@ auto CLuaBaseEntity::hasRaiseTractorMenu() -> bool
     return true;
 }
 
-bool CLuaBaseEntity::canReceiveTrustRaise()
+auto CLuaBaseEntity::canReceiveTrustRaise() -> bool
 {
     auto* trust = dynamic_cast<CTrustEntity*>(m_PBaseEntity);
     return trust && trust->CanReceiveRaise() && !trust->HasPendingRaise();
 }
 
-bool CLuaBaseEntity::offerTrustRaise(uint8 tier, bool shortWeakness, bool grantReraiseIII)
+auto CLuaBaseEntity::offerTrustRaise(uint8 tier, bool shortWeakness, bool grantReraiseIII) -> bool
 {
     auto* trust = dynamic_cast<CTrustEntity*>(m_PBaseEntity);
     return trust && trust->OfferRaise(TrustRaiseOptions{ tier, shortWeakness, grantReraiseIII });
@@ -16364,13 +16364,13 @@ auto CLuaBaseEntity::spawnTrust(uint16 trustId) -> CBaseEntity*
     return trustutils::SpawnTrust(static_cast<CCharEntity*>(m_PBaseEntity), trustId);
 }
 
-bool CLuaBaseEntity::canUseTwillsFullAlliance()
+auto CLuaBaseEntity::canUseTwillsFullAlliance() -> bool
 {
     return m_PBaseEntity->objtype == TYPE_PC &&
            trustutils::CanUseTwillsFullAlliance(static_cast<CCharEntity*>(m_PBaseEntity));
 }
 
-bool CLuaBaseEntity::canUseTwillsTrustGameplay()
+auto CLuaBaseEntity::canUseTwillsTrustGameplay() -> bool
 {
     return m_PBaseEntity->objtype == TYPE_PC && trustutils::CanUseTwillsTrustGameplay(static_cast<CCharEntity*>(m_PBaseEntity));
 }
@@ -16380,13 +16380,13 @@ auto CLuaBaseEntity::returnOrdinaryTrusts(const std::string& request) -> std::st
     return m_PBaseEntity->objtype == TYPE_PC ? trustutils::ReturnOrdinaryTrusts(static_cast<CCharEntity*>(m_PBaseEntity), request) : std::string{};
 }
 
-bool CLuaBaseEntity::isTwillsFullAllianceActive()
+auto CLuaBaseEntity::isTwillsFullAllianceActive() -> bool
 {
     return m_PBaseEntity->objtype == TYPE_PC &&
            trustutils::IsTwillsFullAllianceActive(static_cast<CCharEntity*>(m_PBaseEntity));
 }
 
-uint8 CLuaBaseEntity::getTwillsFullAllianceState()
+auto CLuaBaseEntity::getTwillsFullAllianceState() -> uint8
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -16396,7 +16396,7 @@ uint8 CLuaBaseEntity::getTwillsFullAllianceState()
     return static_cast<uint8>(trustutils::GetTwillsFullAllianceState(static_cast<CCharEntity*>(m_PBaseEntity)));
 }
 
-bool CLuaBaseEntity::setTwillsFullAllianceState(uint32 state)
+auto CLuaBaseEntity::setTwillsFullAllianceState(uint32 state) -> bool
 {
     if (m_PBaseEntity->objtype != TYPE_PC || state > static_cast<uint32>(trustutils::TwillsFullAllianceState::Failed))
     {

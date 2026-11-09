@@ -2756,7 +2756,7 @@ auto GetAGICritBonus(CBattleEntity* PAttacker, CBattleEntity* PDefender) -> int8
  *                                                                       *
  ************************************************************************/
 
-float GetDamageRatio(CBattleEntity* PAttacker, CBattleEntity* PDefender, bool isCritical, float bonusAttPercent, xi::SkillType weaponType, SLOTTYPE weaponSlot, bool isCannonball, int32 flatAttackBonus)
+auto GetDamageRatio(CBattleEntity* PAttacker, CBattleEntity* PDefender, bool isCritical, float bonusAttPercent, xi::SkillType weaponType, SLOTTYPE weaponSlot, bool isCannonball, int32 flatAttackBonus) -> float
 {
     float pDIF = 1.0f;
 
@@ -6299,7 +6299,7 @@ auto HasCoverGeometry(const CBattleEntity* protector, const CBattleEntity* recip
            areInLine(worldAngle(attacker->loc.p, protector->loc.p), attacker, recipient);
 }
 
-CBattleEntity* GetCoverAbilityUser(CBattleEntity* PCoverAbilityTarget, CBattleEntity* PMob, bool allowDevelopedTrust)
+auto GetCoverAbilityUser(CBattleEntity* PCoverAbilityTarget, CBattleEntity* PMob, bool allowDevelopedTrust) -> CBattleEntity*
 {
     CBattleEntity* PCoverAbilityUser    = nullptr;
     uint32         coverAbilityTargetID = PCoverAbilityTarget->id;
@@ -6402,7 +6402,7 @@ CBattleEntity* GetCoverAbilityUser(CBattleEntity* PCoverAbilityTarget, CBattleEn
     return nullptr;
 }
 
-bool IsMagicCovered(CBattleEntity* PCoverAbilityUser)
+auto IsMagicCovered(CBattleEntity* PCoverAbilityUser) -> bool
 {
     // Developed Trusts have no modeled gear granting magic/ranged Cover.
     return dynamic_cast<CCharEntity*>(PCoverAbilityUser) != nullptr && PCoverAbilityUser->getMod(xi::Mod::COVER_MAGIC_AND_RANGED) == 1;

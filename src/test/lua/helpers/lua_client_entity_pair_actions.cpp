@@ -249,13 +249,13 @@ void CLuaClientEntityPairActions::useAbility(CLuaBaseEntity* target, const ABILI
     parent_->packets().sendBasicPacket(*packet);
 }
 
-bool CLuaClientEntityPairActions::useTrustSpell(CLuaBaseEntity* actor, CLuaBaseEntity* target, SpellID spellId) const
+auto CLuaClientEntityPairActions::useTrustSpell(CLuaBaseEntity* actor, CLuaBaseEntity* target, SpellID spellId) const -> bool
 {
     auto* trust = FixtureTrust(parent_, actor, target);
     return trust && trust->PAI->Cast(target->GetBaseEntity()->entityId(), spellId);
 }
 
-bool CLuaClientEntityPairActions::hasTrustSpell(CLuaBaseEntity* actor, SpellID spellId) const
+auto CLuaClientEntityPairActions::hasTrustSpell(CLuaBaseEntity* actor, SpellID spellId) const -> bool
 {
     auto* trust = FixtureTrust(parent_, actor, actor);
     if (!trust || !trust->SpellContainer)
@@ -275,13 +275,13 @@ bool CLuaClientEntityPairActions::hasTrustSpell(CLuaBaseEntity* actor, SpellID s
            std::ranges::contains(spells->m_severeList, spellId);
 }
 
-bool CLuaClientEntityPairActions::useTrustAbility(CLuaBaseEntity* actor, CLuaBaseEntity* target, ABILITY abilityId) const
+auto CLuaClientEntityPairActions::useTrustAbility(CLuaBaseEntity* actor, CLuaBaseEntity* target, ABILITY abilityId) const -> bool
 {
     auto* trust = FixtureTrust(parent_, actor, target);
     return trust && trust->PAI->Ability(target->GetBaseEntity()->entityId(), abilityId);
 }
 
-bool CLuaClientEntityPairActions::useTrustWeaponskill(CLuaBaseEntity* actor, CLuaBaseEntity* target, uint16 wsId) const
+auto CLuaClientEntityPairActions::useTrustWeaponskill(CLuaBaseEntity* actor, CLuaBaseEntity* target, uint16 wsId) const -> bool
 {
     auto* trust = FixtureTrust(parent_, actor, target);
     return trust && trust->PAI->WeaponSkill(target->GetBaseEntity()->entityId(), wsId);
@@ -294,7 +294,7 @@ void CLuaClientEntityPairActions::flushEquipmentBatch() const
     parent_->testChar()->entity()->flushEquipChanges();
 }
 
-bool CLuaClientEntityPairActions::hasTrustEntity(uint32 id) const
+auto CLuaClientEntityPairActions::hasTrustEntity(uint32 id) const -> bool
 {
     // Non-instanced fixture proof only. The original full ID selects its zone,
     // even after owner zone-out. A current-owner/location filter would hide an
@@ -591,7 +591,7 @@ void CLuaClientEntityPairActions::acceptPartyInvite() const
  *  Notes   : Test-only; refuses an existing party or Trust roster.
  ************************************************************************/
 
-bool CLuaClientEntityPairActions::prepareSoloTrustParty() const
+auto CLuaClientEntityPairActions::prepareSoloTrustParty() const -> bool
 {
     return parent_->testChar()->prepareSoloTrustParty();
 }
@@ -603,7 +603,7 @@ bool CLuaClientEntityPairActions::prepareSoloTrustParty() const
  *  Notes   : Test-only. Avoids packet name lookup for policy-name overrides.
  ************************************************************************/
 
-bool CLuaClientEntityPairActions::formPartyForInvalidTrustState(CLuaBaseEntity* member) const
+auto CLuaClientEntityPairActions::formPartyForInvalidTrustState(CLuaBaseEntity* member) const -> bool
 {
     auto* PChar   = parent_->testChar()->entity();
     auto* PMember = member ? dynamic_cast<CCharEntity*>(member->GetBaseEntity()) : nullptr;
@@ -627,10 +627,10 @@ bool CLuaClientEntityPairActions::formPartyForInvalidTrustState(CLuaBaseEntity* 
  *  Notes   : Test-only. Avoids packet name lookup for policy-name overrides.
  ************************************************************************/
 
-bool CLuaClientEntityPairActions::formAllianceForInvalidTrustState(
+auto CLuaClientEntityPairActions::formAllianceForInvalidTrustState(
     CLuaBaseEntity* firstMember,
     CLuaBaseEntity* secondLeader,
-    CLuaBaseEntity* secondMember) const
+    CLuaBaseEntity* secondMember) const -> bool
 {
     auto* PChar         = parent_->testChar()->entity();
     auto* PFirstMember  = firstMember ? dynamic_cast<CCharEntity*>(firstMember->GetBaseEntity()) : nullptr;

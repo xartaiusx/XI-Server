@@ -4379,7 +4379,7 @@ void OnMobRoam(CBaseEntity* PMob)
     }
 }
 
-bool OnMobDespawn(CBaseEntity* PMob)
+auto OnMobDespawn(CBaseEntity* PMob) -> bool
 {
     TracyZoneScoped;
 

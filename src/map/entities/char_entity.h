@@ -753,7 +753,7 @@ public:
 
     void ReloadPartyInc();
     void ReloadPartyDec();
-    bool ReloadParty() const;
+    auto ReloadParty() const -> bool;
     void ClearTrusts(bool notifyClient = true);
     void RemoveTrust(CTrustEntity*);
 

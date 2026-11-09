@@ -33,12 +33,12 @@ constexpr uint8 kAlterEgoCategoryCap            = 60;
 constexpr uint8 kLegacyCombatSkillsDisplayIndex = 0;
 constexpr uint8 kLegacyMagicSkillsDisplayIndex  = 1;
 
-uint8 clampUpgrade(int32 value)
+auto clampUpgrade(int32 value) -> uint8
 {
     return static_cast<uint8>(std::clamp(value, 0, static_cast<int32>(kAlterEgoCategoryCap)));
 }
 
-uint16 nextUpgradeCost(uint8 upgrade)
+auto nextUpgradeCost(uint8 upgrade) -> uint16
 {
     if (upgrade >= kAlterEgoCategoryCap)
     {

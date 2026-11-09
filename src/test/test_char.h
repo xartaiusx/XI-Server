@@ -55,7 +55,7 @@ public:
 
     void setEntity(std::unique_ptr<CCharEntity> entity) const;
     auto entity() const -> CCharEntity*;
-    bool prepareSoloTrustParty() const;
+    auto prepareSoloTrustParty() const -> bool;
 
     void setIpp(IPP ipp);
     auto ipp() const -> IPP;

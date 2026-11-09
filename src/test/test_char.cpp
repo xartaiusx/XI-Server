@@ -298,7 +298,7 @@ auto TestChar::entity() const -> CCharEntity*
     return nullptr;
 }
 
-bool TestChar::prepareSoloTrustParty() const
+auto TestChar::prepareSoloTrustParty() const -> bool
 {
     auto* PChar = entity();
     if (!PChar || PChar->id != charId_ || charName_.empty() || PChar->PParty || !PChar->PTrusts.empty())

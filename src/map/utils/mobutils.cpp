@@ -162,7 +162,7 @@ auto GetSpeciesData(const uint16 speciesId) -> const SpeciesInfo&
  *                                                                       *
  ************************************************************************/
 
-uint16 GetBaseWeaponDamage(CMobEntity* PMob, uint16 slot, uint8 statLevel)
+auto GetBaseWeaponDamage(CMobEntity* PMob, uint16 slot, uint8 statLevel) -> uint16
 {
     // https://docs.google.com/spreadsheets/d/1YBoveP-weMdidrirY-vPDzHyxbEI2ryECINlfCnFkLI/edit?pli=1&gid=1743955268#gid=1743955268
     // Basic base damage formulas for reference:
@@ -275,7 +275,7 @@ uint16 GetBaseWeaponDamage(CMobEntity* PMob, uint16 slot, uint8 statLevel)
 }
 
 // Get base skill rankings for ACC/ATT/EVA/MEVA
-uint16 GetBaseSkill(CMobEntity* PMob, uint8 rank, uint8 statLevel)
+auto GetBaseSkill(CMobEntity* PMob, uint8 rank, uint8 statLevel) -> uint16
 {
     int8 mlvl = statLevel ? statLevel : PMob->GetMLevel();
 
@@ -297,7 +297,7 @@ uint16 GetBaseSkill(CMobEntity* PMob, uint8 rank, uint8 statLevel)
     return 0;
 }
 
-uint16 GetMagicEvasion(CMobEntity* PMob, uint8 statLevel)
+auto GetMagicEvasion(CMobEntity* PMob, uint8 statLevel) -> uint16
 {
     uint8 mlvl = std::min<uint8>(statLevel ? statLevel : PMob->GetMLevel(), 99);
 

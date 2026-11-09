@@ -2267,7 +2267,7 @@ void CStatusEffectContainer::ReleaseOrdinaryTrustSleepProtection(uint64 ownerSer
     }
 }
 
-bool CStatusEffectContainer::IsOrdinaryTrustSleepProtected(uint64 ownerSerial)
+auto CStatusEffectContainer::IsOrdinaryTrustSleepProtected(uint64 ownerSerial) -> bool
 {
     return IsAsleep() && ordinaryTrustSleepReleasedBy_ != ownerSerial;
 }

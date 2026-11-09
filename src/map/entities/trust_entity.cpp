@@ -320,6 +320,7 @@ void CTrustEntity::Die()
     // Preserve native death-listener semantics, then retain the exact owner identity.
     const auto owner = m_OwnerID;
     m_OwnerID.clean();
+    // NOLINTNEXTLINE(bugprone-parent-virtual-call): Skip the ordinary mob death timer and reward handling.
     CBattleEntity::Die();
     if (retainedCorpse_)
     {
@@ -384,9 +385,8 @@ void CTrustEntity::Spawn()
         }
     }
 
-    // NOTE: This is purposefully calling CBattleEntity's impl.
-    // TODO: Calling a grand-parent's impl. of an overridden function is bad
-    // we need to skip CMobEntity's spawn because it calculates stats (and our stats are already calculated)
+    // Trust levels and stats are already calculated. The Trust spawn hook runs below.
+    // NOLINTNEXTLINE(bugprone-parent-virtual-call): Skip ordinary mob level, trait and stat initialization.
     CBattleEntity::Spawn();
     if (developed)
     {

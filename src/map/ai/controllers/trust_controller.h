@@ -35,7 +35,7 @@ namespace trustcombat
 
 auto SleepApplication(CBattleEntity* actor, CBattleEntity* target) -> uint64;
 void RecordResolvedAction(CBattleEntity* actor, CBattleEntity* primaryTarget, const action_t& action, uint64 sleepApplication = 0);
-bool IsSleepProtected(CBattleEntity* actor, CBattleEntity* target);
+auto IsSleepProtected(CBattleEntity* actor, CBattleEntity* target) -> bool;
 
 } // namespace trustcombat
 

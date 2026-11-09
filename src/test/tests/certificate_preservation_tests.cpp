@@ -54,9 +54,9 @@ public:
     }
 
     CertificateFixture(const CertificateFixture&)            = delete;
-    CertificateFixture& operator=(const CertificateFixture&) = delete;
+    auto operator=(const CertificateFixture&) -> CertificateFixture& = delete;
     CertificateFixture(CertificateFixture&&)                 = delete;
-    CertificateFixture& operator=(CertificateFixture&&)      = delete;
+    auto operator=(CertificateFixture&&) -> CertificateFixture&      = delete;
 
     auto name() const -> std::string
     {

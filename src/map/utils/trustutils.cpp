@@ -186,7 +186,7 @@ auto HasSupportedTrustSessionPartyShape(CCharEntity* PMaster) -> bool
 
 trustutils::TrustReturnNonceCache trustReturnNonces{ static_cast<uint64>(std::time(nullptr)) };
 
-bool IsOwnedTrustReturnTarget(CCharEntity* PMaster, CTrustEntity* PTrust)
+auto IsOwnedTrustReturnTarget(CCharEntity* PMaster, CTrustEntity* PTrust) -> bool
 {
     return PMaster && PTrust && PTrust->objtype == TYPE_TRUST && PTrust->PMaster == PMaster &&
            PTrust->loc.zone == PMaster->loc.zone && PTrust->PInstance == PMaster->PInstance &&
@@ -629,6 +629,9 @@ auto trustutils::ResolveTrustMemberLimit(CCharEntity* PMaster) -> std::optional<
         *evidenceMode,
         gameplay);
 }
+
+namespace
+{
 
 auto SafeLogValue(std::string value) -> std::string
 {
@@ -1247,6 +1250,8 @@ auto WouldExceedTrustLogLimit(const std::filesystem::path& path, std::size_t lin
     return error || currentBytes + lineBytes + 1U > maxBytes;
 }
 
+} // namespace
+
 void trustutils::MarkTrustEvidenceTruncated(CCharEntity* PMaster, std::string_view reason)
 {
     if (!PMaster)
@@ -1312,6 +1317,9 @@ void trustutils::MarkTrustEvidenceTruncated(CCharEntity* PMaster, std::string_vi
             liveWritten);
     }
 }
+
+namespace
+{
 
 auto AppendTrustLogLine(CCharEntity* PMaster, const TrustEvidenceSession& session, const std::string& line) -> bool
 {
@@ -1558,9 +1566,6 @@ auto ResolvePacketTarget(CTrustEntity* PTrust, CCharEntity* PMaster, const CBatt
     return nullptr;
 }
 
-namespace
-{
-
 void LogOrdinaryTrustPacket(CTrustEntity* trust, CCharEntity* master, const action_t& action, const CBattleEntity* primaryTarget, const char* source)
 {
     // Reuse the native map-log sink with a separate byte cap. This optional trace never changes
@@ -1716,7 +1721,7 @@ void trustutils::LogTrustActionSkip(CBattleEntity* PActor, const CBattleEntity* 
     AppendTrustLogLine(PMaster, *session, line.str());
 }
 
-bool trustutils::BroadcastOrdinaryTrustPartyAction(CBattleEntity* PActor, action_t& action)
+auto trustutils::BroadcastOrdinaryTrustPartyAction(CBattleEntity* PActor, action_t& action) -> bool
 {
     if (!PActor || action.actorId != PActor->id || action.targets.size() <= actionpacket::MaxTargets ||
         action.targets.size() > kFullAllianceMemberLimit)

@@ -390,9 +390,9 @@ public:
     // Player Jobs and Levels
     auto getMainJob() -> xi::Job;
     auto getSubJob() -> xi::Job;
-    bool isDevelopedTrust();
-    bool hasDevelopedTrustFencerWeapon();
-    bool hasMainJobAccess(xi::Job job);
+    auto isDevelopedTrust() -> bool;
+    auto hasDevelopedTrustFencerWeapon() -> bool;
+    auto hasMainJobAccess(xi::Job job) -> bool;
     auto getDevelopedHolyCircleMultiplier(uint32 targetId, uint32 targetIndex) -> double;
     void changeJob(uint8 newJob);
     void changesJob(uint8 subJob);
@@ -652,9 +652,9 @@ public:
     auto isAlive() -> bool;
     auto isDead() -> bool;
 
-    bool hasRaiseTractorMenu();
-    bool canReceiveTrustRaise();
-    bool offerTrustRaise(uint8 tier, bool shortWeakness, bool grantReraiseIII);
+    auto hasRaiseTractorMenu() -> bool;
+    auto canReceiveTrustRaise() -> bool;
+    auto offerTrustRaise(uint8 tier, bool shortWeakness, bool grantReraiseIII) -> bool;
     void sendRaise(uint8 raiseLevel);
     void sendReraise(uint8 raiseLevel);
     void sendTractor(float xPos, float yPos, float zPos, uint8 rotation);
@@ -700,8 +700,8 @@ public:
     auto checkLiementAbsorb(xi::DamageType damageType) -> float; // return 1.0 if did not absorb, return >= -1.0 if did absorb
 
     // Enmity
-    int32 getCE(const CLuaBaseEntity* target);
-    int32 getVE(const CLuaBaseEntity* target);
+    auto  getCE(const CLuaBaseEntity* target) -> int32;
+    auto  getVE(const CLuaBaseEntity* target) -> int32;
     void  setCE(CLuaBaseEntity* target, uint16 amount);
     void  setVE(CLuaBaseEntity* target, uint16 amount);
     void  addBaseEnmity(CLuaBaseEntity* PEntity);
@@ -714,8 +714,8 @@ public:
     void  resetEnmity(CLuaBaseEntity* PEntity);
     void  setEnmityActive(CLuaBaseEntity* PEntity, bool active);
     void  updateClaim(const sol::object& entity);
-    bool  hasClaim(CLuaBaseEntity* PTarget);
-    bool  hasEnmity();
+    auto  hasClaim(CLuaBaseEntity* PTarget) -> bool;
+    auto  hasEnmity() -> bool;
     auto  getNotorietyList() -> sol::table;
     auto  getMasterThreatMob(const sol::object& rangeOverride) -> CBaseEntity*;
     void  clearEnmityForEntity(CLuaBaseEntity* PEntity);
@@ -818,13 +818,13 @@ public:
 
     auto   spawnTrust(uint16 trustId) -> CBaseEntity*;
     void   clearTrusts();
-    bool   canUseTwillsFullAlliance();
-    bool   canUseTwillsTrustGameplay();
+    auto   canUseTwillsFullAlliance() -> bool;
+    auto   canUseTwillsTrustGameplay() -> bool;
     auto   returnOrdinaryTrusts(const std::string& request) -> std::string;
-    bool   isTwillsFullAllianceActive();
-    uint8  getTwillsFullAllianceState();
-    bool   setTwillsFullAllianceState(uint32 state);
-    uint32 getTrustID();
+    auto   isTwillsFullAllianceActive() -> bool;
+    auto   getTwillsFullAllianceState() -> uint8;
+    auto   setTwillsFullAllianceState(uint32 state) -> bool;
+    auto   getTrustID() -> uint32;
     void   trustPartyMessage(uint32 message_id) const;
     auto   addGambit(uint16 targ, const sol::table& predicates, const sol::table& reactions, const sol::object& retry) -> std::string;
     void   removeGambit(const std::string& id);

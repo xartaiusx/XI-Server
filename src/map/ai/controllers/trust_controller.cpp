@@ -344,13 +344,13 @@ auto IsValidTrustFocusTarget(CMobEntity* PMob, CCharEntity* PMaster) -> bool
     return PMob && PMaster && PMob->isAlive() && PMob->allegiance != PMaster->allegiance && !PMob->PAI->IsUntargetable();
 }
 
-bool CanUseOrdinaryTrustCombat(CCharEntity* PMaster)
+auto CanUseOrdinaryTrustCombat(CCharEntity* PMaster) -> bool
 {
     return PMaster && !PMaster->PTrusts.empty() && !PMaster->isDead() && !PMaster->isCharmed &&
            trustutils::CanUseTwillsTrustGameplay(PMaster);
 }
 
-bool IsOrdinaryTrustEnemy(CMobEntity* PMob, CCharEntity* PMaster)
+auto IsOrdinaryTrustEnemy(CMobEntity* PMob, CCharEntity* PMaster) -> bool
 {
     return IsValidTrustFocusTarget(PMob, PMaster) && PMob->loc.zone == PMaster->loc.zone &&
            PMob->PInstance == PMaster->PInstance && PMob->PBattlefield == PMaster->PBattlefield &&
@@ -359,7 +359,7 @@ bool IsOrdinaryTrustEnemy(CMobEntity* PMob, CCharEntity* PMaster)
            distance(PMaster->loc.p, PMob->loc.p) <= DefensiveEngageDistance && PMaster->IsMobOwner(PMob);
 }
 
-bool ThreatensOrdinaryTrustParty(CMobEntity* PMob, CCharEntity* PMaster)
+auto ThreatensOrdinaryTrustParty(CMobEntity* PMob, CCharEntity* PMaster) -> bool
 {
     return MobThreatensEntity(PMob, PMaster) ||
            std::ranges::any_of(PMaster->PTrusts, [&](auto* trust)
@@ -841,7 +841,7 @@ void SetTrustResting(CTrustEntity* PTrust, bool enabled, TrustRestStartReason st
 
 } // namespace
 
-bool trustcombat::IsSleepProtected(CBattleEntity* actor, CBattleEntity* target)
+auto trustcombat::IsSleepProtected(CBattleEntity* actor, CBattleEntity* target) -> bool
 {
     if (!actor || actor->objtype != TYPE_TRUST || !target || target->objtype != TYPE_MOB ||
         actor->allegiance == target->allegiance || !target->StatusEffectContainer->IsAsleep())
