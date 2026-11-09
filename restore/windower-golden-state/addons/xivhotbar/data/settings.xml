@@ -70,7 +70,7 @@
                 </Third>
             </Offsets>
             <ShowDescription>true</ShowDescription>
-            <SlotIconScale>0.62</SlotIconScale>
+            <SlotIconScale>1</SlotIconScale>
             <columns>12</columns>
             <rows>6</rows>
         </Hotbar>
