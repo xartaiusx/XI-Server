@@ -153,27 +153,54 @@ describe('Iroha II native merit consumers', function()
                 started = xi.test.world:getSteadyTime()
             end)
 
-            iroha:addListener('MAGIC_USE', 'IROHA_MERIT_CURE_FINISH', function(actor, recipient, spell)
+            iroha:addListener('MAGIC_USE', 'IROHA_MERIT_CURE_FINISH', function(actor, recipient, spell, action)
                 assert(not finished and actor:getID() == iroha:getID() and recipient:getID() == owner:getID() and spell:getID() == spellId)
-                finished = xi.test.world:getSteadyTime()
+                assert(action:getCategory() == xi.action.category.MAGIC_FINISH)
+                finished =
+                {
+                    time = xi.test.world:getSteadyTime(),
+                    restored = action:getParam(recipient:getID()),
+                    recast = action:getRecast(),
+                }
             end)
+
+            local function assertPending(checkpoint)
+                assert(not finished, checkpoint .. ': Curaga V completed too soon')
+                assert(owner:getHP() == hp, checkpoint .. ': recipient HP changed before completion')
+                assert(iroha:getMP() == mp, checkpoint .. ': caster MP changed before completion')
+            end
 
             assert(owner.actions:useTrustSpell(iroha, owner, spellId))
             xi.test.world:tickEntity(iroha)
             assert(started)
-            xi.test.world:skipTime(4)
-            assert(not finished and owner:getHP() == hp and iroha:getMP() == mp)
+
+            -- skipTime also ticks the zone, advancing the simulated clock by
+            -- another 400ms. Observe near 3.4s, 4.8s and, for the control, 6.2s.
+            xi.test.world:skipTime(3)
+            local early = xi.test.world:getSteadyTime() - started
+            assert(early >= 3.4 and early < 4.4, string.format('early checkpoint outside cast window: %.3fs', early))
+            assertPending('early checkpoint')
+
             xi.test.world:skipTime(1)
-            if not withMerit then
-                assert(not finished and owner:getHP() == hp and iroha:getMP() == mp)
+            local middle = xi.test.world:getSteadyTime() - started
+            assert(middle > 4.4 and middle < 5.5, string.format('middle checkpoint outside cast window: %.3fs', middle))
+            if withMerit then
+                assert(finished, 'Curaga V with the merit must finish at the middle checkpoint')
+            else
+                assertPending('middle checkpoint without the merit effect')
                 xi.test.world:skipTime(1)
             end
 
             iroha:removeListener('IROHA_MERIT_CURE_START')
             iroha:removeListener('IROHA_MERIT_CURE_FINISH')
-            local elapsed = assert(finished, 'native Curaga V must complete') - started
-            assert(withMerit and elapsed >= 4 and elapsed < 5.5 or not withMerit and elapsed >= 5.5)
-            assert(owner:getHP() > hp and iroha:getMP() == mp - 380 and iroha:hasRecast(xi.recast.MAGIC, spellId))
+            local completion = assert(finished, 'native Curaga V must complete')
+            local elapsed = completion.time - started
+            local lower = withMerit and 4.4 or 5.5
+            local upper = withMerit and 5.5 or 7.0
+            assert(elapsed > lower and elapsed < upper, string.format('completion outside cast window: %.3fs', elapsed))
+            assert(completion.restored > 0 and owner:getHP() - hp == completion.restored, 'the primary recipient HP must match the native action')
+            assert(iroha:getMP() == mp - 380, 'Curaga V must spend exactly 380 MP')
+            assert(completion.recast == 11 and iroha:hasRecast(xi.recast.MAGIC, spellId), 'Curaga V must record and start its 11s recast')
         end)
     end
 end)
