@@ -76,7 +76,8 @@ void ConsoleReporter::onSuiteEnd(const TestSuite& suite, std::chrono::millisecon
 
 void ConsoleReporter::onTestStart(const TestSuite& suite, const TestCase& testCase)
 {
-    std::cout << termcolor::green << "[ RUN      ]" << termcolor::reset << " " << suite.fullName() << "::" << testCase.name() << "\n";
+    std::cout << termcolor::green << "[ RUN      ]" << termcolor::reset << " " << suite.fullName() << "::" << testCase.name() << '\n'
+              << std::flush;
 }
 
 void ConsoleReporter::onTestSkipped(const TestSuite& suite, const TestCase& testCase)

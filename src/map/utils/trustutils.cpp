@@ -2722,11 +2722,17 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust, bool refresh)
     jobStat  = 0;
     sJobStat = 0;
 
+    // Iroha II keeps SAM combat stats and receives the native WHM MP curve at
+    // her Trust stat level. Counting WHM only here keeps its full costs usable.
+    const bool fullSupportMp = developed && PTrust->trustID() == 1018;
+    const auto mpJob         = fullSupportMp ? sJob : mJob;
+    const auto mpSupportJob  = fullSupportMp ? mJob : sJob;
+
     grade = scaleToGrade(PTrust->MPscale);
 
-    if (grade::GetJobGrade(mJob, 1) == 0)
+    if (grade::GetJobGrade(mpJob, 1) == 0)
     {
-        if (grade::GetJobGrade(sJob, 1) != 0 && sLvl > 0)
+        if (grade::GetJobGrade(mpSupportJob, 1) != 0 && sLvl > 0)
         {
             raceStat = (grade::GetMPScale(grade, 0) + grade::GetMPScale(grade, scaleTo60Column) * (sLvl - 1)) / settings::get<uint8>("map.SJ_MP_DIVISOR");
         }
@@ -2737,7 +2743,7 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust, bool refresh)
                    grade::GetMPScale(grade, scaleOver60) * mainLevelOver60;
     }
 
-    grade = grade::GetJobGrade(mJob, 1);
+    grade = grade::GetJobGrade(mpJob, 1);
 
     if (grade > 0)
     {
@@ -2747,7 +2753,7 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust, bool refresh)
 
     if (sLvl > 0)
     {
-        grade    = grade::GetJobGrade(sJob, 1);
+        grade    = grade::GetJobGrade(mpSupportJob, 1);
         sJobStat = grade::GetMPScale(grade, 0) + grade::GetMPScale(grade, scaleTo60Column);
     }
 

@@ -43,10 +43,29 @@ describe('Ordinary Trust engagement', function()
         return trust:isEngaged() and target and target:getID() == mob:getID()
     end
 
-    local function playerSpell(mob, spell)
-        owner.actions:useSpell(mob, spell)
+    local function playerSpell(target, spell, rejected)
+        local started = false
+        local completed = false
+        owner:addListener('MAGIC_START', 'ORDINARY_TRUST_CAST_START', function(_, recipient, actionSpell)
+            started = recipient:getID() == target:getID() and actionSpell:getID() == spell
+        end)
+        owner:addListener('MAGIC_USE', 'ORDINARY_TRUST_CAST_FINISH', function(_, recipient, actionSpell)
+            completed = recipient:getID() == target:getID() and actionSpell:getID() == spell
+        end)
+
+        owner.actions:useSpell(target, spell)
         xi.test.world:tickEntity(owner)
         xi.test.world:skipTime(8)
+        -- The zone ticks Trusts before PCs. Let the Trusts consume the event from the previous tick.
+        xi.test.world:skipTime(1)
+
+        owner:removeListener('ORDINARY_TRUST_CAST_START')
+        owner:removeListener('ORDINARY_TRUST_CAST_FINISH')
+        if rejected then
+            assert(not started and not completed, 'the rejected spell cannot start or complete')
+        else
+            assert(started and completed, 'the requested spell must resolve on its exact recipient')
+        end
     end
 
     before_each(function()
@@ -135,7 +154,7 @@ describe('Ordinary Trust engagement', function()
         assert(owner:isEngaged() and owner:getTarget():getID() == first:getID())
         assert(onTarget(val, second) and onTarget(iroha, second), 'old melee target cannot beat a later spell')
 
-        playerSpell(first, xi.magic.spell.FIRE_VI)
+        playerSpell(first, xi.magic.spell.FIRE_VI, true)
         assert(onTarget(val, second) and onTarget(iroha, second), 'a rejected spell cannot change focus')
 
         owner:setPos(x, y, z)

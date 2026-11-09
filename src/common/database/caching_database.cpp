@@ -260,21 +260,24 @@ auto db::CachingDatabase::getSchema() -> std::string
 {
     TracyZoneScoped;
 
-    return getState().connection->schema();
+    std::string result = getState().connection->schema();
+    return result;
 }
 
 auto db::CachingDatabase::getVersion() -> std::string
 {
     TracyZoneScoped;
 
-    return getState().connection->version();
+    std::string result = getState().connection->version();
+    return result;
 }
 
 auto db::CachingDatabase::getDriverVersion() -> std::string
 {
     TracyZoneScoped;
 
-    return getState().connection->driverVersion();
+    std::string result = getState().connection->driverVersion();
+    return result;
 }
 
 auto db::enableTimers() -> void

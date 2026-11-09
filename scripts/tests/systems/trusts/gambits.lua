@@ -15,15 +15,29 @@ describe('Trust gambits', function()
         xi.test.world:skipTime(1)
         local amchuchu = player:getPartyWithTrusts()[2]
         assert(amchuchu and amchuchu:isTrust(), 'precondition: Amchuchu was summoned')
-        player:setCharVar('TrustEngageType', 1)
+        -- This regular party uses the retail trigger, so engage and wait for
+        -- a real owner melee round before exercising Amchuchu's cast gambit.
+        local ownerRound = false
+        player:addListener('ATTACK', 'TRUST_GAMBIT_TEST_OWNER_ROUND', function(_, attackTarget)
+            ownerRound = ownerRound or attackTarget:getID() == mob:getID()
+        end)
+
         mob:updateEnmity(player)
-        player:engage(mob:getTargID())
-        for _ = 1, 3 do
+        player.actions:engage(mob)
+        for _ = 1, 8 do
             xi.test.world:skipTime(1)
-            xi.test.world:tick()
+            xi.test.world:tickEntity(amchuchu)
+            local trustTarget = amchuchu:getTarget()
+            if ownerRound and trustTarget and trustTarget:getID() == mob:getID() then
+                break
+            end
         end
 
-        assert(amchuchu:getTarget(), 'precondition: Amchuchu engaged the rabbit')
+        player:removeListener('TRUST_GAMBIT_TEST_OWNER_ROUND')
+        assert(ownerRound, 'precondition: owner executed a melee round on the rabbit')
+        local trustTarget = amchuchu:getTarget()
+        assert(amchuchu:isEngaged() and trustTarget and trustTarget:getID() == mob:getID(),
+            'precondition: Amchuchu engaged the rabbit')
 
         local target = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE })
         target:setPos(mob:getXPos(), mob:getYPos(), mob:getZPos())

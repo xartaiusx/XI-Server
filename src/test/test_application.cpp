@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cstdio>
 #include <cstdlib>
 #include <string>
 
@@ -110,7 +111,11 @@ TestApplication::TestApplication(const int argc, char** argv)
 {
 }
 
-TestApplication::~TestApplication() = default;
+TestApplication::~TestApplication()
+{
+    // Session cleanup logs through Application-owned loggers.
+    engine_.reset();
+}
 
 auto TestApplication::createEngine() -> std::unique_ptr<Engine>
 {
@@ -221,6 +226,7 @@ auto TestApplication::run() -> bool
     catch (const std::exception& e)
     {
         ShowCriticalFmt("Fatal Exception: {}", e.what());
+        std::fputs("Test scheduler exited after an exception.\n", stderr);
         success_ = false;
     }
 
