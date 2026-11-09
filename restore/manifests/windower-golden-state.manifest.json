@@ -85,8 +85,8 @@
     },
     {
       "relativePath": "addons/xivhotbar/data/settings.xml",
-      "bytes": 4505,
-      "sha256": "c9a9c8d9ff65be7a91d15f41815d9d18d3412e3c17348c6bc36827794bd83077"
+      "bytes": 4502,
+      "sha256": "9f62612897c063ecd4e688f66ac79e15a096495127a8c611ed118b1ee84fa3d4"
     },
     {
       "relativePath": "addons/xivhotbar/defaults.lua",

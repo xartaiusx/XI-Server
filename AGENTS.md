@@ -166,10 +166,9 @@ Never run Windower command helpers, raw key helpers, or native screenshot helper
 
 At 2560x1600 with `uiscale=1`, the persisted overlay baseline is:
 
-- XIVHotbar: X `1114`, spacing `56`, bottom-up battle-row Y positions `1512`,
-  `1456`, `1400`, `1344`, `1288`, and `1232`. With the addon's 40-pixel
-  slots, this leaves a 48-pixel bottom safety margin and 16 pixels of clear
-  vertical space between rows.
+- XIVHotbar: two columns of three 40-pixel rows. Rows 1-3 use X `748` and
+  rows 4-6 use X `1288`. Both columns use bottom-up Y offsets `1540`,
+  `1484`, and `1428`, with 56-pixel row spacing.
 - XivParty: use the tracked `mochirii_xiv` layout with `alignBottom=true`;
   party `0.88,0.985`, alliance1 `0.88,0.853`, alliance2 `0.88,0.808`; Twills
   scale `0.72`. The custom layout right-aligns all 32 buff icons inside the
