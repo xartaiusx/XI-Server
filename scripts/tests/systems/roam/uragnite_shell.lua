@@ -22,7 +22,6 @@ describe('Uragnite shell', function()
 
     after_each(function()
         if mob then
-            mob:removeListener('TEST_URAGNITE_CLOCK')
             mob:clearTimerQueue()
             mob:respawn()
         end
@@ -41,10 +40,6 @@ describe('Uragnite shell', function()
         mob:clearTimerQueue()
         mob:triggerListener('ROAM_TICK', mob)
         xi.test.world:tickEntity(mob)
-        local elapsedTime = 0
-        mob:addListener('TICK', 'TEST_URAGNITE_CLOCK', function(_, elapsed)
-            elapsedTime = elapsedTime + elapsed
-        end)
 
         local closedAt = nil
         local openedAt = nil
@@ -60,10 +55,9 @@ describe('Uragnite shell', function()
             end
         end
 
-        mob:removeListener('TEST_URAGNITE_CLOCK')
         assert(closedAt, 'the shell never closed')
         assert(openedAt, 'the shell never opened again')
-        local closed = (openedAt - closedAt) / 1000
+        local closed = openedAt - closedAt
         assert(closed >= 15 and closed <= 35, 'shell was closed for ' .. closed .. ' s')
     end)
 
