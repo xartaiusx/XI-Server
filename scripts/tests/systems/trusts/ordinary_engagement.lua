@@ -49,6 +49,7 @@ describe('Ordinary Trust engagement', function()
         owner:addListener('MAGIC_START', 'ORDINARY_TRUST_CAST_START', function(_, recipient, actionSpell)
             started = recipient:getID() == target:getID() and actionSpell:getID() == spell
         end)
+
         owner:addListener('MAGIC_USE', 'ORDINARY_TRUST_CAST_FINISH', function(_, recipient, actionSpell)
             completed = recipient:getID() == target:getID() and actionSpell:getID() == spell
         end)
@@ -56,15 +57,16 @@ describe('Ordinary Trust engagement', function()
         owner.actions:useSpell(target, spell)
         xi.test.world:tickEntity(owner)
         xi.test.world:skipTime(8)
-        -- The zone ticks Trusts before PCs. Let the Trusts consume the event from the previous tick.
-        xi.test.world:skipTime(1)
+        -- Trusts tick before PCs. Give them the completed event and let the owner's 2.5-second action lock expire.
+        xi.test.world:skipTime(3)
 
         owner:removeListener('ORDINARY_TRUST_CAST_START')
         owner:removeListener('ORDINARY_TRUST_CAST_FINISH')
         if rejected then
             assert(not started and not completed, 'the rejected spell cannot start or complete')
         else
-            assert(started and completed, 'the requested spell must resolve on its exact recipient')
+            assert(started, 'the requested spell must start on its exact recipient')
+            assert(completed, 'the requested spell must complete on its exact recipient')
         end
     end
 

@@ -3025,7 +3025,15 @@ void trustutils::RefreshDevelopedSpellCatalog(CTrustEntity* PTrust)
         const auto subLevel  = spell->getJob(PTrust->GetSJob());
         if ((mainLevel > 0 && mainLevel <= 99) || (subLevel > 0 && subLevel <= 99) || trustdevelopment::CanUseSpecialSpell(profile, spell->getID()))
         {
-            PTrust->SpellContainer->AddSpell(static_cast<SpellID>(id));
+            if (spell->getID() == SpellID::Sacrifice)
+            {
+                // Sacrifice transfers an ailment and has no generic spell-list category.
+                PTrust->SpellContainer->m_naList.emplace_back(spell->getID());
+            }
+            else
+            {
+                PTrust->SpellContainer->AddSpell(spell->getID());
+            }
         }
     }
 }

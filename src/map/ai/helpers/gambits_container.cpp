@@ -1711,11 +1711,10 @@ auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const G
             case G_CONDITION::CAST_ELE_MA_SELF:
             {
                 bool isElementalMAOnSelf = false;
-                if (triggerTarget->PAI->IsCurrentState<CMagicState>())
+                if (const auto* PState = dynamic_cast<const CMagicState*>(triggerTarget->PAI->GetCurrentState()))
                 {
-                    const auto* PState        = static_cast<CMagicState*>(triggerTarget->PAI->GetCurrentState());
-                    const auto  spellElement  = PState->GetSpell()->getElement();
-                    const auto  isElementalMA = spellElement >= ELEMENT_FIRE && spellElement <= ELEMENT_WATER;
+                    const auto spellElement  = PState->GetSpell()->getElement();
+                    const auto isElementalMA = spellElement >= ELEMENT_FIRE && spellElement <= ELEMENT_WATER;
                     if (PState->target() == POwner && isElementalMA)
                     {
                         isElementalMAOnSelf = true;
