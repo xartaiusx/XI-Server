@@ -133,6 +133,12 @@ describe('Ordinary Trust engagement', function()
         playerSpell(first, xi.magic.spell.PARALYZE)
         assert(not owner:isEngaged() and onTarget(val, first) and onTarget(iroha, first))
 
+        assert(iroha:getMP() >= GetSpell(xi.magic.spell.IMPACT):getMPCost())
+        for _, spell in ipairs({ xi.magic.spell.DIAGA_II, xi.magic.spell.DISPELGA, xi.magic.spell.IMPACT }) do
+            assert(not owner.actions:hasTrustSpell(iroha, spell), string.format('spell %d is outside the job catalog', spell))
+            assert(not owner.actions:useTrustSpell(iroha, first, spell), string.format('spell %d fails native admission', spell))
+        end
+
         playerSpell(second, xi.magic.spell.DIA)
         assert(not owner:isEngaged() and onTarget(val, second) and onTarget(iroha, second))
     end)

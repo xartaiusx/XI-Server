@@ -3022,7 +3022,7 @@ void trustutils::RefreshDevelopedSpellCatalog(CTrustEntity* PTrust)
     for (uint16 id = 1; id < MAX_SPELL_ID; ++id)
     {
         auto* spell = spell::GetSpell(static_cast<SpellID>(id));
-        if (!spell || spell->getSpellGroup() == SPELLGROUP_TRUST || spell->getSpellGroup() == SPELLGROUP_BLUE)
+        if (!spell || !trustdevelopment::IsJobCatalogSpell(*spell))
         {
             continue;
         }

@@ -25,6 +25,7 @@
 
 class CAbility;
 class CBattleEntity;
+class CSpell;
 class CTrustEntity;
 enum class SpellID : uint16;
 
@@ -55,6 +56,7 @@ auto HasMainJobAccess(const CBattleEntity* PEntity, xi::Job job) -> bool;
 auto GetActionJobLevel(const CBattleEntity* PEntity, xi::Job job) -> uint8;
 auto GetMeritValue(const CBattleEntity* PEntity, xi::Merit merit) -> int32;
 auto GetJobPointLevel(const CBattleEntity* PEntity, uint16 jpType) -> uint8;
+auto IsJobCatalogSpell(CSpell& spell) -> bool;
 auto CanUseSpecialSpell(const Profile& profile, SpellID spellId) -> bool;
 auto IsIrohaSignature(uint16 skillId) -> bool;
 auto CanUseIrohaSignature(const CBattleEntity* entity) -> bool;

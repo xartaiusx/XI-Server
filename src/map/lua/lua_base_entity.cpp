@@ -12324,7 +12324,8 @@ auto CLuaBaseEntity::getPartyLastMemberJoinedTime() -> uint32
 
     if (PChar->PParty != nullptr)
     {
-        return earth_time::timestamp(timer::to_utc(PChar->PParty->GetTimeLastMemberJoined()));
+        const auto joinedAt = PChar->PParty->GetTimeLastMemberJoined();
+        return joinedAt == timer::time_point{} ? 0 : earth_time::timestamp(timer::to_utc(joinedAt));
     }
 
     return 0;

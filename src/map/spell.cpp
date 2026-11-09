@@ -882,7 +882,7 @@ auto CanUseSpell(CBattleEntity* PCaster, CSpell* spell) -> bool
 
             if (auto* PTrust = dynamic_cast<CTrustEntity*>(PCaster); trustdevelopment::IsEnabled(PTrust))
             {
-                if (spell->getSpellGroup() == SPELLGROUP_TRUST || spell->getSpellGroup() == SPELLGROUP_BLUE)
+                if (!trustdevelopment::IsJobCatalogSpell(*spell))
                 {
                     return false;
                 }

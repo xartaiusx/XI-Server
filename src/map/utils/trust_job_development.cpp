@@ -210,6 +210,15 @@ auto GetJobPointLevel(const CBattleEntity* PEntity, uint16 jpType) -> uint8
     return IsEnabled(trust) ? GetDevelopedJobPointLevel(trust->trustID(), jpType) : 0;
 }
 
+auto IsJobCatalogSpell(CSpell& spell) -> bool
+{
+    // Job level bytes also appear on Diaga II (NPC-only) and on item grants.
+    // Neither developed profile models the items that grant Dispelga or Impact.
+    const auto id = spell.getID();
+    return spell.getSpellGroup() != SPELLGROUP_TRUST && spell.getSpellGroup() != SPELLGROUP_BLUE &&
+           id != SpellID::Diaga_II && id != SpellID::Dispelga && id != SpellID::Impact;
+}
+
 auto CanUseSpecialSpell(const Profile& profile, SpellID spellId) -> bool
 {
     // WHM gift spells have no job bytes. Flare II is a signature and
