@@ -23,9 +23,24 @@ on:
     - cron:  '0 12 * * *'
   # Or by request
   workflow_dispatch:
+    inputs:
+      baseline_workflow_sha:
+        description: Exact independently reviewed temporary baseline workflow commit
+        required: false
+        type: string
+      baseline_runner_image:
+        description: Exact previously observed ubuntu-26.04 runner image version
+        required: false
+        type: string
+        default: '20261101.186.1'
 
 jobs:
   analyze:
+    if: >-
+      github.ref != 'refs/heads/mochi/codeql-n8a34-baseline' &&
+      !(github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        github.head_ref == 'mochi/codeql-n8a34-baseline')
     name: Analyze
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -103,3 +118,331 @@ jobs:
       uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4
       with:
         sarif_file: sarif-results/${{ matrix.language }}.sarif
+
+  accepted_n_artifact:
+    name: Accepted N compiled CodeQL artifact
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/mochi/codeql-n8a34-baseline'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 210
+    permissions:
+      actions: read
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      ACCEPTED_N: 8a34d1baaeded1665ef8101eba2cf2190d3d83f3
+      ACCEPTED_TREE: 922c92a7a2ff848d3c9d442ba55fcdb21f546db7
+      BASELINE_CATEGORY: .github/workflows/codeql_analysis.yml:analyze/build-mode:none/language:cpp
+      STAGE: ${{ runner.temp }}/n8a34-codeql
+      EXPECTED_WORKFLOW: ${{ inputs.baseline_workflow_sha }}
+      EXPECTED_IMAGE: ${{ inputs.baseline_runner_image }}
+
+    steps:
+      - name: Verify the exact authorized dispatch
+        env:
+          ACTUAL_WORKFLOW: ${{ github.workflow_sha }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$GITHUB_REPOSITORY" == xartaiusx/XI-Server ]]
+          [[ "$GITHUB_ACTOR" == xartaiusx && "$TRIGGERING_ACTOR" == xartaiusx ]]
+          [[ "$GITHUB_RUN_ATTEMPT" == 1 && "$GITHUB_SHA" == "$ACTUAL_WORKFLOW" ]]
+          [[ "$EXPECTED_WORKFLOW" =~ ^[0-9a-f]{40}$ && "$ACTUAL_WORKFLOW" == "$EXPECTED_WORKFLOW" ]]
+          [[ "$EXPECTED_IMAGE" =~ ^[0-9]{8}[.][0-9]+[.][0-9]+$ && "$ImageVersion" == "$EXPECTED_IMAGE" ]]
+          [[ "$STAGE" == "$RUNNER_TEMP/n8a34-codeql" && "$STAGE" =~ ^/[A-Za-z0-9_./-]+/n8a34-codeql$ ]]
+          mkdir -- "$STAGE"
+          mkdir -- "$STAGE/artifact" "$STAGE/tool" "$STAGE/public"
+          recipient_sha=57b5f0ad99ed73fe52a4d9939be0ad35458cc004d3b464164b1c8f0d232937c8
+          [[ "$recipient_sha" =~ ^[0-9a-f]{64}$ ]]
+          cat > "$STAGE/recipient.pem" <<'RECIPIENT'
+          -----BEGIN CERTIFICATE-----
+          MIIEPDCCAqSgAwIBAgIUNAoqM4L6eFkc7EZA6q00xiaRP7gwDQYJKoZIhvcNAQEL
+          BQAwJzElMCMGA1UEAwwcQWNjZXB0ZWQgTiBDb2RlUUwgY29tcGFyaXNvbjAeFw0y
+          NjExMDkxOTAzMjFaFw0yNjExMTYxOTAzMjFaMCcxJTAjBgNVBAMMHEFjY2VwdGVk
+          IE4gQ29kZVFMIGNvbXBhcmlzb24wggGiMA0GCSqGSIb3DQEBAQUAA4IBjwAwggGK
+          AoIBgQC9SY7RNKBRBo3rsDjRjsnyt7Lia0Gg/sxEikwvXlXc5inm18m6l9AbMAR9
+          zY1mmMrQKDaz7++/z1bWooTbz9SCm/KOJemcYgkSM0oS1rttLb4n4YOzB44ji7dy
+          4GM3aqPuoZbKYuZnv0z63BHXcrggrquBohjsUa0OuCDC5gLMNLkq1x/7h2UxIARU
+          i05jDuNDhqXEVVfn9Ds9ikqMWXTpBHwCxeXQ37PTt5b6FdvgWFWWvf562m+cnwMe
+          fplqNCcWTpTgzU9I69qQctTzpwN0EPfnQLyD8/adDCTMEXwvPtXeLo93hfwrdTK/
+          UoEWYnHIpgVYYD4pC0lxV90OnKJ8Rn1wQrLrqDNofA+wE/vXx5K2JAeMJrSdGSly
+          +swrCUGsvgAX4NrJVqJwQJ8RqQe6A+zCrP7SYbc71WUaBiYuUsm/x13rKy4R8uBS
+          fXOkonelecD9onihN3c1ymn0au2JwuI1Nckcn/0rndxq+H8BVOp2rShQDJyagoI8
+          3nGMUBcCAwEAAaNgMF4wHQYDVR0OBBYEFPAKq7sBC+qXrkcr3pVgm+pvFpv+MB8G
+          A1UdIwQYMBaAFPAKq7sBC+qXrkcr3pVgm+pvFpv+MAwGA1UdEwEB/wQCMAAwDgYD
+          VR0PAQH/BAQDAgUgMA0GCSqGSIb3DQEBCwUAA4IBgQAZTf1GuYc9+mGZBMEuuqk1
+          0GCoWbi/S9YznBJN3HpB+iZWTv5AXYMBkHujyysBJ0aSroKIvqjUlewIJMbnIU0l
+          QAtPlZ5N+85MsFt4PaikrxwrFaIOFLmXH81/1M2X+rv3RSDNySG1U4QnCRWgHH7u
+          QLRbEkL0gtgxk0pZAObEQhHl3/51D+UJqzsKbw58JcMltNSMMJTpp6pAtsAiFGl8
+          QVN/8aE8nN6/wpqHKsuxtpfe3+aQsp3BxSPzboU21aIOZN/s1Cf+Ic2mdwJM5hn7
+          2tCdP7VRFaDxuxPoDC685a5nW3A6+2tSAJeSj/zmcDtyhwEnECjD/YPa0rPNHwDg
+          TqjFkDg+WKCtqUC3Axd6LY+Mz0cJknXUmFhIsmxVeqyZ5CEdyFWaJvaT3O4ChX1Y
+          HIJRLK8HjLaUsMo0q+698673iL+MvJ0PkSPJyoiLOfbvMiW8rmmYypUmxQcBbGoX
+          eWjcxW+NfEx5Xrx3ZY1Go2E9hJZlPXR+kqcP6IpmpMY=
+          -----END CERTIFICATE-----
+          RECIPIENT
+          [[ "$(/usr/bin/openssl version)" == 'OpenSSL 3.5.5 '* ]]
+          /usr/bin/openssl x509 -in "$STAGE/recipient.pem" -noout -checkend 0
+          /usr/bin/openssl x509 -in "$STAGE/recipient.pem" -outform DER > "$STAGE/recipient.der"
+          printf '%s  %s\n' "$recipient_sha" "$STAGE/recipient.der" | sha256sum --check --status
+
+      - name: Checkout exact accepted N
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.ACCEPTED_N }}
+          persist-credentials: false
+
+      - name: Install the compiled workflow dependencies
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$ACCEPTED_N" ]]
+          [[ "$(git rev-parse HEAD^{tree})" == "$ACCEPTED_TREE" ]]
+          [[ -z "$(git status --porcelain --untracked-files=all)" ]]
+          sudo apt-get update
+          sudo apt-get install --assume-yes --no-install-recommends \
+            binutils-dev clang-22 cmake g++ libclang-rt-22-dev libdwarf-dev \
+            libluajit-5.1-dev libmariadb-dev-compat libssl-dev libzmq3-dev \
+            libzstd-dev llvm-22-dev ninja-build zlib1g-dev
+          [[ "$(/usr/bin/clang-22 --version | sed -n '1p')" == *'clang version 22.1.2 '* ]]
+          [[ "$(/usr/bin/clang++-22 --version | sed -n '1p')" == *'clang version 22.1.2 '* ]]
+          [[ "$(pkg-config --modversion libdwarf)" == 1.11.1 ]]
+
+      - name: Setup exact codegen Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14.10'
+
+      - name: Preflight and seed verified public inputs
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$(python -IB -c 'import platform; print(platform.python_version())')" == 3.14.10 ]]
+          python -m venv "$STAGE/venv"
+          "$STAGE/venv/bin/python" -m pip install --disable-pip-version-check --only-binary=:all: --no-deps \
+            MarkupSafe==3.0.4 attrs==26.1.0 jinja2==3.1.6 jsonschema==4.26.0 \
+            jsonschema-specifications==2025.9.1 referencing==0.37.0 rpds-py==2026.9.1 ruamel.yaml==0.19.1
+          "$STAGE/venv/bin/python" -m pip check
+
+          fetch_release() {
+            local output="$1" bytes="$2" sha="$3" url
+            shift 3
+            for url in "$@"; do
+              if (
+                ulimit -f "$(( (bytes + 1023) / 1024 + 1 ))" || exit 1
+                curl --disable --silent --fail --location --proto '=https' --proto-redir '=https' \
+                  --connect-timeout 15 --max-time 180 --max-filesize "$bytes" \
+                  --header 'Accept: application/octet-stream' --output "$output.part" "$url" 2>/dev/null
+              ) && [[ "$(stat -c %s "$output.part")" == "$bytes" ]] &&
+                printf '%s  %s\n' "$sha" "$output.part" | sha256sum --check --status; then
+                mv -- "$output.part" "$output"
+                return
+              fi
+              rm -f -- "$output.part"
+            done
+            return 1
+          }
+
+          fetch_release "$STAGE/codeql.tar.zst" 165322927 \
+            eea5a76ed6778892278a387c4362fef8d03e5a9c3795f5d5022d496fccfd5388 \
+            https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.27.4/codeql-bundle-cpp-linux64.tar.zst \
+            'https://api.github.com/repos/github/codeql-action/releases/assets/692238580?download=1'
+          "$STAGE/venv/bin/python" -IB - "$STAGE" <<'PY'
+          from pathlib import Path, PurePosixPath
+          import sys
+          import tarfile
+
+          stage = Path(sys.argv[1])
+          with tarfile.open(stage / "codeql.tar.zst", "r:zst") as archive:
+              members = archive.getmembers()
+              assert len(members) == 7806
+              names = [PurePosixPath(member.name) for member in members]
+              assert len(names) == len(set(names))
+              assert all(path.parts[:1] == ("codeql",) and ".." not in path.parts for path in names)
+              archive.extractall(stage / "tool", members=members, filter="data")
+          PY
+
+          mkdir -p -- .cpm-cache/cpm
+          fetch_release .cpm-cache/cpm/CPM_0.40.2.cmake 41017 \
+            c8cdc32c03816538ce22781ed72964dc864b2a34a310d3b7104812a5ca2d835d \
+            https://github.com/cpm-cmake/CPM.cmake/releases/download/v0.40.2/CPM.cmake \
+            'https://api.github.com/repos/cpm-cmake/CPM.cmake/releases/assets/183458005?download=1'
+
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0
+          while read -r name upstream key commit tree pin; do
+            dir=".cpm-cache/$name/$key"
+            refspec="$commit"
+            if [[ "$pin" != "$commit" ]]; then
+              refspec="refs/tags/$pin:refs/tags/$pin"
+            fi
+            git init -q "$dir"
+            timeout -k 5s 90s git -C "$dir" -c protocol.allow=never \
+              -c protocol.https.allow=always -c http.followRedirects=false \
+              fetch --quiet --depth=1 "https://github.com/$upstream.git" "$refspec"
+            [[ "$(git -C "$dir" rev-parse "$pin^{commit}")" == "$commit" ]]
+            git -C "$dir" -c core.hooksPath=/dev/null checkout -q --detach "$commit"
+            [[ "$(git -C "$dir" rev-parse HEAD^{tree})" == "$tree" ]]
+            [[ -z "$(git -C "$dir" status --porcelain --untracked-files=all)" ]]
+          done <<'DEPENDENCIES'
+          argparse p-ranav/argparse 9cea4917b2970c78de6877229edae62480f088e8 d924b84eba1f0f0adf38b20b7b4829f6f65b6570 9e01c35c0be6707afc4001ae23c5c3f6df2b9449 d924b84eba1f0f0adf38b20b7b4829f6f65b6570
+          asio chriskohlhoff/asio 213145964e945b838d29d274e090666d1151b845 03cf5f86a780dd102f1cdd3a59d1244d12143e46 16ddf21945b41cf41421bea65e8ce00cdf3e58ed asio-1-38-0
+          bcrypt zach2good/libbcrypt 7ac6b4178d22a0c3d5fffae21ac54ea887d2b81f ac197c7b0bd26b6a90ee2ed9be7b12eb5a9e7455 d47d573522d2c0465a7ae5a1bb285e301e6c9118 ac197c7b0bd26b6a90ee2ed9be7b12eb5a9e7455
+          catch2 catchorg/Catch2 1b2c19d23bca710b0cab412b221d18c1a5b6e30e fa43b77429ba76c462b1898d6cd2f2d7a9416b14 fa9c5c76ec061bd603214810100c8642613e8dd3 v3.7.1
+          cpp-httplib yhirose/cpp-httplib e90c13aa23c631b40c8587878372d866fc6ddad6 2132205e1a69c9fce8096f085b1b8d72efc759fa 5e6a6dab2c9399cc4fcf9ca70497e888098626a1 v0.49.0
+          cpptrace jeremy-rifkin/cpptrace a5a22a200360d708c9fd79def3ac89ae920fb99a 3db8da80111171c219ab5839905771386bee06b3 bd5ba6c37b663c59ee7e7c82f93efccebbb5de83 v1.0.4
+          earcut_hpp mapbox/earcut.hpp 664f1589ab4303bd8df5ae62893abb77a159097b 4811a2b69b91f6127a75e780de6e2113609ddabb 038388da065d5aaeeac209d812ec1c8538d94b9c v2.2.4
+          efsw SpartanJ/efsw 4a1acfb1094c03deaa2dfb6c14e5228b87fade3a 22f17a0bcdf3a4edf61f8b14328391463389e548 a818dee680d127d607a09011dca7d00e0d4a7487 22f17a0bcdf3a4edf61f8b14328391463389e548
+          expected-lite martinmoene/expected-lite bddbd6cec2a355865273eb290041d6a85eb5443d 48e5e2294689eac07fc5ae6784355941e9add475 129fdc3c6aee06882565bc7b6d79b90fce2caf42 48e5e2294689eac07fc5ae6784355941e9add475
+          fast_obj thisistherk/fast_obj 0fd9e24f3928a4488a541074267752d263d5f4d0 8145eb0a942784e5491a2e6b50008ce0fe3aa203 b00537e33339281acb92fcb8bad5ef24d204cc68 8145eb0a942784e5491a2e6b50008ce0fe3aa203
+          fmt fmtlib/fmt 73a722f8f578c3e3b457c0bc68c23aaa9e9e7516 1be298e1bd68957e4cd352e1f676f00e07dcfb57 efdc46099ef7eaefde5fd7b439f1d65cfc02214e 12.2.0
+          function2 Naios/function2 2f8d3306a75857a2cba44d5ebcd7c0d9fc9c0a48 a354bd093d2b6e50c9325dbce84d20b4e77aabc6 0028c4d834b4b6f7f38cb42be47d26fc019bf0c4 4.2.4
+          glaze stephenberry/glaze d3de1ad79eff6374ccc03d590b11c83e1581fcd3 d78832c82289c61a9315bfbc35332cec9f4e93ca ed68eafbb64c13bd56570676dae85939bdf13344 v9.0.0
+          json nlohmann/json b88ca108e0b5a597e859a21658d11fa5f1feb410 55f93686c01528224f448c19128836e7df245f72 1eb780542e829bf1615828ed0d5f407497bbce7b v3.12.0
+          magic_enum Neargye/magic_enum ecc8253cdc9c5a1fdd2fd470aa5bb147fe79b51a 1384769c66bd16ec9bb1353f45fe8ec8ccc12dbd f7216e993dca41a362615cc651612b0bddefc074 v0.9.8
+          pcg-cpp imneme/pcg-cpp 7561d718805487e2397ee23ff00d83a7169f8410 428802d1a5634f96bcd0705fab379ff0113bcf13 7a5a84e572844d46114acce0cc825deb2f8df9b3 428802d1a5634f96bcd0705fab379ff0113bcf13
+          recastnavigation recastnavigation/recastnavigation 1fe579ca38080d77ad4dcbb1b569aeb042f78694 1078bfe346d9bb560faa748c8fde2e7aae73a3ab 8f0a30b61cc97e3ba342b9e757bb03b6a8778fd5 1078bfe346d9bb560faa748c8fde2e7aae73a3ab
+          spdlog gabime/spdlog 7d8f0a52a5940a6c3bda30de759b878ace4af6d1 79524ddd08a4ec981b7fea76afd08ee05f83755d 84cb8d8db0bfa07bbab5623e90799c4ea776c197 v1.17.0
+          termcolor ikalnytskyi/termcolor 32234b984804180e5880f4ad6e1a24dca188a1c0 89f20096bef51de347ec6f99345f65147359bd7c 37a69232d541e95ff21253e5c903a6b29c9202e3 89f20096bef51de347ec6f99345f65147359bd7c
+          unordered_dense martinus/unordered_dense e16a31eaaa67d1cfd8446bf3385bc3b4361a52c8 3234af2c03549bc85656bfd3a86993bf1cd8aef1 40f25261cffbae5c901319dd76013224ff3658dd v4.8.1
+          utfcpp nemtrif/utfcpp e9bb58070612c29564d71568d5df52a47c3867f6 f9319195dfddf369f68f18e7c0039b3f351797fd 8a11d3b2db0b53548f79c84d9b64430be803bf34 v4.0.8
+          zlib madler/zlib b5e2c7ec5e8efcfba2a4eb6b6a8c3bd7f8619522 51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf 16b86ef85c591c244523c98c71508be7908d1189 v1.3.1
+          DEPENDENCIES
+
+      - name: Trace and analyze exact N offline
+        run: |
+          set -euo pipefail
+          umask 077
+          codeql="$STAGE/tool/codeql/codeql"
+          printf '%s  %s\n' 74a276b81502c0bb9052e7002962f6abfe7c263c17a940bb6d761b0d11ee7189 .github/codeql/codeql-config.yml | sha256sum --check --status
+          "$codeql" version --format=json > "$STAGE/artifact/codeql-version.json"
+          "$STAGE/venv/bin/python" -IB -c \
+            'import json, sys; assert json.load(open(sys.argv[1]))["version"] == "2.27.4"' \
+            "$STAGE/artifact/codeql-version.json"
+          printf '%s\n' custom era/lua example > modules/init.txt
+          export TRACE_ROOT="$GITHUB_WORKSPACE" TRACE_PY="$STAGE/venv/bin/python"
+          cat > "$STAGE/trace.sh" <<'TRACE'
+          #!/usr/bin/bash
+          set -euo pipefail
+          export CC=/usr/bin/clang-22 CXX=/usr/bin/clang++-22 PYTHONDONTWRITEBYTECODE=1
+          export CPM_SOURCE_CACHE="$TRACE_ROOT/.cpm-cache"
+          /usr/bin/cmake -G Ninja -S "$TRACE_ROOT" -B "$TRACE_ROOT/build" --fresh \
+            -DCMAKE_BUILD_TYPE=Debug -DTRACY_ENABLE=OFF -DPCH_ENABLE=OFF \
+            -DCMAKE_C_FLAGS_DEBUG:STRING=-g0 -DCMAKE_CXX_FLAGS_DEBUG:STRING=-g0 \
+            -DCPM_SOURCE_CACHE:PATH="$CPM_SOURCE_CACHE" -DSTAGE_BINARIES=OFF \
+            -DPython_EXECUTABLE="$TRACE_PY" -DCACHE_BINARY:FILEPATH= \
+            -DCMAKE_C_COMPILER_LAUNCHER:FILEPATH= -DCMAKE_CXX_COMPILER_LAUNCHER:FILEPATH= \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          /usr/bin/cmake --build "$TRACE_ROOT/build" --parallel 4
+          TRACE
+          chmod 700 -- "$STAGE/trace.sh"
+
+          tool_cache=$(/usr/bin/realpath -e -- "$RUNNER_TOOL_CACHE")
+          python_home=$(/usr/bin/realpath -e -- "$pythonLocation")
+          [[ "$tool_cache" =~ ^/[A-Za-z0-9_./-]+$ && "$python_home" == "$tool_cache/Python/3.14.10/x64" ]]
+          python_lib=$(/usr/bin/realpath -e -- "$python_home/lib")
+          base_python=$(/usr/bin/realpath -e -- "$python_home/bin/python3.14")
+          [[ "$python_lib" == "$python_home/lib" && "$base_python" == "$python_home/bin/"* ]]
+          [[ "$(/usr/bin/realpath -e -- "$TRACE_PY")" == "$base_python" ]]
+
+          offline=(sudo --non-interactive /usr/bin/unshare --net -- /usr/bin/setpriv \
+            --reuid "$(id -u)" --regid "$(id -g)" --clear-groups --no-new-privs \
+            /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 HOME="$HOME" \
+            LD_LIBRARY_PATH="$python_lib" TRACE_ROOT="$TRACE_ROOT" TRACE_PY="$TRACE_PY")
+          "${offline[@]}" "$TRACE_PY" -IB - "$python_home" "$STAGE/venv" <<'PY'
+          from pathlib import Path
+          import platform
+          import sys
+
+          import jinja2
+          import jsonschema
+          from ruamel.yaml import YAML
+
+          assert platform.python_version() == "3.14.10"
+          assert Path(sys.base_prefix).resolve() == Path(sys.argv[1])
+          assert Path(sys.prefix).resolve() == Path(sys.argv[2])
+          PY
+          "${offline[@]}" "$codeql" database create "$STAGE/db" --language=cpp --build-mode=manual \
+            --source-root="$TRACE_ROOT" --codescanning-config="$TRACE_ROOT/.github/codeql/codeql-config.yml" \
+            --command="$STAGE/trace.sh" --threads=4
+          "${offline[@]}" "$codeql" database analyze "$STAGE/db" --threads=4 \
+            --format=sarif-latest --sarif-add-baseline-file-info --sarif-category="$BASELINE_CATEGORY" \
+            --output="$STAGE/artifact/cpp.raw.sarif"
+          "${offline[@]}" "$codeql" database print-baseline "$STAGE/db" > "$STAGE/artifact/coverage.txt"
+
+      - name: Apply the existing SARIF filter
+        uses: zbazztian/filter-sarif@30183a0a595e8a890f1624ebba3788ce5b58711b
+        with:
+          patterns: |
+            -ext/**/*
+            -build/**/*
+          input: ${{ env.STAGE }}/artifact/cpp.raw.sarif
+          output: ${{ env.STAGE }}/artifact/cpp.filtered.sarif
+
+      - name: Bind source, results, and compiler inventory
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$ACCEPTED_N" && "$(git rev-parse HEAD^{tree})" == "$ACCEPTED_TREE" ]]
+          git diff --exit-code
+          "$STAGE/venv/bin/python" -IB - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["GITHUB_WORKSPACE"])
+          stage = Path(os.environ["STAGE"])
+          artifact = stage / "artifact"
+          category = os.environ["BASELINE_CATEGORY"] + "/"
+          compiler = root / "build/compile_commands.json"
+          units = json.loads(compiler.read_bytes())
+          paths = {Path(unit["file"]).relative_to(root) for unit in units if Path(unit["file"]).is_relative_to(root)}
+          assert all(any(path.is_relative_to(directory) for path in paths) for directory in (
+              "src/common", "src/map", "src/map/data", "src/test", "modules/custom", ".cpm-cache",
+          ))
+          assert (artifact / "coverage.txt").stat().st_size
+          counts = {}
+          for name in ("cpp.raw.sarif", "cpp.filtered.sarif"):
+              value = json.loads((artifact / name).read_bytes())
+              assert value["version"] == "2.1.0" and len(value["runs"]) == 1
+              run = value["runs"][0]
+              assert run["automationDetails"]["id"] == category and run["tool"]["driver"]["name"] == "CodeQL"
+              counts[name] = len(run["results"])
+          assert 0 < counts["cpp.filtered.sarif"] <= counts["cpp.raw.sarif"]
+          hashes = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(artifact.iterdir())}
+          receipt = {
+              "accepted_source": os.environ["ACCEPTED_N"], "accepted_tree": os.environ["ACCEPTED_TREE"],
+              "workflow": os.environ["EXPECTED_WORKFLOW"], "image": os.environ["ImageVersion"],
+              "run_id": os.environ["GITHUB_RUN_ID"], "analysis_category": category,
+              "clang": "22.1.2", "python": "3.14.10", "libdwarf": "1.11.1", "codeql": "2.27.4",
+              "compile_commands_sha256": hashlib.sha256(compiler.read_bytes()).hexdigest(),
+              "compile_units": len(units), "results": counts, "artifact_sha256": hashes,
+          }
+          (artifact / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+          PY
+
+      - name: Encrypt the diagnostic artifact
+        run: |
+          set -euo pipefail
+          umask 077
+          members=(codeql-version.json coverage.txt cpp.raw.sarif cpp.filtered.sarif receipt.json)
+          for member in "${members[@]}"; do
+            [[ -f "$STAGE/artifact/$member" && ! -L "$STAGE/artifact/$member" ]]
+          done
+          ciphertext="$STAGE/public/accepted-n8a34-codeql-cpp-baseline.cms"
+          /usr/bin/tar --format=ustar -C "$STAGE/artifact" -cf - "${members[@]}" |
+            /usr/bin/openssl cms -encrypt -aes-256-gcm -binary -outform DER \
+              -out "$ciphertext" -recip "$STAGE/recipient.pem" \
+              -keyopt rsa_padding_mode:oaep -keyopt rsa_oaep_md:sha256 -keyopt rsa_mgf1_md:sha256
+          [[ -s "$ciphertext" ]]
+          /usr/bin/openssl cms -cmsout -inform DER -in "$ciphertext" -noout
+          sha256sum "$ciphertext"
+
+      - name: Publish only the encrypted diagnostic artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: accepted-n8a34-codeql-cpp-baseline-encrypted
+          path: ${{ env.STAGE }}/public/accepted-n8a34-codeql-cpp-baseline.cms
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 3
