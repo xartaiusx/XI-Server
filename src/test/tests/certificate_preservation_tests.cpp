@@ -53,9 +53,9 @@ public:
         std::filesystem::remove(directory_, ec);
     }
 
-    CertificateFixture(const CertificateFixture&)            = delete;
+    CertificateFixture(const CertificateFixture&)                    = delete;
     auto operator=(const CertificateFixture&) -> CertificateFixture& = delete;
-    CertificateFixture(CertificateFixture&&)                 = delete;
+    CertificateFixture(CertificateFixture&&)                         = delete;
     auto operator=(CertificateFixture&&) -> CertificateFixture&      = delete;
 
     auto name() const -> std::string

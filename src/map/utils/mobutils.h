@@ -96,17 +96,17 @@ void SetupPetSkills(CMobEntity* PMob);
 
 auto JobSkillRankToBaseEvaRank(xi::Job mjob, xi::Job sjob) -> uint8;
 
-auto   GetBaseWeaponDamage(CMobEntity* PMob, uint16 slot, uint8 statLevel = 0) -> uint16;
-auto   GetMagicEvasion(CMobEntity* PMob, uint8 statLevel = 0) -> uint16;
-auto   GetBaseDefEva(CMobEntity* PMob, uint8 rank) -> uint16;
-auto   GetBaseSkill(CMobEntity* PMob, uint8 rank, uint8 statLevel = 0) -> uint16;
-auto   GetBaseToRank(uint8 rank, uint16 level) -> uint16;
-auto   GetSubJobStats(uint8 rank, uint16 level, uint16 stat) -> uint16;
-auto   MonipulatorBaseHP(xi::Job mjob, xi::Job sjob, uint8 level) -> uint32;
-void   GetAvailableSpells(CMobEntity* PMob);
-void   InitializeMob(CMobEntity* PMob);
-void   LoadSqlModifiers();
-void   Cleanup();
+auto GetBaseWeaponDamage(CMobEntity* PMob, uint16 slot, uint8 statLevel = 0) -> uint16;
+auto GetMagicEvasion(CMobEntity* PMob, uint8 statLevel = 0) -> uint16;
+auto GetBaseDefEva(CMobEntity* PMob, uint8 rank) -> uint16;
+auto GetBaseSkill(CMobEntity* PMob, uint8 rank, uint8 statLevel = 0) -> uint16;
+auto GetBaseToRank(uint8 rank, uint16 level) -> uint16;
+auto GetSubJobStats(uint8 rank, uint16 level, uint16 stat) -> uint16;
+auto MonipulatorBaseHP(xi::Job mjob, xi::Job sjob, uint8 level) -> uint32;
+void GetAvailableSpells(CMobEntity* PMob);
+void InitializeMob(CMobEntity* PMob);
+void LoadSqlModifiers();
+void Cleanup();
 
 // get modifiers for pool / spawn
 auto GetMobPoolMods(uint32 poolId, bool create = false) -> ModsList_t*;

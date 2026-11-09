@@ -700,25 +700,25 @@ public:
     auto checkLiementAbsorb(xi::DamageType damageType) -> float; // return 1.0 if did not absorb, return >= -1.0 if did absorb
 
     // Enmity
-    auto  getCE(const CLuaBaseEntity* target) -> int32;
-    auto  getVE(const CLuaBaseEntity* target) -> int32;
-    void  setCE(CLuaBaseEntity* target, uint16 amount);
-    void  setVE(CLuaBaseEntity* target, uint16 amount);
-    void  addBaseEnmity(CLuaBaseEntity* PEntity);
-    void  addEnmity(CLuaBaseEntity* PEntity, int32 CE, int32 VE); // Add specified amount of enmity (target, CE, VE)
-    void  lowerEnmity(CLuaBaseEntity* PEntity, uint8 percent);
-    void  updateEnmity(CLuaBaseEntity* PEntity);
-    void  transferEnmity(CLuaBaseEntity* entity, uint8 percent, float range);
-    void  updateEnmityFromDamage(CLuaBaseEntity* PEntity, int32 damage, const sol::object& spell) const; // Adds Enmity to player for specified mob for the damage specified
-    void  updateEnmityFromCure(CLuaBaseEntity* PEntity, int32 amount, const sol::object& fixedCE, const sol::object& fixedVE);
-    void  resetEnmity(CLuaBaseEntity* PEntity);
-    void  setEnmityActive(CLuaBaseEntity* PEntity, bool active);
-    void  updateClaim(const sol::object& entity);
-    auto  hasClaim(CLuaBaseEntity* PTarget) -> bool;
-    auto  hasEnmity() -> bool;
-    auto  getNotorietyList() -> sol::table;
-    auto  getMasterThreatMob(const sol::object& rangeOverride) -> CBaseEntity*;
-    void  clearEnmityForEntity(CLuaBaseEntity* PEntity);
+    auto getCE(const CLuaBaseEntity* target) -> int32;
+    auto getVE(const CLuaBaseEntity* target) -> int32;
+    void setCE(CLuaBaseEntity* target, uint16 amount);
+    void setVE(CLuaBaseEntity* target, uint16 amount);
+    void addBaseEnmity(CLuaBaseEntity* PEntity);
+    void addEnmity(CLuaBaseEntity* PEntity, int32 CE, int32 VE); // Add specified amount of enmity (target, CE, VE)
+    void lowerEnmity(CLuaBaseEntity* PEntity, uint8 percent);
+    void updateEnmity(CLuaBaseEntity* PEntity);
+    void transferEnmity(CLuaBaseEntity* entity, uint8 percent, float range);
+    void updateEnmityFromDamage(CLuaBaseEntity* PEntity, int32 damage, const sol::object& spell) const; // Adds Enmity to player for specified mob for the damage specified
+    void updateEnmityFromCure(CLuaBaseEntity* PEntity, int32 amount, const sol::object& fixedCE, const sol::object& fixedVE);
+    void resetEnmity(CLuaBaseEntity* PEntity);
+    void setEnmityActive(CLuaBaseEntity* PEntity, bool active);
+    void updateClaim(const sol::object& entity);
+    auto hasClaim(CLuaBaseEntity* PTarget) -> bool;
+    auto hasEnmity() -> bool;
+    auto getNotorietyList() -> sol::table;
+    auto getMasterThreatMob(const sol::object& rangeOverride) -> CBaseEntity*;
+    void clearEnmityForEntity(CLuaBaseEntity* PEntity);
 
     // Status Effects
     auto addStatusEffect(xi::StatusEffect effectId, sol::table params) const -> bool;
@@ -816,20 +816,20 @@ public:
     void despawnPet();
     void setJugRemainingTime(uint32 remainingSeconds);
 
-    auto   spawnTrust(uint16 trustId) -> CBaseEntity*;
-    void   clearTrusts();
-    auto   canUseTwillsFullAlliance() -> bool;
-    auto   canUseTwillsTrustGameplay() -> bool;
-    auto   returnOrdinaryTrusts(const std::string& request) -> std::string;
-    auto   isTwillsFullAllianceActive() -> bool;
-    auto   getTwillsFullAllianceState() -> uint8;
-    auto   setTwillsFullAllianceState(uint32 state) -> bool;
-    auto   getTrustID() -> uint32;
-    void   trustPartyMessage(uint32 message_id) const;
-    auto   addGambit(uint16 targ, const sol::table& predicates, const sol::table& reactions, const sol::object& retry) -> std::string;
-    void   removeGambit(const std::string& id);
-    void   removeAllGambits();
-    void   setTrustTPSkillSettings(uint16 trigger, uint16 select, const sol::object& value);
+    auto spawnTrust(uint16 trustId) -> CBaseEntity*;
+    void clearTrusts();
+    auto canUseTwillsFullAlliance() -> bool;
+    auto canUseTwillsTrustGameplay() -> bool;
+    auto returnOrdinaryTrusts(const std::string& request) -> std::string;
+    auto isTwillsFullAllianceActive() -> bool;
+    auto getTwillsFullAllianceState() -> uint8;
+    auto setTwillsFullAllianceState(uint32 state) -> bool;
+    auto getTrustID() -> uint32;
+    void trustPartyMessage(uint32 message_id) const;
+    auto addGambit(uint16 targ, const sol::table& predicates, const sol::table& reactions, const sol::object& retry) -> std::string;
+    void removeGambit(const std::string& id);
+    void removeAllGambits();
+    void setTrustTPSkillSettings(uint16 trigger, uint16 select, const sol::object& value);
 
     auto hasPet() -> bool;
     auto hasJugPet() -> bool;
