@@ -320,7 +320,16 @@ jobs:
           "$STAGE/venv/bin/python" -IB -c \
             'import json, sys; assert json.load(open(sys.argv[1]))["version"] == "2.27.4"' \
             "$STAGE/artifact/codeql-version.json"
+          [[ -d modules && ! -L modules && -f modules/init.txt && ! -L modules/init.txt && ! -x modules/init.txt ]]
+          [[ "$(git ls-tree "$ACCEPTED_N" -- modules/init.txt)" == $'100644 blob 9ac1a648fd11a4dd845a0c1c4f421bdf170d82ff\tmodules/init.txt' ]]
+          [[ "$(git cat-file -s 9ac1a648fd11a4dd845a0c1c4f421bdf170d82ff)" == 1575 && "$(wc -c < modules/init.txt)" == 1625 ]]
+          printf '%s  %s\n' 67a7c230142954d5ae565795700ac808a9493926333c9122da8240b5bb77131b modules/init.txt | sha256sum --check --status
+          git diff --cached --quiet --ignore-submodules=none "$ACCEPTED_N" --
+          git ls-files -v | awk '/^[a-zS] / { hidden = 1 } END { exit hidden }'
           printf '%s\n' custom era/lua example > modules/init.txt
+          [[ "$(wc -c < modules/init.txt)" == 23 ]]
+          printf '%s  %s\n' 4142943d38594680549dc2dadae36b6f705d92377668fe39274f1cab1eacd767 modules/init.txt | sha256sum --check --status
+          [[ "$(git diff --name-only --no-renames --ignore-submodules=none "$ACCEPTED_N" --)" == modules/init.txt ]]
           export TRACE_ROOT="$GITHUB_WORKSPACE" TRACE_PY="$STAGE/venv/bin/python"
           cat > "$STAGE/trace.sh" <<'TRACE'
           #!/usr/bin/bash
@@ -384,7 +393,12 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$(git rev-parse HEAD)" == "$ACCEPTED_N" && "$(git rev-parse HEAD^{tree})" == "$ACCEPTED_TREE" ]]
-          git diff --exit-code
+          git diff --cached --quiet --ignore-submodules=none "$ACCEPTED_N" --
+          git ls-files -v | awk '/^[a-zS] / { hidden = 1 } END { exit hidden }'
+          [[ -d modules && ! -L modules && -f modules/init.txt && ! -L modules/init.txt && ! -x modules/init.txt ]]
+          [[ "$(wc -c < modules/init.txt)" == 23 ]]
+          printf '%s  %s\n' 4142943d38594680549dc2dadae36b6f705d92377668fe39274f1cab1eacd767 modules/init.txt | sha256sum --check --status
+          [[ "$(git diff --name-only --no-renames --ignore-submodules=none "$ACCEPTED_N" --)" == modules/init.txt ]]
           "$STAGE/venv/bin/python" -IB - <<'PY'
           import hashlib
           import json
