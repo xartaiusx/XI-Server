@@ -1262,6 +1262,8 @@ auto CGambitsContainer::Tick(timer::time_point tick, bool raiseRecoveryOnly, boo
     {
         TryTrustSkill();
     }
+
+    co_return;
 }
 
 auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const Gambit_t& gambit, size_t predicateGroupIndex, PredicateGroup_t& predicateGroup) -> bool

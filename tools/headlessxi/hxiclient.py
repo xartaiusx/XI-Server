@@ -41,7 +41,10 @@ class HXIClient:
         self.sessionHash = ""
 
     def login(self):
-        self.ssl_context = ssl.create_default_context()
+        ssl_context = ssl.create_default_context()
+        ssl_context.minimum_version = ssl.TLSVersion.TLSv1_3
+        ssl_context.maximum_version = ssl.TLSVersion.TLSv1_3
+        self.ssl_context = ssl_context
 
         # Only local development may use the server's untrusted self-signed certificate.
         if self.server in ("localhost", "127.0.0.1", "::1"):
