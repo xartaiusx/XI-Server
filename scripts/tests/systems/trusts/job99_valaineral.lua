@@ -121,6 +121,9 @@ describe('Valaineral developed jobs', function()
         assert(val:getSkillLevel(xi.skill.DIVINE_MAGIC) == pld:getSkillLevel(xi.skill.DIVINE_MAGIC))
         assert(val:hasTrait(xi.trait.DEFENSE_BONUS) and val:hasTrait(xi.trait.FENCER))
         assert(not owner.actions:useTrustAbility(val, val, xi.jobAbility.BENEDICTION), 'unassigned job must not acquire its actions')
+        assert(owner.actions:useTrustAbility(val, val, xi.jobAbility.AGGRESSOR), 'Aggressor must remain available through native WAR ability admission')
+        finish(val, 1)
+        assert(val:hasStatusEffect(xi.effect.AGGRESSOR))
     end)
 
     it('keeps unapproved variants and evidence lanes native', function()
@@ -767,6 +770,8 @@ describe('Valaineral developed jobs', function()
         assert(state.events[xi.jobAbility.DEFENDER][2].start > state.events[xi.jobAbility.DEFENDER][1].start,
             'a later native Defender application must have a new monotonic start')
         assert(state.count(xi.jobAbility.BERSERK) == 0, 'known tank must not select offensive Berserk')
+        assert(state.count(xi.jobAbility.AGGRESSOR) == 0 and not state.val:hasStatusEffect(xi.effect.AGGRESSOR),
+            'known tank must not select offensive Aggressor')
     end)
 
     it('chooses healthy off-tank Berserk and preserves it when native Defender is later needed', function()
@@ -783,19 +788,28 @@ describe('Valaineral developed jobs', function()
         assert(state.val:hasStatusEffect(xi.effect.DEFENDER), 'native effects may coexist without custom cancellation')
     end)
 
-    it('rejects both stance choices with unknown highest enmity while later spawn gambits still execute', function()
+    it('rejects stance and Aggressor choices with unknown highest enmity while normal spawn gambits still execute', function()
         local state = stanceContext('unknown')
-        state.waitForAbility(xi.jobAbility.AGGRESSOR)
+        state.waitForAbility(xi.jobAbility.WARRIORS_CHARGE)
+        assert(state.val:hasStatusEffect(xi.effect.WARRIORS_CHARGE))
         assert(state.val:hasRecast(xi.recast.ABILITY, 75), 'actual Sentinel cooldown must make the old Defender guard otherwise eligible')
+        -- Let the controller reach the lower-priority Aggressor gambit.
+        for _ = 1, 15 do
+            state.step()
+        end
+
         assert(state.val:getHPP() == 100 and not state.val:hasStatusEffect(xi.effect.DEFENDER))
         assert(state.count(xi.jobAbility.DEFENDER) == 0 and state.count(xi.jobAbility.BERSERK) == 0,
             'neither known-role predicate may treat missing hate as off-tanking')
+        assert(state.count(xi.jobAbility.AGGRESSOR) == 0 and not state.val:hasStatusEffect(xi.effect.AGGRESSOR),
+            'missing hate must not satisfy the Aggressor gate')
         assert(#state.mob:getEnmityList() == 0)
     end)
 
     it('honors the healthy off-tank Berserk boundary without suppressing other normal actions', function()
         local state = stanceContext('other', 89)
         state.waitForAbility(xi.jobAbility.AGGRESSOR)
+        assert(state.val:hasStatusEffect(xi.effect.AGGRESSOR), 'healthy known off-tank must apply native Aggressor')
         assert(state.val:getHPP() == 89 and state.count(xi.jobAbility.BERSERK) == 0)
         assert(state.count(xi.jobAbility.DEFENDER) == 0)
         state.val:setHP(math.ceil(state.val:getMaxHP() * 0.90))

@@ -1,6 +1,8 @@
 -----------------------------------
 -- Trust: Iroha II
 -----------------------------------
+require('scripts/globals/spells/healing_spell')
+
 ---@type TSpellTrust
 local spellObject = {}
 
@@ -31,9 +33,9 @@ local function addGambits(mob)
     -- healthy party's Samurai into a full-time healer.
     mob:addGambit(ai.t.PARTY, { { ai.c.HPP_LT, 20 }, { ai.c.CASTER_MPP_LT, 15 } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.BENEDICTION })
     mob:addGambit(ai.t.SELF, { { ai.c.IROHA_RECOVERY, 0 }, { ai.c.TP_GTE, 1000 } }, { ai.r.MS, ai.s.SPECIFIC, 3738 })
+    mob:addGambit(ai.t.PARTY, { { ai.c.HPP_LT, 15 }, { ai.c.HP_MISSING, 1200 } }, { ai.r.MA, ai.s.IROHA_CURE, 0 })
     mob:addGambit(ai.t.PARTY, { { ai.c.HPP_LT, 20 }, { ai.c.HP_MISSING, 850 } }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.CURE_VI })
     mob:addGambit(ai.t.PARTY, { { ai.c.HPP_LT, 30 }, { ai.c.HP_MISSING, 600 } }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.CURE_V })
-    mob:addGambit(ai.t.PARTY, { { ai.c.HPP_LT, 15 }, { ai.c.HP_MISSING, 1200 }, { ai.c.CASTER_MPP_GTE, 80 } }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.FULL_CURE })
     mob:addGambit(ai.t.PARTY, { { ai.c.HPP_LT, 40 }, { ai.c.HP_MISSING, 250 } }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.CURE_IV })
 
     for _, status in ipairs({ xi.effect.SLEEP_I, xi.effect.SLEEP_II, xi.effect.LULLABY }) do

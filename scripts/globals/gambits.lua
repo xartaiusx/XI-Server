@@ -149,6 +149,7 @@ ai.select =
     DEF_BAR_ELEMENT     = 17,
     RUNE_DAY            = 18,
     RANDOM_ANIMATION    = 19,
+    IROHA_CURE          = 20,
 }
 ai.s = ai.select
 

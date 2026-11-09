@@ -207,4 +207,173 @@ describe('Iroha II developed jobs', function()
         xi.test.world:skipTime(3)
         assert(not owner:isDead())
     end)
+
+    describe('Iroha II native Flare II', function()
+        local owner
+        local iroha
+        local mob
+        local mobId
+        local spellId = xi.magic.spell.FLARE_II
+
+        before_each(function()
+            xi.test.world:setSeed(123456)
+            owner, iroha = spawn()
+            iroha:setMobAbilityEnabled(false)
+            iroha:setMod(xi.mod.REFRESH, 0)
+
+            mob = assert(owner:getZone():insertDynamicEntity({
+                objtype              = xi.objType.MOB,
+                name                 = 'Iroha_Flare_Burst',
+                groupId              = 5,
+                groupZoneId          = 154,
+                minLevel             = 99,
+                maxLevel             = 99,
+                respawn              = 0,
+                releaseIdOnDisappear = true,
+                onMobDespawn         = function()
+                    -- Native releaseIdOnDisappear owns retirement.
+                end,
+            }))
+            mobId = mob:getID()
+            SpawnMob(mobId)
+            mob:setMaxHP(1000000)
+            mob:setHP(1000000)
+            mob:setUnkillable(true)
+            mob:setAutoAttackEnabled(false)
+            mob:setMagicCastingEnabled(false)
+            mob:setMobAbilityEnabled(false)
+            mob:setMobMod(xi.mobMod.NO_MOVE, 1)
+            mob:setDropID(0)
+
+            local x, y, z = owner:getXPos(), owner:getYPos(), owner:getZPos()
+            mob:setPos(x, y, z + 2)
+            iroha:setPos(x, y, z + 1)
+            assert(owner.entities:moveTo(mob))
+            owner:setPos(x, y, z)
+            owner.actions:engage(mob)
+            owner:setPos(x, y, z)
+            owner:lookAt(x, y, z - 2)
+            mob:updateEnmity(owner)
+            iroha:engage(mob:getTargID())
+            xi.test.world:skipTime(1)
+            assert(owner:isEngaged() and not owner:isFacing(mob))
+            assert(iroha:isEngaged() and iroha:getTarget():getID() == mobId)
+        end)
+
+        after_each(function()
+            if mobId and GetEntityByID(mobId, nil, true) then
+                DespawnMob(mobId)
+                for _ = 1, 10 do
+                    xi.test.world:tick()
+                    if not GetEntityByID(mobId, nil, true) then
+                        break
+                    end
+                end
+
+                assert(not GetEntityByID(mobId, nil, true), 'retire the exact burst fixture')
+            end
+
+            mobId = nil
+        end)
+
+        local function resonance(kind, seconds)
+            assert(mob:addStatusEffect(xi.effect.SKILLCHAIN, {
+                icon     = 0,
+                power    = kind,
+                subPower = 1,
+                tier     = 2,
+                duration = seconds,
+                origin   = owner,
+            }))
+        end
+
+        local function watchFlare()
+            local actions = {}
+            iroha:addListener('MAGIC_START', 'IROHA_TEST_FLARE_START', function(actor, target, spell)
+                if spell:getID() == spellId then
+                    assert(actor:getID() == iroha:getID() and target:getID() == mobId)
+                    table.insert(actions, { phase = 'start', baseCast = spell:getCastTime() })
+                end
+            end)
+
+            iroha:addListener('MAGIC_USE', 'IROHA_TEST_FLARE_FINISH', function(actor, target, spell, action)
+                if spell:getID() == spellId then
+                    assert(actor:getID() == iroha:getID() and target:getID() == mobId)
+                    table.insert(actions, {
+                        phase   = 'finish',
+                        cost    = spell:getMPCost(),
+                        recast  = action:getRecast(),
+                        message = action:getMsg(mobId),
+                        damage  = action:getParam(mobId),
+                    })
+                end
+            end)
+
+            -- Same two predicates and native action as the developed Iroha profile.
+            iroha:addGambit(ai.t.TARGET, {
+                { ai.c.MB_ELEMENT_AVAILABLE, xi.element.FIRE },
+                { ai.c.CASTER_MPP_GTE, 65 },
+            }, { ai.r.MA, ai.s.SPECIFIC, spellId })
+            return actions
+        end
+
+        for _, stance in ipairs({
+            { name = 'Hasso', ability = xi.jobAbility.HASSO, effect = xi.effect.HASSO },
+            { name = 'Seigan', ability = xi.jobAbility.SEIGAN, effect = xi.effect.SEIGAN },
+        }) do
+            it('bursts on a Fire-compatible chain using native ' .. stance.name .. ' cast and recast timing', function()
+                assert(GetSpell(spellId):getCastTime() == 7000)
+                assert(owner.actions:useTrustAbility(iroha, iroha, stance.ability))
+                xi.test.world:skipTime(2)
+                assert(iroha:hasStatusEffect(stance.effect))
+
+                local hp = mob:getHP()
+                local mp = iroha:getMP()
+                local actions = watchFlare()
+                -- Seed the native resolved-chain status as a test prerequisite.
+                -- Damage, spell completion, MP and recast still run through the actual engine.
+                resonance(xi.skillchainType.FUSION, 9)
+                for _ = 1, 4 do
+                    xi.test.world:skipTime(1)
+                    if #actions > 0 then
+                        break
+                    end
+                end
+
+                assert(#actions == 1 and actions[1].phase == 'start' and actions[1].baseCast == 1000)
+                assert(iroha:getMP() == mp and mob:getHP() == hp)
+                xi.test.world:skipTime(1)
+                assert(#actions == 1, 'the stance penalty must keep the cast active past one second')
+                xi.test.world:skipTime(1)
+
+                assert(#actions == 2 and actions[2].phase == 'finish')
+                local finish = actions[2]
+                assert(finish.message == xi.msg.basic.MAGIC_BURST_DAMAGE and finish.damage > 0)
+                assert(mob:getHP() == hp - finish.damage and finish.cost == 280 and iroha:getMP() == mp - finish.cost)
+                assert(finish.recast == 90 and iroha:hasRecast(xi.recast.MAGIC, spellId))
+                assert(iroha:hasStatusEffect(stance.effect))
+                assert(GetSpell(spellId):getCastTime() == 7000, 'the player spell template must retain its ordinary cast time')
+            end)
+        end
+
+        it('does not select Flare II for a wrong element or an expired Fire window', function()
+            local mp = iroha:getMP()
+            local hp = mob:getHP()
+            local actions = watchFlare()
+            resonance(xi.skillchainType.DISTORTION, 9)
+            for _ = 1, 4 do
+                xi.test.world:skipTime(1)
+            end
+
+            assert(mob:hasStatusEffect(xi.effect.SKILLCHAIN) and #actions == 0)
+            mob:delStatusEffect(xi.effect.SKILLCHAIN)
+            resonance(xi.skillchainType.FUSION, 1)
+            for _ = 1, 4 do
+                xi.test.world:skipTime(1)
+            end
+
+            assert(not mob:hasStatusEffect(xi.effect.SKILLCHAIN) and #actions == 0)
+            assert(iroha:getMP() == mp and mob:getHP() == hp and not iroha:hasRecast(xi.recast.MAGIC, spellId))
+        end)
+    end)
 end)

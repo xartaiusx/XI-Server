@@ -164,6 +164,7 @@ spellObject.onMobSpawn = function(mob)
         }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.BERSERK })
         mob:addGambit(ai.t.SELF, {
             { ai.c.HPP_GTE, 75 },
+            { ai.c.NOT_HAS_TOP_ENMITY, 0 },
             { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.AGGRESSOR },
         }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.AGGRESSOR })
         mob:addGambit(ai.t.TARGET, {

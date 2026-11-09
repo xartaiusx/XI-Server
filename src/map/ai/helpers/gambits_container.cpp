@@ -29,6 +29,7 @@
 #include "ai/states/range_state.h"
 #include "ai/states/weaponskill_state.h"
 #include "enmity_container.h"
+#include "lua/luautils.h"
 #include "notoriety_container.h"
 #include "recast_container.h"
 #include "spell.h"
@@ -44,12 +45,53 @@
 #include "zone.h"
 
 #include <algorithm>
+#include <array>
 
 namespace gambits
 {
 
 namespace
 {
+
+auto ResolveIrohaEmergencyCure(CTrustEntity* trust, CBattleEntity* target) -> Maybe<SpellID>
+{
+    if (trust->trustID() != 1018 || !trustdevelopment::IsEnabled(trust))
+    {
+        return std::nullopt;
+    }
+
+    constexpr std::array cures{ SpellID::Cure, SpellID::Cure_II, SpellID::Cure_III, SpellID::Cure_IV, SpellID::Cure_V, SpellID::Cure_VI, SpellID::Full_Cure };
+    uint32               ready = 0;
+    for (size_t index = 0; index < cures.size(); ++index)
+    {
+        const auto id = cures[index];
+        if (id == SpellID::Full_Cure && trust->GetMPP() < 80)
+        {
+            continue;
+        }
+
+        if (auto* PSpell = spell::GetSpell(id); PSpell && trust->CanUseSpell(PSpell) && trust->SpellContainer->GetAvailable(id))
+        {
+            ready |= 1U << index;
+        }
+    }
+
+    if (ready == 0)
+    {
+        return std::nullopt;
+    }
+
+    const auto selected = static_cast<SpellID>(luautils::callGlobal<uint16>("xi.spells.healing.selectIrohaEmergencyCure", trust, target, ready));
+    for (size_t index = 0; index < cures.size(); ++index)
+    {
+        if (cures[index] == selected && (ready & (1U << index)) != 0)
+        {
+            return selected;
+        }
+    }
+
+    return std::nullopt;
+}
 
 auto IsRaiseRecoveryGambit(const Gambit_t& gambit) -> bool
 {
@@ -509,6 +551,10 @@ auto CGambitsContainer::Tick(timer::time_point tick, bool raiseRecoveryOnly, boo
             else if (action.select == G_SELECT::HIGHEST)
             {
                 return POwner->SpellContainer->GetBestAvailable(static_cast<SPELLFAMILY>(action.select_arg));
+            }
+            else if (action.select == G_SELECT::IROHA_CURE)
+            {
+                return targetType == G_TARGET::PARTY ? ResolveIrohaEmergencyCure(POwner, resolvedTarget) : std::nullopt;
             }
             else if (action.select == G_SELECT::LOWEST)
             {

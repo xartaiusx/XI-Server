@@ -154,6 +154,7 @@ enum class G_SELECT : uint16
     DEF_BAR_ELEMENT     = 17,
     RUNE_DAY            = 18,
     RANDOM_ANIMATION    = 19,
+    IROHA_CURE          = 20,
 };
 
 enum class G_TP_TRIGGER : uint16

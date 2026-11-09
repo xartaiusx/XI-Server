@@ -2,6 +2,8 @@
 -- Spell: Full Cure
 -- Consumes remaining MP when the cast completes.
 -----------------------------------
+local healing = require('scripts/globals/spells/healing_spell')
+
 ---@type TSpell
 local spellObject = {}
 
@@ -22,7 +24,7 @@ spellObject.onSpellCast = function(caster, target, spell)
 
     -- The observed inputs are MND, Healing Magic skill, MP and cure modifiers.
     -- This base calculation models those inputs without assuming a full heal.
-    local base = math.floor(caster:getStat(xi.mod.MND) / 2) + caster:getSkillLevel(xi.skill.HEALING_MAGIC) + spentMP
+    local base = healing.getFullCureBase(caster, spentMP)
     local cure = getCureFinal(caster, spell, base, 1, false)
     if
         caster:hasStatusEffect(xi.effect.AFFLATUS_SOLACE) and
@@ -37,7 +39,7 @@ spellObject.onSpellCast = function(caster, target, spell)
         xi.job_utils.white_mage.removeHealingAilments(target)
     end
 
-    cure = math.floor(cure * (1 + target:getMod(xi.mod.CURE_POTENCY_RCVD) / 100) * xi.settings.main.CURE_POWER)
+    cure = healing.applyReceivedPotency(target, cure, true)
     local restored = target:restoreHP(math.min(cure, target:getMaxHP() - target:getHP()))
     target:wakeUp()
     caster:updateEnmityFromCure(target, restored)

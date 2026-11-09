@@ -1949,9 +1949,11 @@ auto CTrustController::GetTopEnmity() const -> CBattleEntity*
 {
     TracyZoneScoped;
 
-    CBattleEntity* PEntity = nullptr;
-    auto*          PMaster = dynamic_cast<CCharEntity*>(POwner->PMaster);
-    auto*          PTarget = trustutils::IsTwillsFullAllianceActive(PMaster) ? POwner->GetBattleTarget() : (PMaster ? PMaster->GetBattleTarget() : nullptr);
+    CBattleEntity* PEntity        = nullptr;
+    auto*          PMaster        = dynamic_cast<CCharEntity*>(POwner->PMaster);
+    const bool     useTrustTarget = trustutils::IsTwillsFullAllianceActive(PMaster) ||
+                                    (trustdevelopment::IsEnabled(static_cast<const CTrustEntity*>(POwner)) && CanUseOrdinaryTrustCombat(PMaster));
+    auto*          PTarget        = useTrustTarget ? POwner->GetBattleTarget() : (PMaster ? PMaster->GetBattleTarget() : nullptr);
     if (const auto* PMob = dynamic_cast<CMobEntity*>(PTarget))
     {
         return PMob->PEnmityContainer->GetHighestEnmity();
