@@ -603,27 +603,26 @@ def build_ability_actions(repo_root: Path) -> list[Action]:
 
 
 def build_weapon_skill_actions(repo_root: Path) -> list[Action]:
-    actions: list[Action] = []
-    for row in iter_insert_rows(
-        repo_root / "sql" / "weapon_skills.sql", "weapon_skills"
-    ):
-        if len(row) < 16:
-            continue
-        jobs = row[2]
-        if job_level(jobs, RDM_JOB_ID) <= 0:
-            continue
-        actions.append(
-            Action(
-                category="weapon_skill",
-                name=ffxi_name(unquote_sql(row[1])),
-                action_type="WeaponSkill",
-                skill="WeaponSkill",
-                element=ELEMENT_NAMES.get(int_token(row[5]), "None"),
-                target_type="MONSTER",
-                source="sql/weapon_skills.sql",
-            )
+    from ruamel.yaml import YAML
+
+    source = Path("data/weapon_skills.yaml")
+    with (repo_root / source).open(encoding="utf-8") as handle:
+        definitions = YAML(typ="safe").load(handle)["weapon_skills"]
+
+    actions = [
+        Action(
+            category="weapon_skill",
+            name=ffxi_name(name),
+            action_type="WeaponSkill",
+            skill="WeaponSkill",
+            element=definition.get("element", "none").title(),
+            target_type="MONSTER",
+            source=source.as_posix(),
         )
-    return sorted({a.name: a for a in actions}.values(), key=lambda a: a.name)
+        for name, definition in definitions.items()
+        if "rdm" in definition.get("jobs", [])
+    ]
+    return sorted({action.name: action for action in actions}.values(), key=lambda action: action.name)
 
 
 def build_utility_actions() -> list[Action]:

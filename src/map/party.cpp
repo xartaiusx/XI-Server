@@ -69,12 +69,6 @@ CParty::CParty(CBattleEntity* PEntity)
 , m_PartyType(PARTY_MOBS)
 , m_PartyNumber(0)
 {
-    m_PLeader        = nullptr;
-    m_PAlliance      = nullptr;
-    m_PSyncTarget    = nullptr;
-    m_PQuarterMaster = nullptr;
-    m_EffectsChanged = false;
-
     if (PEntity != nullptr && PEntity->PParty == nullptr)
     {
         m_PartyID   = PEntity->id;
@@ -94,13 +88,6 @@ CParty::CParty(uint32 id)
 , m_PartyType(PARTY_PCS)
 , m_PartyNumber(0)
 {
-    m_PAlliance = nullptr;
-
-    m_PLeader        = nullptr;
-    m_PSyncTarget    = nullptr;
-    m_PQuarterMaster = nullptr;
-
-    m_EffectsChanged = false;
 }
 
 // Dirty, ugly hack to prevent bad refs keeping garbage pointers in memory pointing to things that _could_ still be valid, causing mayhem
@@ -132,7 +119,7 @@ void CParty::DisbandParty(bool playerInitiated)
 
         for (auto& member : members)
         {
-            CCharEntity* PChar = (CCharEntity*)member;
+            CCharEntity* PChar = static_cast<CCharEntity*>(member);
             PChar->ClearTrusts();
 
             PChar->PParty = nullptr;
@@ -259,7 +246,7 @@ auto CParty::MemberCount(const xi::ZoneId ZoneID) -> uint8
 }
 
 // Returns entity pointer to party member by name (used for /pcmd kick or otherwise)
-CBattleEntity* CParty::GetMemberByName(const std::string& memberName)
+auto CParty::GetMemberByName(const std::string& memberName) -> CBattleEntity*
 {
     if (m_PartyType != PARTY_PCS)
     {
@@ -267,7 +254,7 @@ CBattleEntity* CParty::GetMemberByName(const std::string& memberName)
         return nullptr;
     }
 
-    if (memberName == "")
+    if (memberName.empty())
     {
         return nullptr;
     }
@@ -509,7 +496,7 @@ void CParty::PopMember(CBattleEntity* PEntity)
     PEntity->PParty = nullptr;
 }
 
-bool CParty::RemovePartyLeader(CBattleEntity* PEntity)
+auto CParty::RemovePartyLeader(CBattleEntity* PEntity) -> bool
 {
     if (members.empty())
     {
@@ -558,7 +545,7 @@ bool CParty::RemovePartyLeader(CBattleEntity* PEntity)
     return true;
 }
 
-std::vector<CParty::partyInfo_t> CParty::GetPartyInfo() const
+auto CParty::GetPartyInfo() const -> std::vector<CParty::partyInfo_t>
 {
     std::vector<CParty::partyInfo_t> memberinfo;
 
@@ -781,7 +768,7 @@ void CParty::PushMember(CBattleEntity* PEntity)
         }
     }
 
-    ReloadTreasurePool((CCharEntity*)PEntity);
+    ReloadTreasurePool(static_cast<CCharEntity*>(PEntity));
 }
 
 void CParty::SetPartyID(uint32 id)
@@ -789,27 +776,27 @@ void CParty::SetPartyID(uint32 id)
     m_PartyID = id;
 }
 
-uint32 CParty::GetPartyID() const
+auto CParty::GetPartyID() const -> uint32
 {
     return m_PartyID;
 }
 
-CBattleEntity* CParty::GetLeader()
+auto CParty::GetLeader() -> CBattleEntity*
 {
     return m_PLeader;
 }
 
-CBattleEntity* CParty::GetSyncTarget()
+auto CParty::GetSyncTarget() -> CBattleEntity*
 {
     return m_PSyncTarget;
 }
 
-CBattleEntity* CParty::GetQuaterMaster()
+auto CParty::GetQuaterMaster() -> CBattleEntity*
 {
     return m_PQuarterMaster;
 }
 
-uint16 CParty::GetMemberFlags(CBattleEntity* PEntity)
+auto CParty::GetMemberFlags(CBattleEntity* PEntity) -> uint16
 {
     if (PEntity == nullptr || PEntity->PParty != this)
     {
@@ -870,7 +857,7 @@ void CParty::ReloadParty()
             party->RefreshFlags(info);
             for (auto&& member : party->members)
             {
-                CCharEntity* PChar = (CCharEntity*)member;
+                CCharEntity* PChar = static_cast<CCharEntity*>(member);
                 PChar->ReloadPartyDec();
                 uint16 alliance = 0;
 
@@ -917,7 +904,7 @@ void CParty::ReloadParty()
         // regular party
         for (auto& member : members)
         {
-            CCharEntity* PChar = (CCharEntity*)member;
+            CCharEntity* PChar = static_cast<CCharEntity*>(member);
 
             PChar->PLatentEffectContainer->CheckLatentsPartyJobs();
             PChar->PLatentEffectContainer->CheckLatentsPartyMembers(members.size(), trustCount);
@@ -1051,7 +1038,7 @@ void CParty::ReloadTreasurePool(CCharEntity* PChar)
             {
                 for (std::size_t i = 0; i < PChar->PParty->m_PAlliance->partyList.at(a)->members.size(); ++i)
                 {
-                    CCharEntity* PPartyMember = (CCharEntity*)PChar->PParty->m_PAlliance->partyList.at(a)->members.at(i);
+                    CCharEntity* PPartyMember = static_cast<CCharEntity*>(PChar->PParty->m_PAlliance->partyList.at(a)->members.at(i));
 
                     if (PPartyMember != PChar && PPartyMember->PTreasurePool != nullptr && PPartyMember->getZone() == PChar->getZone())
                     {
@@ -1071,7 +1058,7 @@ void CParty::ReloadTreasurePool(CCharEntity* PChar)
         {
             for (auto& member : members)
             {
-                CCharEntity* PPartyMember = (CCharEntity*)member;
+                CCharEntity* PPartyMember = static_cast<CCharEntity*>(member);
 
                 if (PPartyMember != PChar && PPartyMember->PTreasurePool != nullptr && PPartyMember->getZone() == PChar->getZone())
                 {
@@ -1149,12 +1136,12 @@ void CParty::SetSyncTarget(const std::string& MemberName, MsgStd message)
             // enable level sync
             if (PChar->GetMLevel() < 10)
             {
-                ((CCharEntity*)GetLeader())->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>((CCharEntity*)GetLeader(), (CCharEntity*)GetLeader(), 0, 10, MsgStd::LevelSyncDesigneeBelowMin);
+                static_cast<CCharEntity*>(GetLeader())->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>(static_cast<CCharEntity*>(GetLeader()), static_cast<CCharEntity*>(GetLeader()), 0, 10, MsgStd::LevelSyncDesigneeBelowMin);
                 return;
             }
             else if (PChar->getZone() != GetLeader()->getZone())
             {
-                ((CCharEntity*)GetLeader())->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>((CCharEntity*)GetLeader(), (CCharEntity*)GetLeader(), 0, 0, MsgStd::LevelSyncDesigneeInOtherArea);
+                static_cast<CCharEntity*>(GetLeader())->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>(static_cast<CCharEntity*>(GetLeader()), static_cast<CCharEntity*>(GetLeader()), 0, 0, MsgStd::LevelSyncDesigneeInOtherArea);
                 return;
             }
             else
@@ -1163,7 +1150,7 @@ void CParty::SetSyncTarget(const std::string& MemberName, MsgStd message)
                 {
                     if (member->StatusEffectContainer->HasStatusEffect({ xi::StatusEffect::LevelRestriction, xi::StatusEffect::LevelSync, xi::StatusEffect::SjRestriction, xi::StatusEffect::Confrontation, xi::StatusEffect::Battlefield }))
                     {
-                        ((CCharEntity*)GetLeader())->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>((CCharEntity*)GetLeader(), (CCharEntity*)GetLeader(), 0, 0, MsgStd::LevelSyncPreventedByStatus);
+                        static_cast<CCharEntity*>(GetLeader())->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>(static_cast<CCharEntity*>(GetLeader()), static_cast<CCharEntity*>(GetLeader()), 0, 0, MsgStd::LevelSyncPreventedByStatus);
                         return;
                     }
                 }
@@ -1314,7 +1301,7 @@ void CParty::DisableSync()
 
 void CParty::RefreshSync()
 {
-    CCharEntity* sync      = (CCharEntity*)m_PSyncTarget;
+    CCharEntity* sync      = static_cast<CCharEntity*>(m_PSyncTarget);
     uint8        syncLevel = sync->jobs.job[static_cast<uint8>(sync->GetMJob())];
     if (syncLevel < 10)
     {
@@ -1375,7 +1362,7 @@ void CParty::SetPartyNumber(uint8 number)
     m_PartyNumber = number;
 }
 
-bool CParty::HasOnlyOneMember() const
+auto CParty::HasOnlyOneMember() const -> bool
 {
     if (members.size() != 1)
     {
@@ -1386,7 +1373,7 @@ bool CParty::HasOnlyOneMember() const
     return LoadPartySize() == 1;
 }
 
-bool CParty::IsFull() const
+auto CParty::IsFull() const -> bool
 {
     if (members.size() > 5)
     {
@@ -1397,7 +1384,7 @@ bool CParty::IsFull() const
     return LoadPartySize() > 5;
 }
 
-uint32 CParty::LoadPartySize() const
+auto CParty::LoadPartySize() const -> uint32
 {
     if (m_PartyType != PARTYTYPE::PARTY_PCS)
     {
@@ -1413,7 +1400,7 @@ uint32 CParty::LoadPartySize() const
     return 0;
 }
 
-timer::time_point CParty::GetTimeLastMemberJoined()
+auto CParty::GetTimeLastMemberJoined() -> timer::time_point
 {
     auto* PLeader                    = dynamic_cast<CCharEntity*>(CParty::GetLeader());
     auto  LeaderMemberLastJoinedTime = timer::now();
@@ -1426,7 +1413,7 @@ timer::time_point CParty::GetTimeLastMemberJoined()
     return LeaderMemberLastJoinedTime;
 }
 
-bool CParty::HasTrusts()
+auto CParty::HasTrusts() -> bool
 {
     for (auto* PMember : members)
     {
@@ -1446,7 +1433,7 @@ void CParty::MarkFormedByTrusts()
     m_FormedByTrusts = true;
 }
 
-bool CParty::IsFormedByTrusts() const
+auto CParty::IsFormedByTrusts() const -> bool
 {
     return m_FormedByTrusts;
 }
@@ -1530,7 +1517,7 @@ void CParty::RefreshFlags(std::vector<partyInfo_t>& info)
     }
 }
 
-std::size_t CParty::GetMemberCountAcrossAllProcesses()
+auto CParty::GetMemberCountAcrossAllProcesses() -> std::size_t
 {
     // TODO: We should detect whether or not we're a multi-process
     // setup. So we can avoid asking the database for more information

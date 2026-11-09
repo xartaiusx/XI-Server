@@ -52,7 +52,7 @@ enum class WeaknessType
     WHITE  = 3
 };
 
-typedef HashMap<uint32, ModsList_t*> ModsMap_t;
+using ModsMap_t = HashMap<uint32, ModsList_t*>;
 
 namespace mobutils
 {
@@ -109,8 +109,8 @@ void   LoadSqlModifiers();
 void   Cleanup();
 
 // get modifiers for pool / spawn
-ModsList_t* GetMobPoolMods(uint32 poolId, bool create = false);
-ModsList_t* GetMobSpawnMods(uint32 mobId, bool create = false);
+auto GetMobPoolMods(uint32 poolId, bool create = false) -> ModsList_t*;
+auto GetMobSpawnMods(uint32 mobId, bool create = false) -> ModsList_t*;
 
 void AddSqlModifiers(CMobEntity* PMob);
 

@@ -21,16 +21,16 @@
 
 #pragma once
 
+#include "common/macros.h"
 #include <memory>
 
 template <class T>
 class Singleton
 {
 public:
-    Singleton(const Singleton&)            = delete;
-    Singleton& operator=(const Singleton&) = delete;
+    DISALLOW_COPY_AND_MOVE(Singleton);
 
-    static T* getInstance()
+    static auto getInstance() -> T*
     {
         if (!_instance)
         {
@@ -46,15 +46,13 @@ public:
     }
 
 protected:
-    Singleton()
-    {
-    }
-
-    virtual ~Singleton()
-    {
-    }
+    ~Singleton() = default;
 
 private:
+    friend T;
+
+    Singleton() = default;
+
     // https://stackoverflow.com/a/55932298
     struct T_Instance : public T
     {

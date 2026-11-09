@@ -26,6 +26,7 @@
 #include "common/vana_time.h"
 #include "enums/tick_type.h"
 #include "helpers/lua_client_entity_pair_packets.h"
+#include "in_memory_sink.h"
 #include "lua_client_entity_pair.h"
 #include "lua_test_entity.h"
 #include "map/ai/ai_container.h"
@@ -182,6 +183,34 @@ auto CLuaSimulation::getStatusEffectStartTime(CLuaBaseEntity* entity, const uint
         return std::nullopt;
     }
     return start;
+}
+
+/************************************************************************
+ *  Function: getSteadyTime()
+ *  Purpose : Reads the simulated steady clock in seconds.
+ *  Example : local startedAt = sim:getSteadyTime()
+ ************************************************************************/
+
+auto CLuaSimulation::getSteadyTime() const -> double
+{
+    return std::chrono::duration<double>(timer::now().time_since_epoch()).count();
+}
+
+/************************************************************************
+ *  Function: getLogs()
+ *  Purpose : Returns every log line written since the test started.
+ *  Example : local logs = xi.test.world:getLogs()
+ ************************************************************************/
+
+auto CLuaSimulation::getLogs() const -> sol::table
+{
+    auto result = lua.create_table();
+    for (const auto& line : sink_->logs())
+    {
+        result.add(line);
+    }
+
+    return result;
 }
 
 /************************************************************************
@@ -343,11 +372,11 @@ void CLuaSimulation::skipVanaDays(const uint32 days) const
  *  Notes   :
  ************************************************************************/
 
-void CLuaSimulation::setRegionOwner(REGION_TYPE region, NATION_TYPE nation) const
+void CLuaSimulation::setRegionOwner(const xi::Region region, const xi::Nation nation) const
 {
-    DebugTestFmt("Setting region {} owner to nation {}", static_cast<uint8>(region), static_cast<uint8>(nation));
+    DebugTestFmt("Setting region {} owner to nation {}", region, nation);
     auto rset = db::preparedStmt("UPDATE conquest_system SET region_control = ? WHERE region_id = ?",
-                                 static_cast<uint8>(nation),
+                                 nation,
                                  static_cast<uint8>(region));
 
     if (!rset)
@@ -364,8 +393,8 @@ void CLuaSimulation::setRegionOwner(REGION_TYPE region, NATION_TYPE nation) cons
         while (rset->next())
         {
             region_control_t regionControl{};
-            regionControl.current = rset->get<uint8>("region_control");
-            regionControl.prev    = rset->get<uint8>("region_control_prev");
+            regionControl.current = rset->get<xi::Nation>("region_control");
+            regionControl.prev    = rset->get<xi::Nation>("region_control_prev");
             controllers.emplace_back(regionControl);
         }
 
@@ -1020,6 +1049,8 @@ void CLuaSimulation::Register()
     SOL_REGISTER("skipTime", CLuaSimulation::skipTime);
     SOL_REGISTER("getStatusEffectStartTime", CLuaSimulation::getStatusEffectStartTime);
     SOL_REGISTER("probeTrustRaiseCatalog", CLuaSimulation::probeTrustRaiseCatalog);
+    SOL_REGISTER("getSteadyTime", CLuaSimulation::getSteadyTime);
+    SOL_REGISTER("getLogs", CLuaSimulation::getLogs);
     SOL_REGISTER("setVanaTime", CLuaSimulation::setVanaTime);
     SOL_REGISTER("setVanaDay", CLuaSimulation::setVanaDay);
     SOL_REGISTER("skipToNextVanaDay", CLuaSimulation::skipToNextVanaDay);

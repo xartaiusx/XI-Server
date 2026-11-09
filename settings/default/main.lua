@@ -64,6 +64,9 @@ xi.settings.main =
     ASSIST_CHANNEL_MEMBERSHIP_LENGTH  = 240,  -- How long returnees and new players will have access to the assist channel, in playtime hours.
     ASSIST_CHANNEL_RETURNEE_LOGIN_GAP =  48,  -- How many days must have elapsed before returnees are added to the assist channel.
 
+    -- A.M.A.N. Trove
+    ENABLE_AMAN_TROVE = 1, -- Enables Greyson, the Mars and Venus Orb battlefields and their monthly records.
+
     -- Records of Eminence
     ENABLE_ROE            = 1, -- Enable Records of Eminence
     ENABLE_ROE_TIMED      = 1, -- Enable 4-hour timed records
@@ -172,6 +175,7 @@ xi.settings.main =
     ENABLE_TRUST_CASTING           = 1,
     ENABLE_TRUST_QUESTS            = 1,
     ENABLE_TRUST_CUSTOM_ENGAGEMENT = 0,
+    TRUST_JOB99_IROHA_II           = false, -- Approved ordinary Iroha II SAM99/WHM99 development. Evidence lanes keep native behavior.
     TRUST_JOB99_VALAINERAL         = false, -- Approved ordinary Valaineral PLD99/WAR99 development; enable only after per-Trust acceptance. Evidence lanes keep native behavior.
     ENABLE_MOCHIRII_TWILLS_TRUST_GAMEPLAY    = false, -- Entitled ordinary solo Twills summons: at most17 Trusts, independent of QA session/logger state.
     ENABLE_MOCHIRII_TWILLS_FULL_ALLIANCE      = true, -- Mochirii: permit only the entitled hidden-GM5 Twills QA session to use virtual alliance transport.

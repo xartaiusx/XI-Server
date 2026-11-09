@@ -55,7 +55,17 @@ spellObject.onMobSpawn = function(mob)
             { ai.c.READYING_MS, 0 },
             { ai.c.CASTER_HPP_LT, 35 },
         }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.INTERVENE })
-        mob:addGambit(ai.t.MASTER, { ai.c.HPP_LT, 50 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.COVER })
+        mob:addGambit(ai.t.PARTY, {
+            { ai.c.HPP_LT, 50 },
+            { ai.c.COVER_OPPORTUNITY, 0 },
+        }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.COVER })
+        mob:addGambit(ai.t.TARGET, { ai.l.OR(
+            { ai.c.CASTING_MA, 0 },
+            { ai.c.READYING_JA, 0 },
+            { ai.c.READYING_MS, 0 },
+            { ai.c.READYING_WS, 0 }) }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.SHIELD_BASH })
+        mob:addGambit(ai.t.TARGET, { ai.c.CASTING_DEBUFF, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.FEALTY })
+        mob:addGambit(ai.t.PARTY, { ai.c.HPP_LT, 35 }, { ai.r.MA, ai.s.HIGHEST, xi.magic.spellFamily.CURE })
     end
 
     if lvl >= 1 then
@@ -67,7 +77,7 @@ spellObject.onMobSpawn = function(mob)
         mob:addGambit(ai.t.SELF, { ai.c.ALWAYS, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.PROVOKE })
     end
 
-    if lvl >= 15 then
+    if not developed and lvl >= 15 then
         mob:addGambit(ai.t.TARGET, { ai.l.OR(
             { ai.c.CASTING_MA, 0 },
             { ai.c.READYING_JA, 0 },
@@ -103,7 +113,10 @@ spellObject.onMobSpawn = function(mob)
     end
 
     if lvl >= 75 then
-        mob:addGambit(ai.t.TARGET, { ai.c.CASTING_DEBUFF, 0               }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.FEALTY        })
+        if not developed then
+            mob:addGambit(ai.t.TARGET, { ai.c.CASTING_DEBUFF, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.FEALTY })
+        end
+
         mob:addGambit(ai.t.TARGET, { { ai.c.STATUS_MISSING_OR_EXPIRING, xi.effect.FLASH }, { ai.c.CASTER_STATUS_MISSING_OR_EXPIRING, xi.effect.DIVINE_EMBLEM } }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.DIVINE_EMBLEM })
     end
 

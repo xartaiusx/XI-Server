@@ -34,6 +34,7 @@
 #include "items/transactions/synth.h"
 #include "itemutils.h"
 #include "lua/luautils.h"
+#include "map_session.h"
 #include "packets/char_status.h"
 #include "packets/s2c/0x029_battle_message.h"
 #include "packets/s2c/0x030_effect.h"
@@ -51,10 +52,11 @@
 #define RESULT_SUCCESS 0x00
 #define RESULT_FAIL    0x01
 #define RESULT_HQ      0x02
-#define RESULT_HQ2     0x03
-#define RESULT_HQ3     0x04
 
 namespace synthutils
+{
+
+namespace
 {
 
 struct SynthRecipe
@@ -92,7 +94,7 @@ struct SynthRecipe
     std::string ResultName;
     std::string ContentTag;
 
-    uint16 getSkillValue(xi::SkillType type) const
+    auto getSkillValue(xi::SkillType type) const -> uint16
     {
         switch (type)
         {
@@ -244,6 +246,8 @@ auto crystalProps(uint16 itemId) -> CrystalProps
     return { 0, SynthesisEffect::None };
 }
 
+} // namespace
+
 void LoadSynthRecipes()
 {
     TracyZoneScoped;
@@ -334,6 +338,9 @@ void LoadSynthRecipes()
     }
 }
 
+namespace
+{
+
 /********************************************************************************************************************************
  * We check the availability of the recipe and the possibility of its synthesis.                                                 *
  * If its difficulty is 15 levels higher than character skill then recipe is considered too difficult and the synth is canceled. *
@@ -372,7 +379,7 @@ auto resolveRecipe(CCharEntity* PChar, const SynthOffer& offer) -> bool
     }
 
     const CItem* PItem = xi::items::lookup(recipe.Result);
-    if (PItem && PItem->hasFlag(ItemFlag::Rare) && charutils::HasItem(PChar, recipe.Result))
+    if (PItem && PItem->hasFlag(xi::ItemFlag::Rare) && charutils::HasItem(PChar, recipe.Result))
     {
         PChar->pushPacket<GP_SERV_COMMAND_COMBINE_ANS>(PChar, SynthesisResult::CancelRareItem);
         return false;
@@ -785,7 +792,7 @@ auto handleSynthResult(CCharEntity* PChar) -> uint8
 
 // Base chance (percent) an ingredient is lost when a synth breaks, keyed by item id. Unlisted materials use 50% break rate
 // 0 means the material always survives
-static const FlatHashMap<uint16, uint8> materialLossRates = {
+const FlatHashMap<uint16, uint8> materialLossRates = {
     { 489, 0 },    // Broken Lu Shang's Fishing Rod
     { 722, 100 },  // Divine Log
     { 860, 100 },  // Behemoth Hide
@@ -908,7 +915,7 @@ void handleSynthFail(CCharEntity* PChar)
 
 // Percent chance of a +0.1 through +0.5 skill up given one occurred, indexed by floor distance (recipe level - charSkill / 10).
 // Derived from retail skill-up logs. Each row sums to 100.
-static constexpr std::array<std::array<uint8, 5>, 15> skillUpAmountWeights = { {
+constexpr std::array<std::array<uint8, 5>, 15> skillUpAmountWeights = { {
     { 85, 15, 0, 0, 0 },   // 0 (and over-cap)
     { 85, 15, 0, 0, 0 },   // 1
     { 85, 15, 0, 0, 0 },   // 2
@@ -1124,6 +1131,46 @@ void doSynthSkillUp(CCharEntity* PChar)
     }
 }
 
+// Indexed by SYNTHESIS_RESULT
+constexpr std::array<const char*, 5> synthResultNames = { "fail", "nq", "hq1", "hq2", "hq3" };
+
+void auditSynth(CCharEntity* PChar, const char* result)
+{
+    if (!settings::get<bool>("map.AUDIT_PLAYER_CRAFT") || !PChar->PSession || !PChar->PSession->scheduler)
+    {
+        return;
+    }
+
+    const auto unixSeconds = [](const timer::time_point timePoint) -> double
+    {
+        return std::chrono::duration<double>(timer::to_utc(timePoint).time_since_epoch()).count();
+    };
+
+    PChar->PSession->scheduler->postToWorkerThread(
+        [result,
+         charId       = PChar->id,
+         charName     = PChar->getName(),
+         recipeId     = PChar->craftState().recipeId(),
+         startSeconds = unixSeconds(PChar->m_LastSynthTime),
+         endSeconds   = unixSeconds(timer::now())]()
+        {
+            if (!db::preparedStmt("INSERT INTO audit_craft(charid, char_name, recipeid, recipe_name, result, start_time, end_time) "
+                                  "VALUES (?, ?, ?, (SELECT ResultName FROM synth_recipes WHERE ID = ?), ?, ?, ?)",
+                                  charId,
+                                  charName,
+                                  recipeId,
+                                  recipeId,
+                                  result,
+                                  startSeconds,
+                                  endSeconds))
+            {
+                ShowErrorFmt("Failed to log craft (char: {}, recipe: {}, result: {})", charId, recipeId, result);
+            }
+        });
+}
+
+} // namespace
+
 /************************
  * Public functions     *
  ************************/
@@ -1204,6 +1251,8 @@ void sendSynthDone(CCharEntity* PChar)
     std::ignore = synthTransaction->commit();
     PChar->removeTransaction(synthTransaction);
 
+    auditSynth(PChar, synthResultNames[PChar->craftState().result()]);
+
     PChar->animation = xi::Animation::None;
     PChar->updatemask |= UPDATE_HP;
     PChar->pushPacket<CCharStatusPacket>(PChar);
@@ -1240,6 +1289,8 @@ void doSynthCriticalFail(CCharEntity* PChar)
 
     std::ignore = synthTransaction->commit();
     PChar->removeTransaction(synthTransaction);
+
+    auditSynth(PChar, "interrupted");
 
     PChar->animation = xi::Animation::None;
     PChar->updatemask |= UPDATE_HP;

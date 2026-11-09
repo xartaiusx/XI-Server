@@ -102,6 +102,15 @@ void CEnmityContainer::LogoutReset(uint32 EntityID)
     }
 }
 
+void CEnmityContainer::ZoneInRebind(CBattleEntity* PEntity)
+{
+    if (const auto& enmity_obj = m_EnmityList.find(PEntity->id); enmity_obj != m_EnmityList.end())
+    {
+        enmity_obj->second.PEnmityOwner = PEntity;
+        PEntity->PNotorietyContainer->add(m_EnmityHolder);
+    }
+}
+
 void CEnmityContainer::SetActive(uint32 EntityID, bool active)
 {
     if (const auto& enmity_obj = m_EnmityList.find(EntityID); enmity_obj != m_EnmityList.end())
@@ -124,7 +133,9 @@ void CEnmityContainer::AddBaseEnmity(CBattleEntity* PChar)
     {
         return;
     }
-    m_EnmityList.emplace(PChar->id, EnmityObject_t{ PChar, 0, 0, true });
+    // A char that zoned back in is a new object with the same id.
+    const auto enmityObj           = m_EnmityList.try_emplace(PChar->id, EnmityObject_t{ PChar, 0, 0, true }).first;
+    enmityObj->second.PEnmityOwner = PChar;
     PChar->PNotorietyContainer->add(m_EnmityHolder);
 }
 
@@ -218,10 +229,9 @@ void CEnmityContainer::UpdateEnmity(CBattleEntity* PEntity, int32 CE, int32 VE, 
 
     if (enmity_obj != m_EnmityList.end())
     {
-        if (enmity_obj->second.PEnmityOwner == nullptr)
-        {
-            enmity_obj->second.PEnmityOwner = PEntity;
-        }
+        enmity_obj->second.PEnmityOwner = PEntity;
+        PEntity->PNotorietyContainer->add(m_EnmityHolder);
+
         float bonus = CalculateEnmityBonus(PEntity, specialEnmityBonus);
 
         int32 newCE = (int32)(enmity_obj->second.CE + (CE > 0 ? CE * bonus : CE));
@@ -278,7 +288,7 @@ void CEnmityContainer::UpdateEnmity(CBattleEntity* PEntity, int32 CE, int32 VE, 
     }
 }
 
-bool CEnmityContainer::HasID(uint32 TargetID)
+auto CEnmityContainer::HasID(uint32 TargetID) -> bool
 {
     auto maybeID = std::ranges::find_if(
         m_EnmityList,
@@ -327,6 +337,9 @@ void CEnmityContainer::UpdateEnmityFromCure(CBattleEntity* PEntity, uint8 level,
 
     if (enmity_obj != m_EnmityList.end())
     {
+        enmity_obj->second.PEnmityOwner = PEntity;
+        PEntity->PNotorietyContainer->add(m_EnmityHolder);
+
         enmity_obj->second.CE     = std::clamp(enmity_obj->second.CE + CE, 0, EnmityCap);
         enmity_obj->second.VE     = std::clamp(enmity_obj->second.VE + VE, 0, EnmityCap);
         enmity_obj->second.active = true;
@@ -374,13 +387,13 @@ void CEnmityContainer::LowerEnmityByPercent(CBattleEntity* PEntity, uint8 percen
  *                                                                       *
  ************************************************************************/
 
-int32 CEnmityContainer::GetCE(CBattleEntity* PEntity) const
+auto CEnmityContainer::GetCE(CBattleEntity* PEntity) const -> int32
 {
     auto PEnmity = m_EnmityList.find(PEntity->id);
     return PEnmity != m_EnmityList.end() ? PEnmity->second.CE : 0;
 }
 
-int32 CEnmityContainer::GetVE(CBattleEntity* PEntity) const
+auto CEnmityContainer::GetVE(CBattleEntity* PEntity) const -> int32
 {
     auto PEnmity = m_EnmityList.find(PEntity->id);
     return PEnmity != m_EnmityList.end() ? PEnmity->second.VE : 0;
@@ -475,7 +488,7 @@ void CEnmityContainer::UpdateEnmityFromAttack(CBattleEntity* PEntity, int32 Dama
  *                                                                       *
  ************************************************************************/
 
-CBattleEntity* CEnmityContainer::GetHighestEnmity()
+auto CEnmityContainer::GetHighestEnmity() -> CBattleEntity*
 {
     if (m_EnmityList.empty())
     {
@@ -522,6 +535,11 @@ CBattleEntity* CEnmityContainer::GetHighestEnmity()
         // Is this still true?
         if (!PEntity || PEntity->getZone() != m_EnmityHolder->getZone() || PEntity->PInstance != m_EnmityHolder->PInstance || PEntity->isDead())
         {
+            if (PEntity)
+            {
+                PEntity->PNotorietyContainer->remove(m_EnmityHolder);
+            }
+
             m_EnmityList.erase(highest);
             PEntity = GetHighestEnmity();
         }
@@ -540,7 +558,7 @@ void CEnmityContainer::DecayEnmity()
     }
 }
 
-bool CEnmityContainer::IsWithinEnmityRange(CBattleEntity* PEntity) const
+auto CEnmityContainer::IsWithinEnmityRange(CBattleEntity* PEntity) const -> bool
 {
     if (PEntity->getZone() != m_EnmityHolder->getZone())
     {
@@ -550,12 +568,12 @@ bool CEnmityContainer::IsWithinEnmityRange(CBattleEntity* PEntity) const
     return isWithinDistance(m_EnmityHolder->loc.p, PEntity->loc.p, maxRange);
 }
 
-EnmityList_t* CEnmityContainer::GetEnmityList()
+auto CEnmityContainer::GetEnmityList() -> EnmityList_t*
 {
     return &m_EnmityList;
 }
 
-bool CEnmityContainer::IgnorePets(CBattleEntity* PEntity) const
+auto CEnmityContainer::IgnorePets(CBattleEntity* PEntity) const -> bool
 {
     if (m_EnmityHolder->getMobMod(xi::MobMod::IgnorePets) == 0)
     {
@@ -570,7 +588,7 @@ bool CEnmityContainer::IgnorePets(CBattleEntity* PEntity) const
     return PEntity->objtype == TYPE_MOB && PEntity->PMaster != nullptr && dynamic_cast<const CCharEntity*>(PEntity->PMaster) != nullptr;
 }
 
-bool CEnmityContainer::IsTameable() const
+auto CEnmityContainer::IsTameable() const -> bool
 {
     return m_tameable;
 }

@@ -24,7 +24,7 @@
 #include <common/blowfish.h>
 #include <common/cbasetypes.h>
 #include <common/ipp.h>
-#include <common/scheduler.h>
+#include <common/scheduler/scheduler.h>
 
 #include <map/map_config.h>
 #include <map/map_constants.h>
@@ -55,16 +55,16 @@ public:
     void handle_incoming_packet(ByteSpan buffer, const IPP& ipp);
 
     // Decipher packet
-    int32 map_decipher_packet(uint8* buff, size_t buffsize, MapSession* PSession, blowfish_t* pbfkey);
+    auto map_decipher_packet(uint8* buff, size_t buffsize, MapSession* PSession, blowfish_t* pbfkey) -> int32;
 
     // main function to parse recv packets
-    int32 recv_parse(uint8* buff, size_t* buffsize, MapSession*& PSession, const IPP& ipp);
+    auto recv_parse(uint8* buff, size_t* buffsize, MapSession*& PSession, const IPP& ipp) -> int32;
 
     // main function parsing the packets
-    int32 parse(uint8* buff, size_t* buffsize, MapSession* PSession);
+    auto parse(uint8* buff, size_t* buffsize, MapSession* PSession) -> int32;
 
     // main function is building big packet
-    int32 send_parse(uint8* buff, size_t* buffsize, MapSession* PSession, UsePreviousKey usePreviousKey);
+    auto send_parse(uint8* buff, size_t* buffsize, MapSession* PSession, UsePreviousKey usePreviousKey) -> int32;
 
     //
     // Packet Building
@@ -95,6 +95,9 @@ public:
     auto scheduler() -> Scheduler&;
     auto socket() -> Socket&;
     auto packetSystem() -> PacketSystem&;
+
+    // The test server has no socket until a test installs one
+    void setSocket(std::unique_ptr<Socket> socket);
 
 private:
     Scheduler&              scheduler_;

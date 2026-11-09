@@ -20,7 +20,7 @@
 */
 
 #include "0x0fa_myroom_layout.h"
-#include "enums/item_state.h"
+#include "data/enums/item_state.h"
 #include "items/item_access.h"
 
 #include "entities/char_entity.h"
@@ -103,8 +103,8 @@ auto collidesOnFloor(CItemFurnishing* other, const uint8 x, const uint8 z, const
         return false;
     }
 
-    // Stacked OnTable items live above the floor and don't conflict.
-    if (op == FurnishingPlacement::OnTable && other->getLevel() != 0)
+    // Stacked items live above the floor and don't conflict.
+    if (other->getLevel() != 0)
     {
         return false;
     }
@@ -313,7 +313,7 @@ void GP_CLI_COMMAND_MYROOM_LAYOUT::process(MapSession* PSession, CCharEntity* PC
     if (PItem->getID() == this->MyroomItemNo && PItem->isType(ITEM_FURNISHING))
     {
         // already PlacedFurniture, and mark() only moves between states
-        if (PItem->state() != ItemState::PlacedFurniture && !xi::items::mark(PItem, ItemState::PlacedFurniture))
+        if (PItem->state() != xi::ItemState::PlacedFurniture && !xi::items::mark(PItem, xi::ItemState::PlacedFurniture))
         {
             ShowWarningFmt("GP_CLI_COMMAND_MYROOM_LAYOUT: could not mark furnishing {} for {}", PItem->getID(), PChar->getName());
             return;

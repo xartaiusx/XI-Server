@@ -20,7 +20,10 @@
 */
 #pragma once
 
+#include "common/macros.h"
 #include "controller.h"
+
+#include <vector>
 
 class CCharEntity;
 class CWeaponSkill;
@@ -30,7 +33,9 @@ class CPlayerController : public CController
 public:
     CPlayerController(CCharEntity*);
 
-    virtual ~CPlayerController();
+    ~CPlayerController() override;
+
+    DISALLOW_COPY_AND_MOVE(CPlayerController);
 
     auto Tick(timer::time_point tick) -> Task<void> override;
     auto Cast(EntityId target, SpellID spellid) -> bool override;
@@ -55,6 +60,9 @@ public:
     auto getLastWeaponSkill() -> CWeaponSkill*;
 
     auto canAct() -> bool;
+
+    EntityId              ordinaryTrustActionTarget;
+    std::vector<EntityId> ordinaryTrustAttackers;
 
 protected:
     timer::time_point m_lastAttackTime{ timer::now() };

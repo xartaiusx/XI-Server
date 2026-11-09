@@ -77,12 +77,9 @@ auto GP_CLI_COMMAND_ACTION::validate(MapSession* PSession, const CCharEntity* PC
                     case GP_CLI_COMMAND_ACTION_ACTIONID::Assist:
                     case GP_CLI_COMMAND_ACTION_ACTIONID::Blockaid:
                     case GP_CLI_COMMAND_ACTION_ACTIONID::Help:
-                    {
-                        break;
-                    }
+                    // Talking to NPC has several blocked states checked a little later as they send a release packet.
                     case GP_CLI_COMMAND_ACTION_ACTIONID::Talk:
                     {
-                        // Talking to NPC has several blocked states checked a little later as they send a release packet.
                         break;
                     }
                     case GP_CLI_COMMAND_ACTION_ACTIONID::AttackOff:
@@ -133,11 +130,6 @@ auto GP_CLI_COMMAND_ACTION::validate(MapSession* PSession, const CCharEntity* PC
                         break;
                     }
                     case GP_CLI_COMMAND_ACTION_ACTIONID::Dismount:
-                    {
-                        pv.blockedBy({ BlockedState::PreventAction })
-                            .mustEqual(PChar->isMounted(), true, "Character is not mounted.");
-                        break;
-                    }
                     case GP_CLI_COMMAND_ACTION_ACTIONID::ChocoboDig:
                     {
                         pv.blockedBy({ BlockedState::PreventAction })
@@ -145,9 +137,6 @@ auto GP_CLI_COMMAND_ACTION::validate(MapSession* PSession, const CCharEntity* PC
                         break;
                     }
                     case GP_CLI_COMMAND_ACTION_ACTIONID::SendResRdy:
-                    {
-                        break;
-                    }
                     // Unimplemented Ballista actions
                     case GP_CLI_COMMAND_ACTION_ACTIONID::Quarry:
                     case GP_CLI_COMMAND_ACTION_ACTIONID::Sprint:
@@ -578,7 +567,7 @@ void GP_CLI_COMMAND_ACTION::process(MapSession* PSession, CCharEntity* PChar) co
             }
             else if (charutils::hasKeyItem(PChar, mountKeyItem))
             {
-                if (PChar->PRecastContainer->HasRecast(RECAST_ABILITY, Recast::Mount, 60s))
+                if (PChar->PRecastContainer->HasRecast(xi::RecastType::Ability, xi::Recast::Mount, 60s))
                 {
                     PChar->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>(PChar, PChar, 0, 0, MsgBasic::WaitLonger);
 
@@ -624,7 +613,7 @@ void GP_CLI_COMMAND_ACTION::process(MapSession* PSession, CCharEntity* PChar) co
                     0,
                     mountutils::kPersonalChocoboFlag); // previously known as nameflag "FLAG_CHOCOBO"
 
-                PChar->PRecastContainer->Add(RECAST_ABILITY, Recast::Mount, 60s);
+                PChar->PRecastContainer->Add(xi::RecastType::Ability, xi::Recast::Mount, 60s);
                 PChar->pushPacket<GP_SERV_COMMAND_ABIL_RECAST>(PChar);
 
                 luautils::OnPlayerMount(PChar);

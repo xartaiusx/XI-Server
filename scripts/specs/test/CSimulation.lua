@@ -82,6 +82,16 @@ end
 function CSimulation:getStatusEffectStartTime(entity, effectId)
 end
 
+---Returns the simulated steady clock in seconds.
+---@return number
+function CSimulation:getSteadyTime()
+end
+
+---Returns every log line written since the test started.
+---@return string[]
+function CSimulation:getLogs()
+end
+
 ---@param hour integer
 ---@param minute integer
 ---@return nil

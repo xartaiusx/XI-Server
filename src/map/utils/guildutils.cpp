@@ -27,15 +27,18 @@
 
 #include <vector>
 
-#include "items/item_shop.h"
-
 #include "charutils.h"
 #include "guild.h"
 #include "item_container.h"
 #include "itemutils.h"
 #include "serverutils.h"
 
+namespace
+{
+
 std::vector<CGuild*> g_PGuildList;
+
+} // namespace
 
 namespace guildutils
 {

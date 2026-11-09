@@ -50,13 +50,12 @@ std::array<std::unique_ptr<CItem>, MAX_ITEMID> itemTemplates;
 std::unique_ptr<CItemWeapon>                   unarmedItem;
 std::unique_ptr<CItemWeapon>                   unarmedH2HItem;
 
-} // namespace
-
 std::array<DropList_t*, MAX_DROPID> g_pDropList; // global array of monster droplist items
-std::array<LootList_t*, MAX_LOOTID> g_pLootList; // global array of BCNM lootlist items
 
 // Translation lookup: language -> (name -> {item id, translated name})
 std::map<GP_CLI_COMMAND_TRANSLATE_INDEX, HashMap<std::string, std::pair<uint16, std::string>>> g_TranslateMap;
+
+} // namespace
 
 DropItem_t::DropItem_t(uint8 DropType, uint16 ItemID, uint16 DropRate)
 : DropType(DropType)
@@ -245,7 +244,7 @@ auto unarmedH2H() -> CItemWeapon*
 namespace itemutils
 {
 
-DropList_t* GetDropList(uint16 DropID)
+auto GetDropList(uint16 DropID) -> DropList_t*
 {
     if (DropID < MAX_DROPID)
     {
@@ -256,6 +255,9 @@ DropList_t* GetDropList(uint16 DropID)
     ShowWarning("DropID %u too big", DropID);
     return nullptr;
 }
+
+namespace
+{
 
 /************************************************************************
  *                                                                       *
@@ -324,7 +326,7 @@ void LoadItemList()
         {
             PItem->setName(rset->get<std::string>("name"));
             PItem->setStackSize(rset->get<uint32>("stackSize"));
-            PItem->setFlag(rset->get<ItemFlag>("flags"));
+            PItem->setFlag(rset->get<xi::ItemFlag>("flags"));
             PItem->setAHCat(rset->get<uint8>("aH"));
             PItem->setBasePrice(rset->get<uint32>("BaseSell"));
             PItem->setSubID(rset->get<uint16>("subid"));
@@ -555,6 +557,8 @@ void LoadDropList()
     // Populate 0 drop list with an empty list to support mobs that only drop loot through script logic
     g_pDropList[0] = new DropList_t;
 }
+
+} // namespace
 
 /************************************************************************
  *                                                                       *

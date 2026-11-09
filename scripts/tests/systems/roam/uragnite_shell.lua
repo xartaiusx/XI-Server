@@ -53,9 +53,9 @@ describe('Uragnite shell', function()
             xi.test.world:tickEntity(mob)
             local sub = mob:getAnimationSub()
             if sub == 5 and not closedAt then
-                closedAt = elapsedTime
+                closedAt = xi.test.world:getSteadyTime()
             elseif sub == 4 and closedAt and not openedAt then
-                openedAt = elapsedTime
+                openedAt = xi.test.world:getSteadyTime()
                 break
             end
         end

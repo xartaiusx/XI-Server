@@ -23,6 +23,7 @@
 
 #include "common/cbasetypes.h"
 #include "common/logging.h"
+#include "common/macros.h"
 
 #include <asio/ssl.hpp>
 #include <asio/ts/buffer.hpp>
@@ -36,9 +37,11 @@ public:
 
     virtual ~handler_session() = default;
 
-    void start();
+    DISALLOW_COPY_AND_MOVE(handler_session);
 
-    void do_read();
+    virtual void start();
+
+    virtual void do_read();
 
     virtual void handle_error(std::error_code ec, std::shared_ptr<handler_session> self) = 0;
 

@@ -29,6 +29,7 @@
 
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 class CAIEventHandler
@@ -38,9 +39,9 @@ class CAIEventHandler
         std::string   identifier_;
         sol::function luaFunc_;
 
-        AIEvent(const std::string& identifier, sol::function luaFunc)
-        : identifier_(identifier)
-        , luaFunc_(luaFunc)
+        AIEvent(std::string identifier, sol::function luaFunc)
+        : identifier_(std::move(identifier))
+        , luaFunc_(std::move(luaFunc))
         {
         }
     };
@@ -48,7 +49,7 @@ class CAIEventHandler
 public:
     void addListener(const std::string& eventName, const sol::function& luaFunc, const std::string& identifier);
     void removeListener(const std::string& identifier);
-    bool hasListener(const std::string& eventName) const;
+    auto hasListener(const std::string& eventName) const -> bool;
 
     template <class... Args>
     void triggerListener(const std::string& eventName, Args&&... args) noexcept;
@@ -86,7 +87,7 @@ void CAIEventHandler::triggerListener(const std::string& eventName, Args&&... ar
         auto& listeners = it->second;
         for (auto& event : listeners)
         {
-            auto result = event.luaFunc_(std::forward<Args>(args)...);
+            auto result = event.luaFunc_(std::decay_t<Args>(args)...);
             if (!result.valid())
             {
                 sol::error err = result;

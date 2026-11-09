@@ -31,32 +31,35 @@ class CItemWeapon : public CItemEquipment
 public:
     CItemWeapon(uint16);
     CItemWeapon(const CItemWeapon& other);
-    virtual ~CItemWeapon();
+    auto operator=(const CItemWeapon&) -> CItemWeapon& = delete;
+    CItemWeapon(CItemWeapon&&)                         = delete;
+    auto operator=(CItemWeapon&&) -> CItemWeapon&      = delete;
+    ~CItemWeapon() override;
 
-    auto   getSkillType() const -> xi::SkillType;
-    uint8  getSubSkillType() const;
-    uint16 getILvlSkill() const;
-    uint16 getILvlParry() const;
-    uint16 getILvlMacc() const;
-    uint16 getDelay() const;
-    uint16 getBaseDelay() const;
-    uint16 getDamage() const;
-    auto   getDmgType() -> xi::DamageType;
-    uint8  getAdditionalEffect() const;
-    uint8  getHitCount() const;
-    double getDPS() const;
-    uint16 getTotalUnlockPointsNeeded() const;
-    auto   getCurrentUnlockPoints() const -> uint16;
-    void   resetDelay();
-    bool   addWsPoints(uint16 points);
+    auto getSkillType() const -> xi::SkillType;
+    auto getSubSkillType() const -> uint8;
+    auto getILvlSkill() const -> uint16;
+    auto getILvlParry() const -> uint16;
+    auto getILvlMacc() const -> uint16;
+    auto getDelay() const -> uint16;
+    auto getBaseDelay() const -> uint16;
+    auto getDamage() const -> uint16;
+    auto getDmgType() -> xi::DamageType;
+    auto getAdditionalEffect() const -> uint8;
+    auto getHitCount() const -> uint8;
+    auto getDPS() const -> double;
+    auto getTotalUnlockPointsNeeded() const -> uint16;
+    auto getCurrentUnlockPoints() const -> uint16;
+    void resetDelay();
+    auto addWsPoints(uint16 points) -> bool;
 
-    bool isRanged() const;
-    bool isThrowing() const;
-    bool isShuriken() const;
-    bool isTwoHanded() const;
-    bool isHandToHand() const;
-    bool isUnlockable() const;
-    bool isUnlocked();
+    auto isRanged() const -> bool;
+    auto isThrowing() const -> bool;
+    auto isShuriken() const -> bool;
+    auto isTwoHanded() const -> bool;
+    auto isHandToHand() const -> bool;
+    auto isUnlockable() const -> bool;
+    auto isUnlocked() const -> bool;
 
     void setSkillType(xi::SkillType skillType);
     void setSubSkillType(uint8 subSkillType);
@@ -75,21 +78,21 @@ public:
     void setCurrentUnlockPoints(uint16 points);
 
 private:
-    xi::SkillType  m_skillType;
-    uint8          m_subSkillType; // gun vs crossbow, any other exclusives
-    uint16         m_iLvlSkill;
-    uint16         m_iLvlParry;
-    uint16         m_iLvlMacc;
-    uint16         m_damage;
-    uint16         m_delay;
-    uint16         m_baseDelay;
-    xi::DamageType m_dmgType;
-    uint8          m_effect;
-    uint8          m_maxHit;
-    double         m_DPS;
+    xi::SkillType  m_skillType{ xi::SkillType::None };
+    uint8          m_subSkillType{ SUBSKILL_XBOW_SHORTBOW }; // gun vs crossbow, any other exclusives
+    uint16         m_iLvlSkill{};
+    uint16         m_iLvlParry{};
+    uint16         m_iLvlMacc{};
+    uint16         m_damage{};
+    uint16         m_delay{ 8000 };
+    uint16         m_baseDelay{ 480 }; // this should only be needed for mobs (specifically mnks)
+    xi::DamageType m_dmgType{ xi::DamageType::None };
+    uint8          m_effect{};
+    uint8          m_maxHit{};
+    double         m_DPS{};
 
-    uint16 m_wsunlockpoints;
+    uint16 m_wsunlockpoints{};
 
-    bool m_ranged;
-    bool m_twoHanded;
+    bool m_ranged{};
+    bool m_twoHanded{};
 };

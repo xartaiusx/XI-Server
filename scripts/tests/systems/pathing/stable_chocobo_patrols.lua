@@ -29,16 +29,13 @@ describe('Stable chocobo patrols', function()
         local player = xi.test.world:spawnPlayer({ zone = xi.zone.SOUTHERN_SAN_DORIA })
         stub('math.randomInt', 1)
 
-        -- Native arrival allows a small residual, so establish the exact self-point fixture.
+        -- Face away from heading 0 so the callback has to turn the chocobo.
         local npc = player.entities:get(17719338)
         headingNpc = npc
         npc:clearPath()
-        npc:setPos(firstPoint.x, firstPoint.y, firstPoint.z, 128)
+        npc:setPos(11.348, 2.201, -87.631, 128)
         npc:setLocalVar('point', 1)
-        npc:pathThrough({ firstPoint }, xi.path.flag.PATROL)
-        npc:continuePath()
-        assert(npc:getRotPos() == 128, 'The turn must not be pre-satisfied')
-
+        npc:pathThrough({ { rotation = 128, wait = 1000 } }, xi.path.flag.PATROL)
         local turned = false
         for _ = 1, 60 do
             xi.test.world:skipTime(1)

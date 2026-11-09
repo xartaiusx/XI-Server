@@ -258,7 +258,7 @@ auto CMobController::MobSkill(const EntityId target, uint16 wsid, const Maybe<ti
 
 auto CMobController::Ability(const EntityId target, uint16 abilityid) -> bool
 {
-    if (PMob->PRecastContainer->HasRecast(RECAST_ABILITY, static_cast<Recast>(abilityid), 0s))
+    if (PMob->PRecastContainer->HasRecast(xi::RecastType::Ability, static_cast<xi::Recast>(abilityid), 0s))
     {
         return false;
     }
@@ -411,7 +411,7 @@ auto CMobController::TryCastSpell() -> bool
     const auto [maybeSpellOverride, maybeTargetOverride] = luautils::OnMobSpellChoose(PMob, PSpellTarget, chosenSpellId);
     if (maybeSpellOverride.has_value())
     {
-        chosenSpellId = maybeSpellOverride.value();
+        chosenSpellId = maybeSpellOverride;
     }
 
     if (!chosenSpellId.has_value())
@@ -425,7 +425,7 @@ auto CMobController::TryCastSpell() -> bool
         return false;
     }
 
-    if (PMob->PRecastContainer->Has(RECAST_MAGIC, static_cast<Recast>(chosenSpellId.value())))
+    if (PMob->PRecastContainer->Has(xi::RecastType::Magic, static_cast<xi::Recast>(chosenSpellId.value())))
     {
         return false; // Spell is on cooldown.
     }
@@ -476,7 +476,7 @@ auto CMobController::TryCastIdleBuff() -> bool
 
     const auto  spellId = maybeSpellOverride.value_or(maybeIdleBuff->spellId);
     auto* const PSpell  = spell::GetSpell(spellId);
-    if (!PSpell || PMob->PRecastContainer->Has(RECAST_MAGIC, static_cast<Recast>(spellId)) || !battleutils::CanAffordSpell(PMob, PSpell, PSpell->getFlag()))
+    if (!PSpell || PMob->PRecastContainer->Has(xi::RecastType::Magic, static_cast<xi::Recast>(spellId)) || !battleutils::CanAffordSpell(PMob, PSpell, PSpell->getFlag()))
     {
         return false;
     }
@@ -1251,7 +1251,6 @@ void CMobController::Move()
     }
 
     const float currentDistance = distance(PMob->loc.p, PTarget->loc.p);
-    const bool  isFollowingPath = PMob->PAI->PathFind->IsFollowingPath();
 
     // Teleport type 1: jump in if out of melee range but within 30y and off cooldown.
     if (PMob->getMobMod(xi::MobMod::TeleportType) == 1 &&
@@ -1341,7 +1340,8 @@ void CMobController::Move()
     bool needNewPath   = false;
     bool isStuckRepath = false;
     bool targetMoved   = false;
-    if (isFollowingPath)
+    // Read after the in-range probe, which clears the path when its query fails.
+    if (PMob->PAI->PathFind->IsFollowingPath())
     {
         needNewPath = !isWithinDistance(PMob->PAI->PathFind->GetDestination(), PTarget->loc.p, kChaseRepathDrift);
     }

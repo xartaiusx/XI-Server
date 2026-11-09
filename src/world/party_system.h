@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include "common/macros.h"
 #include "world_engine.h"
 
 class PartySystem
@@ -34,7 +35,9 @@ public:
 
     ~PartySystem() = default;
 
-    bool handleMessage(uint8 messageType, IPPMessage&& message)
+    DISALLOW_COPY_AND_MOVE(PartySystem);
+
+    auto handleMessage(uint8 messageType, IPPMessage&& message) -> bool
     {
         return false;
     }

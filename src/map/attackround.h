@@ -23,6 +23,7 @@
 
 #include "attack.h"
 #include "common/cbasetypes.h"
+#include "common/macros.h"
 #include "entities/battle_entity.h"
 #include "utils/attackutils.h"
 #include "utils/charutils.h"
@@ -43,24 +44,26 @@ public:
     CAttackRound(CBattleEntity* attacker, CBattleEntity* defender);
     ~CAttackRound();
 
+    DISALLOW_COPY_AND_MOVE(CAttackRound);
+
     void AddAttackSwing(PHYSICAL_ATTACK_TYPE type, PHYSICAL_ATTACK_DIRECTION direction, uint8 count); // Adds an attack swing.
     void CreateAttacks(CItemWeapon* PWeapon, PHYSICAL_ATTACK_DIRECTION direction);                    // Creates up to many attacks for a particular hand.
     void DeleteAttackSwing();                                                                         // Deletes the first attack in the list.
     void CreateKickAttacks();                                                                         // Creates kick attacks for the round.
     void CreateDakenAttack();                                                                         // Adds daken attacks
 
-    bool IsAttackTypeEligibleForFollowUp(xi::Mod followUpType, PHYSICAL_ATTACK_TYPE attackType); // Is attack type eligible for follow-up?
-    void ProcFollowUpAttacks();                                                                  // Attempt to proc follow-up attacks.
-    bool AddFollowUpAttack(PHYSICAL_ATTACK_DIRECTION direction);                                 // Attempt to store a follow-up swing. Return true if swing is stored.
+    auto IsAttackTypeEligibleForFollowUp(xi::Mod followUpType, PHYSICAL_ATTACK_TYPE attackType) -> bool; // Is attack type eligible for follow-up?
+    void ProcFollowUpAttacks();                                                                          // Attempt to proc follow-up attacks.
+    auto AddFollowUpAttack(PHYSICAL_ATTACK_DIRECTION direction) -> bool;                                 // Attempt to store a follow-up swing. Return true if swing is stored.
 
-    uint8          GetAttackSwingCount();       // Returns the attack list count.
-    bool           IsH2H();                     // Flag: Is the attacker using H2H?
-    CAttack&       GetAttack(uint8);            // Returns an attack object.
-    CAttack&       GetCurrentAttack();          // Returns the current attack.
-    void           SetSATA(bool value);         // Sets the SATA flag.
-    bool           GetSATAOccured() const;      // Returns the SATA flag.
-    CBattleEntity* GetTAEntity();               // Returns the TA entity.
-    CBattleEntity* GetCoverAbilityUserEntity(); // Returns the Cover ablitiy user entity.
+    auto GetAttackSwingCount() -> uint8;                // Returns the attack list count.
+    auto IsH2H() -> bool;                               // Flag: Is the attacker using H2H?
+    auto GetAttack(uint8) -> CAttack&;                  // Returns an attack object.
+    auto GetCurrentAttack() -> CAttack&;                // Returns the current attack.
+    void SetSATA(bool value);                           // Sets the SATA flag.
+    auto GetSATAOccured() const -> bool;                // Returns the SATA flag.
+    auto GetTAEntity() -> CBattleEntity*;               // Returns the TA entity.
+    auto GetCoverAbilityUserEntity() -> CBattleEntity*; // Returns the Cover ablitiy user entity.
 
 private:
     CBattleEntity*       m_attacker;               // The attacker.

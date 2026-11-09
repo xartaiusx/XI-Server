@@ -21,12 +21,23 @@
 
 #pragma once
 
+#include "common/macros.h"
 #include <memory>
 
 #include "mob_controller.h"
 
 class CCharEntity;
 class CTrustEntity;
+struct action_t;
+
+namespace trustcombat
+{
+
+auto SleepApplication(CBattleEntity* actor, CBattleEntity* target) -> uint64;
+void RecordResolvedAction(CBattleEntity* actor, CBattleEntity* primaryTarget, const action_t& action, uint64 sleepApplication = 0);
+bool IsSleepProtected(CBattleEntity* actor, CBattleEntity* target);
+
+} // namespace trustcombat
 
 namespace gambits
 {
@@ -40,6 +51,8 @@ class CTrustController : public CMobController
 public:
     CTrustController(CCharEntity*, CTrustEntity*);
     ~CTrustController() override;
+
+    DISALLOW_COPY_AND_MOVE(CTrustController);
 
     auto Tick(timer::time_point) -> Task<void> override;
     void Despawn() override;
@@ -57,9 +70,11 @@ public:
 
     std::unique_ptr<gambits::CGambitsContainer> m_GambitsContainer;
 
-private:
+protected:
     auto DoCombatTick(timer::time_point tick) -> Task<void> override;
     auto DoRoamTick(timer::time_point tick) -> Task<void> override;
+
+private:
     auto DoNonCombatTick(timer::time_point tick) -> Task<void>;
     auto TryRecoveryTick(timer::time_point tick) -> bool;
     void Declump(const CCharEntity* PMaster, const CBattleEntity* PTarget) const;

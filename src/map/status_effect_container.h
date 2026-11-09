@@ -22,6 +22,7 @@
 #pragma once
 
 #include "common/cbasetypes.h"
+#include "common/macros.h"
 
 #include <memory>
 #include <set>
@@ -50,17 +51,19 @@ public:
     CStatusEffectContainer(CBattleEntity* PEntity);
     ~CStatusEffectContainer();
 
-    template <typename T = CStatusEffect, typename... Args>
-    bool AddStatusEffect(Args&&... args);
+    DISALLOW_COPY_AND_MOVE(CStatusEffectContainer);
 
     template <typename T = CStatusEffect, typename... Args>
-    bool AddStatusEffectSilent(Args&&... args);
+    auto AddStatusEffect(Args&&... args) -> bool;
+
+    template <typename T = CStatusEffect, typename... Args>
+    auto AddStatusEffectSilent(Args&&... args) -> bool;
 
     template <typename F, typename... Args>
     void ForEachEffect(F func, Args&&... args);
 
-    bool ApplyBardEffect(CStatusEffect* PStatusEffect, uint8 maxSongs);
-    bool CanGainStatusEffect(CStatusEffect* PStatusEffect); // returns true if the status effect will take effect
+    auto ApplyBardEffect(CStatusEffect* PStatusEffect, uint8 maxSongs) -> bool;
+    auto CanGainStatusEffect(CStatusEffect* PStatusEffect) -> bool; // returns true if the status effect will take effect
 
     auto DelStatusEffect(xi::StatusEffect StatusID) -> bool;
     auto DelStatusEffectSilent(xi::StatusEffect StatusID) -> bool;
@@ -78,12 +81,12 @@ public:
     auto HasStatusEffect(std::initializer_list<xi::StatusEffect>) -> bool;
     auto HasStatusEffectByFlag(xi::StatusEffectFlag flag) -> bool;
 
-    auto  EraseStatusEffect() -> xi::StatusEffect;                                                             // We delete the first negative effect
-    auto  HealingWaltz() -> xi::StatusEffect;                                                                  // dancers healing waltz
-    uint8 EraseAllStatusEffect();                                                                              // erases all status effects
-    auto  DispelStatusEffect(xi::StatusEffectFlag flag) -> xi::StatusEffect;                                   // We delete the first positive effect
-    auto  DispelAllStatusEffect(xi::StatusEffectFlag flag) -> uint8;                                           // dispels all status effects
-    auto  StealStatusEffect(xi::StatusEffectFlag flag, EffectNotice notice) -> std::unique_ptr<CStatusEffect>; // dispels one effect and hands ownership to the caller
+    auto EraseStatusEffect() -> xi::StatusEffect;                                                             // We delete the first negative effect
+    auto HealingWaltz() -> xi::StatusEffect;                                                                  // dancers healing waltz
+    auto EraseAllStatusEffect() -> uint8;                                                                     // erases all status effects
+    auto DispelStatusEffect(xi::StatusEffectFlag flag) -> xi::StatusEffect;                                   // We delete the first positive effect
+    auto DispelAllStatusEffect(xi::StatusEffectFlag flag) -> uint8;                                           // dispels all status effects
+    auto StealStatusEffect(xi::StatusEffectFlag flag, EffectNotice notice) -> std::unique_ptr<CStatusEffect>; // dispels one effect and hands ownership to the caller
 
     auto GetStatusEffect(xi::StatusEffect StatusID) -> CStatusEffect*;
     auto GetStatusEffect(xi::StatusEffect StatusID, uint32 SubID) -> CStatusEffect*;
@@ -106,33 +109,36 @@ public:
     void DropEffectsForTransition(IsLogout logout); // Remove the effects that don't survive a zone change or logout
     auto BuildPersistRows(IsLogout logout) -> std::vector<PersistedEffect>;
 
-    auto  GetEffectsCount(xi::StatusEffect ID) -> uint8;               // We get the number of effects with the specified ID
-    auto  GetEffectsCountWithFlag(xi::StatusEffectFlag flag) -> uint8; // We get the number of effects with the specified flag
-    uint8 GetLowestFreeSlot();                                         // returns the lowest free slot for songs/rolls
+    auto GetEffectsCount(xi::StatusEffect ID) -> uint8;               // We get the number of effects with the specified ID
+    auto GetEffectsCountWithFlag(xi::StatusEffectFlag flag) -> uint8; // We get the number of effects with the specified flag
+    auto GetLowestFreeSlot() -> uint8;                                // returns the lowest free slot for songs/rolls
 
-    bool CheckForElevenRoll();
-    bool HasBustEffect(uint16 id);
+    auto CheckForElevenRoll() -> bool;
+    auto HasBustEffect(uint16 id) -> bool;
 
-    uint8 GetActiveManeuverCount();
-    void  RemoveOldestManeuver();
-    void  RemoveAllManeuvers();
+    auto GetActiveManeuverCount() -> uint8;
+    void RemoveOldestManeuver();
+    void RemoveAllManeuvers();
 
     auto GetAllRuneEffects() -> std::vector<xi::StatusEffect>;
 
-    uint8 GetActiveRuneCount();
-    auto  GetHighestRuneEffect() -> xi::StatusEffect;
-    auto  GetNewestRuneEffect() -> xi::StatusEffect;
-    void  RemoveOldestRune();
-    void  RemoveNewestRune();
-    void  RemoveAllRunes();
+    auto GetActiveRuneCount() -> uint8;
+    auto GetHighestRuneEffect() -> xi::StatusEffect;
+    auto GetNewestRuneEffect() -> xi::StatusEffect;
+    void RemoveOldestRune();
+    void RemoveNewestRune();
+    void RemoveAllRunes();
 
     void WakeUp(); // remove sleep effects
-    bool IsAsleep();
-    bool HasPreventActionEffect(bool ignoreCharm = false); // checks if owner has an effect that prevents actions, like stun, petrify, sleep etc
+    auto IsAsleep() -> bool;
+    auto OrdinaryTrustSleepApplication() -> uint64;
+    void ReleaseOrdinaryTrustSleepProtection(uint64 ownerSerial, uint64 application);
+    bool IsOrdinaryTrustSleepProtected(uint64 ownerSerial);
+    auto HasPreventActionEffect(bool ignoreCharm = false) -> bool; // checks if owner has an effect that prevents actions, like stun, petrify, sleep etc
 
-    uint16 GetConfrontationEffect();                        // gets confrontation number (bcnm, confrontation, campaign, reive mark)
-    auto   GetConfrontationSubPower() const -> uint16;      // Fenced content GateId
-    void   CopyConfrontationEffect(CBattleEntity* PEntity); // copies confrontation status (pet summoning, etc)
+    auto GetConfrontationEffect() -> uint16;              // gets confrontation number (bcnm, confrontation, campaign, reive mark)
+    auto GetConfrontationSubPower() const -> uint16;      // Fenced content GateId
+    void CopyConfrontationEffect(CBattleEntity* PEntity); // copies confrontation status (pet summoning, etc)
 
     [[nodiscard]] auto statusIcons() const -> const uint8*;
     [[nodiscard]] auto statusBits() const -> const uint64&;
@@ -140,10 +146,15 @@ public:
 private:
     CBattleEntity* m_POwner = nullptr;
 
+    // A deliberate player attack authorizes their Trusts to wake this application.
+    // A newly gained Sleep or Lullaby always resets the authorization.
+    uint64 ordinaryTrustSleepReleasedBy_{ 0 };
+    uint64 ordinaryTrustSleepApplication_{ 0 };
+
     uint64 m_Flags{ 0 };        // Bits of overflow of bytes m_statusicons (two battles for each effect)
     uint8  m_StatusIcons[32]{}; // Icons status effects
 
-    bool AddStatusEffect(std::unique_ptr<CStatusEffect> StatusEffect, EffectNotice = EffectNotice::ShowMessage);
+    auto AddStatusEffect(std::unique_ptr<CStatusEffect> StatusEffect, EffectNotice = EffectNotice::ShowMessage) -> bool;
 
     // void ReplaceStatusEffect(xi::StatusEffect effect); //this needs to be implemented
     void RemoveStatusEffect(CStatusEffect* PStatusEffect, EffectNotice notice = EffectNotice::ShowMessage); // We remove the effect by its number in the container
@@ -165,7 +176,7 @@ private:
 // TODO: Now that we've extracted these into helpers, we can pre-allocate or pool these allocations
 
 template <typename T, typename... Args>
-bool CStatusEffectContainer::AddStatusEffect(Args&&... args)
+auto CStatusEffectContainer::AddStatusEffect(Args&&... args) -> bool
 {
     TracyZoneScoped;
 
@@ -174,7 +185,7 @@ bool CStatusEffectContainer::AddStatusEffect(Args&&... args)
 
 // As above, but suppresses the gain/loss messages (the EffectNotice::Silent path).
 template <typename T, typename... Args>
-bool CStatusEffectContainer::AddStatusEffectSilent(Args&&... args)
+auto CStatusEffectContainer::AddStatusEffectSilent(Args&&... args) -> bool
 {
     TracyZoneScoped;
 
@@ -200,9 +211,9 @@ void CStatusEffectContainer::ForEachEffect(F func, Args&&... args)
 namespace effects
 {
 
-void        LoadEffectsParameters();
-uint16      GetEffectElement(uint16 effect);
-std::string GetEffectName(uint16 effect);
+void LoadEffectsParameters();
+auto GetEffectElement(uint16 effect) -> uint16;
+auto GetEffectName(uint16 effect) -> std::string;
 
 void SaveEffectRows(const std::vector<uint32>& replaceFor, const std::vector<PersistedEffect>& rows);
 

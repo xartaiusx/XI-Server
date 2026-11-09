@@ -28,7 +28,6 @@
 
 CCampaignHandler::CCampaignHandler(CZone* PZone)
 {
-    m_PZone = nullptr;
     LoadCampaignZone(PZone);
 }
 
@@ -57,47 +56,47 @@ void CCampaignHandler::LoadCampaignZone(CZone* PZone)
     }
 }
 
-uint8 CCampaignHandler::GetCampaignId()
+auto CCampaignHandler::GetCampaignId() const -> uint8
 {
     return m_zoneCampaignId;
 }
 
-uint8 CCampaignHandler::GetBattleStatus()
+auto CCampaignHandler::GetBattleStatus() const -> uint8
 {
     return m_status;
 }
 
-uint8 CCampaignHandler::GetZoneControl()
+auto CCampaignHandler::GetZoneControl() const -> uint8
 {
     return m_controllingNation;
 }
 
-uint16 CCampaignHandler::GetFortification()
+auto CCampaignHandler::GetFortification() const -> uint16
 {
     return m_currentFortifications;
 }
 
-uint16 CCampaignHandler::GetResource()
+auto CCampaignHandler::GetResource() const -> uint16
 {
     return m_currentResources;
 }
 
-uint16 CCampaignHandler::GetMaxFortification()
+auto CCampaignHandler::GetMaxFortification() const -> uint16
 {
     return m_maxFortifications;
 }
 
-uint16 CCampaignHandler::GetMaxResource()
+auto CCampaignHandler::GetMaxResource() const -> uint16
 {
     return m_maxResources;
 }
 
-uint8 CCampaignHandler::GetHeroism()
+auto CCampaignHandler::GetHeroism() const -> uint8
 {
     return m_heroism;
 }
 
-uint8 CCampaignHandler::GetUnionCount(CampaignUnion CUnion)
+auto CCampaignHandler::GetUnionCount(CampaignUnion CUnion) const -> uint8
 {
     switch (CUnion)
     {
@@ -116,7 +115,7 @@ uint8 CCampaignHandler::GetUnionCount(CampaignUnion CUnion)
     }
 }
 
-uint8 CCampaignHandler::GetInfluence(CampaignArmy army)
+auto CCampaignHandler::GetInfluence(CampaignArmy army) const -> uint8
 {
     switch (army)
     {
@@ -231,7 +230,7 @@ void CCampaignHandler::SetInfluence(CampaignArmy army, int16 amount)
     switch (army)
     {
         case CampaignArmy::Sandoria:
-            rset = db::preparedStmt("UPDATE campaign_map SET influence_sandoria = ? WHERE zoneid = %d", current, m_PZone->GetID());
+            rset = db::preparedStmt("UPDATE campaign_map SET influence_sandoria = ? WHERE zoneid = ?", current, m_PZone->GetID());
             break;
         case CampaignArmy::Bastok:
             rset = db::preparedStmt("UPDATE campaign_map SET influence_bastok = ? WHERE zoneid = ?", current, m_PZone->GetID());

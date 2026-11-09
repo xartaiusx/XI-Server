@@ -77,6 +77,9 @@
 #include "weapon_skill.h"
 #include "zone.h"
 
+namespace
+{
+
 //
 // Forward declarations
 //
@@ -85,9 +88,6 @@ void BuildTrustData(uint32 TrustID);
 auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*;
 void LoadTrustStatsAndSkills(CTrustEntity* PTrust, bool refresh = false);
 void AppendDevelopedWeaponSkills(CTrustEntity* PTrust);
-
-namespace
-{
 
 // Only the native base contribution is replaced on a scaling refresh. Earned
 // AEP/Unity additions and active effect modifiers remain owned by their paths.
@@ -1929,8 +1929,11 @@ void trustutils::LogTrustActionPacket(CBattleEntity* PActor, const action_t& act
     }
 }
 
+namespace
+{
+
 // List of trusts that are essentially walking GEO bubbles that should not be targetable
-static std::unordered_set<SpellID> passiveTrustIDs = {
+std::unordered_set<SpellID> passiveTrustIDs = {
     SpellID::Sakura,
     SpellID::Moogle,
     SpellID::Star_Sibyl,
@@ -2233,6 +2236,8 @@ void ApplyTrustMasterProgressionBonuses(CTrustEntity* PTrust)
     LogTrustProgressionBonus(PTrust);
 }
 
+} // namespace
+
 void trustutils::LoadTrustList()
 {
     const auto rset = db::preparedStmt("SELECT "
@@ -2328,6 +2333,9 @@ auto trustutils::SpawnTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntit
 
     return PTrust;
 }
+
+namespace
+{
 
 void BuildTrustData(uint32 TrustID)
 {
@@ -2524,7 +2532,10 @@ auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*
     if (auto* mainWeapon = dynamic_cast<CItemWeapon*>(PTrust->m_Weapons[SLOT_MAIN]))
     {
         mainWeapon->setMaxHit(1);
-        mainWeapon->setSkillType(static_cast<xi::SkillType>(trustData->cmbSkill));
+        const auto skillType = PTrust->trustID() == 1018 && trustdevelopment::IsEnabled(PTrust)
+                                   ? xi::SkillType::Polearm
+                                   : static_cast<xi::SkillType>(trustData->cmbSkill);
+        mainWeapon->setSkillType(skillType);
 
         mainWeapon->setDamage(finalDamage);
         mainWeapon->setDelay(trustData->cmbDelay);
@@ -2946,7 +2957,7 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust, bool refresh)
         }
 
         // Only get access to skills that produce Lv3 SCs after Lv60
-        bool canFormLv3Skillchain = skill.primary >= SC_GRAVITATION || skill.secondary >= SC_GRAVITATION || skill.tertiary >= SC_GRAVITATION;
+        bool canFormLv3Skillchain = skill.primary >= std::to_underlying(xi::SkillchainType::Gravitation) || skill.secondary >= std::to_underlying(xi::SkillchainType::Gravitation) || skill.tertiary >= std::to_underlying(xi::SkillchainType::Gravitation);
 
         // Special case for Zeid II and others who only have Lv3+ skills
         bool onlyHasLv3Skillchains = canFormLv3Skillchain && controller->m_GambitsContainer->tp_skills.empty();
@@ -2957,6 +2968,8 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust, bool refresh)
         }
     }
 }
+
+} // namespace
 
 auto trustutils::CanUseOrdinaryBaselineRaise(CTrustEntity* PTrust, CSpell* PSpell) -> bool
 {
@@ -2994,21 +3007,25 @@ void trustutils::RefreshDevelopedSpellCatalog(CTrustEntity* PTrust)
     // This container belongs to the summoned entity. Never mutate the shared
     // SQL list. Only qualified assigned-job spells belong to this catalog.
     PTrust->SpellContainer->ClearSpells();
+    const auto& profile = *trustdevelopment::GetProfile(PTrust->trustID());
     for (uint16 id = 1; id < MAX_SPELL_ID; ++id)
     {
         auto* spell = spell::GetSpell(static_cast<SpellID>(id));
-        if (!spell)
+        if (!spell || spell->getSpellGroup() == SPELLGROUP_TRUST || spell->getSpellGroup() == SPELLGROUP_BLUE)
         {
             continue;
         }
         const auto mainLevel = spell->getJob(PTrust->GetMJob());
         const auto subLevel  = spell->getJob(PTrust->GetSJob());
-        if ((mainLevel > 0 && mainLevel <= 99) || (subLevel > 0 && subLevel <= 99))
+        if ((mainLevel > 0 && mainLevel <= 99) || (subLevel > 0 && subLevel <= 99) || trustdevelopment::CanUseSpecialSpell(profile, spell->getID()))
         {
             PTrust->SpellContainer->AddSpell(static_cast<SpellID>(id));
         }
     }
 }
+
+namespace
+{
 
 void AppendDevelopedWeaponSkills(CTrustEntity* PTrust)
 {
@@ -3034,11 +3051,26 @@ void AppendDevelopedWeaponSkills(CTrustEntity* PTrust)
         }
         skills.emplace_back(gambits::G_REACTION::WS, id, skill->getPrimarySkillchain(), skill->getSecondarySkillchain(), skill->getTertiarySkillchain(), battleutils::isValidSelfTargetWeaponskill(id) ? TARGET_SELF : TARGET_ENEMY);
     }
+
+    if (PTrust->trustID() == 1018)
+    {
+        // Add Kyori last as the native HIGHEST selector's no-chain opener.
+        // The supportive Rise from Ashes is a separate conditional gambit.
+        for (const auto id : std::array<uint16, 4>{ 3734, 3737, 3736, 3733 })
+        {
+            if (auto* skill = battleutils::GetMobSkill(id))
+            {
+                skills.emplace_back(gambits::G_REACTION::MS, id, skill->getPrimarySkillchain(), skill->getSecondarySkillchain(), skill->getTertiarySkillchain(), TARGET_ENEMY);
+            }
+        }
+    }
 }
+
+} // namespace
 
 void trustutils::RefreshDevelopedTrusts(CCharEntity* PMaster)
 {
-    if (!PMaster || PMaster->PTrusts.empty() || !settings::get<bool>("main.TRUST_JOB99_VALAINERAL"))
+    if (!PMaster || PMaster->PTrusts.empty())
     {
         return;
     }

@@ -111,6 +111,13 @@ auto FixtureTrust(CLuaClientEntityPair* owner, CLuaBaseEntity* actor, CLuaBaseEn
     return trust;
 }
 
+// The server ignores a talk or trade aimed at a hidden NPC, which would otherwise surface as a missing event.
+auto canInteract(const CBaseEntity* PTarget, const CCharEntity* PChar) -> bool
+{
+    const auto isShown = PTarget->PAI->IsSpawned() && PTarget->status == xi::Status::Normal;
+    return isShown || PChar->inMogHouse(xi::MogHouse::Own);
+}
+
 } // namespace
 
 CLuaClientEntityPairActions::CLuaClientEntityPairActions(CLuaClientEntityPair* parent)
@@ -407,6 +414,12 @@ void CLuaClientEntityPairActions::trigger(CLuaBaseEntity* target, sol::optional<
     if (!target)
     {
         TestError("trigger: Invalid target");
+        return;
+    }
+
+    if (expectedEvent.has_value() && !canInteract(target->GetBaseEntity(), parent_->testChar()->entity()))
+    {
+        TestError("trigger: {} ({}) is hidden, so the server ignores the talk", target->getName(), target->getID());
         return;
     }
 
@@ -844,6 +857,12 @@ void CLuaClientEntityPairActions::tradeNpc(const sol::object& npcQuery, const so
     if (!npc.has_value())
     {
         TestError("Could not find or move to NPC for trading");
+        return;
+    }
+
+    if (expectedEvent.has_value() && !canInteract(npc.value().GetBaseEntity(), parent_->testChar()->entity()))
+    {
+        TestError("tradeNpc: {} ({}) is hidden, so the server ignores the trade", npc.value().getName(), npc.value().getID());
         return;
     }
 
@@ -1504,11 +1523,11 @@ void CLuaClientEntityPairActions::plantDry(const uint8 potContainer, const uint8
 
 /************************************************************************
  *  Function: placeFurniture()
- *  Purpose : Install a furnishing on the 1st floor at grid cell (x, z).
+ *  Purpose : Install a furnishing on the 1st floor at grid cell (x, z), optionally stacked at elevation y.
  *  Example : player.actions:placeFurniture(xi.inv.MOGSAFE, slot, 0, 0)
  ************************************************************************/
 
-void CLuaClientEntityPairActions::placeFurniture(const uint8 container, const uint8 slot, const uint8 x, const uint8 z) const
+void CLuaClientEntityPairActions::placeFurniture(const uint8 container, const uint8 slot, const uint8 x, const uint8 z, sol::optional<uint8> y) const
 {
     auto* PChar = parent_->testChar()->entity();
 
@@ -1520,7 +1539,7 @@ void CLuaClientEntityPairActions::placeFurniture(const uint8 container, const ui
     p->MyroomFloorFlg  = 0;
     p->x               = x;
     p->z               = z;
-    p->y               = 0;
+    p->y               = y.value_or(0);
     p->v               = 0;
 
     parent_->packets().sendBasicPacket(*packet);

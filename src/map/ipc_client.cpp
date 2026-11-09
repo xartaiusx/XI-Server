@@ -729,7 +729,7 @@ void IPCClient::handleMessage_MessageStandard(const IPP& ipp, const ipc::Message
     {
         // TODO: Exchange the packet struct over IPC to avoid having to match one-offs.
         // This matches messages with just a string parameter.
-        if (message.string2.size() > 0 && message.param0 == 0 && message.param1 == 0)
+        if (!message.string2.empty() && message.param0 == 0 && message.param1 == 0)
         {
             PChar->pushPacket(std::make_unique<GP_SERV_COMMAND_MESSAGE>(message.string2, message.message));
         }
@@ -812,31 +812,7 @@ void IPCClient::handleMessage_KillSession(const IPP& ipp, const ipc::KillSession
 {
     TracyZoneScoped;
 
-    if (auto sessionToDelete = networking_.sessions().getSessionByCharId(message.victimId))
-    {
-        if (sessionToDelete->blowfish.status == BLOWFISH_PENDING_ZONE)
-        {
-            ShowDebugFmt("Closing session of charid {} on request of other process", message.victimId);
-            networking_.sessions().destroySession(sessionToDelete);
-        }
-        else
-        {
-            ShowDebugFmt("KillSession for charid {} not needed", message.victimId);
-        }
-    }
-
-    if (auto sessionToDelete = networking_.sessions().getPendingSessionByCharId(message.victimId))
-    {
-        if (sessionToDelete->blowfish.status == BLOWFISH_PENDING_ZONE)
-        {
-            ShowDebugFmt("Closing pending session of charid {} on request of other process", message.victimId);
-            networking_.sessions().destroySession(sessionToDelete);
-        }
-        else
-        {
-            // ShowDebugFmt("KillSession for charid {} not needed", message.victimId); // noisy
-        }
-    }
+    networking_.sessions().releaseCharacter(message.victimId);
 }
 
 void IPCClient::handleMessage_ConquestEvent(const IPP& ipp, const ipc::ConquestEvent& message)

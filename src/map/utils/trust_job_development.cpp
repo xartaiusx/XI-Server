@@ -23,7 +23,9 @@
 #include "common/settings.h"
 #include "entities/char_entity.h"
 #include "entities/trust_entity.h"
+#include "items/item_weapon.h"
 #include "merit.h"
+#include "spell.h"
 
 #include <algorithm>
 #include <array>
@@ -32,8 +34,8 @@ namespace
 {
 
 constexpr std::array profiles{
-    trustdevelopment::Profile{ 910, xi::Job::PLD, xi::Job::WAR, true },
-    trustdevelopment::Profile{ 1018, xi::Job::SAM, xi::Job::WHM, false },
+    trustdevelopment::Profile{ 910, xi::Job::PLD, xi::Job::WAR, true, "main.TRUST_JOB99_VALAINERAL" },
+    trustdevelopment::Profile{ 1018, xi::Job::SAM, xi::Job::WHM, true, "main.TRUST_JOB99_IROHA_II" },
 };
 
 struct MeritAllocation
@@ -67,7 +69,6 @@ constexpr std::array valaineralMerits{
     MeritAllocation{ xi::Merit::Shattersoul, 1 },
 };
 
-// Preparation only; Iroha II remains inactive in GetProfile/IsEnabled.
 constexpr std::array irohaMerits{
     MeritAllocation{ xi::Merit::MeditateRecast, 5 },
     MeritAllocation{ xi::Merit::StoreTpEffect, 5 },
@@ -156,7 +157,8 @@ auto IsApprovedSummon(uint32 trustId, bool featureEnabled, uint32 evidenceMode, 
 
 auto IsEnabled(const CTrustEntity* PTrust) -> bool
 {
-    if (!PTrust || !settings::get<bool>("main.TRUST_JOB99_VALAINERAL"))
+    const auto* profile = PTrust ? GetProfile(PTrust->trustID()) : nullptr;
+    if (!profile || !settings::get<bool>(profile->setting))
     {
         return false;
     }
@@ -206,6 +208,31 @@ auto GetJobPointLevel(const CBattleEntity* PEntity, uint16 jpType) -> uint8
 {
     const auto* trust = dynamic_cast<const CTrustEntity*>(PEntity);
     return IsEnabled(trust) ? GetDevelopedJobPointLevel(trust->trustID(), jpType) : 0;
+}
+
+auto CanUseSpecialSpell(const Profile& profile, SpellID spellId) -> bool
+{
+    // WHM gift spells have no job bytes. Flare II is a signature and
+    // does not confer BLM job access.
+    return profile.trustId == 1018 && profile.approved &&
+           (spellId == SpellID::Reraise_IV || spellId == SpellID::Full_Cure || spellId == SpellID::Flare_II);
+}
+
+auto IsIrohaSignature(uint16 skillId) -> bool
+{
+    return skillId == 3733 || skillId == 3734 || skillId == 3736 || skillId == 3737 || skillId == 3738;
+}
+
+auto CanUseIrohaSignature(const CBattleEntity* entity) -> bool
+{
+    const auto* trust = dynamic_cast<const CTrustEntity*>(entity);
+    if (!IsEnabled(trust) || trust->trustID() != 1018 || trust->health.tp < 1000)
+    {
+        return false;
+    }
+
+    const auto* weapon = dynamic_cast<const CItemWeapon*>(trust->m_Weapons[SLOT_MAIN]);
+    return weapon && weapon->getSkillType() == xi::SkillType::Polearm;
 }
 
 auto CanUseAbility(const Profile& profile, xi::Job job, uint8 level, uint16 addType, xi::Merit merit) -> bool

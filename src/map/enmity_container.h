@@ -22,6 +22,7 @@
 #pragma once
 
 #include "common/cbasetypes.h"
+#include "common/macros.h"
 
 #include "common/types/flat_hash_map.h"
 
@@ -36,7 +37,7 @@ struct EnmityObject_t
     bool           active;
 };
 
-typedef FlatHashMap<uint32, EnmityObject_t> EnmityList_t;
+using EnmityList_t = FlatHashMap<uint32, EnmityObject_t>;
 
 class CEnmityContainer
 {
@@ -46,32 +47,34 @@ public:
     CEnmityContainer(CMobEntity* holder);
     ~CEnmityContainer();
 
-    CBattleEntity* GetHighestEnmity(); // Decays VE and gets target with highest enmity
+    DISALLOW_COPY_AND_MOVE(CEnmityContainer);
 
-    // The optional special term is native-dispatch-only and applies to approved Trusts.
-    float         CalculateEnmityBonus(CBattleEntity* PEntity, int32 specialEnmityBonus = 0);
-    void          Clear(uint32 EntityID = 0);   // Removes Entries from list
-    void          LogoutReset(uint32 EntityID); // Sets entry to inactive
-    void          SetActive(uint32 EntityID, bool active);
-    void          AddBaseEnmity(CBattleEntity* PEntity);
-    void          UpdateEnmity(CBattleEntity* PEntity, int32 CE, int32 VE, bool withMaster = false, bool tameable = false, bool directAction = true, int32 specialEnmityBonus = 0);
-    void          UpdateEnmityFromDamage(CBattleEntity* PEntity, int32 Damage, int32 specialEnmityBonus = 0);
-    void          UpdateEnmityFromCure(CBattleEntity* PEntity, uint8 level, int32 CureAmount, int32 fixedCE = 0, int32 fixedVE = 0);
-    void          UpdateEnmityFromAttack(CBattleEntity* PEntity, int32 Damage);
-    bool          HasID(uint32 ID);                                                                         // true if ID is in the container with non-zero enmity level
-    void          LowerEnmityByPercent(CBattleEntity* PEntity, uint8 percent, CBattleEntity* HateReceiver); // lower % of hate or transfer it
-    int32         GetCE(CBattleEntity* PEntity) const;
-    int32         GetVE(CBattleEntity* PEntity) const;
-    void          SetCE(CBattleEntity* PEntity, const int32 amount);
-    void          SetVE(CBattleEntity* PEntity, const int32 amount);
-    void          DecayEnmity();
-    bool          IsWithinEnmityRange(CBattleEntity* PEntity) const;
-    EnmityList_t* GetEnmityList();
-    bool          IsTameable() const;
-    void          UpdateEnmityFromCover(CBattleEntity* PCoverAbilityTarget, CBattleEntity* PCoverAbilityUser);
+    auto GetHighestEnmity() -> CBattleEntity*; // Decays VE and gets target with highest enmity
+
+    auto CalculateEnmityBonus(CBattleEntity* PEntity, int32 specialEnmityBonus = 0) -> float;
+    void Clear(uint32 EntityID = 0);           // Removes Entries from list
+    void LogoutReset(uint32 EntityID);         // Sets entry to inactive
+    void ZoneInRebind(CBattleEntity* PEntity); // Points a LogoutReset entry at the char that zoned back in
+    void SetActive(uint32 EntityID, bool active);
+    void AddBaseEnmity(CBattleEntity* PEntity);
+    void UpdateEnmity(CBattleEntity* PEntity, int32 CE, int32 VE, bool withMaster = false, bool tameable = false, bool directAction = true, int32 specialEnmityBonus = 0);
+    void UpdateEnmityFromDamage(CBattleEntity* PEntity, int32 Damage, int32 specialEnmityBonus = 0);
+    void UpdateEnmityFromCure(CBattleEntity* PEntity, uint8 level, int32 CureAmount, int32 fixedCE = 0, int32 fixedVE = 0);
+    void UpdateEnmityFromAttack(CBattleEntity* PEntity, int32 Damage);
+    auto HasID(uint32 ID) -> bool;                                                                 // true if ID is in the container with non-zero enmity level
+    void LowerEnmityByPercent(CBattleEntity* PEntity, uint8 percent, CBattleEntity* HateReceiver); // lower % of hate or transfer it
+    auto GetCE(CBattleEntity* PEntity) const -> int32;
+    auto GetVE(CBattleEntity* PEntity) const -> int32;
+    void SetCE(CBattleEntity* PEntity, int32 amount);
+    void SetVE(CBattleEntity* PEntity, int32 amount);
+    void DecayEnmity();
+    auto IsWithinEnmityRange(CBattleEntity* PEntity) const -> bool;
+    auto GetEnmityList() -> EnmityList_t*;
+    auto IsTameable() const -> bool;
+    void UpdateEnmityFromCover(CBattleEntity* PCoverAbilityTarget, CBattleEntity* PCoverAbilityUser);
 
 private:
-    bool IgnorePets(CBattleEntity* PEntity) const;
+    auto IgnorePets(CBattleEntity* PEntity) const -> bool;
 
     EnmityList_t m_EnmityList;
     bool         m_tameable{ true };

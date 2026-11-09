@@ -104,6 +104,27 @@ describe('Spawn Handler', function()
         end)
     end)
 
+    -- Each needs a zone no earlier test has loaded. The mobs are outside spawn slots, which spawn on their own at load.
+    describe('first zone load', function()
+        it('spawns night mobs without waiting for a spawn tick', function()
+            assert(GetZone(xi.zone.NORTH_GUSTABERG) == nil, 'precondition: North Gustaberg is not loaded yet')
+            xi.test.world:setVanaTime(22, 0)
+
+            player:gotoZone(xi.zone.NORTH_GUSTABERG)
+
+            player.entities:get(17211792).assert:isSpawned() -- Black_Wolf
+        end)
+
+        it('holds night mobs back on a daytime load', function()
+            assert(GetZone(xi.zone.MERIPHATAUD_MOUNTAINS) == nil, 'precondition: Meriphataud Mountains is not loaded yet')
+            xi.test.world:setVanaTime(12, 0)
+
+            player:gotoZone(xi.zone.MERIPHATAUD_MOUNTAINS)
+
+            player.entities:get(17264681).assert.no:isSpawned() -- Bogy
+        end)
+    end)
+
     describe('time-based spawns', function()
         it('spawns night mobs during night', function()
             player:gotoZone(xi.zone.ATTOHWA_CHASM)
@@ -369,6 +390,41 @@ describe('Spawn Handler', function()
             for _, crab in ipairs(knightCrabs) do
                 crab.assert:isSpawned()
             end
+        end)
+
+        it('does not revive Rose Garden during its despawn fade', function()
+            player:gotoZone(xi.zone.YUHTUNGA_JUNGLE)
+            local ID = zones[xi.zone.YUHTUNGA_JUNGLE]
+            local roseGarden = player.entities:get(ID.mob.ROSE_GARDEN)
+
+            DisallowRespawn(ID.mob.ROSE_GARDEN, false)
+            SpawnMob(ID.mob.ROSE_GARDEN)
+
+            -- The spawn wave lands before onMobDespawn blocks the respawn
+            DespawnMob(ID.mob.ROSE_GARDEN)
+            xi.test.world:tick(xi.tick.SPAWN)
+            xi.test.world:tickEntity(roseGarden)
+
+            roseGarden.assert.no:isSpawned()
+        end)
+
+        it('does not reset a live Rose Garden from its previous death', function()
+            player:gotoZone(xi.zone.YUHTUNGA_JUNGLE)
+            local ID = zones[xi.zone.YUHTUNGA_JUNGLE]
+            local roseGarden = player.entities:get(ID.mob.ROSE_GARDEN)
+
+            DisallowRespawn(ID.mob.ROSE_GARDEN, false)
+            SpawnMob(ID.mob.ROSE_GARDEN)
+            player:claimAndKillMob(roseGarden)
+
+            -- The placeholder grows back into Rose Garden
+            DisallowRespawn(ID.mob.ROSE_GARDEN, false)
+            SpawnMob(ID.mob.ROSE_GARDEN)
+            roseGarden:setHP(1000)
+
+            xi.test.world:tick(xi.tick.SPAWN)
+
+            assert(roseGarden:getHP() == 1000, 'the live Rose Garden was respawned at full HP')
         end)
     end)
 

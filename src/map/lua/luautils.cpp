@@ -123,6 +123,9 @@
 
 #include <fmt/ranges.h>
 
+namespace
+{
+
 void ReportErrorToPlayer(CBaseEntity* PEntity, const std::string& message = "") noexcept
 {
     try
@@ -152,6 +155,8 @@ void ReportErrorToPlayer(CBaseEntity* PEntity, const std::string& message = "") 
         ShowError(e.what());
     }
 }
+
+} // namespace
 
 namespace luautils
 {
@@ -376,6 +381,11 @@ void init(IPP mapIPP, bool isRunningInCI)
     lua.set_function("SetServerVariable", &luautils::SetServerVariable);
     lua.set_function("GetVolatileServerVariable", &luautils::GetVolatileServerVariable);
     lua.set_function("SetVolatileServerVariable", &luautils::SetVolatileServerVariable);
+    lua.set_function("GetActiveWorldPass", &luautils::GetActiveWorldPass);
+    lua.set_function("IssueWorldPass", &luautils::IssueWorldPass);
+    lua.set_function("GetWorldPassInvite", &luautils::GetWorldPassInvite);
+    lua.set_function("SetWorldPassClaims", &luautils::SetWorldPassClaims);
+    lua.set_function("CountWorldPassInvites", &luautils::CountWorldPassInvites);
     lua.set_function("GetCharVar", &luautils::GetCharVar);
     lua.set_function("SetCharVar", &luautils::SetCharVar);
     lua.set_function("ClearCharVarFromAll", &luautils::ClearCharVarFromAll);
@@ -652,7 +662,7 @@ void TryReloadFilewatchList()
     }
 }
 
-std::vector<std::string> GetContainerFilenamesList()
+auto GetContainerFilenamesList() -> std::vector<std::string>
 {
     TracyZoneScoped;
 
@@ -691,7 +701,7 @@ std::vector<std::string> GetContainerFilenamesList()
     return outVec;
 }
 
-sol::function getEntityCachedFunction(CBaseEntity* PEntity, const std::string& funcName)
+auto getEntityCachedFunction(CBaseEntity* PEntity, const std::string& funcName) -> sol::function
 {
     TracyZoneScoped;
     TracyZoneString(PEntity->getName());
@@ -784,7 +794,10 @@ void resetEntityData(CBaseEntity* PEntity)
     root[PEntity->serial()] = sol::lua_nil;
 }
 
-sol::function getSpellCachedFunction(CSpell* PSpell, std::string funcName)
+namespace
+{
+
+auto getSpellCachedFunction(CSpell* PSpell, std::string funcName) -> sol::function
 {
     TracyZoneScoped;
     TracyZoneString(funcName);
@@ -887,6 +900,8 @@ auto getEffectCachedFunction(const std::string& effectName, const std::string& f
             return sol::lua_nil;
         });
 }
+
+} // namespace
 
 // Assumes filename in the form "./scripts/folder0/folder1/folder2/mob_name.lua"
 // Loads (compiles + runs) that script and stores the object it returns into the Lua state at:
@@ -1081,7 +1096,7 @@ void LoadLuaObjectFromFile(const std::string& filename, bool overwriteCurrentEnt
     moduleutils::TryApplyLuaModules(parts, overwriteCurrentEntry);
 }
 
-sol::table GetLuaObjectFromFilename(const std::string& filename)
+auto GetLuaObjectFromFilename(const std::string& filename) -> sol::table
 {
     TracyZoneScoped;
     TracyZoneString(filename);
@@ -1130,7 +1145,7 @@ sol::table GetLuaObjectFromFilename(const std::string& filename)
     return table;
 }
 
-sol::function getCachedFileFunction(const std::string& filename, const std::string& funcName)
+auto getCachedFileFunction(const std::string& filename, const std::string& funcName) -> sol::function
 {
     TracyZoneScoped;
     TracyZoneString(filename);
@@ -1285,6 +1300,9 @@ auto CalculateExperiencePoints(CCharEntity* PMember, CMobEntity* PMob, const Cal
     calcResult.chainWindow = result["chainWindow"].get_or(0);
     return calcResult;
 }
+
+namespace
+{
 
 void PopulateIDLookups(const xi::ZoneId zoneId, const std::string& zoneName, const ZoneEntityRecords& preloaded)
 {
@@ -1471,6 +1489,8 @@ void PopulateIDLookups(const xi::ZoneId zoneId, const std::string& zoneName, con
     lua["package"]["loaded"][fmt::format("scripts/zones/{}/IDs", zoneName)] = lua["zones"][zoneId];
 }
 
+} // namespace
+
 void PopulateIDLookupsByFilename(Maybe<std::string> maybeFilename)
 {
     TracyZoneScoped;
@@ -1504,8 +1524,7 @@ void PopulateIDLookupsByFilename(Maybe<std::string> maybeFilename)
                 if (fileEntry.stem() == "IDs")
                 {
                     // Prepare which zone we're in using the file path
-                    const auto relative_path_string = fileEntry.relative_path().generic_string();
-                    const auto zoneName             = fileEntry.parent_path().stem().generic_string();
+                    const auto zoneName = fileEntry.parent_path().stem().generic_string();
 
                     handleZone(zoneName);
                 }
@@ -1566,7 +1585,7 @@ auto GetItemByID(uint32 itemId) -> const CItem*
 // We fetch the template and then intend to return an item, but that's really just not set up to work properly
 // So instead we return non-reference values from the item templates that cannot be modified
 // Remove me when we come up with a better way to fetch item templates in lua
-auto GetItemFlagsByID(uint32 itemId) -> ItemFlag
+auto GetItemFlagsByID(uint32 itemId) -> xi::ItemFlag
 {
     const auto* item = xi::items::lookup(itemId);
     if (item)
@@ -1574,7 +1593,7 @@ auto GetItemFlagsByID(uint32 itemId) -> ItemFlag
         return item->getFlag();
     }
 
-    return ItemFlag::None;
+    return xi::ItemFlag::None;
 }
 
 // GetItemByID currently fails because we can't properly guarantee the constness of `const CItem*`
@@ -1592,7 +1611,7 @@ auto GetItemLevelRequirementsByID(uint32 itemId) -> uint8
     return 0;
 }
 
-CBaseEntity* GetNPCByID(uint32 npcid, const sol::object& instanceObj)
+auto GetNPCByID(uint32 npcid, const sol::object& instanceObj) -> CBaseEntity*
 {
     TracyZoneScoped;
 
@@ -1648,7 +1667,7 @@ auto GetZone(const xi::ZoneId zoneId) -> CZone*
     return zoneutils::GetZone(zoneId);
 }
 
-CBaseEntity* GetMobByID(uint32 mobid, const sol::object& instanceObj)
+auto GetMobByID(uint32 mobid, const sol::object& instanceObj) -> CBaseEntity*
 {
     TracyZoneScoped;
 
@@ -1678,7 +1697,7 @@ CBaseEntity* GetMobByID(uint32 mobid, const sol::object& instanceObj)
     return PMob;
 }
 
-CBaseEntity* GetEntityByID(uint32 entityid, const sol::object& instanceObj, const sol::object& arg3)
+auto GetEntityByID(uint32 entityid, const sol::object& instanceObj, const sol::object& arg3) -> CBaseEntity*
 {
     TracyZoneScoped;
 
@@ -1720,21 +1739,21 @@ void WeekUpdateConquest(uint8 updateType)
     conquest::UpdateConquestGM(static_cast<ConquestUpdate>(updateType));
 }
 
-uint8 GetRegionOwner(uint8 type)
+auto GetRegionOwner(const xi::Region region) -> xi::Nation
 {
     TracyZoneScoped;
 
-    return conquest::GetRegionOwner(static_cast<REGION_TYPE>(type));
+    return conquest::GetRegionOwner(region);
 }
 
-uint8 GetRegionInfluence(uint8 type)
+auto GetRegionInfluence(const xi::Region region) -> uint8
 {
     TracyZoneScoped;
 
-    return conquest::GetInfluenceGraphics(static_cast<REGION_TYPE>(type));
+    return conquest::GetInfluenceGraphics(region);
 }
 
-uint8 GetNationRank(uint8 nation)
+auto GetNationRank(const xi::Nation nation) -> uint8
 {
     TracyZoneScoped;
 
@@ -1746,13 +1765,13 @@ uint8 GetNationRank(uint8 nation)
     uint8 rank = 0;
     switch (nation)
     {
-        case NATION_SANDORIA:
+        case xi::Nation::Sandoria:
             rank = sandoria;
             break;
-        case NATION_BASTOK:
+        case xi::Nation::Bastok:
             rank = bastok;
             break;
-        case NATION_WINDURST:
+        case xi::Nation::Windurst:
             rank = windurst;
             break;
         default:
@@ -1769,14 +1788,14 @@ uint8 GetNationRank(uint8 nation)
     return rank;
 }
 
-uint8 GetConquestBalance()
+auto GetConquestBalance() -> uint8
 {
     TracyZoneScoped;
 
     return conquest::GetBalance();
 }
 
-bool IsConquestAlliance()
+auto IsConquestAlliance() -> bool
 {
     TracyZoneScoped;
 
@@ -1831,28 +1850,28 @@ void ZNMPopPriceDecay()
     ZNMPopPriceDecay();
 }
 
-uint32 VanadielTime()
+auto VanadielTime() -> uint32
 {
     TracyZoneScoped;
 
     return earth_time::vanadiel_timestamp();
 }
 
-uint8 VanadielTOTD()
+auto VanadielTOTD() -> uint8
 {
     TracyZoneScoped;
 
     return static_cast<uint8>(vanadiel_time::get_totd());
 }
 
-uint32 VanadielYear()
+auto VanadielYear() -> uint32
 {
     TracyZoneScoped;
 
     return vanadiel_time::get_year();
 }
 
-uint32 VanadielMonth()
+auto VanadielMonth() -> uint32
 {
     TracyZoneScoped;
 
@@ -1865,21 +1884,21 @@ uint32 VanadielMonth()
  *                                                                       *
  ************************************************************************/
 
-uint32 VanadielUniqueDay()
+auto VanadielUniqueDay() -> uint32
 {
     TracyZoneScoped;
 
     return vanadiel_time::count_days(vanadiel_time::now().time_since_epoch());
 }
 
-uint32 VanadielDayOfTheYear()
+auto VanadielDayOfTheYear() -> uint32
 {
     TracyZoneScoped;
 
     return vanadiel_time::get_yearday();
 }
 
-uint32 VanadielDayOfTheMonth()
+auto VanadielDayOfTheMonth() -> uint32
 {
     TracyZoneScoped;
 
@@ -1895,21 +1914,21 @@ uint32 VanadielDayOfTheMonth()
  *                                                                       *
  ************************************************************************/
 
-uint32 VanadielDayOfTheWeek()
+auto VanadielDayOfTheWeek() -> uint32
 {
     TracyZoneScoped;
 
     return vanadiel_time::get_weekday();
 }
 
-uint32 VanadielHour()
+auto VanadielHour() -> uint32
 {
     TracyZoneScoped;
 
     return vanadiel_time::get_hour();
 }
 
-uint32 VanadielMinute()
+auto VanadielMinute() -> uint32
 {
     TracyZoneScoped;
 
@@ -1925,7 +1944,7 @@ uint32 VanadielMinute()
  *                                                                       *
  ************************************************************************/
 
-uint8 VanadielDayElement()
+auto VanadielDayElement() -> uint8
 {
     TracyZoneScoped;
 
@@ -1937,7 +1956,7 @@ uint8 VanadielDayElement()
  * Returns current UTC timestamp                                         *
  *                                                                       *
  ************************************************************************/
-uint32 GetSystemTime()
+auto GetSystemTime() -> uint32
 {
     return earth_time::timestamp();
 }
@@ -2237,7 +2256,7 @@ void DecrementLinkshellConciergeMembersGoal(uint16 zoneId, uint32 linkshellid)
  *                                                                       *
  ************************************************************************/
 
-uint32 JstMidnight()
+auto JstMidnight() -> uint32
 {
     TracyZoneScoped;
 
@@ -2245,14 +2264,14 @@ uint32 JstMidnight()
     return earth_time::timestamp(jstMidnight);
 }
 
-uint32 JstDayOfTheYear()
+auto JstDayOfTheYear() -> uint32
 {
     TracyZoneScoped;
 
     return earth_time::jst::get_yearday();
 }
 
-uint32 JstDayOfTheMonth()
+auto JstDayOfTheMonth() -> uint32
 {
     TracyZoneScoped;
 
@@ -2265,28 +2284,28 @@ uint32 JstDayOfTheMonth()
  *                                                                       *
  ************************************************************************/
 
-uint32 JstDayOfTheWeek()
+auto JstDayOfTheWeek() -> uint32
 {
     TracyZoneScoped;
 
     return earth_time::jst::get_weekday();
 }
 
-int32 JstYear()
+auto JstYear() -> int32
 {
     TracyZoneScoped;
 
     return earth_time::jst::get_year();
 }
 
-uint32 JstMonth()
+auto JstMonth() -> uint32
 {
     TracyZoneScoped;
 
     return earth_time::jst::get_month();
 }
 
-uint32 JstHour()
+auto JstHour() -> uint32
 {
     TracyZoneScoped;
 
@@ -2299,7 +2318,7 @@ uint32 JstHour()
  * See: VTIME_x definitions, or xi.vanaTime for the values to pass       *
  *                                                                       *
  ************************************************************************/
-uint32 NextGameTime(uint32 intervalSeconds)
+auto NextGameTime(uint32 intervalSeconds) -> uint32
 {
     TracyZoneScoped;
 
@@ -2312,7 +2331,7 @@ uint32 NextGameTime(uint32 intervalSeconds)
 
 // NOTE: NextJstDay is also defined, and maps to JstMidnight
 
-uint32 NextJstWeek()
+auto NextJstWeek() -> uint32
 {
     TracyZoneScoped;
 
@@ -2321,28 +2340,28 @@ uint32 NextJstWeek()
 
 // NOTE: NextConquestTally exists for clarity, and is bound to the above function
 
-uint32 VanadielMoonPhase()
+auto VanadielMoonPhase() -> uint32
 {
     TracyZoneScoped;
 
     return vanadiel_time::moon::get_phase();
 }
 
-uint8 VanadielMoonDirection()
+auto VanadielMoonDirection() -> uint8
 {
     TracyZoneScoped;
 
     return vanadiel_time::moon::get_direction();
 }
 
-uint8 VanadielRSERace()
+auto VanadielRSERace() -> uint8
 {
     TracyZoneScoped;
 
     return vanadiel_time::rse::get_race();
 }
 
-uint8 VanadielRSELocation()
+auto VanadielRSELocation() -> uint8
 {
     TracyZoneScoped;
 
@@ -2362,7 +2381,7 @@ void SetTimeOffset(const int32 offset)
  *  Spawn a mob using mob ID                                             *
  *                                                                       *
  ************************************************************************/
-CBaseEntity* SpawnMob(uint32 mobid, const sol::object& arg2, const sol::object& arg3)
+auto SpawnMob(uint32 mobid, const sol::object& arg2, const sol::object& arg3) -> CBaseEntity*
 {
     TracyZoneScoped;
 
@@ -2427,11 +2446,11 @@ void DespawnMob(uint32 mobid, const sol::object& arg2)
     if (arg2.is<CLuaInstance>())
     {
         auto PInstance = arg2.as<CLuaInstance>().GetInstance();
-        PMob           = (CMobEntity*)PInstance->GetEntity(mobid & 0xFFF, TYPE_MOB);
+        PMob           = static_cast<CMobEntity*>(PInstance->GetEntity(mobid & 0xFFF, TYPE_MOB));
     }
     else
     {
-        PMob = (CMobEntity*)zoneutils::GetEntity(mobid, TYPE_MOB);
+        PMob = static_cast<CMobEntity*>(zoneutils::GetEntity(mobid, TYPE_MOB));
     }
 
     if (PMob != nullptr)
@@ -2453,7 +2472,7 @@ void DespawnMob(uint32 mobid, const sol::object& arg2)
  *                                                                       *
  ************************************************************************/
 
-CBaseEntity* GetPlayerByName(const std::string& name)
+auto GetPlayerByName(const std::string& name) -> CBaseEntity*
 {
     TracyZoneScoped;
 
@@ -2466,7 +2485,7 @@ CBaseEntity* GetPlayerByName(const std::string& name)
  *                                                                       *
  ************************************************************************/
 
-CBaseEntity* GetPlayerByID(uint32 pid)
+auto GetPlayerByID(uint32 pid) -> CBaseEntity*
 {
     TracyZoneScoped;
 
@@ -2479,7 +2498,7 @@ CBaseEntity* GetPlayerByID(uint32 pid)
  *                                                                       *
  ************************************************************************/
 
-bool PlayerHasValidSession(uint32 playerId)
+auto PlayerHasValidSession(uint32 playerId) -> bool
 {
     TracyZoneScoped;
 
@@ -2847,7 +2866,7 @@ void OnTriggerAreaLeave(CCharEntity* PChar, const std::unique_ptr<ITriggerArea>&
     }
 }
 
-int32 OnTrigger(CCharEntity* PChar, CBaseEntity* PNpc)
+auto OnTrigger(CCharEntity* PChar, CBaseEntity* PNpc) -> int32
 {
     TracyZoneScoped;
 
@@ -2897,7 +2916,7 @@ int32 OnTrigger(CCharEntity* PChar, CBaseEntity* PNpc)
     return result.get_type() == sol::type::number ? result.get<int32>() : 0;
 }
 
-int32 OnEventUpdate(CCharEntity* PChar, uint16 eventID, uint32 result)
+auto OnEventUpdate(CCharEntity* PChar, uint16 eventID, uint32 result) -> int32
 {
     TracyZoneScoped;
 
@@ -2930,7 +2949,7 @@ int32 OnEventUpdate(CCharEntity* PChar, uint16 eventID, uint32 result)
     return func_result.get_type() == sol::type::number ? func_result.get<int32>() : 1;
 }
 
-int32 OnEventUpdate(CCharEntity* PChar, const std::string& updateString)
+auto OnEventUpdate(CCharEntity* PChar, const std::string& updateString) -> int32
 {
     TracyZoneScoped;
 
@@ -2960,7 +2979,7 @@ int32 OnEventUpdate(CCharEntity* PChar, const std::string& updateString)
     return 0;
 }
 
-int32 OnEventFinish(CCharEntity* PChar, uint16 eventID, uint32 result)
+auto OnEventFinish(CCharEntity* PChar, uint16 eventID, uint32 result) -> int32
 {
     TracyZoneScoped;
 
@@ -3020,6 +3039,14 @@ void OnTrade(CCharEntity* PChar, CBaseEntity* PNpc)
     auto filename = fmt::format("./scripts/zones/{}/npcs/{}.lua", zone, name);
 
     ShowTrace("luautils::OnTrade: {} ({}) -> {}", PChar->getName(), zone, name);
+
+    // An event the trade starts copies these. One it doesn't must not inherit them.
+    const auto previousPrep = *PChar->eventPreparation;
+    const auto restorePrep  = xi::finally(
+        [PChar, previousPrep]()
+        {
+            *PChar->eventPreparation = previousPrep;
+        });
 
     PChar->eventPreparation->targetEntity = PNpc;
     PChar->eventPreparation->scriptFile   = filename;
@@ -3123,7 +3150,7 @@ void OnSpikesDamage(CBattleEntity* PDefender, CBattleEntity* PAttacker, action_r
 }
 
 // Used by items
-int32 additionalEffectAttack(CBattleEntity* PAttacker, CBattleEntity* PDefender, CItemWeapon* PItem, action_result_t* Action, int32 baseAttackDamage)
+auto additionalEffectAttack(CBattleEntity* PAttacker, CBattleEntity* PDefender, CItemWeapon* PItem, action_result_t* Action, int32 baseAttackDamage) -> int32
 {
     TracyZoneScoped;
 
@@ -3154,7 +3181,7 @@ int32 additionalEffectAttack(CBattleEntity* PAttacker, CBattleEntity* PDefender,
 }
 
 // Scripted additional effects
-int32 OnItemAdditionalEffect(CBattleEntity* PAttacker, CBattleEntity* PDefender, CItemWeapon* PItem, action_result_t* Action, int32 baseAttackDamage)
+auto OnItemAdditionalEffect(CBattleEntity* PAttacker, CBattleEntity* PDefender, CItemWeapon* PItem, action_result_t* Action, int32 baseAttackDamage) -> int32
 {
     TracyZoneScoped;
 
@@ -3397,7 +3424,7 @@ auto OnItemCheck(CBaseEntity* PTarget, CItem* PItem, CBaseEntity* PCaster) -> st
 // We use the subject. The return value is the message number or 0.
 // It is also necessary to somehow pass the message parameter (for example,
 // number of recovered MP)
-int32 OnItemUse(CBaseEntity* PUser, CBaseEntity* PTarget, CItem* PItem, action_t& action)
+auto OnItemUse(CBaseEntity* PUser, CBaseEntity* PTarget, CItem* PItem, action_t& action) -> int32
 {
     TracyZoneScoped;
 
@@ -3511,7 +3538,7 @@ void CheckForGearSet(CBaseEntity* PTarget)
     }
 }
 
-int32 OnSpellCast(CBattleEntity* PCaster, CBattleEntity* PTarget, CSpell* PSpell, action_t* action)
+auto OnSpellCast(CBattleEntity* PCaster, CBattleEntity* PTarget, CSpell* PSpell, action_t* action) -> int32
 {
     TracyZoneScoped;
 
@@ -3612,7 +3639,7 @@ void OnSpellInterrupted(CBattleEntity* PCaster, CSpell* PSpell)
     }
 }
 
-std::tuple<Maybe<SpellID>, Maybe<CBattleEntity*>> OnMobSpellChoose(CBattleEntity* PCaster, CBattleEntity* PTarget, Maybe<SpellID> startingSpellId)
+auto OnMobSpellChoose(CBattleEntity* PCaster, CBattleEntity* PTarget, Maybe<SpellID> startingSpellId) -> std::tuple<Maybe<SpellID>, Maybe<CBattleEntity*>>
 {
     TracyZoneScoped;
 
@@ -3722,7 +3749,7 @@ void OnWeaponskillHit(CBattleEntity* PMob, CBaseEntity* PAttacker, uint16 PWeapo
     }
 }
 
-bool OnTrustSpellCastCheckBattlefieldTrusts(CBattleEntity* PCaster) // Check if trust count would go over the limit when cast finishes (for simultaneous multi-party casts
+auto OnTrustSpellCastCheckBattlefieldTrusts(CBattleEntity* PCaster) -> bool // Check if trust count would go over the limit when cast finishes (for simultaneous multi-party casts
 {
     TracyZoneScoped;
 
@@ -3947,7 +3974,7 @@ void OnShopBuy(CCharEntity* PChar, CBaseEntity* PNpc, uint16 itemId, uint32 quan
     }
 }
 
-int32 OnBattlefieldHandlerInitialize(CZone* PZone)
+auto OnBattlefieldHandlerInitialize(CZone* PZone) -> int32
 {
     TracyZoneScoped;
 
@@ -4027,22 +4054,6 @@ void OnMobEngage(CBaseEntity* PMob, CBaseEntity* PTarget)
     if (PTarget == nullptr || PMob == nullptr)
     {
         return;
-    }
-
-    std::string filename;
-    if (PMob->objtype == TYPE_PET)
-    {
-        filename = fmt::format("./scripts/globals/pets/{}.lua", static_cast<CPetEntity*>(PMob)->GetScriptName());
-    }
-    else
-    {
-        filename = fmt::format("./scripts/zones/{}/mobs/{}.lua", PMob->loc.zone->getName(), PMob->getName());
-    }
-
-    if (auto* PChar = dynamic_cast<CCharEntity*>(PTarget))
-    {
-        PChar->eventPreparation->targetEntity = PMob;
-        PChar->eventPreparation->scriptFile   = filename;
     }
 
     sol::function onMobEngage = getEntityCachedFunction(PMob, "onMobEngage");
@@ -4185,9 +4196,6 @@ void OnMobDeath(CBaseEntity* PMob, CBaseEntity* PKiller)
         return;
     }
 
-    std::string zone_name = PMob->loc.zone->getName();
-    std::string mob_name  = PMob->getName();
-
     CCharEntity* PChar = dynamic_cast<CCharEntity*>(PKiller);
 
     auto optParams = lua.create_table();
@@ -4229,7 +4237,7 @@ void OnMobDeath(CBaseEntity* PMob, CBaseEntity* PKiller)
         PChar->ForAlliance(
             [PMob, PChar, &onMobDeathFramework, &onMobDeath, &filename, &optParams](CBattleEntity* PPartyMember)
             {
-                CCharEntity* PMember = (CCharEntity*)PPartyMember;
+                CCharEntity* PMember = static_cast<CCharEntity*>(PPartyMember);
                 if (PMember && PMember->getZone() == PChar->getZone())
                 {
                     uint32 weaponskillVar    = PMob->GetLocalVar("weaponskillHit");
@@ -4241,6 +4249,14 @@ void OnMobDeath(CBaseEntity* PMob, CBaseEntity* PKiller)
                     optParams["isWeaponSkillKill"] = weaponskillUsed > 0;
                     optParams["weaponskillUsed"]   = weaponskillUsed;
                     optParams["weaponskillDamage"] = weaponskillDamage;
+
+                    // An event the kill starts copies these. One it doesn't must not inherit them.
+                    const auto previousPrep = *PChar->eventPreparation;
+                    const auto restorePrep  = xi::finally(
+                        [PChar, previousPrep]()
+                        {
+                            *PChar->eventPreparation = previousPrep;
+                        });
 
                     PChar->eventPreparation->targetEntity = PMob;
                     PChar->eventPreparation->scriptFile   = filename;
@@ -4276,7 +4292,7 @@ void OnMobDeath(CBaseEntity* PMob, CBaseEntity* PKiller)
     }
 }
 
-int32 OnMobSpawnCheck(CBaseEntity* PMob)
+auto OnMobSpawnCheck(CBaseEntity* PMob) -> int32
 {
     TracyZoneScoped;
 
@@ -4528,7 +4544,7 @@ void OnTOTDChange(const xi::ZoneId ZoneID, const uint8 TOTD)
     }
 }
 
-std::tuple<int32, uint8, uint8> OnUseWeaponSkill(CBattleEntity* PChar, CBaseEntity* PMob, CWeaponSkill* wskill, uint16 tp, bool primary, action_t& action, CBattleEntity* taChar)
+auto OnUseWeaponSkill(CBattleEntity* PChar, CBaseEntity* PMob, CWeaponSkill* wskill, uint16 tp, bool primary, action_t& action, CBattleEntity* taChar) -> std::tuple<int32, uint8, uint8>
 {
     TracyZoneScoped;
 
@@ -4555,13 +4571,13 @@ std::tuple<int32, uint8, uint8> OnUseWeaponSkill(CBattleEntity* PChar, CBaseEnti
 
     if (criticalHit)
     {
-        luautils::OnCriticalHit((CBattleEntity*)PMob, PChar);
+        luautils::OnCriticalHit(static_cast<CBattleEntity*>(PMob), PChar);
     }
 
     return std::make_tuple(dmg, tpHitsLanded, extraHitsLanded);
 }
 
-uint16 OnMobMobskillChoose(CBattleEntity* PMob, CBattleEntity* PTarget, uint16 chosenSkillId)
+auto OnMobMobskillChoose(CBattleEntity* PMob, CBattleEntity* PTarget, uint16 chosenSkillId) -> uint16
 {
     TracyZoneScoped;
 
@@ -4593,7 +4609,7 @@ uint16 OnMobMobskillChoose(CBattleEntity* PMob, CBattleEntity* PTarget, uint16 c
     return 0;
 }
 
-int32 OnMobWeaponSkill(CBaseEntity* PMob, CBaseEntity* PTarget, CMobSkill* PMobSkill, action_t* action)
+auto OnMobWeaponSkill(CBaseEntity* PMob, CBaseEntity* PTarget, CMobSkill* PMobSkill, action_t* action) -> int32
 {
     TracyZoneScoped;
 
@@ -4635,7 +4651,7 @@ int32 OnMobWeaponSkill(CBaseEntity* PMob, CBaseEntity* PTarget, CMobSkill* PMobS
     return result.get_type(0) == sol::type::number ? result.get<int32>(0) : 0;
 }
 
-int32 OnMobSkillCheck(CBaseEntity* PTarget, CBaseEntity* PMob, CMobSkill* PMobSkill)
+auto OnMobSkillCheck(CBaseEntity* PTarget, CBaseEntity* PMob, CMobSkill* PMobSkill) -> int32
 {
     TracyZoneScoped;
 
@@ -4658,7 +4674,7 @@ int32 OnMobSkillCheck(CBaseEntity* PTarget, CBaseEntity* PMob, CMobSkill* PMobSk
     return result.get_type(0) == sol::type::number ? result.get<int32>(0) : -5;
 }
 
-CBattleEntity* OnMobSkillTarget(CBattleEntity* PTarget, CBaseEntity* PMob, CMobSkill* PMobSkill)
+auto OnMobSkillTarget(CBattleEntity* PTarget, CBaseEntity* PMob, CMobSkill* PMobSkill) -> CBattleEntity*
 {
     TracyZoneScoped;
 
@@ -4689,7 +4705,7 @@ CBattleEntity* OnMobSkillTarget(CBattleEntity* PTarget, CBaseEntity* PMob, CMobS
     return PTarget;
 }
 
-Maybe<timer::duration> OnMobSkillReadyTime(CBattleEntity* PTarget, CBaseEntity* PMob, CMobSkill* PMobSkill)
+auto OnMobSkillReadyTime(CBattleEntity* PTarget, CBaseEntity* PMob, CMobSkill* PMobSkill) -> Maybe<timer::duration>
 {
     TracyZoneScoped;
 
@@ -4738,7 +4754,7 @@ void OnMobSkillFinalize(CBaseEntity* PMob, CMobSkill* PMobSkill)
     }
 }
 
-int32 OnAutomatonAbilityCheck(CBaseEntity* PTarget, CAutomatonEntity* PAutomaton, CMobSkill* PMobSkill)
+auto OnAutomatonAbilityCheck(CBaseEntity* PTarget, CAutomatonEntity* PAutomaton, CMobSkill* PMobSkill) -> int32
 {
     TracyZoneScoped;
 
@@ -4761,7 +4777,7 @@ int32 OnAutomatonAbilityCheck(CBaseEntity* PTarget, CAutomatonEntity* PAutomaton
     return result.get_type(0) == sol::type::number ? result.get<int32>(0) : -5;
 }
 
-int32 OnAutomatonAbility(CBaseEntity* PTarget, CBaseEntity* PMob, CMobSkill* PMobSkill, CBaseEntity* PMobMaster, action_t* action)
+auto OnAutomatonAbility(CBaseEntity* PTarget, CBaseEntity* PMob, CMobSkill* PMobSkill, CBaseEntity* PMobMaster, action_t* action) -> int32
 {
     auto filename = fmt::format("./scripts/actions/abilities/pets/automaton/{}.lua", PMobSkill->getName());
 
@@ -4879,7 +4895,49 @@ void OnMonstrosityReturnToEntrance(CCharEntity* PChar)
     }
 }
 
-int32 OnMagicCastingCheck(CBaseEntity* PChar, CBaseEntity* PTarget, CSpell* PSpell)
+auto OnWorldPassRequest(CCharEntity* PChar, const uint16 para) -> WorldPassReply
+{
+    TracyZoneScoped;
+
+    // the client shows "unable to connect" for these and never hangs waiting
+    WorldPassReply reply;
+    if (para & 1)
+    {
+        reply.type = 5; // unavailable
+    }
+
+    sol::function onRequest = lua["xi"]["worldPass"]["onRequest"];
+    if (!onRequest.valid())
+    {
+        ShowError("luautils::OnWorldPassRequest: function not found");
+        return reply;
+    }
+
+    auto result = onRequest(PChar, para, PChar->currentEvent->eventId);
+    if (!result.valid())
+    {
+        sol::error err = result;
+        ShowError("luautils::OnWorldPassRequest: %s", err.what());
+        return reply;
+    }
+
+    if (result.get_type() != sol::type::table)
+    {
+        return reply;
+    }
+
+    const sol::table table = result;
+
+    reply.type      = table.get_or<uint8>("type", reply.type);
+    reply.leftNum   = table.get_or<int32>("leftNum", reply.leftNum);
+    reply.leftHours = table.get_or<int32>("leftHours", reply.leftHours);
+    reply.price     = table.get_or<int32>("price", reply.price);
+    reply.code      = table.get_or<std::string>("code", reply.code);
+
+    return reply;
+}
+
+auto OnMagicCastingCheck(CBaseEntity* PChar, CBaseEntity* PTarget, CSpell* PSpell) -> int32
 {
     TracyZoneScoped;
 
@@ -4901,7 +4959,7 @@ int32 OnMagicCastingCheck(CBaseEntity* PChar, CBaseEntity* PTarget, CSpell* PSpe
     return result.get_type(0) == sol::type::number ? result.get<int32>(0) : -5;
 }
 
-int32 OnAbilityCheck(CBaseEntity* PChar, CBaseEntity* PTarget, CAbility* PAbility, CBaseEntity** PMsgTarget)
+auto OnAbilityCheck(CBaseEntity* PChar, CBaseEntity* PTarget, CAbility* PAbility, CBaseEntity** PMsgTarget) -> int32
 {
     TracyZoneScoped;
 
@@ -4947,7 +5005,7 @@ int32 OnAbilityCheck(CBaseEntity* PChar, CBaseEntity* PTarget, CAbility* PAbilit
     return result0 ? result0 : 0; // Default to no Message
 }
 
-int32 OnPetAbility(CBaseEntity* PTarget, CBaseEntity* PMob, CMobSkill* PMobSkill, CBaseEntity* PMobMaster, action_t* action)
+auto OnPetAbility(CBaseEntity* PTarget, CBaseEntity* PMob, CMobSkill* PMobSkill, CBaseEntity* PMobMaster, action_t* action) -> int32
 {
     TracyZoneScoped;
 
@@ -4971,7 +5029,7 @@ int32 OnPetAbility(CBaseEntity* PTarget, CBaseEntity* PMob, CMobSkill* PMobSkill
     // TODO: This probably shouldn't be in here
     if (PMob->objtype == TYPE_PET && settings::get<bool>("map.SKILLUP_BLOODPACT"))
     {
-        CPetEntity* PPet = (CPetEntity*)PMob;
+        CPetEntity* PPet = static_cast<CPetEntity*>(PMob);
         if (auto* PMaster = dynamic_cast<CCharEntity*>(PPet->PMaster); PPet->getPetType() == PET_TYPE::AVATAR && PMaster)
         {
             if (PMaster->GetMJob() == xi::Job::SMN)
@@ -4984,7 +5042,7 @@ int32 OnPetAbility(CBaseEntity* PTarget, CBaseEntity* PMob, CMobSkill* PMobSkill
     return result.get_type(0) == sol::type::number ? result.get<int32>(0) : 0;
 }
 
-int32 OnPetAbility(CBaseEntity* PTarget, CPetEntity* PPet, CPetSkill* PPetSkill, CBaseEntity* PMobMaster, action_t* action)
+auto OnPetAbility(CBaseEntity* PTarget, CPetEntity* PPet, CPetSkill* PPetSkill, CBaseEntity* PMobMaster, action_t* action) -> int32
 {
     TracyZoneScoped;
 
@@ -5015,7 +5073,7 @@ int32 OnPetAbility(CBaseEntity* PTarget, CPetEntity* PPet, CPetSkill* PPetSkill,
     return result.get_type(0) == sol::type::number ? result.get<int32>(0) : 0;
 }
 
-int32 OnUseAbility(CBattleEntity* PUser, CBattleEntity* PTarget, CAbility* PAbility, action_t* action)
+auto OnUseAbility(CBattleEntity* PUser, CBattleEntity* PTarget, CAbility* PAbility, action_t* action) -> int32
 {
     TracyZoneScoped;
 
@@ -5047,7 +5105,7 @@ int32 OnUseAbility(CBattleEntity* PUser, CBattleEntity* PTarget, CAbility* PAbil
     return result.get_type(0) == sol::type::number ? result.get<int32>(0) : 0;
 }
 
-int32 OnSteal(CBattleEntity* PChar, CBattleEntity* PMob, CAbility* PAbility, action_t* action)
+auto OnSteal(CBattleEntity* PChar, CBattleEntity* PMob, CAbility* PAbility, action_t* action) -> int32
 {
     TracyZoneScoped;
 
@@ -5082,7 +5140,53 @@ int32 OnSteal(CBattleEntity* PChar, CBattleEntity* PMob, CAbility* PAbility, act
     return 0;
 }
 
-bool OnCanUseSpell(CBattleEntity* PChar, CSpell* PSpell) // triggers when CanUseSpell is invoked on spell.cpp for PCs only
+auto OnFishingCheck(CCharEntity* PChar, const uint8 areaId) -> std::vector<uint32>
+{
+    TracyZoneScoped;
+
+    std::vector<uint32> catchIds;
+
+    if (PChar == nullptr)
+    {
+        return catchIds;
+    }
+
+    auto onFishingCheckFramework = lua["InteractionGlobal"]["onFishingCheck"];
+
+    auto result = onFishingCheckFramework(PChar, areaId);
+    if (!result.valid())
+    {
+        sol::error err = result;
+        ShowError("luautils::onFishingCheck: %s", err.what());
+        return catchIds;
+    }
+
+    if (result.get_type(0) != sol::type::table)
+    {
+        return catchIds;
+    }
+
+    // Each handler returns a list of catch ids, which may be empty
+    for (const auto& [key, answer] : result.get<sol::table>(0))
+    {
+        if (answer.get_type() != sol::type::table)
+        {
+            continue;
+        }
+
+        for (const auto& [index, catchId] : answer.as<sol::table>())
+        {
+            if (catchId.get_type() == sol::type::number)
+            {
+                catchIds.emplace_back(catchId.as<uint32>());
+            }
+        }
+    }
+
+    return catchIds;
+}
+
+auto OnCanUseSpell(CBattleEntity* PChar, CSpell* PSpell) -> bool // triggers when CanUseSpell is invoked on spell.cpp for PCs only
 {
     TracyZoneScoped;
 
@@ -5373,7 +5477,7 @@ auto GetElevatorState(const xi::Elevator elevatorID) -> int16
     return -1;
 }
 
-int32 GetServerVariable(const std::string& name)
+auto GetServerVariable(const std::string& name) -> int32
 {
     return serverutils::GetServerVar(name);
 }
@@ -5391,7 +5495,7 @@ void SetServerVariable(const std::string& name, int32 value, const sol::object& 
     serverutils::SetServerVar(name, value, varTimestamp);
 }
 
-int32 GetVolatileServerVariable(const std::string& varName)
+auto GetVolatileServerVariable(const std::string& varName) -> int32
 {
     return serverutils::GetVolatileServerVar(varName);
 }
@@ -5409,7 +5513,66 @@ void SetVolatileServerVariable(const std::string& varName, int32 value, const so
     serverutils::SetVolatileServerVar(varName, value, varTimestamp);
 }
 
-int32 GetCharVar(uint32 charId, const std::string& varName)
+auto GetActiveWorldPass(const uint32 inviterId) -> sol::object
+{
+    const auto rset = db::preparedStmt("SELECT code, expiry FROM char_world_passes WHERE inviter = ? AND expiry > UNIX_TIMESTAMP() ORDER BY expiry DESC LIMIT 1", inviterId);
+    FOR_DB_SINGLE_RESULT(rset)
+    {
+        auto table      = lua.create_table();
+        table["code"]   = rset->get<uint32>("code");
+        table["expiry"] = rset->get<uint32>("expiry");
+
+        return table;
+    }
+
+    return sol::lua_nil;
+}
+
+auto IssueWorldPass(const uint32 inviterId, const uint32 expiry) -> uint32
+{
+    const auto code = xirand::GetRandomNumber<uint32>(1, std::numeric_limits<uint32>::max());
+    const auto rset = db::preparedStmt("INSERT IGNORE INTO char_world_passes (code, inviter, expiry) VALUES (?, ?, ?)", code, inviterId, expiry);
+    if (!rset || !rset->rowsAffected())
+    {
+        return 0;
+    }
+
+    return code;
+}
+
+auto GetWorldPassInvite(const uint32 inviterId, const uint32 inviteeId) -> sol::object
+{
+    const auto rset = db::preparedStmt("SELECT joined, invitee_claims, inviter_claims FROM char_world_passes WHERE inviter = ? AND invitee = ?", inviterId, inviteeId);
+    FOR_DB_SINGLE_RESULT(rset)
+    {
+        auto table             = lua.create_table();
+        table["joined"]        = rset->get<uint32>("joined");
+        table["inviteeClaims"] = rset->get<uint8>("invitee_claims");
+        table["inviterClaims"] = rset->get<uint8>("inviter_claims");
+
+        return table;
+    }
+
+    return sol::lua_nil;
+}
+
+void SetWorldPassClaims(const uint32 inviteeId, const uint8 inviteeClaims, const uint8 inviterClaims)
+{
+    db::preparedStmt("UPDATE char_world_passes SET invitee_claims = ?, inviter_claims = ? WHERE invitee = ?", inviteeClaims, inviterClaims, inviteeId);
+}
+
+auto CountWorldPassInvites(const uint32 inviterId) -> uint32
+{
+    const auto rset = db::preparedStmt("SELECT COUNT(*) AS invites FROM char_world_passes WHERE inviter = ? AND inviter_claims <> 0", inviterId);
+    FOR_DB_SINGLE_RESULT(rset)
+    {
+        return rset->get<uint32>("invites");
+    }
+
+    return 0;
+}
+
+auto GetCharVar(uint32 charId, const std::string& varName) -> int32
 {
     return charutils::FetchCharVar(charId, varName).first;
 }
@@ -5615,7 +5778,7 @@ void DisallowRespawn(uint32 mobid, bool allowRespawn)
 {
     TracyZoneScoped;
 
-    CMobEntity* PMob = (CMobEntity*)zoneutils::GetEntity(mobid, TYPE_MOB);
+    CMobEntity* PMob = static_cast<CMobEntity*>(zoneutils::GetEntity(mobid, TYPE_MOB));
     if (PMob != nullptr)
     {
         PMob->m_AllowRespawn = !allowRespawn;
@@ -5632,11 +5795,11 @@ void DisallowRespawn(uint32 mobid, bool allowRespawn)
  *                                                                       *
  ************************************************************************/
 
-uint32 GetMobRespawnTime(uint32 mobid)
+auto GetMobRespawnTime(uint32 mobid) -> uint32
 {
     TracyZoneScoped;
 
-    CMobEntity* PMob = (CMobEntity*)zoneutils::GetEntity(mobid, TYPE_MOB);
+    CMobEntity* PMob = static_cast<CMobEntity*>(zoneutils::GetEntity(mobid, TYPE_MOB));
 
     if (PMob != nullptr)
     {
@@ -5652,24 +5815,25 @@ uint32 GetMobRespawnTime(uint32 mobid)
  *   where the specified param is between 1 and 60 mins                 *
  ************************************************************************/
 
-sol::table GetRecentFishers(uint16 minutes)
+auto GetRecentFishers(uint16 minutes) -> sol::table
 {
     // limit the lookback time to prevent huge queries
     uint16 lookbackTime = std::clamp<uint32>(minutes, 1, 60);
 
-    sol::table  fishers = lua.create_table();
-    const char* Query   = "SELECT cv.charid, c.charname, stats.mlvl, z.name, COALESCE(cs.value, 0) / 10 as skill "
-                          "FROM char_vars cv "
-                          "LEFT JOIN chars c ON c.charid  = cv.charid "
-                          "LEFT JOIN char_skills cs ON cs.charid = cv.charid AND cs.skillid = 48 "
-                          "INNER JOIN char_stats stats ON stats.charid = c.charid "
-                          "INNER JOIN zone_settings z ON z.zoneid = c.pos_zone "
-                          "WHERE "
-                          "varname = '[Fish]LastCastTime' AND "
-                          "FROM_UNIXTIME(cv.value) > NOW() - INTERVAL ? MINUTE "
-                          "ORDER BY z.name, z.name, stats.mlvl, skill";
+    sol::table     fishers = lua.create_table();
+    constexpr auto query   = db::Query(
+        "SELECT cv.charid, c.charname, stats.mlvl, z.name, COALESCE(cs.value, 0) / 10 as skill "
+        "FROM char_vars cv "
+        "LEFT JOIN chars c ON c.charid  = cv.charid "
+        "LEFT JOIN char_skills cs ON cs.charid = cv.charid AND cs.skillid = 48 "
+        "INNER JOIN char_stats stats ON stats.charid = c.charid "
+        "INNER JOIN zone_settings z ON z.zoneid = c.pos_zone "
+        "WHERE "
+        "varname = '[Fish]LastCastTime' AND "
+        "FROM_UNIXTIME(cv.value) > NOW() - INTERVAL ? MINUTE "
+        "ORDER BY z.name, z.name, stats.mlvl, skill");
 
-    const auto rset = db::preparedStmt(Query, lookbackTime);
+    const auto rset = db::preparedStmt(query, lookbackTime);
     if (rset && rset->rowsCount())
     {
         while (rset->next())
@@ -5687,7 +5851,7 @@ sol::table GetRecentFishers(uint16 minutes)
     return fishers;
 }
 
-std::string GetServerMessage(uint8 language)
+auto GetServerMessage(uint8 language) -> std::string
 {
     TracyZoneScoped;
 
@@ -5718,21 +5882,21 @@ auto GetReadOnlyItem(uint32 id) -> const CItem*
     return xi::items::lookup(id);
 }
 
-CAbility* GetAbility(uint16 id)
+auto GetAbility(uint16 id) -> CAbility*
 {
     TracyZoneScoped;
 
     return ability::GetAbility(id);
 }
 
-CSpell* GetSpell(uint16 id)
+auto GetSpell(uint16 id) -> CSpell*
 {
     TracyZoneScoped;
 
     return spell::GetSpell(static_cast<SpellID>(id));
 }
 
-sol::table NearLocation(const sol::table& table, float radius, float theta)
+auto NearLocation(const sol::table& table, float radius, float theta) -> sol::table
 {
     TracyZoneScoped;
 
@@ -5752,7 +5916,7 @@ sol::table NearLocation(const sol::table& table, float radius, float theta)
     return nearPos;
 }
 
-sol::table GetFurthestValidPosition(CLuaBaseEntity* fromTarget, float distance, float theta)
+auto GetFurthestValidPosition(CLuaBaseEntity* fromTarget, float distance, float theta) -> sol::table
 {
     if (!fromTarget || !fromTarget->GetBaseEntity())
     {
@@ -5805,11 +5969,11 @@ void OnPlayerMount(CCharEntity* PChar)
     callGlobal<void>("xi.player.onPlayerMount", PChar);
 }
 
-void OnPlayerEmote(CCharEntity* PChar, Emote EmoteID)
+void OnPlayerEmote(CCharEntity* PChar, const xi::Emote emote)
 {
     TracyZoneScoped;
 
-    callGlobal<void>("xi.player.onPlayerEmote", PChar, static_cast<uint8>(EmoteID));
+    callGlobal<void>("xi.player.onPlayerEmote", PChar, emote);
 }
 
 void OnPlayerVolunteer(CCharEntity* PChar, const std::string& text)
@@ -5855,7 +6019,7 @@ auto OnChocoboDig(CCharEntity* PChar) -> ChocoboDigResult
 // 2) 2nd try: The instance script if the player is in one
 // 3) 3rd try: The battlefield script if the player is in one
 // 4) 4th try: The zone script for the zone the player is in
-sol::function LoadEventScript(CCharEntity* PChar, const char* functionName)
+auto LoadEventScript(CCharEntity* PChar, const char* functionName) -> sol::function
 {
     TracyZoneScoped;
 
@@ -5886,7 +6050,7 @@ sol::function LoadEventScript(CCharEntity* PChar, const char* functionName)
     return sol::lua_nil;
 }
 
-uint16 GetDespoilDebuff(uint16 itemId)
+auto GetDespoilDebuff(uint16 itemId) -> uint16
 {
     TracyZoneScoped;
 
@@ -5943,7 +6107,7 @@ void OnFurnitureRemoved(CCharEntity* PChar, CItemFurnishing* PItem)
     }
 }
 
-uint16 SelectDailyItem(CLuaBaseEntity* PLuaBaseEntity, uint8 dial)
+auto SelectDailyItem(CLuaBaseEntity* PLuaBaseEntity, uint8 dial) -> uint16
 {
     TracyZoneScoped;
 
@@ -5951,7 +6115,7 @@ uint16 SelectDailyItem(CLuaBaseEntity* PLuaBaseEntity, uint8 dial)
     return daily::SelectItem(player, dial);
 }
 
-std::string SetCustomMenuContext(CCharEntity* PChar, sol::table table)
+auto SetCustomMenuContext(CCharEntity* PChar, sol::table table) -> std::string
 {
     customMenuContext[PChar->id] = table;
 
@@ -5980,7 +6144,7 @@ std::string SetCustomMenuContext(CCharEntity* PChar, sol::table table)
     return outStr;
 }
 
-bool HasCustomMenuContext(CCharEntity* PChar)
+auto HasCustomMenuContext(CCharEntity* PChar) -> bool
 {
     auto context = customMenuContext.find(PChar->id);
     return context != customMenuContext.end();
@@ -6122,7 +6286,7 @@ void HandleCustomMenu(CCharEntity* PChar, const std::string& selection)
     customMenuContext.erase(PChar->id);
 }
 
-SendToDBoxReturnCode SendItemToDeliveryBox(const std::string& playerName, uint16 itemId, uint32 quantity, const std::string& senderText)
+auto SendItemToDeliveryBox(const std::string& playerName, uint16 itemId, uint32 quantity, const std::string& senderText) -> SendToDBoxReturnCode
 {
     uint32 playerID = charutils::getCharIdFromName(playerName);
     if (playerID == 0)
@@ -6163,7 +6327,7 @@ SendToDBoxReturnCode SendItemToDeliveryBox(const std::string& playerName, uint16
                 itemId,
                 quantity,
                 playerID,
-                senderText);
+                senderText.substr(0, 15));
 
             if (!rset)
             {
@@ -6185,7 +6349,7 @@ SendToDBoxReturnCode SendItemToDeliveryBox(const std::string& playerName, uint16
     }
 }
 
-uint16 GetItemIDByName(const std::string& name)
+auto GetItemIDByName(const std::string& name) -> uint16
 {
     uint16 id   = 0;
     auto   rset = db::preparedStmt("SELECT itemid FROM item_basic WHERE name LIKE ? OR sortname LIKE ?", name, name);
@@ -6208,7 +6372,7 @@ uint16 GetItemIDByName(const std::string& name)
     return id;
 }
 
-CBaseEntity* GenerateDynamicEntity(CZone* PZone, CInstance* PInstance, sol::table table)
+auto GenerateDynamicEntity(CZone* PZone, CInstance* PInstance, sol::table table) -> CBaseEntity*
 {
     CBaseEntity* PEntity = nullptr;
     if (table.get_or<uint8>("objtype", TYPE_NPC) == TYPE_NPC)

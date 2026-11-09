@@ -38,12 +38,15 @@ public:
     CItemPuppet(uint16);
 
     CItemPuppet(const CItemPuppet& other);
-    virtual ~CItemPuppet();
+    auto operator=(const CItemPuppet&) -> CItemPuppet& = delete;
+    CItemPuppet(CItemPuppet&&)                         = delete;
+    auto operator=(CItemPuppet&&) -> CItemPuppet&      = delete;
+    ~CItemPuppet() override;
 
-    uint8  getEquipSlot() const;
-    void   setEquipSlot(uint32 slot);
-    uint32 getElementSlots() const;
-    void   setElementSlots(uint32 slots);
+    auto getEquipSlot() const -> uint8;
+    void setEquipSlot(uint32 slot);
+    auto getElementSlots() const -> uint32;
+    void setElementSlots(uint32 slots);
 
 private:
     uint8  m_equipSlot;

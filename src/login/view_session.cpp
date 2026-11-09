@@ -89,7 +89,7 @@ void view_session::read_func()
     const auto code = ref<uint8>(buffer_.data(), 8);
 
     const auto sessionHash = loginHelpers::getHashFromPacket(ipAddress, buffer_.data());
-    if (sessionHash == "")
+    if (sessionHash.empty())
     {
         ShowWarning(fmt::format("Session requested without valid sessionHash from {}", ipAddress));
         return;
@@ -237,6 +237,12 @@ void view_session::read_func()
                 data->addCharIntoCharInfo(charInfo);
             }
 
+            if (!session.requestedFriendPass.empty())
+            {
+                loginHelpers::useFriendPass(charInfo.ffxi_id, session.requestedFriendPass);
+                session.requestedFriendPass.clear();
+            }
+
             ShowInfo(fmt::format("char <{}> was successfully created on account {}", session.requestedNewCharacterName, session.accountID));
             session.requestedNewCharacterName.clear();
 
@@ -266,6 +272,8 @@ void view_session::read_func()
                 char CharName[PacketNameLength] = {};
                 std::memcpy(CharName, buffer_.data() + 32, PacketNameLength - 1);
 
+                const auto friendPass = asStringFromUntrustedSource(buffer_.data() + 0x50, 15);
+
                 if (const auto error = loginHelpers::characterCreationError(session.accountID, CharName))
                 {
                     loginHelpers::generateErrorMessage(buffer_.data(), *error);
@@ -274,8 +282,19 @@ void view_session::read_func()
                 }
                 else
                 {
+                    if (!friendPass.empty())
+                    {
+                        if (const auto passError = loginHelpers::friendPassError(session.accountID, friendPass))
+                        {
+                            loginHelpers::generateErrorMessage(buffer_.data(), *passError);
+                            do_write(0x24);
+                            return;
+                        }
+                    }
+
                     // copy charname
                     session.requestedNewCharacterName = CharName;
+                    session.requestedFriendPass       = friendPass;
 
                     std::memset(buffer_.data(), 0, 0x20);
                     buffer_.data()[0] = 0x20; // size
@@ -389,7 +408,7 @@ void view_session::read_func()
         {
             std::string client_ver_data = asStringFromUntrustedSource(buffer_.data() + 0x74, 6); // Full length is 10 but we drop last 4. This contains "E" in the english client. Perhaps this can be used as a hint for language?
             client_ver_data             = client_ver_data + "xx_x";                              // And then we replace those last 4
-            DebugSockets(fmt::format("Version: {} from {}", client_ver_data, ipAddress));
+            DebugSockets(fmt::format("Version: {:?} from {}", client_ver_data, ipAddress));
 
             std::string expected_version(settings::get<std::string>("login.CLIENT_VER"), 0, 6); // Same deal here!
             expected_version     = expected_version + "xx_x";
@@ -398,7 +417,7 @@ void view_session::read_func()
 
             if (versionMismatch)
             {
-                ShowError(fmt::format("view_session: Account {} has incorrect client version: got {}, expected {}", session.accountID, client_ver_data, expected_version));
+                ShowError(fmt::format("view_session: Account {} has incorrect client version: got {:?}, expected {}", session.accountID, client_ver_data, expected_version));
 
                 switch (settings::get<uint8>("login.VER_LOCK"))
                 {
@@ -561,7 +580,7 @@ void view_session::do_write(const std::size_t length)
 
 void view_session::handle_error(std::error_code ec, std::shared_ptr<handler_session> self)
 {
-    if (self->sessionHash != "")
+    if (!self->sessionHash.empty())
     {
         auto& map = loginHelpers::getAuthenticatedSessions()[self->ipAddress];
         auto  it  = map.find(self->sessionHash);

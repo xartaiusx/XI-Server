@@ -43,11 +43,11 @@
 namespace mobutils
 {
 
-ModsMap_t mobPoolModsList;
-ModsMap_t mobSpawnModsList;
-
 namespace
 {
+
+ModsMap_t mobPoolModsList;
+ModsMap_t mobSpawnModsList;
 
 using EcosystemsDataset = xi::data::datasets::ecosystems::Dataset;
 
@@ -182,77 +182,69 @@ uint16 GetBaseWeaponDamage(CMobEntity* PMob, uint16 slot, uint8 statLevel)
     uint16 damage       = mobLvl;
 
     // Zones from base game/expansions have different base offsets, multipliers, etc.
-    REGION_TYPE regionID = PMob->loc.zone->GetRegionID();
+    xi::Region regionID = PMob->loc.zone->GetRegionID();
 
     switch (regionID)
     {
         // Vanilla, ROTZ, COP Regions
-        case REGION_TYPE::RONFAURE:
-        case REGION_TYPE::ZULKHEIM:
-        case REGION_TYPE::NORVALLEN:
-        case REGION_TYPE::GUSTABERG:
-        case REGION_TYPE::DERFLAND:
-        case REGION_TYPE::SARUTABARUTA:
-        case REGION_TYPE::KOLSHUSHU:
-        case REGION_TYPE::ARAGONEU:
-        case REGION_TYPE::FAUREGANDI:
-        case REGION_TYPE::VALDEAUNIA:
-        case REGION_TYPE::QUFIMISLAND:
-        case REGION_TYPE::LITELOR:
-        case REGION_TYPE::KUZOTZ:
-        case REGION_TYPE::VOLLBOW:
-        case REGION_TYPE::ELSHIMO_LOWLANDS:
-        case REGION_TYPE::ELSHIMO_UPLANDS:
-        case REGION_TYPE::TULIA:
-        case REGION_TYPE::MOVALPOLOS:
-        case REGION_TYPE::TAVNAZIA:
-        case REGION_TYPE::SANDORIA:
-        case REGION_TYPE::BASTOK:
-        case REGION_TYPE::WINDURST:
-        case REGION_TYPE::JEUNO:
-        case REGION_TYPE::DYNAMIS:
-        case REGION_TYPE::TAVNAZIAN_MARQ:
-        case REGION_TYPE::PROMYVION:
-        case REGION_TYPE::LUMORIA:
-        case REGION_TYPE::LIMBUS:
+        case xi::Region::Ronfaure:
+        case xi::Region::Zulkheim:
+        case xi::Region::Norvallen:
+        case xi::Region::Gustaberg:
+        case xi::Region::Derfland:
+        case xi::Region::Sarutabaruta:
+        case xi::Region::Kolshushu:
+        case xi::Region::Aragoneu:
+        case xi::Region::Fauregandi:
+        case xi::Region::Valdeaunia:
+        case xi::Region::QufimIsland:
+        case xi::Region::Litelor:
+        case xi::Region::Kuzotz:
+        case xi::Region::Vollbow:
+        case xi::Region::ElshimoLowlands:
+        case xi::Region::ElshimoUplands:
+        case xi::Region::Tulia:
+        case xi::Region::Movalpolos:
+        case xi::Region::TavnazianArchipelago:
+        case xi::Region::Sandoria:
+        case xi::Region::Bastok:
+        case xi::Region::Windurst:
+        case xi::Region::Jeuno:
+        case xi::Region::Dynamis:
+        case xi::Region::TavnazianMarquisate:
+        case xi::Region::Promyvion:
+        case xi::Region::Lumoria:
+        case xi::Region::Limbus:
             offset       = 2;
             rangedOffset = 4;
             break;
         // TOAU Regions
-        case REGION_TYPE::WEST_AHT_URHGAN:
-        case REGION_TYPE::MAMOOL_JA_SAVAGE:
-        case REGION_TYPE::HALVUNG:
-        case REGION_TYPE::ARRAPAGO:
-        case REGION_TYPE::ALZADAAL:
+        case xi::Region::WestAhtUrhgan:
+        case xi::Region::MamoolJaSavage:
+        case xi::Region::Halvung:
+        case xi::Region::Arrapago:
+        case xi::Region::Alzadaal:
             offset       = 10;
             rangedOffset = 12;
             break;
 
         // WOTG Regions
-        case REGION_TYPE::RONFAURE_FRONT:
-        case REGION_TYPE::NORVALLEN_FRONT:
-        case REGION_TYPE::GUSTABERG_FRONT:
-        case REGION_TYPE::DERFLAND_FRONT:
-        case REGION_TYPE::SARUTA_FRONT:
-        case REGION_TYPE::ARAGONEAU_FRONT:
-        case REGION_TYPE::FAUREGANDI_FRONT:
-        case REGION_TYPE::VALDEAUNIA_FRONT:
-            offset       = 11;
-            rangedOffset = 13;
-            break;
-
+        case xi::Region::RonfaureFront:
+        case xi::Region::NorvallenFront:
+        case xi::Region::GustabergFront:
+        case xi::Region::DerflandFront:
+        case xi::Region::SarutabarutaFront:
+        case xi::Region::AragoneuFront:
+        case xi::Region::FauregandiFront:
+        case xi::Region::ValdeauniaFront:
         // Other
-        case REGION_TYPE::ABYSSEA:
-        case REGION_TYPE::THE_THRESHOLD:
-        case REGION_TYPE::ABDHALJS: // TODO: Need data for ABDHALJS zones.
-            offset       = 11;
-            rangedOffset = 13;
-            break;
-
+        case xi::Region::Abyssea:
+        case xi::Region::TheThreshold:
+        case xi::Region::Abdhaljs: // TODO: Need data for ABDHALJS zones.
         // SOA Regions
-        case REGION_TYPE::ADOULIN_ISLANDS:
-        case REGION_TYPE::EAST_ULBUKA:
-            offset       = 11; // TODO: Need more data for Lvl 100+ mobs.
+        case xi::Region::AdoulinIslands:
+        case xi::Region::EastUlbuka: // TODO: Need more data for Lvl 100+ mobs.
+            offset       = 11;
             rangedOffset = 13;
             break;
 
@@ -325,7 +317,7 @@ uint16 GetMagicEvasion(CMobEntity* PMob, uint8 statLevel)
  *                                                                       *
  ************************************************************************/
 
-uint16 GetBaseDefEva(CMobEntity* PMob, uint8 rank)
+auto GetBaseDefEva(CMobEntity* PMob, uint8 rank) -> uint16
 {
     // See: https://w.atwiki.jp/studiogobli/pages/25.html
     // Enemy defense = [f(Lv, racial defense rank) + 8 + [VIT/2] + job characteristics] x racial characteristics
@@ -375,7 +367,7 @@ uint16 GetBaseDefEva(CMobEntity* PMob, uint8 rank)
  *                                                                       *
  ************************************************************************/
 
-uint16 GetBaseToRank(uint8 rank, uint16 lvl)
+auto GetBaseToRank(uint8 rank, uint16 lvl) -> uint16
 {
     switch (rank)
     {
@@ -403,7 +395,7 @@ uint16 GetBaseToRank(uint8 rank, uint16 lvl)
  *  Calculation for subjob stats                                         *
  *                                                                       *
  ************************************************************************/
-uint16 GetSubJobStats(uint8 rank, uint16 level, uint16 stat)
+auto GetSubJobStats(uint8 rank, uint16 level, uint16 stat) -> uint16
 {
     // These ranks A through G are used by all known JP sources. Please note this is equivalent to the US usage of A+ through F
     // https://w.atwiki.jp/studiogobli/pages/27.html
@@ -550,12 +542,15 @@ uint16 GetSubJobStats(uint8 rank, uint16 level, uint16 stat)
     return sJobStat;
 }
 
+namespace
+{
+
 /************************************************************************
  *                                                                       *
  *  Checks if the mob is in any Original/RoZ zone                        *
  *                                                                       *
  ************************************************************************/
-bool CheckSubJobZone(CMobEntity* PMob)
+auto CheckSubJobZone(CMobEntity* PMob) -> bool
 {
     const auto zoneId = PMob->getZone();
     if (zoneId != xi::ZoneId::Unknown && (zoneId == xi::ZoneId::WestRonfaure ||
@@ -663,7 +658,7 @@ bool CheckSubJobZone(CMobEntity* PMob)
  *  Calculate base mob HP from job grades and levels                     *
  *                                                                       *
  ************************************************************************/
-static uint32 CalculateBaseMobHP(uint8 mLvl, uint8 baseHP, uint8 jobScale, uint8 scaleXHP)
+auto CalculateBaseMobHP(uint8 mLvl, uint8 baseHP, uint8 jobScale, uint8 scaleXHP) -> uint32
 {
     // HP formula has multiple parts based on level ranges:
     // Levels 1-5: Base HP + scaling per level
@@ -721,7 +716,7 @@ static uint32 CalculateBaseMobHP(uint8 mLvl, uint8 baseHP, uint8 jobScale, uint8
  *  Subjob HP at a given subjob level                                    *
  *                                                                       *
  ************************************************************************/
-static auto SubjobHPAtLevel(const int32 sjLvl, const uint8 sjJobScale, const uint8 sjScaleXHP) -> uint32
+auto SubjobHPAtLevel(const int32 sjLvl, const uint8 sjJobScale, const uint8 sjScaleXHP) -> uint32
 {
     const auto sjHP = sjJobScale * std::max(sjLvl - 1, 0) +
                       (0.5 + 0.5 * sjScaleXHP) * std::max(sjLvl - 10, 0) +
@@ -737,7 +732,7 @@ static auto SubjobHPAtLevel(const int32 sjLvl, const uint8 sjJobScale, const uin
  *  Calculate subjob HP contribution                                     *
  *                                                                       *
  ************************************************************************/
-static uint32 CalculateSubjobHP(uint8 mLvl, uint8 sjJobScale, uint8 sjScaleXHP)
+auto CalculateSubjobHP(uint8 mLvl, uint8 sjJobScale, uint8 sjScaleXHP) -> uint32
 {
     // Subjob HP contribution varies by main job level:
     // 50+   = 100% of subjob stats
@@ -765,6 +760,8 @@ static uint32 CalculateSubjobHP(uint8 mLvl, uint8 sjJobScale, uint8 sjScaleXHP)
 
     return SubjobHPAtLevel(sjScale, sjJobScale, sjScaleXHP);
 }
+
+} // namespace
 
 /************************************************************************
  *                                                                       *
@@ -937,13 +934,13 @@ void CalculateMobStats(CMobEntity* PMob, bool recover)
         }
     }
 
-    ((CItemWeapon*)PMob->m_Weapons[SLOT_MAIN])->setDamage(GetBaseWeaponDamage(PMob, SLOT_MAIN));
-    ((CItemWeapon*)PMob->m_Weapons[SLOT_RANGED])->setDamage(GetBaseWeaponDamage(PMob, SLOT_RANGED));
+    static_cast<CItemWeapon*>(PMob->m_Weapons[SLOT_MAIN])->setDamage(GetBaseWeaponDamage(PMob, SLOT_MAIN));
+    static_cast<CItemWeapon*>(PMob->m_Weapons[SLOT_RANGED])->setDamage(GetBaseWeaponDamage(PMob, SLOT_RANGED));
 
     // reduce weapon delay of MNK
     if (PMob->GetMJob() == xi::Job::MNK)
     {
-        ((CItemWeapon*)PMob->m_Weapons[SLOT_MAIN])->resetDelay();
+        static_cast<CItemWeapon*>(PMob->m_Weapons[SLOT_MAIN])->resetDelay();
     }
 
     uint16 fSTR = GetBaseToRank(PMob->strRank, mLvl);
@@ -1018,7 +1015,7 @@ void CalculateMobStats(CMobEntity* PMob, bool recover)
     if (PMob->getMobMod(xi::MobMod::PetSpellList) && PMob->PPet != nullptr)
     {
         // Stubborn_Dredvodd
-        CMobEntity* PPet = (CMobEntity*)PMob->PPet;
+        CMobEntity* PPet = static_cast<CMobEntity*>(PMob->PPet);
 
         // give pet spell list
         PPet->m_SpellListContainer = mobSpellList::GetMobSpellList(PMob->getMobMod(xi::MobMod::PetSpellList));
@@ -1167,6 +1164,9 @@ void CalculateMobStats(CMobEntity* PMob, bool recover)
     }
 }
 
+namespace
+{
+
 void SetupRangedAttack(CMobEntity* PMob)
 {
     PMob->defaultMobMod(xi::MobMod::SpecialSkill, 0); // Need to remove the base ranged attack
@@ -1175,6 +1175,8 @@ void SetupRangedAttack(CMobEntity* PMob)
 
     static_cast<CItemWeapon*>(PMob->m_Weapons[SLOT_RANGED])->setBaseDelay(300);
 }
+
+} // namespace
 
 void SetupJob(CMobEntity* PMob)
 {
@@ -1201,11 +1203,7 @@ void SetupJob(CMobEntity* PMob)
             PMob->defaultMobMod(xi::MobMod::SevereSpellChance, 20);
             break;
         case xi::Job::PLD:
-            PMob->defaultMobMod(xi::MobMod::MagicCool, 35);
-            break;
         case xi::Job::DRK:
-            PMob->defaultMobMod(xi::MobMod::MagicCool, 35);
-            break;
         case xi::Job::WHM:
             PMob->defaultMobMod(xi::MobMod::MagicCool, 35);
             break;
@@ -1229,14 +1227,8 @@ void SetupJob(CMobEntity* PMob)
             PMob->defaultMobMod(xi::MobMod::BuffChance, 20);
             break;
         case xi::Job::BLU:
-            PMob->defaultMobMod(xi::MobMod::MagicCool, 35);
-            break;
         case xi::Job::SCH:
-            PMob->defaultMobMod(xi::MobMod::MagicCool, 35);
-            break;
         case xi::Job::GEO:
-            PMob->defaultMobMod(xi::MobMod::MagicCool, 35);
-            break;
         case xi::Job::RUN:
             PMob->defaultMobMod(xi::MobMod::MagicCool, 35);
             break;
@@ -1495,6 +1487,9 @@ void SetupDungeonInstanceMob(CMobEntity* PMob)
     }
 }
 
+namespace
+{
+
 void RecalculateSpellContainer(CMobEntity* PMob)
 {
     // clear spell list
@@ -1509,6 +1504,8 @@ void RecalculateSpellContainer(CMobEntity* PMob)
         }
     }
 }
+
+} // namespace
 
 /* Gets the available spells for the specified monster.
  */
@@ -1643,7 +1640,7 @@ void Cleanup()
     mobPoolModsList.clear();
 }
 
-ModsList_t* GetMobPoolMods(uint32 poolId, bool create)
+auto GetMobPoolMods(uint32 poolId, bool create) -> ModsList_t*
 {
     if (mobPoolModsList[poolId])
     {
@@ -1664,7 +1661,7 @@ ModsList_t* GetMobPoolMods(uint32 poolId, bool create)
     return nullptr;
 }
 
-ModsList_t* GetMobSpawnMods(uint32 mobId, bool create)
+auto GetMobSpawnMods(uint32 mobId, bool create) -> ModsList_t*
 {
     if (mobSpawnModsList[mobId])
     {

@@ -40,7 +40,6 @@ public:
     };
 
     CLuaClientEntityPairPackets(CLuaClientEntityPair* parent);
-    ~CLuaClientEntityPairPackets() = default;
 
     template <typename T>
     auto createPacket() -> std::unique_ptr<CBasicPacket>;
