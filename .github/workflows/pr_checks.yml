@@ -108,7 +108,9 @@ jobs:
       - name: Run Lua Language Server
         id: run_lls
         if: ${{ steps.check-changes.outputs.lua_changes == 'true' }}
-        run: python ./tools/ci/lua_lang_server.py
+        run: |
+          python tools/ci/fetch_pinned_release.py luals
+          python ./tools/ci/lua_lang_server.py --archive ./lua-language-server.linux-x64.tar.gz
 
       - name: Summarize run
         id: summarize_run
@@ -192,6 +194,7 @@ jobs:
         run: |
           echo "CPM_SOURCE_CACHE=$GITHUB_WORKSPACE/.cpm-cache" >> "$GITHUB_ENV"
           export CPM_SOURCE_CACHE="$GITHUB_WORKSPACE/.cpm-cache"
+          python tools/ci/fetch_pinned_release.py cpm
           cmake -G Ninja -S . -B build-data-schema \
             -DCMAKE_BUILD_TYPE=Release \
             -DPCH_ENABLE=OFF \

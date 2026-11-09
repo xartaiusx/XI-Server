@@ -231,13 +231,20 @@ jobs:
           fi || true
 
       - name: Setup sccache
+        id: sccache-setup
         if: ${{ env.SKIP_BUILD != 'true' }}
+        continue-on-error: true
         uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+        with:
+          version: v0.19.0
+          token: ''
+          # This action's post step otherwise attempts to execute an unset path.
+          disable_annotations: 'true'
 
       # Only the base Debug cache builds save, one entry per toolchain.
       - name: Restore sccache
         id: sccache-cache
-        if: ${{ inputs.build_type == 'Debug' && !inputs.clang_tidy && env.SKIP_BUILD != 'true' }}
+        if: ${{ inputs.build_type == 'Debug' && !inputs.clang_tidy && env.SKIP_BUILD != 'true' && steps.sccache-setup.outcome == 'success' }}
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: .sccache
@@ -279,14 +286,21 @@ jobs:
 
       - name: Configure CMake
         if: ${{ env.SKIP_BUILD != 'true' }}
+        env:
+          SCCACHE_SETUP_OUTCOME: ${{ steps.sccache-setup.outcome }}
         run: |
+          cache_args=(-DCACHE_OPTION=sccache)
+          if [[ "$SCCACHE_SETUP_OUTCOME" != success ]]; then
+            echo "::warning::sccache setup failed. Building without a compiler cache."
+            cache_args+=(-DCACHE_BINARY:FILEPATH= -DCMAKE_C_COMPILER_LAUNCHER:FILEPATH= -DCMAKE_CXX_COMPILER_LAUNCHER:FILEPATH=)
+          fi
           cmake -G Ninja -S . -B build --fresh \
             -DCMAKE_BUILD_TYPE=${{ inputs.build_type }} \
             -DTRACY_ENABLE=${{ inputs.tracy && 'ON' || 'OFF' }} \
             -DPCH_ENABLE=OFF \
             ${{ (runner.os == 'macOS' && startsWith(inputs.compiler, 'clang')) && '-DCMAKE_AR=$AR -DCMAKE_RANLIB=$RANLIB -DCMAKE_NM=$NM ' || '' }} \
             ${{ runner.os == 'Windows' && '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded ' || '' }} \
-            -DCACHE_OPTION=sccache
+            "${cache_args[@]}"
 
       # The sources are the same for every toolchain on an OS, so the Linux clang cache build leaves the save to gcc.
       - name: Save CPM sources
@@ -302,12 +316,12 @@ jobs:
 
       # Stopping the server flushes pending writes before the directory is saved, and prints the stats.
       - name: Stop sccache
-        if: ${{ !cancelled() && !inputs.clang_tidy && env.SKIP_BUILD != 'true' }}
+        if: ${{ !cancelled() && !inputs.clang_tidy && env.SKIP_BUILD != 'true' && steps.sccache-setup.outcome == 'success' }}
         run: sccache --stop-server || true
 
       - name: Save sccache
         id: sccache-save
-        if: ${{ !cancelled() && github.event_name != 'pull_request' && inputs.save_cache && !inputs.clang_tidy && env.SKIP_BUILD != 'true' }}
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && inputs.save_cache && !inputs.clang_tidy && env.SKIP_BUILD != 'true' && steps.sccache-setup.outcome == 'success' }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: .sccache

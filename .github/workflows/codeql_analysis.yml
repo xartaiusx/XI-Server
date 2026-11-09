@@ -88,35 +88,15 @@ jobs:
         CC: /usr/bin/clang-22
         CXX: /usr/bin/clang++-22
       run: |
-        # Use the exact CPM bootstrap expected by CMake. The release API provides
-        # the same bytes if the browser download endpoint is temporarily unavailable.
-        cpm_cache="$GITHUB_WORKSPACE/.cpm-cache"
-        cpm_file="$cpm_cache/cpm/CPM_0.40.2.cmake"
-        cpm_sha256=c8cdc32c03816538ce22781ed72964dc864b2a34a310d3b7104812a5ca2d835d
-        verify_cpm() {
-          printf '%s  %s\n' "$cpm_sha256" "$1" | sha256sum --check --status
-        }
-        if [[ ! -f "$cpm_file" ]] || ! verify_cpm "$cpm_file"; then
-          mkdir -p "$cpm_cache/cpm"
-          cpm_download="$(mktemp "$RUNNER_TEMP/codeql-cpm.XXXXXX")"
-          trap 'rm -f -- "$cpm_download"' EXIT
-          curl_args=(--fail --silent --show-error --location --proto '=https' --proto-redir '=https'
-                     --connect-timeout 10 --max-time 30 --max-filesize 65536 --output "$cpm_download")
-          if ! curl "${curl_args[@]}" https://github.com/cpm-cmake/CPM.cmake/releases/download/v0.40.2/CPM.cmake ||
-              ! verify_cpm "$cpm_download"; then
-            curl "${curl_args[@]}" --header 'Accept: application/octet-stream' \
-              'https://api.github.com/repos/cpm-cmake/CPM.cmake/releases/assets/183458005?download=1'
-          fi
-          verify_cpm "$cpm_download" || { echo '::error::CPM bootstrap SHA-256 mismatch'; exit 1; }
-          mv -f -- "$cpm_download" "$cpm_file"
-        fi
+        export CPM_SOURCE_CACHE="$GITHUB_WORKSPACE/.cpm-cache"
+        python tools/ci/fetch_pinned_release.py cpm
 
         # Match the module sources in the existing Modules Build job.
         printf '%s\n' custom era/lua example > modules/init.txt
         cmake -G Ninja -S . -B build --fresh \
           -DCMAKE_BUILD_TYPE=Debug -DTRACY_ENABLE=OFF -DPCH_ENABLE=OFF \
           -DCMAKE_C_FLAGS_DEBUG:STRING=-g0 -DCMAKE_CXX_FLAGS_DEBUG:STRING=-g0 \
-          -DCPM_SOURCE_CACHE:PATH="$cpm_cache" \
+          -DCPM_SOURCE_CACHE:PATH="$CPM_SOURCE_CACHE" \
           -DSTAGE_BINARIES=OFF -DCACHE_BINARY:FILEPATH= \
           -DCMAKE_C_COMPILER_LAUNCHER:FILEPATH= -DCMAKE_CXX_COMPILER_LAUNCHER:FILEPATH=
         cmake --build build --parallel 4
