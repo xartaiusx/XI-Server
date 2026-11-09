@@ -233,6 +233,10 @@ describe('Ordinary Trust engagement', function()
         local primary = fixtureMob('Ordinary_Trust_Aoe_Primary', 0)
         local sleeping = fixtureMob('Ordinary_Trust_Aoe_Collateral', 2)
         local awake = fixtureMob('Ordinary_Trust_Aoe_Awake', 2)
+        for _, mob in ipairs({ primary, sleeping, awake }) do
+            mob:setMobMod(xi.mobMod.NO_REST, 1)
+        end
+
         owner:addSpell(xi.magic.spell.BLIND)
         owner:addSpell(xi.magic.spell.SLOW)
         playerSpell(sleeping, xi.magic.spell.PARALYZE)
@@ -246,18 +250,22 @@ describe('Ordinary Trust engagement', function()
         local awakeId = awake:getID()
         local sleepingId = sleeping:getID()
         local recipients = {}
-        val:addListener('WEAPONSKILL_USE', 'ORDINARY_TRUST_URIEL_RECIPIENT', function(actor, recipient, skill, spentTp)
+        val:addListener('WEAPONSKILL_USE', 'ORDINARY_TRUST_URIEL_RECIPIENT', function(actor, recipient, skill, spentTp, _, amount)
             if
                 actor:getID() == actorId and
                 skill:getID() == xi.mobSkill.URIEL_BLADE_1 and
                 spentTp == 3000
             then
-                recipients[recipient:getID()] = true
+                recipients[recipient:getID()] = { amount = amount, hp = recipient:getHP() }
             end
         end)
 
         local primaryHp = primary:getHP()
+        local awakeHp = awake:getHP()
         local sleepingHp = sleeping:getHP()
+        -- Exercise recipient selection and real damage without a random one-hit miss.
+        stub('xi.combat.physicalHitRate.getPhysicalHitRate', 1)
+        owner.packets:clear()
         val:setMobAbilityEnabled(true)
         val:setTP(3000)
         val:addGambit(ai.t.TARGET, { ai.c.ALWAYS, 0 }, { ai.r.MS, ai.s.SPECIFIC, xi.mobSkill.URIEL_BLADE_1 })
@@ -269,10 +277,36 @@ describe('Ordinary Trust engagement', function()
         end
 
         val:removeListener('ORDINARY_TRUST_URIEL_RECIPIENT')
-        assert(recipients[primaryId] and primary:getHP() < primaryHp, 'the native signature must damage its selected focus')
-        assert(recipients[awakeId], 'the same native signature must resolve on the awake collateral at the same point')
+        val:removeAllGambits()
+        local primaryHit = assert(recipients[primaryId], 'the selected focus must be a native recipient')
+        local awakeHit = assert(recipients[awakeId], 'the awake collateral must be a native recipient')
+        assert(primaryHit.amount > 0 and primaryHit.hp == primaryHp - primaryHit.amount and primary:getHP() == primaryHit.hp,
+            string.format('primary script result=%d HP=%d/%d/%d', primaryHit.amount, primaryHp, primaryHit.hp, primary:getHP()))
+        assert(awakeHit.amount > 0 and awakeHit.hp == awakeHp - awakeHit.amount and awake:getHP() == awakeHit.hp,
+            string.format('awake script result=%d HP=%d/%d/%d', awakeHit.amount, awakeHp, awakeHit.hp, awake:getHP()))
         assert(not recipients[sleepingId] and sleeping:getHP() == sleepingHp and sleeping:hasStatusEffect(xi.effect.SLEEP_I),
             'the protected sleeper cannot be a recipient, take damage, or lose Sleep')
+
+        local packetRecipients = {}
+        local finishCount = 0
+        for _, packet in ipairs(owner.packets:actionPackets()) do
+            if
+                packet.m_uID == actorId and
+                packet.cmd_no == xi.action.category.WEAPONSKILL_FINISH and
+                packet.cmd_arg == xi.mobSkill.URIEL_BLADE_1
+            then
+                finishCount = finishCount + 1
+                for _, target in ipairs(packet.target) do
+                    assert(#target.result == 1 and not packetRecipients[target.m_uID])
+                    packetRecipients[target.m_uID] = target.result[1].value
+                end
+            end
+        end
+
+        assert(finishCount == 1, 'exactly one native Uriel finish packet')
+        assert(packetRecipients[primaryId] == primaryHit.amount and packetRecipients[awakeId] == awakeHit.amount,
+            'native packet damage must match the resolved primary and awake collateral amounts')
+        assert(not packetRecipients[sleepingId], 'the protected sleeper cannot appear in the native finish packet')
     end)
 
     it('releases only the current Sleep application after a resisted damaging spell', function()
