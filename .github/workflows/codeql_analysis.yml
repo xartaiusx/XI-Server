@@ -193,13 +193,56 @@ jobs:
           [[ "$(git rev-parse HEAD)" == "$ACCEPTED_N" ]]
           [[ "$(git rev-parse HEAD^{tree})" == "$ACCEPTED_TREE" ]]
           [[ -z "$(git status --porcelain --untracked-files=all)" ]]
+          # Official signed LLVM index and the eleven exact package bytes are independently bound.
+          llvm_version='1:22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17'
+          debdir="$RUNNER_TEMP/mochirii-probe-llvm22-debs"
+          [[ ! -e "$debdir" && "$debdir" =~ ^/[A-Za-z0-9_./-]+/mochirii-probe-llvm22-debs$ ]]
+          [[ "$(dpkg --print-architecture)" == amd64 ]]
+          mkdir -m 0755 -- "$debdir"
+          debs=()
+          names=()
+          while read -r name bytes digest filename; do
+            deb="$debdir/$name.deb"
+            [[ ! -e "$deb" ]]
+            /usr/bin/curl --disable --silent --show-error --fail --location \
+              --proto '=https' --proto-redir '=https' --connect-timeout 15 --max-time 180 \
+              --max-filesize "$bytes" --output "$deb" "https://apt.llvm.org/resolute/$filename"
+            [[ "$(stat -c %s "$deb")" == "$bytes" ]]
+            printf '%s  %s\n' "$digest" "$deb" | sha256sum --check --status
+            [[ "$(dpkg-deb -f "$deb" Package)" == "$name" ]]
+            [[ "$(dpkg-deb -f "$deb" Version)" == "$llvm_version" ]]
+            [[ "$(dpkg-deb -f "$deb" Architecture)" == amd64 ]]
+            chmod 0644 -- "$deb"
+            debs+=("$deb")
+            names+=("$name")
+          done <<'LLVM_PACKAGES'
+          clang-22 148530 d6ee7101681be0e83d52b0e85c74fe67498cfb7cae7ec6eb2ab28c0354e3cedc pool/main/l/llvm-toolchain-22/clang-22_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
+          libclang-common-22-dev 773034 5264e3c30126765d5f22b154b9cbeadc654a3412d7ff62d120dde5961d260ca7 pool/main/l/llvm-toolchain-22/libclang-common-22-dev_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
+          libclang-cpp22 14220966 99716fa3363025a49b1b76685ae8932337e51c5f119a5eef630af200299033de pool/main/l/llvm-toolchain-22/libclang-cpp22_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
+          libclang-rt-22-dev 4161246 bc5e6f108c52e019a10e102e04891e74228a475b9136a874d60d34ed1cba09cb pool/main/l/llvm-toolchain-22/libclang-rt-22-dev_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
+          libclang1-22 8567076 69836099c40fcfa145b7bb4879e7fd417c34d00aa677288920ae2c04e2ae8c1e pool/main/l/llvm-toolchain-22/libclang1-22_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
+          libllvm22 32130646 ceaedc16641e01e3622f99f329a86c0bfdc33b25d6ef816e4036451a0ff8588b pool/main/l/llvm-toolchain-22/libllvm22_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
+          llvm-22 20708810 b174426c9df511af75a01a3f994e02888d4adc9d3f0f78c57e9b63cfb5a6ba6f pool/main/l/llvm-toolchain-22/llvm-22_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
+          llvm-22-dev 54595768 86bbc5007ddfd0fd934f1dd60709a64acd892cccd2786b0d4237e622ed626b00 pool/main/l/llvm-toolchain-22/llvm-22-dev_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
+          llvm-22-linker-tools 1303228 e3aaa221204f05537c43a55f412fa74493870c4446a82d2332081111a407cbdd pool/main/l/llvm-toolchain-22/llvm-22-linker-tools_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
+          llvm-22-runtime 617790 7ef0e9ecb2c2240136c26f41af5cd0eb451643dfeadbde2e061cf6c8595bd0e6 pool/main/l/llvm-toolchain-22/llvm-22-runtime_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
+          llvm-22-tools 496302 d701a3a7a2ad1d7b2eebcfd0a031d2d306fb6616ec146e886a4f0e1eb5938d16 pool/main/l/llvm-toolchain-22/llvm-22-tools_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
+          LLVM_PACKAGES
+          [[ "${#debs[@]}" == 11 ]]
           sudo apt-get update
-          sudo apt-get install --assume-yes --no-install-recommends \
-            binutils-dev clang-22 cmake gcc-15 g++-15 libclang-rt-22-dev libdwarf-dev \
-            libluajit-5.1-dev libmariadb-dev-compat libssl-dev libzmq3-dev \
-            libzstd-dev llvm-22-dev ninja-build zlib1g-dev
-          [[ "$(/usr/bin/gcc-15 -dumpfullversion)" == 15.2.0 && "$(/usr/bin/g++-15 -dumpfullversion)" == 15.2.0 ]]
-          printf '%s\n' 'Diagnostic compiler GNU 15.2.0'
+          dependencies=(binutils-dev cmake g++ libdwarf-dev libluajit-5.1-dev libmariadb-dev-compat
+            libssl-dev libzmq3-dev libzstd-dev ninja-build zlib1g-dev)
+          sudo apt-get --simulate --no-remove --no-install-recommends install \
+            "${dependencies[@]}" "${debs[@]}" > "$STAGE/llvm-apt-plan.log"
+          ! grep -q '^Remv ' "$STAGE/llvm-apt-plan.log"
+          sudo apt-get --assume-yes --no-remove --no-install-recommends install \
+            "${dependencies[@]}" "${debs[@]}"
+          for name in "${names[@]}"; do
+            [[ "$(dpkg-query -W -f='${Version}' "$name")" == "$llvm_version" ]]
+          done
+          [[ "$(/usr/bin/clang-22 --version | sed -n '1p')" == *'clang version 22.1.8 '* ]]
+          [[ "$(/usr/bin/clang++-22 --version | sed -n '1p')" == *'clang version 22.1.8 '* ]]
+          printf '%s\n' 'Diagnostic compiler Clang 22.1.8'
           [[ "$(pkg-config --modversion libdwarf)" == 1.11.1 ]]
 
       - name: Setup exact codegen Python
@@ -326,7 +369,7 @@ jobs:
           cat > "$STAGE/trace.sh" <<'TRACE'
           #!/usr/bin/bash
           set -euo pipefail
-          export CC=/usr/bin/gcc-15 CXX=/usr/bin/g++-15 PYTHONDONTWRITEBYTECODE=1
+          export CC=/usr/bin/clang-22 CXX=/usr/bin/clang++-22 PYTHONDONTWRITEBYTECODE=1
           export CPM_SOURCE_CACHE="$TRACE_ROOT/.cpm-cache"
           /usr/bin/cmake -G Ninja -S "$TRACE_ROOT" -B "$TRACE_ROOT/build" --fresh \
             -DCMAKE_BUILD_TYPE=Debug -DTRACY_ENABLE=OFF -DPCH_ENABLE=OFF \
@@ -393,7 +436,7 @@ jobs:
               "src/map/data/datasets/monstrosity/dataset.cpp",
               "src/map/ai/controllers/trust_controller.cpp",
           )
-          COMPILER = "/usr/bin/g++-15"
+          COMPILER = "/usr/bin/clang++-22"
 
 
           def planned_commands(compile_db, source_root, build_root):
@@ -499,6 +542,20 @@ jobs:
                                   evidence.write(line[:1200])
                                   samples += 1
                                   if samples == 20:
+                                      break
+                  tracer_log = database / "log/build-tracer.log"
+                  if tracer_log.is_file():
+                      evidence.write("build-tracer.log bounded extractor termination evidence\n")
+                      with tracer_log.open(errors="replace") as tracer:
+                          records = 0
+                          for line in tracer:
+                              if any(term in line.lower() for term in (
+                                  "terminated with", "extractor exiting", "received signal",
+                                  "killed", "fatal error", "allocation failure",
+                              )):
+                                  evidence.write(line[:1600])
+                                  records += 1
+                                  if records == 40:
                                       break
               print("Selected compilation diagnostic phase", report["phase"], "complete", report["complete"])
 
