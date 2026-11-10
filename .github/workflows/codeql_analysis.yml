@@ -128,10 +128,10 @@ jobs:
         sarif_file: sarif-results/${{ matrix.language }}.sarif
 
   selected_extraction_probe:
-    name: Selected C++ extraction (${{ matrix.probe.name }})
+    name: Selected MSVC C++ extraction (${{ matrix.probe.name }})
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/mochi/codeql-n8a34-baseline'
-    runs-on: ubuntu-26.04
-    timeout-minutes: 65
+    runs-on: windows-2025
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
@@ -153,13 +153,11 @@ jobs:
       ACCEPTED_TREE: ${{ matrix.probe.tree }}
       EXPECTED_WORKFLOW: ${{ inputs.baseline_workflow_sha }}
       EXPECTED_IMAGE: ${{ inputs.baseline_runner_image }}
-
     steps:
-      - name: Verify the exact authorized dispatch
+      - name: Verify the exact authorized Windows dispatch
         env:
           ACTUAL_WORKFLOW: ${{ github.workflow_sha }}
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
-          STAGE: ${{ runner.temp }}/n8a34-codeql
           RECIPIENT_DER: ${{ inputs.probe_recipient_der }}
           RECIPIENT_SHA: ${{ inputs.probe_recipient_sha }}
         run: |
@@ -169,17 +167,20 @@ jobs:
           [[ "$GITHUB_ACTOR" == xartaiusx && "$TRIGGERING_ACTOR" == xartaiusx ]]
           [[ "$GITHUB_RUN_ATTEMPT" == 1 && "$GITHUB_SHA" == "$ACTUAL_WORKFLOW" ]]
           [[ "$EXPECTED_WORKFLOW" =~ ^[0-9a-f]{40}$ && "$ACTUAL_WORKFLOW" == "$EXPECTED_WORKFLOW" ]]
-          [[ "$EXPECTED_IMAGE" =~ ^[0-9]{8}[.][0-9]+[.][0-9]+$ && "$ImageVersion" == "$EXPECTED_IMAGE" ]]
-          [[ "$STAGE" == "$RUNNER_TEMP/n8a34-codeql" && "$STAGE" =~ ^/[A-Za-z0-9_./-]+/n8a34-codeql$ ]]
-          mkdir -- "$STAGE"
-          mkdir -- "$STAGE/artifact" "$STAGE/tool" "$STAGE/public"
+          [[ "$RUNNER_OS" == Windows && "$RUNNER_ARCH" == X64 ]]
+          [[ "$EXPECTED_IMAGE" == 20261103.298.1 && "$ImageVersion" == "$EXPECTED_IMAGE" ]]
+          stage="$(cygpath -u "$RUNNER_TEMP")/mochirii-selected-msvc"
+          mkdir -- "$stage"
+          mkdir -- "$stage/artifact" "$stage/tool" "$stage/public"
           [[ "$RECIPIENT_DER" =~ ^[A-Za-z0-9+/=]{300,4000}$ && "$RECIPIENT_SHA" =~ ^[0-9a-f]{64}$ ]]
-          printf '%s' "$RECIPIENT_DER" | /usr/bin/base64 --decode > "$STAGE/recipient.der"
-          printf '%s  %s\n' "$RECIPIENT_SHA" "$STAGE/recipient.der" | sha256sum --check --status
-          [[ "$(/usr/bin/openssl version)" == 'OpenSSL 3.5.5 '* ]]
-          /usr/bin/openssl x509 -inform DER -in "$STAGE/recipient.der" -out "$STAGE/recipient.pem"
-          /usr/bin/openssl x509 -in "$STAGE/recipient.pem" -noout -checkend 0
-          printf 'STAGE=%s\n' "$STAGE" >> "$GITHUB_ENV"
+          printf '%s' "$RECIPIENT_DER" | /usr/bin/base64 --decode > "$stage/recipient.der"
+          printf '%s  %s\n' "$RECIPIENT_SHA" "$stage/recipient.der" | sha256sum --check --status
+          [[ "$(/usr/bin/openssl version)" == 'OpenSSL 3.'* ]]
+          /usr/bin/openssl x509 -inform DER -in "$stage/recipient.der" -out "$stage/recipient.pem"
+          /usr/bin/openssl x509 -in "$stage/recipient.pem" -noout -checkend 0
+          /usr/bin/openssl x509 -in "$stage/recipient.pem" -pubkey -noout |
+            /usr/bin/openssl rsa -pubin -noout
+          printf 'STAGE=%s\n' "$(cygpath -m "$stage")" >> "$GITHUB_ENV"
 
       - name: Checkout exact diagnostic revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -187,107 +188,60 @@ jobs:
           ref: ${{ env.ACCEPTED_N }}
           persist-credentials: false
 
-      - name: Install the compiled workflow dependencies
+      - name: Setup MSVC
+        uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4
+        with:
+          arch: x64
+
+      - name: Setup the reviewed Python version
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14.10'
+          architecture: x64
+
+      - name: Prepare the exact selected extraction inputs
         run: |
           set -euo pipefail
           [[ "$(git rev-parse HEAD)" == "$ACCEPTED_N" ]]
           [[ "$(git rev-parse HEAD^{tree})" == "$ACCEPTED_TREE" ]]
           [[ -z "$(git status --porcelain --untracked-files=all)" ]]
-          # Official signed LLVM index and the eleven exact package bytes are independently bound.
-          llvm_version='1:22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17'
-          debdir="$RUNNER_TEMP/mochirii-probe-llvm22-debs"
-          [[ ! -e "$debdir" && "$debdir" =~ ^/[A-Za-z0-9_./-]+/mochirii-probe-llvm22-debs$ ]]
-          [[ "$(dpkg --print-architecture)" == amd64 ]]
-          mkdir -m 0755 -- "$debdir"
-          debs=()
-          while read -r name bytes digest filename; do
-            deb="$debdir/$name.deb"
-            [[ ! -e "$deb" ]]
-            /usr/bin/curl --disable --silent --show-error --fail --location \
-              --proto '=https' --proto-redir '=https' --connect-timeout 15 --max-time 180 \
-              --max-filesize "$bytes" --output "$deb" "https://apt.llvm.org/resolute/$filename"
-            [[ "$(stat -c %s "$deb")" == "$bytes" ]]
-            printf '%s  %s\n' "$digest" "$deb" | sha256sum --check --status
-            [[ "$(dpkg-deb -f "$deb" Package)" == "$name" ]]
-            [[ "$(dpkg-deb -f "$deb" Version)" == "$llvm_version" ]]
-            [[ "$(dpkg-deb -f "$deb" Architecture)" == amd64 ]]
-            chmod 0644 -- "$deb"
-            debs+=("$deb")
-          done <<'LLVM_PACKAGES'
-          clang-22 148530 d6ee7101681be0e83d52b0e85c74fe67498cfb7cae7ec6eb2ab28c0354e3cedc pool/main/l/llvm-toolchain-22/clang-22_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
-          libclang-common-22-dev 773034 5264e3c30126765d5f22b154b9cbeadc654a3412d7ff62d120dde5961d260ca7 pool/main/l/llvm-toolchain-22/libclang-common-22-dev_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
-          libclang-cpp22 14220966 99716fa3363025a49b1b76685ae8932337e51c5f119a5eef630af200299033de pool/main/l/llvm-toolchain-22/libclang-cpp22_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
-          libclang-rt-22-dev 4161246 bc5e6f108c52e019a10e102e04891e74228a475b9136a874d60d34ed1cba09cb pool/main/l/llvm-toolchain-22/libclang-rt-22-dev_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
-          libclang1-22 8567076 69836099c40fcfa145b7bb4879e7fd417c34d00aa677288920ae2c04e2ae8c1e pool/main/l/llvm-toolchain-22/libclang1-22_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
-          libllvm22 32130646 ceaedc16641e01e3622f99f329a86c0bfdc33b25d6ef816e4036451a0ff8588b pool/main/l/llvm-toolchain-22/libllvm22_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
-          llvm-22 20708810 b174426c9df511af75a01a3f994e02888d4adc9d3f0f78c57e9b63cfb5a6ba6f pool/main/l/llvm-toolchain-22/llvm-22_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
-          llvm-22-dev 54595768 86bbc5007ddfd0fd934f1dd60709a64acd892cccd2786b0d4237e622ed626b00 pool/main/l/llvm-toolchain-22/llvm-22-dev_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
-          llvm-22-linker-tools 1303228 e3aaa221204f05537c43a55f412fa74493870c4446a82d2332081111a407cbdd pool/main/l/llvm-toolchain-22/llvm-22-linker-tools_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
-          llvm-22-runtime 617790 7ef0e9ecb2c2240136c26f41af5cd0eb451643dfeadbde2e061cf6c8595bd0e6 pool/main/l/llvm-toolchain-22/llvm-22-runtime_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
-          llvm-22-tools 496302 d701a3a7a2ad1d7b2eebcfd0a031d2d306fb6616ec146e886a4f0e1eb5938d16 pool/main/l/llvm-toolchain-22/llvm-22-tools_22.1.8~++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17_amd64.deb
-          LLVM_PACKAGES
-          [[ "${#debs[@]}" == 11 ]]
-          sudo apt-get update
-          dependencies=(binutils-dev clang-22 cmake g++ libclang-rt-22-dev libdwarf-dev
-            libluajit-5.1-dev libmariadb-dev-compat libssl-dev libzmq3-dev
-            libzstd-dev llvm-22-dev ninja-build zlib1g-dev)
-          sudo apt-get --simulate --no-install-recommends install "${dependencies[@]}" \
-            > "$STAGE/ubuntu-apt-plan.log"
-          # The pinned image's MariaDB development package replaces these two MySQL packages.
-          removals=$(awk '$1 == "Remv" { sub(/:amd64$/, "", $2); print $2 }' \
-            "$STAGE/ubuntu-apt-plan.log" | LC_ALL=C sort)
-          [[ "$removals" == $'libmysqlclient-dev\nmysql-server' ]]
-          sudo apt-get --assume-yes --no-install-recommends install "${dependencies[@]}"
-          llvm_root="$STAGE/llvm22"
-          mkdir -m 0700 -- "$llvm_root"
-          for deb in "${debs[@]}"; do
-            /usr/bin/dpkg-deb --extract "$deb" "$llvm_root"
-          done
-          llvm_bin="$llvm_root/usr/lib/llvm-22/bin"
-          llvm_lib="$llvm_root/usr/lib/x86_64-linux-gnu:$llvm_root/usr/lib/llvm-22/lib"
-          [[ "$(realpath -e -- "$llvm_bin/clang")" == "$llvm_bin/clang" ]]
-          [[ "$(realpath -e -- "$llvm_bin/clang++")" == "$llvm_bin/clang" ]]
-          links=$(LD_LIBRARY_PATH="$llvm_lib" /usr/bin/ldd "$llvm_bin/clang")
-          ! grep -q 'not found' <<< "$links"
-          for soname in libclang-cpp.so.22.1 libLLVM.so.22.1; do
-            library=$(awk -v soname="$soname" '$1 == soname && $2 == "=>" { print $3 }' <<< "$links")
-            [[ -n "$library" && "$(realpath -e -- "$library")" == "$llvm_root/"* ]]
-          done
-          [[ "$(LD_LIBRARY_PATH="$llvm_lib" "$llvm_bin/clang++" --version | sed -n '1p')" == *'clang version 22.1.8 '* ]]
-          [[ "$(LD_LIBRARY_PATH="$llvm_lib" "$llvm_bin/clang++" --print-resource-dir)" == "$llvm_root/usr/lib/llvm-22/lib/clang/22" ]]
-          [[ -r "$llvm_root/usr/lib/llvm-22/lib/clang/22/include/stddef.h" ]]
-          stdlib=$(LD_LIBRARY_PATH="$llvm_lib" "$llvm_bin/clang++" --print-file-name=libstdc++.so)
-          [[ "$stdlib" == /usr/lib/gcc/x86_64-linux-gnu/15/libstdc++.so && -r "$stdlib" ]]
-          printf 'LLVM_ROOT=%s\n' "$llvm_root" >> "$GITHUB_ENV"
-          printf '%s\n' 'Diagnostic compiler Clang 22.1.8'
-          [[ "$(pkg-config --modversion libdwarf)" == 1.11.1 ]]
-
-      - name: Setup exact codegen Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: '3.14.10'
-
-      - name: Preflight and seed verified public inputs
-        run: |
-          set -euo pipefail
-          umask 077
-          [[ "$(python -IB -c 'import platform; print(platform.python_version())')" == 3.14.10 ]]
-          python -m venv "$STAGE/venv"
-          "$STAGE/venv/bin/python" -m pip install --disable-pip-version-check --only-binary=:all: --no-deps \
-            MarkupSafe==3.0.4 attrs==26.1.0 jinja2==3.1.6 jsonschema==4.26.0 \
-            jsonschema-specifications==2025.9.1 referencing==0.37.0 rpds-py==2026.9.1 ruamel.yaml==0.19.1
-          "$STAGE/venv/bin/python" -m pip check
+          python -IB -c 'import platform, sysconfig; assert platform.python_version() == "3.14.10" and platform.machine().casefold() == "amd64" and not sysconfig.get_config_var("Py_GIL_DISABLED")'
+          python -IB -m venv "$STAGE/venv"
+          cat > "$STAGE/codegen-wheel-lock.txt" <<'WHEELS'
+          # Exact PyPI wheels for CPython 3.14 Windows x64.
+          # markupsafe-3.0.4-cp314-cp314-win_amd64.whl
+          MarkupSafe==3.0.4 --hash=sha256:c1bc67752d5f21013cfe430df4062441714eab79f65a6a05e01505957e9c35fe
+          # attrs-26.1.0-py3-none-any.whl
+          attrs==26.1.0 --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309
+          # jinja2-3.1.6-py3-none-any.whl
+          jinja2==3.1.6 --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
+          # jsonschema-4.26.0-py3-none-any.whl
+          jsonschema==4.26.0 --hash=sha256:d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce
+          # jsonschema_specifications-2025.9.1-py3-none-any.whl
+          jsonschema-specifications==2025.9.1 --hash=sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe
+          # referencing-0.37.0-py3-none-any.whl
+          referencing==0.37.0 --hash=sha256:381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231
+          # rpds_py-2026.9.1-cp314-cp314-win_amd64.whl
+          rpds-py==2026.9.1 --hash=sha256:837c6b305e26fe0f75b15c92cf3b2ba29e0ae19dc40b1c557b026cb426347d0c
+          # ruamel_yaml-0.19.1-py3-none-any.whl
+          ruamel.yaml==0.19.1 --hash=sha256:27592957fedf6e0b62f281e96effd28043345e0e66001f97683aa9a40c667c93
+          WHEELS
+          python="$STAGE/venv/Scripts/python.exe"
+          pip_null="$("$python" -IB -c 'import os; print(os.devnull)')"
+          [[ "${pip_null,,}" == nul ]]
+          PIP_CONFIG_FILE="$pip_null" "$python" -IB -m pip --isolated install \
+            --disable-pip-version-check --no-cache-dir --timeout 20 --retries 0 \
+            --index-url https://pypi.org/simple --only-binary=:all: --no-deps --require-hashes \
+            -r "$STAGE/codegen-wheel-lock.txt"
+          PIP_CONFIG_FILE="$pip_null" "$python" -IB -m pip --isolated check
 
           fetch_release() {
             local output="$1" bytes="$2" sha="$3" url
             shift 3
             for url in "$@"; do
-              if (
-                ulimit -f "$(( (bytes + 1023) / 1024 + 1 ))" || exit 1
-                curl --disable --silent --fail --location --proto '=https' --proto-redir '=https' \
-                  --connect-timeout 15 --max-time 180 --max-filesize "$bytes" \
-                  --header 'Accept: application/octet-stream' --output "$output.part" "$url" 2>/dev/null
-              ) && [[ "$(stat -c %s "$output.part")" == "$bytes" ]] &&
+              if curl --disable --silent --fail --location --proto '=https' --proto-redir '=https' \
+                  --connect-timeout 15 --max-time 300 --max-filesize "$bytes" \
+                  --header 'Accept: application/octet-stream' --output "$output.part" "$url" 2>/dev/null && [[ "$(stat -c %s "$output.part")" == "$bytes" ]] &&
                 printf '%s  %s\n' "$sha" "$output.part" | sha256sum --check --status; then
                 mv -- "$output.part" "$output"
                 return
@@ -296,12 +250,11 @@ jobs:
             done
             return 1
           }
-
-          fetch_release "$STAGE/codeql.tar.zst" 165322927 \
-            eea5a76ed6778892278a387c4362fef8d03e5a9c3795f5d5022d496fccfd5388 \
-            https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.27.4/codeql-bundle-cpp-linux64.tar.zst \
-            'https://api.github.com/repos/github/codeql-action/releases/assets/692238580?download=1'
-          "$STAGE/venv/bin/python" -IB - "$STAGE" <<'PY'
+          fetch_release "$STAGE/codeql.tar.zst" 569083483 \
+            39f7f53a2136e773d11e636172e48caa714aabc84062a1a972dfc68cc37e396e \
+            https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.27.4/codeql-bundle-win64.tar.zst \
+            'https://api.github.com/repos/github/codeql-action/releases/assets/692236790?download=1'
+          "$STAGE/venv/Scripts/python.exe" -IB - "$STAGE" <<'UNPACK'
           from pathlib import Path, PurePosixPath
           import sys
           import tarfile
@@ -309,20 +262,28 @@ jobs:
           stage = Path(sys.argv[1])
           with tarfile.open(stage / "codeql.tar.zst", "r:zst") as archive:
               members = archive.getmembers()
-              assert len(members) == 7806
               names = [PurePosixPath(member.name) for member in members]
-              assert len(names) == len(set(names))
-              assert all(path.parts[:1] == ("codeql",) and ".." not in path.parts for path in names)
+              assert 0 < len(names) <= 30_000
+              assert len({name.as_posix().casefold() for name in names}) == len(names)
+              assert all(
+                  path.parts[:1] == ("codeql",)
+                  and ".." not in path.parts
+                  and "\\" not in path.as_posix()
+                  and ":" not in path.as_posix()
+                  for path in names
+              )
+              assert all(member.isfile() or member.isdir() for member in members)
+              assert sum(member.size for member in members) <= 3 * 1024**3
               archive.extractall(stage / "tool", members=members, filter="data")
-          PY
-
+          assert (stage / "tool/codeql/codeql.exe").is_file()
+          UNPACK
           mkdir -p -- .cpm-cache/cpm
           fetch_release .cpm-cache/cpm/CPM_0.40.2.cmake 41017 \
             c8cdc32c03816538ce22781ed72964dc864b2a34a310d3b7104812a5ca2d835d \
             https://github.com/cpm-cmake/CPM.cmake/releases/download/v0.40.2/CPM.cmake \
             'https://api.github.com/repos/cpm-cmake/CPM.cmake/releases/assets/183458005?download=1'
 
-          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=NUL GIT_TERMINAL_PROMPT=0
           while read -r name upstream key commit tree pin; do
             dir=".cpm-cache/$name/$key"
             refspec="$commit"
@@ -362,89 +323,60 @@ jobs:
           zlib madler/zlib b5e2c7ec5e8efcfba2a4eb6b6a8c3bd7f8619522 51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf 16b86ef85c591c244523c98c71508be7908d1189 v1.3.1
           DEPENDENCIES
 
-      - name: Trace the four compiler invocations offline
+      - name: Configure once and trace only four exact MSVC compile commands
         run: |
           set -euo pipefail
           umask 077
-          codeql="$STAGE/tool/codeql/codeql"
-          printf '%s  %s\n' 74a276b81502c0bb9052e7002962f6abfe7c263c17a940bb6d761b0d11ee7189 .github/codeql/codeql-config.yml | sha256sum --check --status
+          python="$STAGE/venv/Scripts/python.exe"
+          codeql="$STAGE/tool/codeql/codeql.exe"
           "$codeql" version --format=json > "$STAGE/artifact/codeql-version.json"
-          "$STAGE/venv/bin/python" -IB -c \
-            'import json, sys; assert json.load(open(sys.argv[1]))["version"] == "2.27.4"' \
+          "$python" -IB -c 'import json, sys; assert json.load(open(sys.argv[1]))["version"] == "2.27.4"' \
             "$STAGE/artifact/codeql-version.json"
-          [[ -d modules && ! -L modules && -f modules/init.txt && ! -L modules/init.txt && ! -x modules/init.txt ]]
           [[ "$(git ls-tree "$ACCEPTED_N" -- modules/init.txt)" == $'100644 blob 9ac1a648fd11a4dd845a0c1c4f421bdf170d82ff\tmodules/init.txt' ]]
-          [[ "$(git cat-file -s 9ac1a648fd11a4dd845a0c1c4f421bdf170d82ff)" == 1575 && "$(wc -c < modules/init.txt)" == 1625 ]]
-          printf '%s  %s\n' 67a7c230142954d5ae565795700ac808a9493926333c9122da8240b5bb77131b modules/init.txt | sha256sum --check --status
-          git diff --cached --quiet --ignore-submodules=none "$ACCEPTED_N" --
-          git ls-files -v | awk '/^[a-zS] / { hidden = 1 } END { exit hidden }'
+          [[ "$(git hash-object --path=modules/init.txt modules/init.txt)" == 9ac1a648fd11a4dd845a0c1c4f421bdf170d82ff ]]
+          [[ "$(git hash-object --path=.github/codeql/codeql-config.yml .github/codeql/codeql-config.yml)" == 356bb089226bd81b47d9c8e8bbb287893416a75c ]]
+          [[ ! -e build ]]
           printf '%s\n' custom era/lua example > modules/init.txt
-          [[ "$(wc -c < modules/init.txt)" == 23 ]]
-          printf '%s  %s\n' 4142943d38594680549dc2dadae36b6f705d92377668fe39274f1cab1eacd767 modules/init.txt | sha256sum --check --status
-          [[ "$(git diff --name-only --no-renames --ignore-submodules=none "$ACCEPTED_N" --)" == modules/init.txt ]]
-          export TRACE_ROOT="$GITHUB_WORKSPACE" TRACE_PY="$STAGE/venv/bin/python"
-          cat > "$STAGE/trace.sh" <<'TRACE'
-          #!/usr/bin/bash
-          set -euo pipefail
-          export CC="$LLVM_ROOT/usr/lib/llvm-22/bin/clang" CXX="$LLVM_ROOT/usr/lib/llvm-22/bin/clang++"
-          export PYTHONDONTWRITEBYTECODE=1
-          export CPM_SOURCE_CACHE="$TRACE_ROOT/.cpm-cache"
-          /usr/bin/cmake -G Ninja -S "$TRACE_ROOT" -B "$TRACE_ROOT/build" --fresh \
-            -DCMAKE_BUILD_TYPE=Debug -DTRACY_ENABLE=OFF -DPCH_ENABLE=OFF \
-            -DCMAKE_C_FLAGS_DEBUG:STRING=-g0 -DCMAKE_CXX_FLAGS_DEBUG:STRING=-g0 \
-            -DCPM_SOURCE_CACHE:PATH="$CPM_SOURCE_CACHE" -DSTAGE_BINARIES=OFF \
-            -DPython_EXECUTABLE="$TRACE_PY" -DCACHE_BINARY:FILEPATH= \
-            -DCMAKE_C_COMPILER_LAUNCHER:FILEPATH= -DCMAKE_CXX_COMPILER_LAUNCHER:FILEPATH= \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DXI_LUA_ENUM_OUTPUT_DIR:PATH="$TRACE_ROOT/build/probe-lua-enums" \
-            -DXI_SCHEMA_OUTPUT_DIR:PATH="$TRACE_ROOT/build/probe-schemas"
-          cd -- "$TRACE_ROOT"
-          "$TRACE_PY" -EsB -m tools.codegen "$TRACE_ROOT/build" \
-            --lua-enum-output-dir "$TRACE_ROOT/build/probe-lua-enums" \
-            --schema-output-dir "$TRACE_ROOT/build/probe-schemas"
-          [[ -s "$TRACE_ROOT/build/generated/.enum_codegen.stamp" ]]
-          TRACE
-          chmod 700 -- "$STAGE/trace.sh"
-
-          tool_cache=$(/usr/bin/realpath -e -- "$RUNNER_TOOL_CACHE")
-          python_home=$(/usr/bin/realpath -e -- "$pythonLocation")
-          [[ "$tool_cache" =~ ^/[A-Za-z0-9_./-]+$ && "$python_home" == "$tool_cache/Python/3.14.10/x64" ]]
-          python_lib=$(/usr/bin/realpath -e -- "$python_home/lib")
-          base_python=$(/usr/bin/realpath -e -- "$python_home/bin/python3.14")
-          [[ "$python_lib" == "$python_home/lib" && "$base_python" == "$python_home/bin/"* ]]
-          [[ "$(/usr/bin/realpath -e -- "$TRACE_PY")" == "$base_python" ]]
-
-          offline=(sudo --non-interactive /usr/bin/unshare --net -- /usr/bin/setpriv \
-            --reuid "$(id -u)" --regid "$(id -g)" --clear-groups --no-new-privs \
-            /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 HOME="$HOME" \
-            LD_LIBRARY_PATH="$LLVM_ROOT/usr/lib/x86_64-linux-gnu:$LLVM_ROOT/usr/lib/llvm-22/lib:$python_lib" \
-            LLVM_ROOT="$LLVM_ROOT" TRACE_ROOT="$TRACE_ROOT" TRACE_PY="$TRACE_PY")
-          "${offline[@]}" "$TRACE_PY" -IB - "$python_home" "$STAGE/venv" <<'PY'
-          from pathlib import Path
-          import platform
-          import sys
-
-          import jinja2
-          import jsonschema
-          from ruamel.yaml import YAML
-
-          assert platform.python_version() == "3.14.10"
-          assert Path(sys.base_prefix).resolve() == Path(sys.argv[1])
-          assert Path(sys.prefix).resolve() == Path(sys.argv[2])
-          PY
+          check_source() {
+            [[ "$(git rev-parse HEAD)" == "$ACCEPTED_N" && "$(git rev-parse HEAD^{tree})" == "$ACCEPTED_TREE" ]]
+            git diff --cached --quiet --ignore-submodules=none "$ACCEPTED_N" --
+            git ls-files -v | awk '/^[a-zS] / { hidden = 1 } END { exit hidden }'
+            [[ "$(git diff --name-only --no-renames --ignore-submodules=none "$ACCEPTED_N" --)" == modules/init.txt ]]
+            printf '%s  %s\n' 4142943d38594680549dc2dadae36b6f705d92377668fe39274f1cab1eacd767 modules/init.txt | sha256sum --check --status
+          }
+          check_source
+          root="$(cygpath -m "$GITHUB_WORKSPACE")"
+          export CPM_SOURCE_CACHE="$root/.cpm-cache"
+          export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=protocol.allow GIT_CONFIG_VALUE_0=never
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=NUL GIT_TERMINAL_PROMPT=0
+          export GIT_ALLOW_PROTOCOL=
+          export CC=cl.exe CXX=cl.exe PYTHONDONTWRITEBYTECODE=1
+          unset CL _CL_
           configure_exit=0
-          "${offline[@]}" /usr/bin/bash "$STAGE/trace.sh" > "$STAGE/artifact/configure.log" 2>&1 || configure_exit=$?
-          printf 'Diagnostic configure exit %d\n' "$configure_exit"
-          [[ "$(git rev-parse HEAD)" == "$ACCEPTED_N" && "$(git rev-parse HEAD^{tree})" == "$ACCEPTED_TREE" ]]
-          [[ "$(git diff --name-only --no-renames --ignore-submodules=none "$ACCEPTED_N" --)" == modules/init.txt ]]
-          printf '%s  %s\n' 4142943d38594680549dc2dadae36b6f705d92377668fe39274f1cab1eacd767 modules/init.txt | sha256sum --check --status
+          (
+            cmake -G Ninja -S "$root" -B "$root/build" --fresh \
+              -DCMAKE_BUILD_TYPE=Debug -DTRACY_ENABLE=OFF -DPCH_ENABLE=OFF \
+              -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded -DSTAGE_BINARIES=OFF \
+              -DCPM_SOURCE_CACHE:PATH="$CPM_SOURCE_CACHE" -DPython_EXECUTABLE="$python" \
+              -DCACHE_BINARY:FILEPATH= -DCMAKE_C_COMPILER_LAUNCHER:FILEPATH= \
+              -DCMAKE_CXX_COMPILER_LAUNCHER:FILEPATH= -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+              -DXI_LUA_ENUM_OUTPUT_DIR:PATH="$root/build/probe-lua-enums" \
+              -DXI_SCHEMA_OUTPUT_DIR:PATH="$root/build/probe-schemas" &&
+            grep -q 'The CXX compiler identification is MSVC 19.51.36260.0' "$STAGE/artifact/configure.log" &&
+            "$python" -EsB -m tools.codegen "$root/build" \
+              --lua-enum-output-dir "$root/build/probe-lua-enums" \
+              --schema-output-dir "$root/build/probe-schemas" &&
+            [[ -s "$root/build/generated/.enum_codegen.stamp" ]]
+          ) > "$STAGE/artifact/configure.log" 2>&1 || configure_exit=$?
+          check_source
           cat > "$STAGE/probe_selected.py" <<'PROBE'
-          """Trace the four selected compiler commands on a disposable probe runner."""
+          """Trace four existing Ninja MSVC compile commands without invoking Ninja."""
+          import ctypes
+          from ctypes import wintypes
           import hashlib
           import json
           import os
           from pathlib import Path
-          import shlex
           import subprocess
           import sys
 
@@ -455,50 +387,101 @@ jobs:
               "src/map/data/datasets/monstrosity/dataset.cpp",
               "src/map/ai/controllers/trust_controller.cpp",
           )
-          COMPILER = str(Path(os.environ["LLVM_ROOT"]) / "usr/lib/llvm-22/bin/clang++")
+
+
+          def windows_argv(command):
+              shell32 = ctypes.WinDLL("shell32", use_last_error=True)
+              parse = shell32.CommandLineToArgvW
+              parse.argtypes = (wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_int))
+              parse.restype = ctypes.POINTER(wintypes.LPWSTR)
+              free = ctypes.WinDLL("kernel32").LocalFree
+              free.argtypes = (wintypes.HLOCAL,)
+              free.restype = wintypes.HLOCAL
+              count = ctypes.c_int()
+              argv = parse(command, ctypes.byref(count))
+              if not argv:
+                  raise ctypes.WinError(ctypes.get_last_error())
+              try:
+                  return [argv[index] for index in range(count.value)]
+              finally:
+                  free(argv)
 
 
           def planned_commands(compile_db, source_root, build_root):
               rows = json.loads(compile_db.read_bytes())
+              expected_compiler = (
+                  Path(os.environ["VCToolsInstallDir"]) / "bin/Hostx64/x64/cl.exe"
+              ).resolve(strict=True)
               commands = {}
               for target in TARGETS:
-                  source = source_root / target
-                  hits = [row for row in rows if row["file"] == str(source)]
-                  if len(hits) != 1 or Path(hits[0]["directory"]) != build_root:
-                      raise ValueError("unexpected compile database row for " + target)
+                  source = (source_root / target).resolve(strict=True)
+                  hits = [
+                      row for row in rows
+                      if (Path(row["directory"]) / row["file"]).resolve() == source
+                  ]
+                  if len(hits) != 1 or Path(hits[0]["directory"]).resolve() != build_root:
+                      raise ValueError("expected one exact build row for " + target)
                   row = hits[0]
-                  argv = shlex.split(row["command"])
-                  if argv[0] != COMPILER or argv.count("-c") != 1 or argv[argv.index("-c") + 1] != str(source):
-                      raise ValueError("unexpected compiler or source for " + target)
-                  if any(
-                      item.startswith(("@", "-Xclang", "-fplugin", "-load", "-wrapper", "--config", "--gcc-toolchain", "--sysroot"))
-                      for item in argv
-                  ):
-                      raise ValueError("unexpected compiler option for " + target)
-                  if not any(item == "-std=c++23" for item in argv):
-                      raise ValueError("unexpected language mode for " + target)
-                  for option, suffix in (("-o", ".o"), ("-MF", ".o.d")):
-                      if option == "-MF" and option not in argv:
+                  argv = row.get("arguments") or windows_argv(row["command"])
+                  if Path(argv[0]).resolve(strict=True) != expected_compiler:
+                      raise ValueError("unexpected configured compiler for " + target)
+                  options = argv[1:]
+                  for arg in options:
+                      if arg.startswith("@"):
+                          raise ValueError("response files require independent review")
+                      if arg[:1] not in ("/", "-"):
                           continue
-                      if argv.count(option) != 1:
-                          raise ValueError("unexpected output option for " + target)
-                      output = (build_root / argv[argv.index(option) + 1]).resolve()
-                      if not output.is_relative_to(build_root) or not output.name.endswith(suffix):
-                          raise ValueError("unexpected output path for " + target)
-                      if option == "-o" and (build_root / row["output"]).resolve() != output:
-                          raise ValueError("compile output metadata mismatch for " + target)
-                      if output.exists():
-                          raise ValueError("stale compiler output for " + target)
-                      output.parent.mkdir(parents=True, exist_ok=True)
+                      switch = arg[1:]
+                      folded = switch.casefold()
+                      if (
+                          switch.startswith(("FA", "Fa", "Fe", "Fi", "Fm", "Fp", "FR", "Fr", "Yc", "Yu", "Yl", "B1", "B2"))
+                          or folded in ("link", "ld", "ldd", "e", "ep", "p", "zs")
+                          or folded.startswith((
+                              "sourcedependencies", "scandependencies", "ifcoutput",
+                              "analyze:log", "analyze:plugin", "module:output",
+                          ))
+                      ):
+                          raise ValueError("unsupported compiler mode or output option")
+                  if sum(arg.lower() in ("/c", "-c") for arg in options) != 1:
+                      raise ValueError("expected a compile-only command")
+                  if not any(
+                      arg.lower().lstrip("/-") in ("std:c++latest", "std:c++23preview", "std:c++23")
+                      for arg in options
+                  ):
+                      raise ValueError("expected C++23 compilation")
+                  source_args = [
+                      arg for arg in options if arg.casefold().endswith(".cpp")
+                  ]
+                  if len(source_args) != 1 or (build_root / source_args[0]).resolve() != source:
+                      raise ValueError("unexpected compiler source")
+                  output = []
+                  for prefix in ("/fo", "/fd"):
+                      matches = [
+                          arg[3:] for arg in options
+                          if arg[:3].replace("-", "/", 1).lower() == prefix
+                      ]
+                      if len(matches) > 1 or (prefix == "/fo" and len(matches) != 1):
+                          raise ValueError("ambiguous compiler output")
+                      for match in matches:
+                          path = (build_root / match).resolve()
+                          if not match or not path.is_relative_to(build_root) or path == build_root:
+                              raise ValueError("compiler output escaped the fresh build")
+                          output.append(path)
+                  if output[0].suffix.lower() != ".obj" or output[0].exists():
+                      raise ValueError("unexpected existing object or extension")
+                  if "output" in row and (build_root / row["output"]).resolve() != output[0]:
+                      raise ValueError("compiler output disagrees with Ninja")
+                  for path in output:
+                      path.parent.mkdir(parents=True, exist_ok=True)
                   commands[target] = argv
               return commands
 
 
           def main():
-              source_root = Path(os.environ["TRACE_ROOT"])
-              stage = Path(sys.argv[1])
+              source_root = Path(os.environ["GITHUB_WORKSPACE"]).resolve(strict=True)
+              stage = Path(sys.argv[1]).resolve(strict=True)
               build_root = source_root / "build"
-              codeql = (stage / "tool/codeql/codeql").resolve(strict=True)
+              codeql = (stage / "tool/codeql/codeql.exe").resolve(strict=True)
               database = stage / "db"
               artifact = stage / "artifact"
               diagnostics = artifact / "selected.sarif"
@@ -513,15 +496,22 @@ jobs:
                   }) + "\n")
                   print("Selected compilation diagnostic stopped while validating compiler inputs")
                   return
+              (artifact / "selected-commands.json").write_text(
+                  json.dumps(commands, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+              )
               query_dir = codeql.parent / "qlpacks/codeql/cpp-queries/1.10.0/Diagnostics"
               report = {"phase": "init", "commands": {}, "complete": False}
               report["compile_db_sha256"] = hashlib.sha256(compile_db.read_bytes()).hexdigest()
               with log_path.open("xb") as log:
                   def run(args, seconds=240):
-                      return subprocess.run(
-                          ["/usr/bin/timeout", "--kill-after=5s", f"{seconds}s", str(codeql), *args],
-                          cwd=source_root, stdout=log, stderr=subprocess.STDOUT, check=False,
-                      ).returncode
+                      try:
+                          return subprocess.run(
+                              [str(codeql), *args], cwd=source_root, timeout=seconds,
+                              stdout=log, stderr=subprocess.STDOUT, check=False,
+                          ).returncode
+                      except subprocess.TimeoutExpired:
+                          log.write(b"CodeQL subprocess exceeded its diagnostic deadline\n")
+                          return 124
 
                   report["init_exit"] = run([
                       "database", "init", "--language=cpp", "--build-mode=manual",
@@ -535,26 +525,29 @@ jobs:
                               "--threads=1", "--extractor-option=cpp.log_verbosity=3",
                               "--", str(database), *argv,
                           ])
-                      report["phase"] = "finalize"
-                      report["finalize_exit"] = run(["database", "finalize", "--threads=1", str(database)])
-                      if report["finalize_exit"] == 0:
-                          report["phase"] = "queries"
-                          report["query_exit"] = run([
-                              "database", "analyze", "--threads=1", "--ram=2048",
-                              "--format=sarifv2.1.0", "--sarif-include-diagnostics",
-                              "--output=" + str(diagnostics), str(database),
-                              *(str(query_dir / (query + ".ql")) for query in (
-                                  "ExtractedFiles", "FailedExtractorInvocations", "ExtractionWarnings",
-                              )),
-                          ])
-                          report["complete"] = report["query_exit"] == 0 and all(
-                              rc == 0 for rc in report["commands"].values()
-                          )
+                          if report["commands"][target] == 124:
+                              break
+                      if 124 not in report["commands"].values():
+                          report["phase"] = "finalize"
+                          report["finalize_exit"] = run(["database", "finalize", "--threads=1", str(database)])
+                          if report["finalize_exit"] == 0:
+                              report["phase"] = "queries"
+                              report["query_exit"] = run([
+                                  "database", "analyze", "--threads=1", "--ram=2048",
+                                  "--format=sarifv2.1.0", "--sarif-include-diagnostics",
+                                  "--output=" + str(diagnostics), str(database),
+                                  *(str(query_dir / (query + ".ql")) for query in (
+                                      "ExtractedFiles", "FailedExtractorInvocations", "ExtractionWarnings",
+                                  )),
+                              ])
+                              report["complete"] = report["query_exit"] == 0 and all(
+                                  rc == 0 for rc in report["commands"].values()
+                              )
               (artifact / "probe.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
-              with (artifact / "extractor-errors.txt").open("x") as evidence:
+              with (artifact / "extractor-errors.txt").open("x", encoding="utf-8") as evidence:
                   for entry in sorted((database / "log/extractor").rglob("*.log")):
                       evidence.write(str(entry.relative_to(database)) + "\n")
-                      with entry.open(errors="replace") as file:
+                      with entry.open(encoding="utf-8", errors="replace") as file:
                           samples = 0
                           for line in file:
                               if any(text in line for text in ("internal error", "Extractor exiting with code", "signal ", "time limit")):
@@ -565,12 +558,12 @@ jobs:
                   tracer_log = database / "log/build-tracer.log"
                   if tracer_log.is_file():
                       evidence.write("build-tracer.log bounded extractor termination evidence\n")
-                      with tracer_log.open(errors="replace") as tracer:
+                      with tracer_log.open(encoding="utf-8", errors="replace") as tracer:
                           records = 0
                           for line in tracer:
                               if any(term in line.lower() for term in (
                                   "terminated with", "extractor exiting", "received signal",
-                                  "killed", "fatal error", "allocation failure",
+                                  "killed", "fatal error", "allocation failure", "0xc0000005", "access violation",
                               )):
                                   evidence.write(line[:1600])
                                   records += 1
@@ -663,16 +656,14 @@ jobs:
               raise SystemExit(main())
           GUARD
           if [[ "$configure_exit" == 0 ]]; then
-            "${offline[@]}" "$TRACE_PY" -IB "$STAGE/probe_selected.py" "$STAGE"
+            "$python" -IB "$STAGE/probe_selected.py" "$STAGE"
           else
             printf '{"phase":"configure","configure_exit":%d,"complete":false}\n' "$configure_exit" \
               > "$STAGE/artifact/probe.json"
           fi
-          [[ "$(git rev-parse HEAD)" == "$ACCEPTED_N" && "$(git rev-parse HEAD^{tree})" == "$ACCEPTED_TREE" ]]
-          [[ "$(git diff --name-only --no-renames --ignore-submodules=none "$ACCEPTED_N" --)" == modules/init.txt ]]
-          printf '%s  %s\n' 4142943d38594680549dc2dadae36b6f705d92377668fe39274f1cab1eacd767 modules/init.txt | sha256sum --check --status
-          printf 'Source %s %s, workflow %s, runner image %s, run %s\n' \
-            "$ACCEPTED_N" "$ACCEPTED_TREE" "$EXPECTED_WORKFLOW" "$ImageVersion" "$GITHUB_RUN_ID" \
+          check_source
+          printf 'Source %s %s, workflow %s, runner image %s, MSVC %s, run %s\n' \
+            "$ACCEPTED_N" "$ACCEPTED_TREE" "$EXPECTED_WORKFLOW" "$ImageVersion" "$VCToolsVersion" "$GITHUB_RUN_ID" \
             > "$STAGE/artifact/source.txt"
 
       - name: Encrypt the diagnostic artifact
@@ -680,13 +671,16 @@ jobs:
           set -euo pipefail
           umask 077
           members=(codeql-version.json configure.log probe.json source.txt)
-          for optional in commands.log extractor-errors.txt selected.sarif; do
+          for optional in commands.log extractor-errors.txt selected.sarif selected-commands.json; do
             if [[ -e "$STAGE/artifact/$optional" ]]; then members+=("$optional"); fi
           done
           for member in "${members[@]}"; do
             [[ -f "$STAGE/artifact/$member" && ! -L "$STAGE/artifact/$member" ]]
           done
-          ciphertext="$STAGE/public/selected-cpp-diagnostic.cms"
+          for member in "${members[@]}"; do
+            [[ "$(stat -c %s "$STAGE/artifact/$member")" -le 33554432 ]]
+          done
+          ciphertext="$STAGE/public/selected-msvc-cpp-diagnostic.cms"
           /usr/bin/tar --format=ustar -C "$STAGE/artifact" -cf - "${members[@]}" |
             /usr/bin/openssl cms -encrypt -aes-256-gcm -binary -outform DER \
               -out "$ciphertext" -recip "$STAGE/recipient.pem" \
@@ -698,8 +692,8 @@ jobs:
       - name: Publish only the encrypted diagnostic artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: selected-cpp-diagnostic-${{ matrix.probe.name }}-encrypted
-          path: ${{ env.STAGE }}/public/selected-cpp-diagnostic.cms
+          name: selected-msvc-cpp-diagnostic-${{ matrix.probe.name }}-encrypted
+          path: ${{ env.STAGE }}/public/selected-msvc-cpp-diagnostic.cms
           compression-level: 0
           if-no-files-found: error
           retention-days: 3
@@ -707,7 +701,7 @@ jobs:
       - name: Report selected source coverage
         run: |
           set -euo pipefail
-          python="$STAGE/venv/bin/python"
+          python="$STAGE/venv/Scripts/python.exe"
           "$python" -IB -c 'import json, sys; assert json.load(open(sys.argv[1]))["complete"] is True' \
             "$STAGE/artifact/probe.json"
           "$python" -IB "$STAGE/check_extraction.py" "$STAGE/artifact/selected.sarif" \
