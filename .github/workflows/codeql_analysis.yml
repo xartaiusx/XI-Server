@@ -33,6 +33,14 @@ on:
         required: false
         type: string
         default: '20261101.186.1'
+      probe_recipient_der:
+        description: Base64 DER recipient certificate bound by SHA-256
+        required: false
+        type: string
+      probe_recipient_sha:
+        description: SHA-256 of the reviewed public recipient
+        required: false
+        type: string
 
 jobs:
   analyze:
@@ -119,11 +127,21 @@ jobs:
       with:
         sarif_file: sarif-results/${{ matrix.language }}.sarif
 
-  accepted_n_artifact:
-    name: Accepted N compiled CodeQL artifact
+  selected_extraction_probe:
+    name: Selected C++ extraction (${{ matrix.probe.name }})
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/mochi/codeql-n8a34-baseline'
     runs-on: ubuntu-26.04
-    timeout-minutes: 210
+    timeout-minutes: 65
+    strategy:
+      fail-fast: false
+      matrix:
+        probe:
+          - name: accepted
+            commit: 8a34d1baaeded1665ef8101eba2cf2190d3d83f3
+            tree: 922c92a7a2ff848d3c9d442ba55fcdb21f546db7
+          - name: candidate
+            commit: 3218a0586fafbbf852f63799ece6cb8f5a4dbbe5
+            tree: ebf1f3656931d37c6952d4d0df114b8c0abc80eb
     permissions:
       actions: read
       contents: read
@@ -131,9 +149,8 @@ jobs:
       run:
         shell: bash
     env:
-      ACCEPTED_N: 8a34d1baaeded1665ef8101eba2cf2190d3d83f3
-      ACCEPTED_TREE: 922c92a7a2ff848d3c9d442ba55fcdb21f546db7
-      BASELINE_CATEGORY: .github/workflows/codeql_analysis.yml:analyze/build-mode:none/language:cpp
+      ACCEPTED_N: ${{ matrix.probe.commit }}
+      ACCEPTED_TREE: ${{ matrix.probe.tree }}
       EXPECTED_WORKFLOW: ${{ inputs.baseline_workflow_sha }}
       EXPECTED_IMAGE: ${{ inputs.baseline_runner_image }}
 
@@ -143,6 +160,8 @@ jobs:
           ACTUAL_WORKFLOW: ${{ github.workflow_sha }}
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
           STAGE: ${{ runner.temp }}/n8a34-codeql
+          RECIPIENT_DER: ${{ inputs.probe_recipient_der }}
+          RECIPIENT_SHA: ${{ inputs.probe_recipient_sha }}
         run: |
           set -euo pipefail
           umask 077
@@ -154,42 +173,15 @@ jobs:
           [[ "$STAGE" == "$RUNNER_TEMP/n8a34-codeql" && "$STAGE" =~ ^/[A-Za-z0-9_./-]+/n8a34-codeql$ ]]
           mkdir -- "$STAGE"
           mkdir -- "$STAGE/artifact" "$STAGE/tool" "$STAGE/public"
-          recipient_sha=57b5f0ad99ed73fe52a4d9939be0ad35458cc004d3b464164b1c8f0d232937c8
-          [[ "$recipient_sha" =~ ^[0-9a-f]{64}$ ]]
-          cat > "$STAGE/recipient.pem" <<'RECIPIENT'
-          -----BEGIN CERTIFICATE-----
-          MIIEPDCCAqSgAwIBAgIUNAoqM4L6eFkc7EZA6q00xiaRP7gwDQYJKoZIhvcNAQEL
-          BQAwJzElMCMGA1UEAwwcQWNjZXB0ZWQgTiBDb2RlUUwgY29tcGFyaXNvbjAeFw0y
-          NjExMDkxOTAzMjFaFw0yNjExMTYxOTAzMjFaMCcxJTAjBgNVBAMMHEFjY2VwdGVk
-          IE4gQ29kZVFMIGNvbXBhcmlzb24wggGiMA0GCSqGSIb3DQEBAQUAA4IBjwAwggGK
-          AoIBgQC9SY7RNKBRBo3rsDjRjsnyt7Lia0Gg/sxEikwvXlXc5inm18m6l9AbMAR9
-          zY1mmMrQKDaz7++/z1bWooTbz9SCm/KOJemcYgkSM0oS1rttLb4n4YOzB44ji7dy
-          4GM3aqPuoZbKYuZnv0z63BHXcrggrquBohjsUa0OuCDC5gLMNLkq1x/7h2UxIARU
-          i05jDuNDhqXEVVfn9Ds9ikqMWXTpBHwCxeXQ37PTt5b6FdvgWFWWvf562m+cnwMe
-          fplqNCcWTpTgzU9I69qQctTzpwN0EPfnQLyD8/adDCTMEXwvPtXeLo93hfwrdTK/
-          UoEWYnHIpgVYYD4pC0lxV90OnKJ8Rn1wQrLrqDNofA+wE/vXx5K2JAeMJrSdGSly
-          +swrCUGsvgAX4NrJVqJwQJ8RqQe6A+zCrP7SYbc71WUaBiYuUsm/x13rKy4R8uBS
-          fXOkonelecD9onihN3c1ymn0au2JwuI1Nckcn/0rndxq+H8BVOp2rShQDJyagoI8
-          3nGMUBcCAwEAAaNgMF4wHQYDVR0OBBYEFPAKq7sBC+qXrkcr3pVgm+pvFpv+MB8G
-          A1UdIwQYMBaAFPAKq7sBC+qXrkcr3pVgm+pvFpv+MAwGA1UdEwEB/wQCMAAwDgYD
-          VR0PAQH/BAQDAgUgMA0GCSqGSIb3DQEBCwUAA4IBgQAZTf1GuYc9+mGZBMEuuqk1
-          0GCoWbi/S9YznBJN3HpB+iZWTv5AXYMBkHujyysBJ0aSroKIvqjUlewIJMbnIU0l
-          QAtPlZ5N+85MsFt4PaikrxwrFaIOFLmXH81/1M2X+rv3RSDNySG1U4QnCRWgHH7u
-          QLRbEkL0gtgxk0pZAObEQhHl3/51D+UJqzsKbw58JcMltNSMMJTpp6pAtsAiFGl8
-          QVN/8aE8nN6/wpqHKsuxtpfe3+aQsp3BxSPzboU21aIOZN/s1Cf+Ic2mdwJM5hn7
-          2tCdP7VRFaDxuxPoDC685a5nW3A6+2tSAJeSj/zmcDtyhwEnECjD/YPa0rPNHwDg
-          TqjFkDg+WKCtqUC3Axd6LY+Mz0cJknXUmFhIsmxVeqyZ5CEdyFWaJvaT3O4ChX1Y
-          HIJRLK8HjLaUsMo0q+698673iL+MvJ0PkSPJyoiLOfbvMiW8rmmYypUmxQcBbGoX
-          eWjcxW+NfEx5Xrx3ZY1Go2E9hJZlPXR+kqcP6IpmpMY=
-          -----END CERTIFICATE-----
-          RECIPIENT
+          [[ "$RECIPIENT_DER" =~ ^[A-Za-z0-9+/=]{300,4000}$ && "$RECIPIENT_SHA" =~ ^[0-9a-f]{64}$ ]]
+          printf '%s' "$RECIPIENT_DER" | /usr/bin/base64 --decode > "$STAGE/recipient.der"
+          printf '%s  %s\n' "$RECIPIENT_SHA" "$STAGE/recipient.der" | sha256sum --check --status
           [[ "$(/usr/bin/openssl version)" == 'OpenSSL 3.5.5 '* ]]
+          /usr/bin/openssl x509 -inform DER -in "$STAGE/recipient.der" -out "$STAGE/recipient.pem"
           /usr/bin/openssl x509 -in "$STAGE/recipient.pem" -noout -checkend 0
-          /usr/bin/openssl x509 -in "$STAGE/recipient.pem" -outform DER > "$STAGE/recipient.der"
-          printf '%s  %s\n' "$recipient_sha" "$STAGE/recipient.der" | sha256sum --check --status
           printf 'STAGE=%s\n' "$STAGE" >> "$GITHUB_ENV"
 
-      - name: Checkout exact accepted N
+      - name: Checkout exact diagnostic revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ env.ACCEPTED_N }}
@@ -310,7 +302,7 @@ jobs:
           zlib madler/zlib b5e2c7ec5e8efcfba2a4eb6b6a8c3bd7f8619522 51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf 16b86ef85c591c244523c98c71508be7908d1189 v1.3.1
           DEPENDENCIES
 
-      - name: Trace and analyze exact N offline
+      - name: Trace the four compiler invocations offline
         run: |
           set -euo pipefail
           umask 077
@@ -342,8 +334,14 @@ jobs:
             -DCPM_SOURCE_CACHE:PATH="$CPM_SOURCE_CACHE" -DSTAGE_BINARIES=OFF \
             -DPython_EXECUTABLE="$TRACE_PY" -DCACHE_BINARY:FILEPATH= \
             -DCMAKE_C_COMPILER_LAUNCHER:FILEPATH= -DCMAKE_CXX_COMPILER_LAUNCHER:FILEPATH= \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-          /usr/bin/cmake --build "$TRACE_ROOT/build" --parallel 4
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DXI_LUA_ENUM_OUTPUT_DIR:PATH="$TRACE_ROOT/build/probe-lua-enums" \
+            -DXI_SCHEMA_OUTPUT_DIR:PATH="$TRACE_ROOT/build/probe-schemas"
+          cd -- "$TRACE_ROOT"
+          "$TRACE_PY" -IB -m tools.codegen "$TRACE_ROOT/build" \
+            --lua-enum-output-dir "$TRACE_ROOT/build/probe-lua-enums" \
+            --schema-output-dir "$TRACE_ROOT/build/probe-schemas"
+          [[ -s "$TRACE_ROOT/build/generated/.enum_codegen.stamp" ]]
           TRACE
           chmod 700 -- "$STAGE/trace.sh"
 
@@ -372,79 +370,247 @@ jobs:
           assert Path(sys.base_prefix).resolve() == Path(sys.argv[1])
           assert Path(sys.prefix).resolve() == Path(sys.argv[2])
           PY
-          "${offline[@]}" "$codeql" database create "$STAGE/db" --language=cpp --build-mode=manual \
-            --source-root="$TRACE_ROOT" --codescanning-config="$TRACE_ROOT/.github/codeql/codeql-config.yml" \
-            --command="$STAGE/trace.sh" --threads=4
-          "${offline[@]}" "$codeql" database analyze "$STAGE/db" --threads=4 \
-            --format=sarif-latest --sarif-add-baseline-file-info --sarif-category="$BASELINE_CATEGORY" \
-            --output="$STAGE/artifact/cpp.raw.sarif"
-          "${offline[@]}" "$codeql" database print-baseline "$STAGE/db" > "$STAGE/artifact/coverage.txt"
-
-      - name: Apply the existing SARIF filter
-        uses: zbazztian/filter-sarif@30183a0a595e8a890f1624ebba3788ce5b58711b
-        with:
-          patterns: |
-            -ext/**/*
-            -build/**/*
-          input: ${{ env.STAGE }}/artifact/cpp.raw.sarif
-          output: ${{ env.STAGE }}/artifact/cpp.filtered.sarif
-
-      - name: Bind source, results, and compiler inventory
-        run: |
-          set -euo pipefail
+          configure_exit=0
+          "${offline[@]}" /usr/bin/bash "$STAGE/trace.sh" > "$STAGE/artifact/configure.log" 2>&1 || configure_exit=$?
+          printf 'Diagnostic configure exit %d\n' "$configure_exit"
           [[ "$(git rev-parse HEAD)" == "$ACCEPTED_N" && "$(git rev-parse HEAD^{tree})" == "$ACCEPTED_TREE" ]]
-          git diff --cached --quiet --ignore-submodules=none "$ACCEPTED_N" --
-          git ls-files -v | awk '/^[a-zS] / { hidden = 1 } END { exit hidden }'
-          [[ -d modules && ! -L modules && -f modules/init.txt && ! -L modules/init.txt && ! -x modules/init.txt ]]
-          [[ "$(wc -c < modules/init.txt)" == 23 ]]
-          printf '%s  %s\n' 4142943d38594680549dc2dadae36b6f705d92377668fe39274f1cab1eacd767 modules/init.txt | sha256sum --check --status
           [[ "$(git diff --name-only --no-renames --ignore-submodules=none "$ACCEPTED_N" --)" == modules/init.txt ]]
-          "$STAGE/venv/bin/python" -IB - <<'PY'
+          printf '%s  %s\n' 4142943d38594680549dc2dadae36b6f705d92377668fe39274f1cab1eacd767 modules/init.txt | sha256sum --check --status
+          cat > "$STAGE/probe_selected.py" <<'PROBE'
+          """Trace the four selected compiler commands on a disposable probe runner."""
           import hashlib
           import json
           import os
           from pathlib import Path
+          import shlex
+          import subprocess
+          import sys
 
-          root = Path(os.environ["GITHUB_WORKSPACE"])
-          stage = Path(os.environ["STAGE"])
-          artifact = stage / "artifact"
-          category = os.environ["BASELINE_CATEGORY"] + "/"
-          compiler = root / "build/compile_commands.json"
-          units = json.loads(compiler.read_bytes())
-          paths = {Path(unit["file"]).relative_to(root) for unit in units if Path(unit["file"]).is_relative_to(root)}
-          assert all(any(path.is_relative_to(directory) for path in paths) for directory in (
-              "src/common", "src/map", "src/map/data", "src/test", "modules/custom", ".cpm-cache",
-          ))
-          assert (artifact / "coverage.txt").stat().st_size
-          counts = {}
-          for name in ("cpp.raw.sarif", "cpp.filtered.sarif"):
-              value = json.loads((artifact / name).read_bytes())
-              assert value["version"] == "2.1.0" and len(value["runs"]) == 1
-              run = value["runs"][0]
-              assert run["automationDetails"]["id"] == category and run["tool"]["driver"]["name"] == "CodeQL"
-              counts[name] = len(run["results"])
-          assert 0 < counts["cpp.filtered.sarif"] <= counts["cpp.raw.sarif"]
-          hashes = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(artifact.iterdir())}
-          receipt = {
-              "accepted_source": os.environ["ACCEPTED_N"], "accepted_tree": os.environ["ACCEPTED_TREE"],
-              "workflow": os.environ["EXPECTED_WORKFLOW"], "image": os.environ["ImageVersion"],
-              "run_id": os.environ["GITHUB_RUN_ID"], "analysis_category": category,
-              "clang": "22.1.2", "python": "3.14.10", "libdwarf": "1.11.1", "codeql": "2.27.4",
-              "compile_commands_sha256": hashlib.sha256(compiler.read_bytes()).hexdigest(),
-              "compile_units": len(units), "results": counts, "artifact_sha256": hashes,
-          }
-          (artifact / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
-          PY
+
+          TARGETS = (
+              "src/map/data/schema/main.cpp",
+              "src/map/navmesh/navmesh_builder.cpp",
+              "src/map/data/datasets/monstrosity/dataset.cpp",
+              "src/map/ai/controllers/trust_controller.cpp",
+          )
+          COMPILER = "/usr/bin/clang++-22"
+
+
+          def planned_commands(compile_db, source_root, build_root):
+              rows = json.loads(compile_db.read_bytes())
+              commands = {}
+              for target in TARGETS:
+                  source = source_root / target
+                  hits = [row for row in rows if row["file"] == str(source)]
+                  if len(hits) != 1 or Path(hits[0]["directory"]) != build_root:
+                      raise ValueError("unexpected compile database row for " + target)
+                  row = hits[0]
+                  argv = shlex.split(row["command"])
+                  if argv[0] != COMPILER or argv.count("-c") != 1 or argv[argv.index("-c") + 1] != str(source):
+                      raise ValueError("unexpected compiler or source for " + target)
+                  if any(
+                      item.startswith(("@", "-Xclang", "-fplugin", "-load", "-wrapper", "--config", "--gcc-toolchain", "--sysroot"))
+                      for item in argv
+                  ):
+                      raise ValueError("unexpected compiler option for " + target)
+                  if not any(item == "-std=c++23" for item in argv):
+                      raise ValueError("unexpected language mode for " + target)
+                  for option, suffix in (("-o", ".o"), ("-MF", ".o.d")):
+                      if option == "-MF" and option not in argv:
+                          continue
+                      if argv.count(option) != 1:
+                          raise ValueError("unexpected output option for " + target)
+                      output = (build_root / argv[argv.index(option) + 1]).resolve()
+                      if not output.is_relative_to(build_root) or not output.name.endswith(suffix):
+                          raise ValueError("unexpected output path for " + target)
+                      if option == "-o" and (build_root / row["output"]).resolve() != output:
+                          raise ValueError("compile output metadata mismatch for " + target)
+                      if output.exists():
+                          raise ValueError("stale compiler output for " + target)
+                      output.parent.mkdir(parents=True, exist_ok=True)
+                  commands[target] = argv
+              return commands
+
+
+          def main():
+              source_root = Path(os.environ["TRACE_ROOT"])
+              stage = Path(sys.argv[1])
+              build_root = source_root / "build"
+              codeql = (stage / "tool/codeql/codeql").resolve(strict=True)
+              database = stage / "db"
+              artifact = stage / "artifact"
+              diagnostics = artifact / "selected.sarif"
+              log_path = artifact / "commands.log"
+              compile_db = build_root / "compile_commands.json"
+              try:
+                  commands = planned_commands(compile_db, source_root, build_root)
+              except (OSError, ValueError, KeyError, TypeError, IndexError) as error:
+                  (artifact / "probe.json").write_text(json.dumps({
+                      "phase": "plan", "complete": False, "error": type(error).__name__,
+                      "message": str(error)[:300],
+                  }) + "\n")
+                  print("Selected compilation diagnostic stopped while validating compiler inputs")
+                  return
+              query_dir = codeql.parent / "qlpacks/codeql/cpp-queries/1.10.0/Diagnostics"
+              report = {"phase": "init", "commands": {}, "complete": False}
+              report["compile_db_sha256"] = hashlib.sha256(compile_db.read_bytes()).hexdigest()
+              with log_path.open("xb") as log:
+                  def run(args, seconds=240):
+                      return subprocess.run(
+                          ["/usr/bin/timeout", "--kill-after=5s", f"{seconds}s", str(codeql), *args],
+                          cwd=source_root, stdout=log, stderr=subprocess.STDOUT, check=False,
+                      ).returncode
+
+                  report["init_exit"] = run([
+                      "database", "init", "--language=cpp", "--build-mode=manual",
+                      "--source-root=" + str(source_root), str(database),
+                  ])
+                  if report["init_exit"] == 0:
+                      report["phase"] = "trace"
+                      for target, argv in commands.items():
+                          report["commands"][target] = run([
+                              "database", "trace-command", "--working-dir=" + str(build_root),
+                              "--threads=1", "--extractor-option=cpp.log_verbosity=3",
+                              "--", str(database), *argv,
+                          ])
+                      report["phase"] = "finalize"
+                      report["finalize_exit"] = run(["database", "finalize", "--threads=1", str(database)])
+                      if report["finalize_exit"] == 0:
+                          report["phase"] = "queries"
+                          report["query_exit"] = run([
+                              "database", "analyze", "--threads=1", "--ram=2048",
+                              "--format=sarifv2.1.0", "--sarif-include-diagnostics",
+                              "--output=" + str(diagnostics), str(database),
+                              *(str(query_dir / (query + ".ql")) for query in (
+                                  "ExtractedFiles", "FailedExtractorInvocations", "ExtractionWarnings",
+                              )),
+                          ])
+                          report["complete"] = report["query_exit"] == 0 and all(
+                              rc == 0 for rc in report["commands"].values()
+                          )
+              (artifact / "probe.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+              with (artifact / "extractor-errors.txt").open("x") as evidence:
+                  for entry in sorted((database / "log/extractor").rglob("*.log")):
+                      evidence.write(str(entry.relative_to(database)) + "\n")
+                      with entry.open(errors="replace") as file:
+                          samples = 0
+                          for line in file:
+                              if any(text in line for text in ("internal error", "Extractor exiting with code", "signal ", "time limit")):
+                                  evidence.write(line[:1200])
+                                  samples += 1
+                                  if samples == 20:
+                                      break
+              print("Selected compilation diagnostic phase", report["phase"], "complete", report["complete"])
+
+
+          if __name__ == "__main__":
+              main()
+          PROBE
+          cat > "$STAGE/check_extraction.py" <<'GUARD'
+          """Check selected translation-unit evidence from pinned CodeQL diagnostics."""
+          import argparse
+          import json
+          from pathlib import Path, PurePosixPath
+          from urllib.parse import unquote
+
+
+          def check_report(report, required):
+              runs = report["runs"]
+              if report["version"] != "2.1.0" or len(runs) != 1:
+                  raise ValueError("unexpected SARIF format or run count")
+              run = runs[0]
+              driver = run["tool"]["driver"]
+              if driver["name"] != "CodeQL" or driver["semanticVersion"] != "2.27.4":
+                  raise ValueError("unexpected CodeQL tool version")
+              invocations = run["invocations"]
+              if len(invocations) != 1:
+                  raise ValueError("unexpected invocation count")
+              if invocations[0].get("executionSuccessful") is not True:
+                  raise ValueError("unsuccessful CodeQL invocation")
+              notes = invocations[0]["toolExecutionNotifications"]
+              extracted = set()
+              aborted = 0
+              other_errors = 0
+              warnings = 0
+              for note in notes:
+                  rule = note["descriptor"]["id"]
+                  if rule == "cpp/diagnostics/failed-extractor-invocations":
+                      aborted += 1
+                  elif note.get("level") == "error":
+                      other_errors += 1
+                  elif rule == "cpp/diagnostics/extraction-warnings":
+                      warnings += 1
+                  elif rule == "cpp/diagnostics/successfully-extracted-files":
+                      for location in note["locations"]:
+                          artifact = location["physicalLocation"]["artifactLocation"]
+                          if artifact.get("uriBaseId") not in (None, "%SRCROOT%"):
+                              continue
+                          uri = PurePosixPath(unquote(artifact["uri"]))
+                          if not uri.is_absolute() and ".." not in uri.parts:
+                              extracted.add(uri.as_posix())
+              return {
+                  "aborted": aborted,
+                  "other_errors": other_errors,
+                  "warnings": warnings,
+                  "extracted": sorted(required & extracted),
+                  "missing": sorted(required - extracted),
+              }
+
+
+          def main():
+              parser = argparse.ArgumentParser(description=__doc__)
+              parser.add_argument("report", type=Path)
+              parser.add_argument("required", nargs="+")
+              args = parser.parse_args()
+              required = set(args.required)
+              if len(required) != len(args.required) or any(
+                  PurePosixPath(path).as_posix() != path
+                  or path.startswith("/")
+                  or ".." in PurePosixPath(path).parts
+                  or PurePosixPath(path).suffix != ".cpp"
+                  for path in required
+              ):
+                  parser.error("expected unique source-relative .cpp paths")
+              with args.report.open("rb") as file:
+                  data = file.read(32 * 1024 * 1024 + 1)
+              if len(data) > 32 * 1024 * 1024:
+                  parser.error("report exceeds input limit")
+              try:
+                  result = check_report(json.loads(data), required)
+              except (KeyError, TypeError, ValueError) as error:
+                  parser.error(f"invalid extraction report: {type(error).__name__}")
+              print(json.dumps(result, sort_keys=True))
+              return int(bool(result["aborted"] or result["other_errors"] or result["missing"]))
+
+
+          if __name__ == "__main__":
+              raise SystemExit(main())
+          GUARD
+          if [[ "$configure_exit" == 0 ]]; then
+            "${offline[@]}" "$TRACE_PY" -IB "$STAGE/probe_selected.py" "$STAGE"
+          else
+            printf '{"phase":"configure","configure_exit":%d,"complete":false}\n' "$configure_exit" \
+              > "$STAGE/artifact/probe.json"
+          fi
+          [[ "$(git rev-parse HEAD)" == "$ACCEPTED_N" && "$(git rev-parse HEAD^{tree})" == "$ACCEPTED_TREE" ]]
+          [[ "$(git diff --name-only --no-renames --ignore-submodules=none "$ACCEPTED_N" --)" == modules/init.txt ]]
+          printf '%s  %s\n' 4142943d38594680549dc2dadae36b6f705d92377668fe39274f1cab1eacd767 modules/init.txt | sha256sum --check --status
+          printf 'Source %s %s, workflow %s, runner image %s, run %s\n' \
+            "$ACCEPTED_N" "$ACCEPTED_TREE" "$EXPECTED_WORKFLOW" "$ImageVersion" "$GITHUB_RUN_ID" \
+            > "$STAGE/artifact/source.txt"
 
       - name: Encrypt the diagnostic artifact
         run: |
           set -euo pipefail
           umask 077
-          members=(codeql-version.json coverage.txt cpp.raw.sarif cpp.filtered.sarif receipt.json)
+          members=(codeql-version.json configure.log probe.json source.txt)
+          for optional in commands.log extractor-errors.txt selected.sarif; do
+            if [[ -e "$STAGE/artifact/$optional" ]]; then members+=("$optional"); fi
+          done
           for member in "${members[@]}"; do
             [[ -f "$STAGE/artifact/$member" && ! -L "$STAGE/artifact/$member" ]]
           done
-          ciphertext="$STAGE/public/accepted-n8a34-codeql-cpp-baseline.cms"
+          ciphertext="$STAGE/public/selected-cpp-diagnostic.cms"
           /usr/bin/tar --format=ustar -C "$STAGE/artifact" -cf - "${members[@]}" |
             /usr/bin/openssl cms -encrypt -aes-256-gcm -binary -outform DER \
               -out "$ciphertext" -recip "$STAGE/recipient.pem" \
@@ -456,8 +622,20 @@ jobs:
       - name: Publish only the encrypted diagnostic artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: accepted-n8a34-codeql-cpp-baseline-encrypted
-          path: ${{ env.STAGE }}/public/accepted-n8a34-codeql-cpp-baseline.cms
+          name: selected-cpp-diagnostic-${{ matrix.probe.name }}-encrypted
+          path: ${{ env.STAGE }}/public/selected-cpp-diagnostic.cms
           compression-level: 0
           if-no-files-found: error
           retention-days: 3
+
+      - name: Report selected source coverage
+        run: |
+          set -euo pipefail
+          python="$STAGE/venv/bin/python"
+          "$python" -IB -c 'import json, sys; assert json.load(open(sys.argv[1]))["complete"] is True' \
+            "$STAGE/artifact/probe.json"
+          "$python" -IB "$STAGE/check_extraction.py" "$STAGE/artifact/selected.sarif" \
+            src/map/data/schema/main.cpp \
+            src/map/navmesh/navmesh_builder.cpp \
+            src/map/data/datasets/monstrosity/dataset.cpp \
+            src/map/ai/controllers/trust_controller.cpp
