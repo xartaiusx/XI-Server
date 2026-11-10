@@ -338,7 +338,7 @@ jobs:
             -DXI_LUA_ENUM_OUTPUT_DIR:PATH="$TRACE_ROOT/build/probe-lua-enums" \
             -DXI_SCHEMA_OUTPUT_DIR:PATH="$TRACE_ROOT/build/probe-schemas"
           cd -- "$TRACE_ROOT"
-          "$TRACE_PY" -IB -m tools.codegen "$TRACE_ROOT/build" \
+          "$TRACE_PY" -EsB -m tools.codegen "$TRACE_ROOT/build" \
             --lua-enum-output-dir "$TRACE_ROOT/build/probe-lua-enums" \
             --schema-output-dir "$TRACE_ROOT/build/probe-schemas"
           [[ -s "$TRACE_ROOT/build/generated/.enum_codegen.stamp" ]]
