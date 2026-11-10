@@ -82,6 +82,7 @@
 #include "map/packets/c2s/0x10b_bazaar_close.h"
 #include "map/packets/c2s/0x11c_party_request.h"
 #include "map/party.h"
+#include "map/spell.h"
 #include "map/status_effect_container.h"
 #include "map/utils/trustutils.h"
 #include "map/utils/zoneutils.h"
@@ -109,6 +110,13 @@ auto FixtureTrust(CLuaClientEntityPair* owner, CLuaBaseEntity* actor, CLuaBaseEn
         return nullptr;
     }
     return trust;
+}
+
+// The server ignores a talk or trade aimed at a hidden NPC, which would otherwise surface as a missing event.
+auto canInteract(const CBaseEntity* PTarget, const CCharEntity* PChar) -> bool
+{
+    const auto isShown = PTarget->PAI->IsSpawned() && PTarget->status == xi::Status::Normal;
+    return isShown || PChar->inMogHouse(xi::MogHouse::Own);
 }
 
 } // namespace
@@ -192,6 +200,21 @@ void CLuaClientEntityPairActions::setBlueSpells(const sol::table& spellIds) cons
     }
 }
 
+// A client packet cannot seed an undefined spell because admission rejects it.
+auto CLuaClientEntityPairActions::seedUndefinedBlueSpell(const uint8 slot, const uint16 spellId) const -> bool
+{
+    auto* PChar = parent_->testChar()->entity();
+    if (!PChar || PChar->GetMJob() != xi::Job::BLU || slot >= PChar->m_SetBlueSpells.size() ||
+        spellId <= 0x200 || spellId > 0x2FF || PChar->m_SetBlueSpells[slot] != 0 ||
+        spell::GetSpell(static_cast<SpellID>(spellId)) != nullptr)
+    {
+        return false;
+    }
+
+    PChar->m_SetBlueSpells[slot] = static_cast<uint8>(spellId - 0x200);
+    return true;
+}
+
 /************************************************************************
  *  Function: useWeaponskill()
  *  Purpose : Emits packet to use a weaponskill on a target.
@@ -242,13 +265,13 @@ void CLuaClientEntityPairActions::useAbility(CLuaBaseEntity* target, const ABILI
     parent_->packets().sendBasicPacket(*packet);
 }
 
-bool CLuaClientEntityPairActions::useTrustSpell(CLuaBaseEntity* actor, CLuaBaseEntity* target, SpellID spellId) const
+auto CLuaClientEntityPairActions::useTrustSpell(CLuaBaseEntity* actor, CLuaBaseEntity* target, SpellID spellId) const -> bool
 {
     auto* trust = FixtureTrust(parent_, actor, target);
     return trust && trust->PAI->Cast(target->GetBaseEntity()->entityId(), spellId);
 }
 
-bool CLuaClientEntityPairActions::hasTrustSpell(CLuaBaseEntity* actor, SpellID spellId) const
+auto CLuaClientEntityPairActions::hasTrustSpell(CLuaBaseEntity* actor, SpellID spellId) const -> bool
 {
     auto* trust = FixtureTrust(parent_, actor, actor);
     if (!trust || !trust->SpellContainer)
@@ -268,13 +291,13 @@ bool CLuaClientEntityPairActions::hasTrustSpell(CLuaBaseEntity* actor, SpellID s
            std::ranges::contains(spells->m_severeList, spellId);
 }
 
-bool CLuaClientEntityPairActions::useTrustAbility(CLuaBaseEntity* actor, CLuaBaseEntity* target, ABILITY abilityId) const
+auto CLuaClientEntityPairActions::useTrustAbility(CLuaBaseEntity* actor, CLuaBaseEntity* target, ABILITY abilityId) const -> bool
 {
     auto* trust = FixtureTrust(parent_, actor, target);
     return trust && trust->PAI->Ability(target->GetBaseEntity()->entityId(), abilityId);
 }
 
-bool CLuaClientEntityPairActions::useTrustWeaponskill(CLuaBaseEntity* actor, CLuaBaseEntity* target, uint16 wsId) const
+auto CLuaClientEntityPairActions::useTrustWeaponskill(CLuaBaseEntity* actor, CLuaBaseEntity* target, uint16 wsId) const -> bool
 {
     auto* trust = FixtureTrust(parent_, actor, target);
     return trust && trust->PAI->WeaponSkill(target->GetBaseEntity()->entityId(), wsId);
@@ -287,7 +310,7 @@ void CLuaClientEntityPairActions::flushEquipmentBatch() const
     parent_->testChar()->entity()->flushEquipChanges();
 }
 
-bool CLuaClientEntityPairActions::hasTrustEntity(uint32 id) const
+auto CLuaClientEntityPairActions::hasTrustEntity(uint32 id) const -> bool
 {
     // Non-instanced fixture proof only. The original full ID selects its zone,
     // even after owner zone-out. A current-owner/location filter would hide an
@@ -407,6 +430,12 @@ void CLuaClientEntityPairActions::trigger(CLuaBaseEntity* target, sol::optional<
     if (!target)
     {
         TestError("trigger: Invalid target");
+        return;
+    }
+
+    if (expectedEvent.has_value() && !canInteract(target->GetBaseEntity(), parent_->testChar()->entity()))
+    {
+        TestError("trigger: {} ({}) is hidden, so the server ignores the talk", target->getName(), target->getID());
         return;
     }
 
@@ -578,7 +607,7 @@ void CLuaClientEntityPairActions::acceptPartyInvite() const
  *  Notes   : Test-only; refuses an existing party or Trust roster.
  ************************************************************************/
 
-bool CLuaClientEntityPairActions::prepareSoloTrustParty() const
+auto CLuaClientEntityPairActions::prepareSoloTrustParty() const -> bool
 {
     return parent_->testChar()->prepareSoloTrustParty();
 }
@@ -590,7 +619,7 @@ bool CLuaClientEntityPairActions::prepareSoloTrustParty() const
  *  Notes   : Test-only. Avoids packet name lookup for policy-name overrides.
  ************************************************************************/
 
-bool CLuaClientEntityPairActions::formPartyForInvalidTrustState(CLuaBaseEntity* member) const
+auto CLuaClientEntityPairActions::formPartyForInvalidTrustState(CLuaBaseEntity* member) const -> bool
 {
     auto* PChar   = parent_->testChar()->entity();
     auto* PMember = member ? dynamic_cast<CCharEntity*>(member->GetBaseEntity()) : nullptr;
@@ -614,10 +643,10 @@ bool CLuaClientEntityPairActions::formPartyForInvalidTrustState(CLuaBaseEntity* 
  *  Notes   : Test-only. Avoids packet name lookup for policy-name overrides.
  ************************************************************************/
 
-bool CLuaClientEntityPairActions::formAllianceForInvalidTrustState(
+auto CLuaClientEntityPairActions::formAllianceForInvalidTrustState(
     CLuaBaseEntity* firstMember,
     CLuaBaseEntity* secondLeader,
-    CLuaBaseEntity* secondMember) const
+    CLuaBaseEntity* secondMember) const -> bool
 {
     auto* PChar         = parent_->testChar()->entity();
     auto* PFirstMember  = firstMember ? dynamic_cast<CCharEntity*>(firstMember->GetBaseEntity()) : nullptr;
@@ -844,6 +873,12 @@ void CLuaClientEntityPairActions::tradeNpc(const sol::object& npcQuery, const so
     if (!npc.has_value())
     {
         TestError("Could not find or move to NPC for trading");
+        return;
+    }
+
+    if (expectedEvent.has_value() && !canInteract(npc.value().GetBaseEntity(), parent_->testChar()->entity()))
+    {
+        TestError("tradeNpc: {} ({}) is hidden, so the server ignores the trade", npc.value().getName(), npc.value().getID());
         return;
     }
 
@@ -1504,11 +1539,11 @@ void CLuaClientEntityPairActions::plantDry(const uint8 potContainer, const uint8
 
 /************************************************************************
  *  Function: placeFurniture()
- *  Purpose : Install a furnishing on the 1st floor at grid cell (x, z).
+ *  Purpose : Install a furnishing on the 1st floor at grid cell (x, z), optionally stacked at elevation y.
  *  Example : player.actions:placeFurniture(xi.inv.MOGSAFE, slot, 0, 0)
  ************************************************************************/
 
-void CLuaClientEntityPairActions::placeFurniture(const uint8 container, const uint8 slot, const uint8 x, const uint8 z) const
+void CLuaClientEntityPairActions::placeFurniture(const uint8 container, const uint8 slot, const uint8 x, const uint8 z, sol::optional<uint8> y) const
 {
     auto* PChar = parent_->testChar()->entity();
 
@@ -1520,7 +1555,7 @@ void CLuaClientEntityPairActions::placeFurniture(const uint8 container, const ui
     p->MyroomFloorFlg  = 0;
     p->x               = x;
     p->z               = z;
-    p->y               = 0;
+    p->y               = y.value_or(0);
     p->v               = 0;
 
     parent_->packets().sendBasicPacket(*packet);
@@ -1547,6 +1582,7 @@ void CLuaClientEntityPairActions::Register()
     SOL_REGISTER("move", CLuaClientEntityPairActions::move);
     SOL_REGISTER("useSpell", CLuaClientEntityPairActions::useSpell);
     SOL_REGISTER("setBlueSpells", CLuaClientEntityPairActions::setBlueSpells);
+    SOL_REGISTER("seedUndefinedBlueSpell", CLuaClientEntityPairActions::seedUndefinedBlueSpell);
     SOL_REGISTER("useWeaponskill", CLuaClientEntityPairActions::useWeaponskill);
     SOL_REGISTER("useAbility", CLuaClientEntityPairActions::useAbility);
     SOL_REGISTER("useTrustSpell", CLuaClientEntityPairActions::useTrustSpell);

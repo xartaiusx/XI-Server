@@ -192,7 +192,7 @@ def generate_enum_to_string_function(file, struct_names):
         file.write(f"    \"{name}\",\n")
     file.write(f"}};\n\n")
 
-    file.write(f"inline std::string_view toString(MessageType type)\n")
+    file.write(f"inline auto toString(MessageType type) -> std::string_view\n")
     file.write(f"{{\n")
     file.write(f"    const auto index = static_cast<uint8_t>(type);\n")
     file.write(f"    if (index >= 1 && index <= messageTypeStrings.size())\n")
@@ -239,7 +239,10 @@ def generate_message_handler_crtp_base(file, struct_names):
 
     for name in struct_names:
         file.write(f"    // Derived must implement: void handleMessage_{name}(const IPP& ipp, const ipc::{name}& message);\n")
-    file.write(f"    // Derived must implement: void handleUnknownMessage(const IPP& ipp, const std::span<uint8_t> message);\n")
+    file.write(f"    // Derived must implement: void handleUnknownMessage(const IPP& ipp, const std::span<uint8_t> message);\n\n")
+    file.write(f"private:\n")
+    file.write(f"    IPCMessageHandlerBase() = default;\n")
+    file.write(f"    friend Derived;\n")
     file.write(f"}};\n\n")
 
 

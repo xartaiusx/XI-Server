@@ -76,6 +76,9 @@ namespace effects
 
 using StatusEffectsDataset = xi::data::datasets::status_effects::Dataset;
 
+namespace
+{
+
 // Default effect of statuses are overwrite if equal or higher
 struct EffectParams_t
 {
@@ -93,6 +96,8 @@ struct EffectParams_t
 };
 
 std::array<EffectParams_t, MAX_EFFECTID> EffectsParams;
+
+} // namespace
 
 void LoadEffectsParameters()
 {
@@ -126,24 +131,27 @@ void LoadEffectsParameters()
 }
 
 // hacky way to get element from status effect
-uint16 GetEffectElement(uint16 effect)
+auto GetEffectElement(uint16 effect) -> uint16
 {
     return EffectsParams[static_cast<uint16>(effect)].Element;
 }
 
-std::string GetEffectName(uint16 effect)
+auto GetEffectName(uint16 effect) -> std::string
 {
     return EffectsParams[static_cast<uint16>(effect)].Name;
 }
 
 } // namespace effects
 
-bool isSortedByStartTime(uint16 effectId)
+namespace
+{
+
+auto isSortedByStartTime(uint16 effectId) -> bool
 {
     return static_cast<uint16>(effectId) >= static_cast<uint16>(xi::StatusEffect::FireManeuver) && static_cast<uint16>(effectId) <= static_cast<uint16>(xi::StatusEffect::DarkManeuver);
 }
 
-bool statusOrdering(const std::unique_ptr<CStatusEffect>& AStatus, const std::unique_ptr<CStatusEffect>& BStatus)
+auto statusOrdering(const std::unique_ptr<CStatusEffect>& AStatus, const std::unique_ptr<CStatusEffect>& BStatus) -> bool
 {
     // Sort by overall status effect ordering, if they have different sort keys
     uint16 ASortKey = effects::EffectsParams[static_cast<uint16>(AStatus->GetStatusID())].SortKey;
@@ -173,11 +181,12 @@ bool statusOrdering(const std::unique_ptr<CStatusEffect>& AStatus, const std::un
     return AStatus->GetStatusID() < BStatus->GetStatusID();
 }
 
-CStatusEffectContainer::CStatusEffectContainer(CBattleEntity* PEntity)
-: m_StatusEffectSet(statusOrdering)
-{
-    m_POwner = PEntity;
+} // namespace
 
+CStatusEffectContainer::CStatusEffectContainer(CBattleEntity* PEntity)
+: m_POwner(PEntity)
+, m_StatusEffectSet(statusOrdering)
+{
     if (m_POwner == nullptr)
     {
         ShowWarning("m_POwner was null.");
@@ -187,10 +196,7 @@ CStatusEffectContainer::CStatusEffectContainer(CBattleEntity* PEntity)
     std::memset(m_StatusIcons, 0xFF, sizeof(m_StatusIcons));
 }
 
-CStatusEffectContainer::~CStatusEffectContainer()
-{
-    // The owned unique_ptrs in m_StatusEffectSet free their effects automatically.
-}
+CStatusEffectContainer::~CStatusEffectContainer() = default;
 
 auto CStatusEffectContainer::GetEffectsCount(xi::StatusEffect ID) -> uint8
 {
@@ -210,7 +216,7 @@ auto CStatusEffectContainer::GetEffectsCountWithFlag(xi::StatusEffectFlag flag) 
                                                     }));
 }
 
-uint8 CStatusEffectContainer::GetLowestFreeSlot()
+auto CStatusEffectContainer::GetLowestFreeSlot() -> uint8
 {
     uint8 lowestFreeSlot = 1;
 
@@ -230,7 +236,7 @@ uint8 CStatusEffectContainer::GetLowestFreeSlot()
     return lowestFreeSlot;
 }
 
-bool CStatusEffectContainer::CanGainStatusEffect(CStatusEffect* PStatusEffect)
+auto CStatusEffectContainer::CanGainStatusEffect(CStatusEffect* PStatusEffect) -> bool
 {
     xi::StatusEffect statusEffect = PStatusEffect->GetStatusID();
     // check for immunities first
@@ -240,12 +246,10 @@ bool CStatusEffectContainer::CanGainStatusEffect(CStatusEffect* PStatusEffect)
         case xi::StatusEffect::SleepIi:
         case xi::StatusEffect::Lullaby:
         {
-            uint16 subPower = PStatusEffect->GetSubPower();
-            if (subPower == ELEMENT_LIGHT && m_POwner->hasImmunity(xi::Immunity::LightSleep))
-            {
-                return false;
-            }
-            else if (subPower == ELEMENT_DARK && m_POwner->hasImmunity(xi::Immunity::DarkSleep))
+            uint16     subPower           = PStatusEffect->GetSubPower();
+            const bool immuneToLightSleep = subPower == ELEMENT_LIGHT && m_POwner->hasImmunity(xi::Immunity::LightSleep);
+            const bool immuneToDarkSleep  = subPower == ELEMENT_DARK && m_POwner->hasImmunity(xi::Immunity::DarkSleep);
+            if (immuneToLightSleep || immuneToDarkSleep)
             {
                 return false;
             }
@@ -325,11 +329,6 @@ bool CStatusEffectContainer::CanGainStatusEffect(CStatusEffect* PStatusEffect)
             }
             break;
         case xi::StatusEffect::CurseI:
-            if (m_POwner->hasImmunity(xi::Immunity::Curse))
-            {
-                return false;
-            }
-            break;
         case xi::StatusEffect::CurseIi:
             if (m_POwner->hasImmunity(xi::Immunity::Curse))
             {
@@ -475,7 +474,7 @@ void CStatusEffectContainer::OverwriteStatusEffect(CStatusEffect* StatusEffect)
  *                                                                         *
  **************************************************************************/
 
-bool CStatusEffectContainer::AddStatusEffect(std::unique_ptr<CStatusEffect> PStatusEffectPtr, EffectNotice notice)
+auto CStatusEffectContainer::AddStatusEffect(std::unique_ptr<CStatusEffect> PStatusEffectPtr, EffectNotice notice) -> bool
 {
     if (PStatusEffectPtr == nullptr)
     {
@@ -516,6 +515,13 @@ bool CStatusEffectContainer::AddStatusEffect(std::unique_ptr<CStatusEffect> PSta
         PStatusEffect->SetStartTime(timer::now());
 
         m_StatusEffectSet.insert(std::move(PStatusEffectPtr));
+
+        const auto gainedEffect = PStatusEffect->GetStatusID();
+        if (gainedEffect == xi::StatusEffect::SleepI || gainedEffect == xi::StatusEffect::SleepIi || gainedEffect == xi::StatusEffect::Lullaby)
+        {
+            ordinaryTrustSleepReleasedBy_ = 0;
+            ++ordinaryTrustSleepApplication_;
+        }
 
         HandleEffectGainSideEffects(PStatusEffect);
 
@@ -928,7 +934,7 @@ auto CStatusEffectContainer::HealingWaltz() -> xi::StatusEffect
 // Erases all negative status effects
 // returns number of erased effects
 
-uint8 CStatusEffectContainer::EraseAllStatusEffect()
+auto CStatusEffectContainer::EraseAllStatusEffect() -> uint8
 {
     TracyZoneScoped;
 
@@ -1021,7 +1027,7 @@ auto CStatusEffectContainer::HasStatusEffectByFlag(xi::StatusEffectFlag flag) ->
  *                                                                       *
  ************************************************************************/
 
-bool CStatusEffectContainer::ApplyBardEffect(CStatusEffect* PStatusEffect, uint8 maxSongs)
+auto CStatusEffectContainer::ApplyBardEffect(CStatusEffect* PStatusEffect, uint8 maxSongs) -> bool
 {
     // if all match tier/id/effect then overwrite
 
@@ -1044,12 +1050,8 @@ bool CStatusEffectContainer::ApplyBardEffect(CStatusEffect* PStatusEffect, uint8
             if (ExistingStatusEffect->GetSubID() == PStatusEffect->GetSubID())
             { // YOUR BRD effect
                 numOfEffects++;
-                if (!oldestSong)
-                {
-                    oldestSong = ExistingStatusEffect.get();
-                }
-                else if (ExistingStatusEffect->GetStartTime() + ExistingStatusEffect->GetDuration() <
-                         oldestSong->GetStartTime() + oldestSong->GetDuration())
+                if (!oldestSong ||
+                    ExistingStatusEffect->GetStartTime() + ExistingStatusEffect->GetDuration() < oldestSong->GetStartTime() + oldestSong->GetDuration())
                 {
                     oldestSong = ExistingStatusEffect.get();
                 }
@@ -1079,7 +1081,7 @@ bool CStatusEffectContainer::ApplyBardEffect(CStatusEffect* PStatusEffect, uint8
     return false;
 }
 
-uint8 CStatusEffectContainer::GetActiveManeuverCount()
+auto CStatusEffectContainer::GetActiveManeuverCount() -> uint8
 {
     return GetStatusEffectCountInIDRange(xi::StatusEffect::FireManeuver, xi::StatusEffect::DarkManeuver);
 }
@@ -1099,7 +1101,7 @@ auto CStatusEffectContainer::GetAllRuneEffects() -> std::vector<xi::StatusEffect
     return GetStatusEffectsInIDRange(xi::StatusEffect::Ignis, xi::StatusEffect::Tenebrae);
 }
 
-uint8 CStatusEffectContainer::GetActiveRuneCount()
+auto CStatusEffectContainer::GetActiveRuneCount() -> uint8
 {
     return GetStatusEffectCountInIDRange(xi::StatusEffect::Ignis, xi::StatusEffect::Tenebrae);
 }
@@ -1570,9 +1572,9 @@ void CStatusEffectContainer::LoadStatusEffects()
             std::make_unique<CStatusEffect>(effectID,
                                             rset->get<uint16>("icon"),
                                             rset->get<uint16>("power"),
-                                            std::chrono::seconds(rset->get<uint16>("tick")),
+                                            std::chrono::seconds(rset->get<uint32>("tick")),
                                             duration,
-                                            rset->get<uint16>("subid"),
+                                            rset->get<uint32>("subid"),
                                             rset->get<uint16>("subpower"),
                                             0, // SubIcon (not persisted in char_effects)
                                             rset->get<uint16>("tier"),
@@ -2072,7 +2074,7 @@ void CStatusEffectContainer::TickRegen(timer::time_point tick)
 
             if (m_POwner->PPet != nullptr && PChar != nullptr)
             {
-                CPetEntity* PPet          = (CPetEntity*)m_POwner->PPet;
+                CPetEntity* PPet          = static_cast<CPetEntity*>(m_POwner->PPet);
                 ELEMENT     petElement    = static_cast<ELEMENT>(PPet->m_Element);
                 bool        elementValid  = petElement >= ELEMENT_FIRE && petElement <= ELEMENT_DARK; // Check if the element is not 0 (None) or out of bounds
                 uint8       petElementIdx = 0;
@@ -2151,7 +2153,7 @@ void CStatusEffectContainer::TickRegen(timer::time_point tick)
 
             if (m_POwner->health.mp == 0 && m_POwner->PPet != nullptr && m_POwner->PPet->objtype == TYPE_PET)
             {
-                CPetEntity* PPet = (CPetEntity*)m_POwner->PPet;
+                CPetEntity* PPet = static_cast<CPetEntity*>(m_POwner->PPet);
                 if (PPet->getPetType() == PET_TYPE::AVATAR)
                 {
                     petutils::DespawnPet(m_POwner);
@@ -2178,7 +2180,7 @@ void CStatusEffectContainer::TickRegen(timer::time_point tick)
     }
 }
 
-bool CStatusEffectContainer::HasPreventActionEffect(bool ignoreCharm)
+auto CStatusEffectContainer::HasPreventActionEffect(bool ignoreCharm) -> bool
 {
     if (ignoreCharm)
     {
@@ -2190,7 +2192,7 @@ bool CStatusEffectContainer::HasPreventActionEffect(bool ignoreCharm)
         { xi::StatusEffect::SleepI, xi::StatusEffect::SleepIi, xi::StatusEffect::Petrification, xi::StatusEffect::Lullaby, xi::StatusEffect::CharmI, xi::StatusEffect::CharmIi, xi::StatusEffect::Penalty, xi::StatusEffect::Stun, xi::StatusEffect::Terror });
 }
 
-uint16 CStatusEffectContainer::GetConfrontationEffect()
+auto CStatusEffectContainer::GetConfrontationEffect() -> uint16
 {
     const auto it = std::ranges::find_if(m_StatusEffectSet,
                                          [](const auto& PEffect)
@@ -2233,7 +2235,7 @@ void CStatusEffectContainer::CopyConfrontationEffect(CBattleEntity* PEntity)
     }
 }
 
-bool CStatusEffectContainer::CheckForElevenRoll()
+auto CStatusEffectContainer::CheckForElevenRoll() -> bool
 {
     for (const auto& PStatusEffect : m_StatusEffectSet)
     {
@@ -2247,9 +2249,27 @@ bool CStatusEffectContainer::CheckForElevenRoll()
     return false;
 }
 
-bool CStatusEffectContainer::IsAsleep()
+auto CStatusEffectContainer::IsAsleep() -> bool
 {
     return HasStatusEffect({ xi::StatusEffect::SleepI, xi::StatusEffect::SleepIi, xi::StatusEffect::Lullaby });
+}
+
+auto CStatusEffectContainer::OrdinaryTrustSleepApplication() -> uint64
+{
+    return IsAsleep() ? ordinaryTrustSleepApplication_ : 0;
+}
+
+void CStatusEffectContainer::ReleaseOrdinaryTrustSleepProtection(uint64 ownerSerial, uint64 application)
+{
+    if (application != 0 && application == ordinaryTrustSleepApplication_ && IsAsleep())
+    {
+        ordinaryTrustSleepReleasedBy_ = ownerSerial;
+    }
+}
+
+auto CStatusEffectContainer::IsOrdinaryTrustSleepProtected(uint64 ownerSerial) -> bool
+{
+    return IsAsleep() && ordinaryTrustSleepReleasedBy_ != ownerSerial;
 }
 
 void CStatusEffectContainer::WakeUp()
@@ -2259,7 +2279,7 @@ void CStatusEffectContainer::WakeUp()
     DelStatusEffect(xi::StatusEffect::Lullaby);
 }
 
-bool CStatusEffectContainer::HasBustEffect(uint16 id)
+auto CStatusEffectContainer::HasBustEffect(uint16 id) -> bool
 {
     return std::ranges::any_of(m_StatusEffectSet,
                                [&](const auto& PStatusEffect)

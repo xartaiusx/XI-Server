@@ -90,9 +90,6 @@ ui.hotbar_spacing = 0
 ui.slot_spacing = 0
 ui.pos_x = 0
 ui.pos_y = 0
-ui.current_row = 0
-ui.current_column = 0
-ui.current_text_size = 0
 
 ui.image_height = 40
 ui.image_width = 40
@@ -548,6 +545,7 @@ local function load(ui)
     end
     ui.action_info = texts.new()
     setup_action_info(ui.action_info, ui.theme)
+    ui.action_info:hide()
 
     -- load feedback icon last so it stays above everything else
     setup_feedback(ui)
@@ -680,6 +678,7 @@ end
 
 -- hide all ui components
 function ui:hide()
+    self:hide_hover()
     self.battle_notice:hide()
     self.feedback_icon:hide()
     self.inventory_count:hide()
@@ -704,6 +703,7 @@ function ui:hide()
 end
 
 function ui:hide_hover()
+    self.hovered_action = nil
     self.hover_icon:hide()
     self.action_info:hide()
 end
@@ -742,6 +742,7 @@ end
 
 -- load player hotbar
 function ui:load_player_hotbar(player_hotbar, environment, player_vitals)
+    self:hide_hover()
     if environment == 'battle' and self.theme.hide_battle_notice == false then
         self.active_environment['field']:color(255, 255, 255)
         self.active_environment['battle']:color(100, 100, 100)
@@ -989,46 +990,132 @@ function ui:hovered(x, y)
     return row, slot
 end
 
-function ui:light_up_action(x, y, row, column, player_hotbar, environment, vitals)
-    local icon_x = get_slot_x(self, row, column)
-    local icon_y = get_slot_y(self, row, column)
-    self.hover_icon:pos(icon_x-1, icon_y-1)
-    self.hover_icon:alpha(255)
-    self.hover_icon:show()
-    local action = player_hotbar[environment]['hotbar_' .. row]['slot_' .. column]
-    if (self.theme.show_description == true and action ~= nil) then
-        if (S{'ma', 'ja', 'ws'}:contains(action.type)) then
-            if (self.current_row ~= row or self.current_column ~= column) then
-                local text_msg = ""
-                local line_space = 6
-                if (action.type == "ma") then
-                    text_msg = formatter.format_spell_info(database, action.action, action.target)
-                    self.action_info:text(text_msg)
-                elseif (action.type == "ja") then
-                    text_msg = formatter.format_ability_info(database, action.action, action.target)
-                    self.action_info:text(text_msg)
-                elseif (action.type == "ws") then
-                    text_msg = formatter.format_ws_info(database, action.action, action.target)
-                    self.action_info:text(text_msg)
-                end
-                local _, count = text_msg:gsub('\n', '\n')
-                count = count + 1
-                self.current_text_size = ((self.action_info:size()+line_space)*count + line_space)
-                self.action_info:alpha(255)
-                self.action_info:pos(x+ui.image_width, y)
-                self.current_row = row
-                self.current_column = column
-            end
-                if ((ui.scaled_pos_y - y) < self.current_text_size) then
-                    self.action_info:pos(x+ui.image_width, y-self.current_text_size)
-                else
-                    self.action_info:pos(x+ui.image_width, y)
-                end
-                self.action_info:show()
-        else
-            self.action_info:hide()
+local native_tooltips = {
+    ma = formatter.format_spell_info,
+    ja = formatter.format_ability_info,
+    ws = formatter.format_ws_info,
+}
+
+local button_descriptions = {
+    ct = {
+        ['attack'] = 'Start auto-attacking the selected enemy.',
+        ['mount chocobo'] = 'Mount your chocobo when mounting is permitted.',
+        ['dismount'] = 'Dismount and return to travelling on foot.',
+        ['map'] = 'Open the current area map.',
+        ['heal'] = 'Toggle resting to recover HP and MP.',
+        ['lockstyle on'] = 'Enable equipment appearance locking.',
+        ['refa all'] = 'Return all summoned Trusts to the Aether.',
+        ['names'] = 'Toggle character name display.',
+        ['hidetrust on'] = 'Hide other players\' Trusts.',
+        ['clock'] = 'Display the in-game clock.',
+        ['playtime'] = 'Display this character\'s total play time.',
+        ['target'] = {
+            me = 'Target your own character.',
+        },
+        ['targetnpc'] = 'Target the closest eligible non-player character.',
+        ['targetpc'] = 'Target the closest eligible player character.',
+        ['assist'] = 'Switch to the battle target\'s current target.',
+        ['follow'] = 'Select a player character to follow.',
+    },
+    party_target = {
+        ['Target party member 1'] = 'Use F2 to target the first party member after yourself.',
+        ['Target party member 2'] = 'Use F3 to target the second party member after yourself.',
+    },
+    gs = {
+        ['c nuke burst'] = 'Select the Magic Burst equipment mode.',
+        ['c nuke free'] = 'Select the free-nuking equipment mode.',
+        ['c idle'] = 'Select the idle equipment role.',
+        ['c dt'] = 'Select damage reduction for the idle equipment mode.',
+        ['c refresh'] = 'Select MP refresh for the idle equipment mode.',
+        ['c healer'] = 'Select the healer equipment role.',
+        ['c debuffer'] = 'Select the enfeebling equipment role.',
+        ['c caster'] = 'Select the offensive casting equipment role.',
+        ['c melee'] = 'Select the melee equipment role.',
+        ['c weapon crocea'] = 'Select Crocea Mors for the weapon mode.',
+        ['c weapon daybreak'] = 'Select Daybreak for the weapon mode.',
+        ['c weapon naegling'] = 'Select Naegling for the weapon mode.',
+        ['c validate'] = 'Check GearSwap sets and inventory for equipment discrepancies.',
+        ['c status'] = 'Display the current GearSwap role and equipment modes.',
+    },
+    macro = {
+        ['screenshot jpg'] = 'Save a native Windower screenshot as a JPEG.',
+        ['xp setup off'] = 'Close the XivParty layout editor and return to the live roster.',
+        ['htb battle'] = 'Show the Battle hotbar page.',
+        ['htb field'] = 'Show the Field hotbar page.',
+        ['mscreenshotqa status'] = 'Display the Windower command bridge status.',
+        ['mscreenshotqa snapshot'] = 'Capture the current native equipment snapshot.',
+        ['lua list'] = 'List the loaded Windower Lua addons.',
+        ['pivot s'] = 'Display the current XIPivot overlay status.',
+        ['gs validate sets'] = 'Check equipment referenced by your GearSwap sets.',
+        ['gs validate inv'] = 'Check inventory equipment against your GearSwap sets.',
+        ['gs c gearscore'] = 'Display Twills\' recorded equipment comparison notes.',
+        ['plugin_list'] = 'List the loaded Windower plugins.',
+    },
+}
+
+local function describe_action(action)
+    local name = action.action
+    local kind = action.type
+    local format = native_tooltips[kind]
+    if format then
+        local record = database[kind][name:lower()]
+        if record and type(record.desc) == 'string' and record.desc:find('%S') and record.range then
+            return format(database, name, action.target or '')
         end
     end
+
+    local descriptions = button_descriptions[kind]
+    local description = descriptions and descriptions[name]
+    if type(description) == 'table' then
+        description = description[action.target]
+    end
+    if kind == 'macro' and name:sub(1, 8) == 'findall ' then
+        description = 'Search FindAll\'s inventory records for ' .. name:sub(9) .. '.'
+    end
+
+    local target = action.target
+    local title = kind == 'gs' and 'GearSwap: ' .. name or name
+    if target and target ~= '' then
+        title = title .. ' <' .. target .. '>'
+    end
+    return title .. '\n' .. (description or 'Detailed description unavailable.')
+end
+
+function ui:light_up_action(x, y, row, column, player_hotbar, environment)
+    local action = player_hotbar[environment]['hotbar_' .. row]['slot_' .. column]
+    if not action then
+        self:hide_hover()
+        return
+    end
+
+    local icon_x = get_slot_x(self, row, column)
+    local icon_y = get_slot_y(self, row, column)
+    self.hover_icon:pos(icon_x - 1, icon_y - 1)
+    self.hover_icon:alpha(255)
+    self.hover_icon:show()
+
+    if not self.theme.show_description then
+        self.action_info:hide()
+        return
+    end
+
+    if self.hovered_action ~= action then
+        self.action_info:text(describe_action(action))
+        self.action_info:alpha(255)
+        self.hovered_width, self.hovered_height = self.action_info:extents()
+        self.hovered_action = action
+    end
+
+    local margin = 8
+    local width, height = self.hovered_width, self.hovered_height
+    local tooltip_x = icon_x - width - margin
+    if tooltip_x < margin then
+        tooltip_x = icon_x + self.image_width + margin
+    end
+    tooltip_x = math.max(margin, math.min(tooltip_x, self.scaled_pos_x - width - margin))
+    local tooltip_y = math.max(margin, math.min(y, self.scaled_pos_y - height - margin))
+    self.action_info:pos(tooltip_x, tooltip_y)
+    self.action_info:show()
 end
 
 function ui:move_icons(moved_row_info)
@@ -1067,6 +1154,12 @@ end
 --[[
     Register events
 ]]--
+windower.register_event('lose focus', function()
+    if ui.hotbar.ready then
+        ui:hide_hover()
+    end
+end)
+
 windower.register_event('incoming chunk', update_buffs)
 
 return ui

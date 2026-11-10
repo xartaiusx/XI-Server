@@ -24,6 +24,7 @@
 #include "ability.h"
 #include "action/action.h"
 #include "ai/ai_container.h"
+#include "ai/controllers/trust_controller.h"
 #include "common/utils.h"
 #include "enmity_container.h"
 #include "entities/char_entity.h"
@@ -181,7 +182,7 @@ void CAbilityState::ApplyEnmity() const
         {
             if (PTarget->objtype == TYPE_MOB && !(m_PAbility->getCE() == 0 && m_PAbility->getVE() == 0))
             {
-                CMobEntity* mob = (CMobEntity*)PTarget;
+                CMobEntity* mob = static_cast<CMobEntity*>(PTarget);
                 mob->PEnmityContainer->UpdateEnmity(m_PEntity, m_PAbility->getCE(), m_PAbility->getVE(), false, m_PAbility->getID() == ABILITY_CHARM);
                 battleutils::ClaimMob(mob, m_PEntity);
             }
@@ -213,13 +214,31 @@ auto CAbilityState::Update(const timer::time_point tick) -> bool
     if (!IsCompleted() && tick > GetEntryTime() + m_castTime)
     {
         // A failed validity check exits immediately and doesn't serve out the animation lock.
-        if (!CanUseAbility())
+        auto* PTarget = target().resolve<CBattleEntity>();
+        if (!CanUseAbility() || trustcombat::IsSleepProtected(m_PEntity, PTarget))
         {
             return true;
         }
 
-        action_t action{};
+        const auto sleepApplication = trustcombat::SleepApplication(m_PEntity, PTarget);
+        action_t   action{};
         m_PEntity->OnAbility(*this, action);
+        const auto isDamageMessage = [](MsgBasic message)
+        {
+            return message == MsgBasic::UsesAbilityTakesDamage || message == MsgBasic::UsesAbilityResistsDamage ||
+                   message == MsgBasic::UsesSkillTakesDamage || message == MsgBasic::TargetTakesDamage;
+        };
+        const bool deliberateDamage = sleepApplication != 0 &&
+                                      (isDamageMessage(m_PAbility->getMessage()) ||
+                                       std::ranges::any_of(action.targets, [&](const auto& target)
+                                                           {
+                                                               return target.actorId == PTarget->id &&
+                                                                      std::ranges::any_of(target.results, [&](const auto& result)
+                                                                                          {
+                                                                                              return isDamageMessage(result.messageID);
+                                                                                          });
+                                                           }));
+        trustcombat::RecordResolvedAction(m_PEntity, PTarget, action, deliberateDamage ? sleepApplication : 0);
         m_PEntity->PAI->EventHandler.triggerListener("ABILITY_USE", m_PEntity, target().resolve(), m_PAbility.get(), &action);
         // Only send packet if action was populated (e.g. interrupts return early)
         if (!action.targets.empty())
@@ -267,7 +286,7 @@ auto CAbilityState::CanUseAbility() const -> bool
     {
         const bool isLuopanAbility = PAbility->getID() >= ABILITY_CONCENTRIC_PULSE && PAbility->getID() <= ABILITY_RADIAL_ARCANA;
 
-        if (PChar->PRecastContainer->HasRecast(RECAST_ABILITY, PAbility->getRecastId(), PAbility->getRecastTime()))
+        if (PChar->PRecastContainer->HasRecast(xi::RecastType::Ability, PAbility->getRecastId(), PAbility->getRecastTime()))
         {
             PChar->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>(PChar, PChar, 0, 0, MsgBasic::WaitLonger);
             return false;
@@ -363,7 +382,7 @@ auto CAbilityState::CanUseAbility() const -> bool
             *PAbility = *definition;
 
             if (!trustdevelopment::CanUseAbility(PTrust, PAbility) ||
-                PTrust->PRecastContainer->HasRecast(RECAST_ABILITY, PAbility->getRecastId(), PAbility->getRecastTime()) ||
+                PTrust->PRecastContainer->HasRecast(xi::RecastType::Ability, PAbility->getRecastId(), PAbility->getRecastTime()) ||
                 (PTrust->loc.zone->CanUseMisc(xi::ZoneMisc::LosPlayerBlock) && !PTrust->CanSeeTarget(PTarget)))
             {
                 return false;

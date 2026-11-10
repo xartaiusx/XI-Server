@@ -27,6 +27,7 @@
 #include "enmity_container.h"
 #include "instance.h"
 #include "latent_effect_container.h"
+#include "map_session.h"
 #include "party.h"
 #include "recast_container.h"
 #include "spawn_handler.h"
@@ -88,7 +89,7 @@ constexpr auto CHARACTER_SYNC_PARTY_SIGNIFICANCE      = 100000U;
 constexpr auto CHARACTER_SYNC_ALLI_SIGNIFICANCE       = 10000U;
 constexpr auto INTERMEDIATE_CONTAINER_RESERVE_SIZE    = 16U;
 
-inline bool isWithinVerticalDistance(CBaseEntity* source, CBaseEntity* target)
+inline auto isWithinVerticalDistance(CBaseEntity* source, CBaseEntity* target) -> bool
 {
     const float verticalDistance = target->loc.p.y - source->loc.p.y - VERTICAL_RENDER_DISTANCE_OFFSET;
     return std::abs(verticalDistance) <= ENTITY_VERTICAL_RENDER_DISTANCE;
@@ -96,7 +97,7 @@ inline bool isWithinVerticalDistance(CBaseEntity* source, CBaseEntity* target)
 
 } // namespace
 
-typedef std::pair<float, CCharEntity*> CharScorePair;
+using CharScorePair = std::pair<float, CCharEntity*>;
 
 CZoneEntities::CZoneEntities(Scheduler& scheduler, MapConfig config, CZone* zone)
 : scheduler_(scheduler)
@@ -228,7 +229,6 @@ void CZoneEntities::TryAddToNearbySpawnLists(CBaseEntity* PEntity)
                     // }
                     default:
                         return;
-                        break;
                 }
             }
         }
@@ -242,6 +242,12 @@ void CZoneEntities::InsertPC(CCharEntity* PChar)
     PChar->loc.zone = m_zone;
     m_charTargIds.insert(PChar->targid);
     m_charList[PChar->targid] = PChar;
+
+    // Mobs keep a returning char's enmity, but it still points at the char object that zoned out.
+    FOR_EACH_PAIR_CAST_SECOND(CMobEntity*, PMob, m_mobList)
+    {
+        PMob->PEnmityContainer->ZoneInRebind(PChar);
+    }
 
     TryAddToNearbySpawnLists(PChar);
 
@@ -561,6 +567,13 @@ void CZoneEntities::DecreaseZoneCounter(CCharEntity* PChar)
         {
             PChar->PPet->PAI->Disengage();
 
+            // The master is freed before the pet's next tick, which is where the pet would let go of it.
+            PChar->PPet->PMaster = nullptr;
+            FOR_EACH_PAIR_CAST_SECOND(CMobEntity*, PCurrentMob, m_mobList)
+            {
+                PCurrentMob->PEnmityContainer->Clear(PChar->PPet->id);
+            }
+
             FOR_EACH_PAIR_CAST_SECOND(CCharEntity*, PCurrentChar, m_charList)
             {
                 // inform other players of the pets removal
@@ -573,7 +586,9 @@ void CZoneEntities::DecreaseZoneCounter(CCharEntity* PChar)
                 }
             }
 
-            PChar->PPet = nullptr;
+            // The player may be destroyed before the pet's next tick.
+            PChar->PPet->PMaster = nullptr;
+            PChar->PPet          = nullptr;
         }
     }
 
@@ -632,7 +647,7 @@ void CZoneEntities::DecreaseZoneCounter(CCharEntity* PChar)
     ShowDebug("CZone:: %s DecreaseZoneCounter <%u> %s", m_zone->getName(), m_charList.size(), PChar->getName());
 }
 
-uint16 CZoneEntities::GetNewCharTargID()
+auto CZoneEntities::GetNewCharTargID() -> uint16
 {
     // NOTE: 0x0D (char_update) entity updates are valid for 1024 to 1791
     uint16 targid = 0x400;
@@ -731,7 +746,7 @@ auto CZoneEntities::GetUsedDynamicTargIDsCount() const -> std::size_t
     return m_dynamicTargIds.size();
 }
 
-bool CZoneEntities::CharListEmpty() const
+auto CZoneEntities::CharListEmpty() const -> bool
 {
     return m_charList.empty();
 }
@@ -1054,7 +1069,10 @@ void CZoneEntities::SpawnTRUSTs(CCharEntity* PChar)
         });
 }
 
-float getSignificanceScore(CCharEntity* originChar, CCharEntity* targetChar)
+namespace
+{
+
+auto getSignificanceScore(CCharEntity* originChar, CCharEntity* targetChar) -> float
 {
     if (targetChar->m_GMlevel > 0 && !targetChar->m_isGMHidden)
     {
@@ -1077,6 +1095,8 @@ float getSignificanceScore(CCharEntity* originChar, CCharEntity* targetChar)
 
     return 0;
 }
+
+} // namespace
 
 void CZoneEntities::SpawnPCs(CCharEntity* PChar)
 {
@@ -1232,7 +1252,7 @@ void CZoneEntities::SpawnPCs(CCharEntity* PChar)
             // If max amount of characters are currently spawned, we need to despawn one before we can spawn a new one
             if (PChar->SpawnPCList.size() >= CHARACTER_SYNC_LIMIT_MAX)
             {
-                if (spawnedCharacters.size() == 0)
+                if (spawnedCharacters.empty())
                 {
                     // No spawned characters left that we can swap with
                     break;
@@ -1328,7 +1348,7 @@ void CZoneEntities::SpawnTransport(CCharEntity* PChar)
     }
 }
 
-CBaseEntity* CZoneEntities::GetEntity(uint16 targid, uint8 filter)
+auto CZoneEntities::GetEntity(uint16 targid, uint8 filter) -> CBaseEntity*
 {
     const auto findEntity = [&](const EntityList_t& entityList) -> CBaseEntity*
     {
@@ -1423,7 +1443,7 @@ void CZoneEntities::SavePlayTime()
     }
 }
 
-CCharEntity* CZoneEntities::GetCharByName(const std::string& name)
+auto CZoneEntities::GetCharByName(const std::string& name) -> CCharEntity*
 {
     TracyZoneScoped;
 
@@ -1437,7 +1457,7 @@ CCharEntity* CZoneEntities::GetCharByName(const std::string& name)
     return nullptr;
 }
 
-CCharEntity* CZoneEntities::GetCharByID(uint32 id)
+auto CZoneEntities::GetCharByID(uint32 id) -> CCharEntity*
 {
     FOR_EACH_PAIR_CAST_SECOND(CCharEntity*, PCurrentChar, m_charList)
     {
@@ -2055,6 +2075,14 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
             {
                 PChar->eventPreparation->targetEntity = nullptr;
             }
+
+            for (auto* PEvent : PChar->eventQueue)
+            {
+                if (PEvent->targetEntity == PEntity)
+                {
+                    PEvent->targetEntity = nullptr;
+                }
+            }
         }
     };
 
@@ -2120,6 +2148,13 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
     {
         auto* PChar       = *it;
         bool  shouldErase = false;
+
+        // charTick adds the char back each tick, so it moves once canZoneOut(). A logout goes now.
+        if (PChar->status != xi::Status::Shutdown && !PChar->PSession->canZoneOut())
+        {
+            it = m_charsToChangeZone.erase(it);
+            continue;
+        }
 
         auto ipp = zoneutils::GetZoneIPP(PChar->loc.destination);
         if (ipp == 0 && PChar->status != xi::Status::Shutdown)
@@ -2242,7 +2277,7 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
     co_return;
 }
 
-CZone* CZoneEntities::GetZone()
+auto CZoneEntities::GetZone() -> CZone*
 {
     return m_zone;
 }

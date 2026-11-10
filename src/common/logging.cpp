@@ -70,8 +70,6 @@ void pushEntry(CircularBuffer<logging::BacktraceEntry>& ring, const char* file, 
         });
 }
 
-} // namespace
-
 class star_formatter_flag : public spdlog::custom_flag_formatter
 {
 public:
@@ -88,7 +86,7 @@ public:
         dest.append(outStr.data(), outStr.data() + outStr.size());
     }
 
-    std::unique_ptr<custom_flag_formatter> clone() const override
+    auto clone() const -> std::unique_ptr<custom_flag_formatter> override
     {
         return spdlog::details::make_unique<star_formatter_flag>();
     }
@@ -103,7 +101,7 @@ public:
         dest.append(ServerName.data(), ServerName.data() + ServerName.size());
     }
 
-    std::unique_ptr<custom_flag_formatter> clone() const override
+    auto clone() const -> std::unique_ptr<custom_flag_formatter> override
     {
         return spdlog::details::make_unique<ampersand_formatter_flag>();
     }
@@ -123,7 +121,7 @@ public:
         dest.append(&initial, &initial + 1);
     }
 
-    std::unique_ptr<custom_flag_formatter> clone() const override
+    auto clone() const -> std::unique_ptr<custom_flag_formatter> override
     {
         return spdlog::details::make_unique<underscore_formatter_flag>();
     }
@@ -145,7 +143,7 @@ public:
         dest.append(outStr.data(), outStr.data() + outStr.size());
     }
 
-    std::unique_ptr<custom_flag_formatter> clone() const override
+    auto clone() const -> std::unique_ptr<custom_flag_formatter> override
     {
         return spdlog::details::make_unique<q_formatter_flag>();
     }
@@ -165,6 +163,8 @@ constexpr std::array<std::string_view, 7> logNames = {
 // Populated once in InitializeLog (before any worker threads exist) and only read
 // afterward, so loggerFor() needs no synchronization. The registry owns the loggers.
 std::array<spdlog::logger*, logNames.size()> logPointers{};
+
+} // namespace
 
 void logging::InitializeLog(const std::string& serverName, const std::string& logFile, bool appendDate)
 {

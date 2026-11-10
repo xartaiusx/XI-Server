@@ -33,7 +33,7 @@ namespace attackutils
  *  Multihit calculator.                                                 *
  *                                                                       *
  ************************************************************************/
-uint8 getHitCount(uint8 hits)
+auto getHitCount(uint8 hits) -> uint8
 {
     uint8 distribution = xirand::GetRandomNumber(100);
     uint8 num          = 1;
@@ -41,7 +41,6 @@ uint8 getHitCount(uint8 hits)
     switch (hits)
     {
         case 0:
-            break;
         case 1:
             break;
         case 2: // cdf = 55,100
@@ -54,7 +53,6 @@ uint8 getHitCount(uint8 hits)
                 num += 1;
                 break;
             }
-            break;
         case 3: // cdf = 30,80,100
             if (distribution < 30)
             {
@@ -70,7 +68,6 @@ uint8 getHitCount(uint8 hits)
                 num += 2;
                 break;
             }
-            break;
         case 4: // cdf = 20,50,80,100
             if (distribution < 20)
             {
@@ -91,7 +88,6 @@ uint8 getHitCount(uint8 hits)
                 num += 3;
                 break;
             }
-            break;
         case 5: // cdf = 10,30,60,90,100
             if (distribution < 10)
             {
@@ -117,7 +113,6 @@ uint8 getHitCount(uint8 hits)
                 num += 4;
                 break;
             }
-            break;
         case 6: // cdf = 10,30,50,70,90,100
             if (distribution < 10)
             {
@@ -148,7 +143,6 @@ uint8 getHitCount(uint8 hits)
                 num += 5;
                 break;
             }
-            break;
         case 7: // cdf = 5,20,45,70,85,95,100
             if (distribution < 5)
             {
@@ -184,7 +178,6 @@ uint8 getHitCount(uint8 hits)
                 num += 6;
                 break;
             }
-            break;
         case 8: // cdf = 5,20,45,70,85,95,98,100
             if (distribution < 5)
             {
@@ -225,22 +218,21 @@ uint8 getHitCount(uint8 hits)
                 num += 7;
                 break;
             }
-            break;
     }
     return std::min<uint8>(num, 8); // no more than eight hits per attack
 }
 
-bool IsParried(CBattleEntity* PAttacker, CBattleEntity* PDefender)
+auto IsParried(CBattleEntity* PAttacker, CBattleEntity* PDefender) -> bool
 {
     return luautils::callGlobal<bool>("xi.combat.physical.isParried", PDefender, PAttacker);
 }
 
-bool IsGuarded(CBattleEntity* PAttacker, CBattleEntity* PDefender)
+auto IsGuarded(CBattleEntity* PAttacker, CBattleEntity* PDefender) -> bool
 {
     return luautils::callGlobal<bool>("xi.combat.physical.isGuarded", PDefender, PAttacker);
 }
 
-bool IsBlocked(CBattleEntity* PAttacker, CBattleEntity* PDefender)
+auto IsBlocked(CBattleEntity* PAttacker, CBattleEntity* PDefender) -> bool
 {
     return luautils::callGlobal<bool>("xi.combat.physical.isBlocked", PDefender, PAttacker);
 }
@@ -250,7 +242,7 @@ bool IsBlocked(CBattleEntity* PAttacker, CBattleEntity* PDefender)
  *  Check for damage multiplier, relic weapons etc.                      *
  *                                                                       *
  ************************************************************************/
-uint32 CheckForDamageMultiplier(CCharEntity* PChar, CItemWeapon* PWeapon, uint32 damage, PHYSICAL_ATTACK_TYPE attackType, uint8 weaponSlot, bool allowProc)
+auto CheckForDamageMultiplier(CCharEntity* PChar, CItemWeapon* PWeapon, uint32 damage, PHYSICAL_ATTACK_TYPE attackType, uint8 weaponSlot, bool allowProc) -> uint32
 {
     if (PWeapon == nullptr)
     {
@@ -288,19 +280,23 @@ uint32 CheckForDamageMultiplier(CCharEntity* PChar, CItemWeapon* PWeapon, uint32
         {
             return (uint32)(damage * occ_extra_dmg);
         }
-        else if (occ_do_triple_dmg > 0 && (1 + xirand::GetRandomNumber(100)) <= occ_do_triple_dmg)
+
+        if (occ_do_triple_dmg > 0 && (1 + xirand::GetRandomNumber(100)) <= occ_do_triple_dmg)
         {
             return (uint32)(damage * 3.0f);
         }
-        else if (occ_extra_dmg > 2.0f && occ_extra_dmg_chance > 0 && (1 + xirand::GetRandomNumber(100)) <= occ_extra_dmg_chance)
+
+        if (occ_extra_dmg > 2.0f && occ_extra_dmg_chance > 0 && (1 + xirand::GetRandomNumber(100)) <= occ_extra_dmg_chance)
         {
             return (uint32)(damage * occ_extra_dmg);
         }
-        else if (occ_do_double_dmg > 0 && (1 + xirand::GetRandomNumber(100)) <= occ_do_double_dmg)
+
+        if (occ_do_double_dmg > 0 && (1 + xirand::GetRandomNumber(100)) <= occ_do_double_dmg)
         {
             return (uint32)(damage * 2.0f);
         }
-        else if (occ_extra_dmg > 0 && occ_extra_dmg_chance > 0 && (1 + xirand::GetRandomNumber(100)) <= occ_extra_dmg_chance)
+
+        if (occ_extra_dmg > 0 && occ_extra_dmg_chance > 0 && (1 + xirand::GetRandomNumber(100)) <= occ_extra_dmg_chance)
         {
             return (uint32)(damage * occ_extra_dmg);
         }

@@ -41,7 +41,10 @@ class HXIClient:
         self.sessionHash = ""
 
     def login(self):
-        self.ssl_context = ssl.create_default_context()
+        ssl_context = ssl.create_default_context()
+        ssl_context.minimum_version = ssl.TLSVersion.TLSv1_3
+        ssl_context.maximum_version = ssl.TLSVersion.TLSv1_3
+        self.ssl_context = ssl_context
 
         # Only local development may use the server's untrusted self-signed certificate.
         if self.server in ("localhost", "127.0.0.1", "::1"):
@@ -57,7 +60,7 @@ class HXIClient:
         json_data.update({"password": self.password})
         json_data.update({"otp": 0})
         json_data.update({"new_password": ""})
-        json_data.update({"version": [2, 2, 0]})
+        json_data.update({"version": [3, 0, 0]})
         json_data.update({"command": LOGIN_ATTEMPT})
 
         json_string = json.dumps(json_data)
@@ -143,8 +146,11 @@ class HXIClient:
 
     def lobby_data_connect(self):
         server_address = (self.server, 54230)
-        print("Starting up lobby data connection on %s port %s" % server_address)
-        self.lobbydata_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        print("Starting up lobby data connection over TLS on %s port %s" % server_address)
+        self.lobbydata_sock = self.ssl_context.wrap_socket(
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM),
+            server_hostname=self.server,
+        )
         self.lobbydata_sock.connect(server_address)
         print("Sending session hash back through lobbydata")
         try:
@@ -160,8 +166,11 @@ class HXIClient:
 
     def lobby_view_connect(self):
         server_address = (self.server, 54001)
-        print("Starting up lobby view connection on %s port %s" % server_address)
-        self.lobbyview_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        print("Starting up lobby view connection over TLS on %s port %s" % server_address)
+        self.lobbyview_sock = self.ssl_context.wrap_socket(
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM),
+            server_hostname=self.server,
+        )
         self.lobbyview_sock.connect(server_address)
 
     def lobby_data_0xA1_0(self):

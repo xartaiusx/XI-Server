@@ -1,4 +1,4 @@
-set(LUA_SOURCES
+target_sources(xi_test_lib PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/lua_simulation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lua_simulation.h
     ${CMAKE_CURRENT_SOURCE_DIR}/lua_test_entity.cpp
@@ -15,11 +15,12 @@ set(LUA_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/helpers/lua_client_entity_pair_entities.h
     ${CMAKE_CURRENT_SOURCE_DIR}/helpers/lua_client_entity_pair_events.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/helpers/lua_client_entity_pair_events.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/helpers/lua_client_entity_pair_network.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/helpers/lua_client_entity_pair_network.h
     ${CMAKE_CURRENT_SOURCE_DIR}/helpers/lua_client_entity_pair_packets.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/helpers/lua_client_entity_pair_packets.h
     ${CMAKE_CURRENT_SOURCE_DIR}/lua_spy.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lua_spy.h
     ${CMAKE_CURRENT_SOURCE_DIR}/lua_stub.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/lua_stub.h
-    PARENT_SCOPE
 )

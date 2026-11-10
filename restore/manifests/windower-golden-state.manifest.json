@@ -45,13 +45,13 @@
     },
     {
       "relativePath": "addons/XivParty/layouts/mochirii_xiv.xml",
-      "bytes": 16725,
-      "sha256": "d6716a85d808fe7a8764c8d720fb339930c42526f903b670dd9a9ca01595fde0"
+      "bytes": 16738,
+      "sha256": "8b73e0a1e447c652b4500076989409e251568e354a417f6ecc6275a781813292"
     },
     {
       "relativePath": "addons/XivParty/layouts/mochirii_xiv_alliance.xml",
-      "bytes": 10512,
-      "sha256": "f61a1ce7986f1cfa4ae7723f4bd4e8c53d3a0e32016da1103d2c3fc644037529"
+      "bytes": 10520,
+      "sha256": "86c102719937f3690c123707f42cb3131311ead98edcfd3f21515d92ad11d242"
     },
     {
       "relativePath": "addons/XivParty/player.lua",
@@ -70,23 +70,23 @@
     },
     {
       "relativePath": "addons/xivhotbar/data/Twills/General.lua",
-      "bytes": 3846,
-      "sha256": "aaa4ea3a49c51ba665e60f9974d9ed7fa0fa3e85dd4b2e3dc65b3f359d12e569"
+      "bytes": 6452,
+      "sha256": "8fdbe5e89e440a5f5b8ee5f7e72917bf5664d4ff53d93833ff5cc911db409406"
     },
     {
       "relativePath": "addons/xivhotbar/data/Twills/RDM.lua",
-      "bytes": 3651,
-      "sha256": "3fcf5eff9c530036096d35b8cd763ffd975d37ebd5ea19ca59b58b47e9fd8c06"
+      "bytes": 5819,
+      "sha256": "95964c83a1778fdfed0206dc57657025cc3c9e16d3614122b9416229590f58b1"
     },
     {
       "relativePath": "addons/xivhotbar/data/keybinds.lua",
-      "bytes": 3535,
-      "sha256": "f0595f11063904cfaed86d933a836384238688e9ecc184cc52cf9de816b28c53"
+      "bytes": 689,
+      "sha256": "f9008cc91222a379c01dbc6ae7c5b845bc9c050ea12ff28312e5ff5bef9c381f"
     },
     {
       "relativePath": "addons/xivhotbar/data/settings.xml",
-      "bytes": 4508,
-      "sha256": "2412e0fc97eb24456ec6d98468ee4b793420c89c15a78055063c5c089874fe06"
+      "bytes": 4502,
+      "sha256": "9f62612897c063ecd4e688f66ac79e15a096495127a8c611ed118b1ee84fa3d4"
     },
     {
       "relativePath": "addons/xivhotbar/defaults.lua",
@@ -95,13 +95,13 @@
     },
     {
       "relativePath": "addons/xivhotbar/lib/player.lua",
-      "bytes": 5574,
-      "sha256": "5732db3c7c16930d3bd3b923966319a377c0866205d752ed2aad6dceed2f41e6"
+      "bytes": 7901,
+      "sha256": "cb54169b372dfc0f42d84225663ded79ac8f49867f0188654776729e48a3d2b6"
     },
     {
       "relativePath": "addons/xivhotbar/lib/ui.lua",
-      "bytes": 38896,
-      "sha256": "36b84cbcb6f849402ea6aef71fd9265fda79e383556b0f903b1e9caf3b7d9dab"
+      "bytes": 42715,
+      "sha256": "bbeb60cf51d909feaa62e2f469d72bc5b9c8cd512b4638dc35faba40409de714"
     },
     {
       "relativePath": "addons/xivhotbar/xivhotbar.lua",
@@ -145,6 +145,7 @@
     "Tracked files are Git-safe Twills configs and Mochirii QA addon state, including the custom XivParty layout and XICamera settings but not third-party binaries or source archives.",
     "The tracked XIVHotbar ui.lua is the Mochirii drag/layout compatibility copy; the original upstream Git metadata remains archived outside Git.",
     "Full patched third-party addon source is preserved in the encrypted Windower bundle.",
-    "MochiriiScreenshotQA targets the canonical Windows runtime bridge; rewrite that path when restoring on another Windows or Wine prefix."
+    "MochiriiScreenshotQA targets the canonical Windows runtime bridge; rewrite that path when restoring on another Windows or Wine prefix.",
+    "The two Twills hotbar maps and XivParty cursor layouts require an exact private UI asset set of 145 PNGs. The private asset manifest SHA-256 is 1fa2947a7b333750859305ec4aa09b34aab7ff1142046f1883f793c9a6408c28. The historical encrypted bundle predates this set. Verify a separate updated private bundle and isolated restoration before admitting these client sources for use."
   ]
 }

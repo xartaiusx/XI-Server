@@ -21,6 +21,7 @@
 
 #include "map/ai/helpers/pathfind/path_owner.h"
 #include "map/ai/helpers/pathfind/pathfind.h"
+#include "map/ai/helpers/pathfind/pathfind_step.h"
 #include "map/navmesh/navmesh.h"
 #include "map/roam_region.h"
 
@@ -214,9 +215,10 @@ auto squareWithHole() -> RoamRegion
 auto legStaysInside(const RoamRegion& region, const position_t& from, const position_t& to) -> bool
 {
     const float length = distance(from, to, true);
-    for (float along = 0.0f; along <= length; along += 0.5f)
+    for (int step = 0; static_cast<float>(step) * 0.5f <= length; ++step)
     {
-        const float t = length > 0.0f ? along / length : 0.0f;
+        const float along = static_cast<float>(step) * 0.5f;
+        const float t     = length > 0.0f ? along / length : 0.0f;
         if (!region.contains(from.x + (to.x - from.x) * t, from.z + (to.z - from.z) * t))
         {
             return false;
@@ -340,4 +342,26 @@ TEST_CASE("pathfind: intermediate roam steps stay inside a valid deck leg", "[pa
     CHECK_FALSE(pathFind.OnPoint());
     CHECK(ownerPtr->completedPaths() == 0);
     CHECK(distance(start, ownerPtr->position(), true) > 1.0f);
+}
+
+TEST_CASE("pathfind: movement does not overshoot a sloped waypoint", "[pathfind][region]")
+{
+    position_t       position{ 0.0f, 0.0f, 0.0f, 0, 0 };
+    const position_t target{ 1.0f, 1.0f, 0.0f, 0, 0 };
+
+    SECTION("waypoint within the horizontal step")
+    {
+        const float moved = pathfind::stepTowards(position, target, 1.25f, 0.0f);
+        CHECK(position.x == target.x);
+        CHECK(position.y == target.y);
+        CHECK(position.z == target.z);
+        CHECK(moved == 1.0f);
+    }
+
+    SECTION("stopping range still includes height")
+    {
+        const float moved = pathfind::stepTowards(position, target, 0.1f, 1.25f);
+        CHECK(moved == 0.1f);
+        CHECK(position.x > 0.0f);
+    }
 }

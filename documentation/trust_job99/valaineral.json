@@ -7,6 +7,19 @@
   "audit_source_sha256": "bb9f5f2bd284f81e883f849c971ef81fb8915c7d28572482d05e603f12c832c1",
   "evidence_class": "public_source_catalog_and_candidate_plan_not_runtime_proof",
   "activation": "candidate_default_off_requires_per_Trust_acceptance",
+  "snapshot_provenance": {
+    "record_scope": "Historical audit snapshot. Existing action rows, counts, activation, model, source lines and test labels retain their original meanings.",
+    "current_source": {
+      "profile_setting": "main.TRUST_JOB99_VALAINERAL",
+      "default_enabled": false,
+      "developed_jobs": "PLD99/WAR99 with both jobs' main-job privileges",
+      "developed_modeled_weapon": "Sword with the native modeled shield",
+      "gift_spell_source": "Enlight II (855) admission for developed Valaineral",
+      "signature_source": "Uriel Blade",
+      "support_source": "Role-aware native spell and ability selection with modeled shield-dependent behavior",
+      "native_execution_and_live_acceptance": "Separate exact-revision gates. This source note records neither result."
+    }
+  },
   "retail_complete_roster_claim": false,
   "model": {
     "native_jobs": [

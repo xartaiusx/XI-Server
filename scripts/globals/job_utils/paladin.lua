@@ -238,6 +238,8 @@ xi.job_utils.paladin.useSepulcher = function(player, target, ability)
     local duration = 180 + jpValue
 
     target:addStatusEffect(xi.effect.SEPULCHER, { power = power, duration = duration, origin = player })
+
+    return xi.effect.SEPULCHER
 end
 
 xi.job_utils.paladin.useShieldBash = function(player, target, ability)
@@ -268,17 +270,20 @@ xi.job_utils.paladin.useShieldBash = function(player, target, ability)
         not xi.data.statusEffect.isTargetResistant(player, target, xi.effect.STUN) and
         not xi.data.statusEffect.isEffectNullified(target, xi.effect.STUN, 0)
     then
+        -- Tested vs lvl 100 Chapuli vs a level 15 PLD with 0 shield skill. Chapuli have 373 meva, with floored dINT and an additional 20 to hit 95%
+        -- The most conservative estimate is +428~ macc but there's no "magic numbers" that fit other than +512
         local maccParams =
         {
             effectId       = xi.effect.STUN,
             magicalElement = xi.element.THUNDER,
-            skillRank      = xi.skillRank.A_PLUS,
+            skillType      = xi.skill.SHIELD, -- Guessed
             actorStat      = xi.mod.INT,
+            bonusMacc      = 512,
         }
 
         local resistanceRate = xi.combat.magicHitRate.calculateResistRate(player, target, maccParams)
         if xi.data.statusEffect.isResistRateSuccessfull(xi.effect.STUN, resistanceRate, 0) then
-            target:addStatusEffect(xi.effect.STUN, { power = 1, duration = math.randomInt(2, 8) * resistanceRate, origin = player })
+            target:addStatusEffect(xi.effect.STUN, { power = 1, duration = math.randomInt(4.2, 6.2) * resistanceRate, origin = player })
         end
     end
 

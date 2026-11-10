@@ -35,24 +35,29 @@
 #include "utils/charutils.h"
 #include "weapon_skill.h"
 
-CPlayerController::CPlayerController(CCharEntity* _PChar)
-: CController(_PChar)
+CPlayerController::CPlayerController(CCharEntity* character)
+: CController(character)
 {
 }
 
-CPlayerController::~CPlayerController()
-{
-}
+CPlayerController::~CPlayerController() = default;
 
 auto CPlayerController::Tick(timer::time_point /*tick*/) -> Task<void>
 {
+    const auto* PChar = static_cast<CCharEntity*>(POwner);
+    if (PChar->PTrusts.empty() || PChar->isDead())
+    {
+        ordinaryTrustActionTarget.clean();
+        ordinaryTrustAttackers.clear();
+    }
+
     co_return;
 }
 
 auto CPlayerController::Cast(const EntityId target, SpellID spellid) -> bool
 {
     auto* PChar = static_cast<CCharEntity*>(POwner);
-    if (canAct() && !PChar->PRecastContainer->HasRecast(RECAST_MAGIC, static_cast<Recast>(spellid), 0s))
+    if (canAct() && !PChar->PRecastContainer->HasRecast(xi::RecastType::Magic, static_cast<xi::Recast>(spellid), 0s))
     {
         if (const auto PTarget = target.resolve<CBattleEntity>(); PTarget && PTarget->PAI->IsUntargetable())
         {
@@ -202,9 +207,9 @@ auto CPlayerController::Ability(EntityId target, const uint16 abilityid) -> bool
             PChar->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>(PChar, PChar, 0, 0, MsgBasic::UnableToUseJobAbility);
             return false;
         }
-        if (PChar->PRecastContainer->HasRecast(RECAST_ABILITY, PAbility->getRecastId(), PAbility->getRecastTime()))
+        if (PChar->PRecastContainer->HasRecast(xi::RecastType::Ability, PAbility->getRecastId(), PAbility->getRecastTime()))
         {
-            Recast_t* recast = PChar->PRecastContainer->GetRecast(RECAST_ABILITY, PAbility->getRecastId());
+            Recast_t* recast = PChar->PRecastContainer->GetRecast(xi::RecastType::Ability, PAbility->getRecastId());
             // Set recast time to the normal recast time minus any charge time.
             // Abilities without a charge will have zero chargeTime
             timer::duration currentRecast = recast->TimeStamp - timer::now() + recast->RecastTime;
@@ -289,9 +294,9 @@ void CPlayerController::setLastSpellFinishedTime(timer::time_point _spellFinishe
     m_spellFinishedTime = _spellFinishedTime;
 }
 
-void CPlayerController::setLastErrMsgTime(timer::time_point _LastErrMsgTime)
+void CPlayerController::setLastErrMsgTime(timer::time_point errMsgTime)
 {
-    m_errMsgTime = _LastErrMsgTime;
+    m_errMsgTime = errMsgTime;
 }
 
 auto CPlayerController::getLastErrMsgTime() -> timer::time_point

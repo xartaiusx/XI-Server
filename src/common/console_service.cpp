@@ -46,8 +46,11 @@
 #include <unistd.h>
 #endif
 
+namespace
+{
+
 // https://stackoverflow.com/a/71992965
-bool stdinHasData()
+auto stdinHasData() -> bool
 {
 #if defined(_WIN32)
     // this works by harnessing Windows' black magic:
@@ -61,7 +64,7 @@ bool stdinHasData()
 #endif
 }
 
-bool getLine(std::string& line)
+auto getLine(std::string& line) -> bool
 {
     // If there is data on stdin we can call _getch() knowing that it won't block!
     // This makes this routine non-blocking.
@@ -86,7 +89,7 @@ bool getLine(std::string& line)
     if (keyCharacter == '\b')
     {
         fmt::print("\b \b"); // move cursor left, overwrite with space, move cursor left
-        if (line.size() > 0)
+        if (!line.empty())
         {
             line.pop_back(); // remove last char in buffer if any
         }
@@ -105,6 +108,8 @@ bool getLine(std::string& line)
     return true;
 #endif
 }
+
+} // namespace
 
 ConsoleService::ConsoleService(Application& application)
 : application_(application)

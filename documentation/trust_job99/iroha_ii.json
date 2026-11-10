@@ -7,6 +7,19 @@
   "audit_source_sha256": "bb9f5f2bd284f81e883f849c971ef81fb8915c7d28572482d05e603f12c832c1",
   "evidence_class": "public_source_catalog_and_candidate_plan_not_runtime_proof",
   "activation": "inactive_preparation_only",
+  "snapshot_provenance": {
+    "record_scope": "Historical audit snapshot. Existing action rows, counts, activation, model, source lines and test labels retain their original meanings.",
+    "current_source": {
+      "profile_setting": "main.TRUST_JOB99_IROHA_II",
+      "default_enabled": false,
+      "developed_jobs": "SAM99/WHM99 with both jobs' main-job privileges",
+      "developed_modeled_weapon": "Two-handed polearm",
+      "gift_spell_source": "Reraise IV (848) and Full Cure (893) admission for developed Iroha II",
+      "signature_source": "Flare II (205), Amatsu Kyori, Amatsu Gachirin, Amatsu Hanadoki, Amatsu Suien and Rise from Ashes",
+      "support_source": "Role-aware native spell, ability and signature selection with retained-Trust recovery",
+      "native_execution_and_live_acceptance": "Separate exact-revision gates. This source note records neither result."
+    }
+  },
   "retail_complete_roster_claim": false,
   "model": {
     "native_jobs": [

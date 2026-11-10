@@ -30,13 +30,13 @@ TEST_CASE("Monipulator conversion rejects null and invalid dynamic types", "[sec
 TEST_CASE("Ability recast indices do not truncate at the byte boundary", "[security][recast]")
 {
     CBattleEntity target;
-    auto&         recasts = *target.PRecastContainer->GetRecastList(RECAST_ABILITY);
+    auto&         recasts = *target.PRecastContainer->GetRecastList(xi::RecastType::Ability);
     recasts.resize(257);
     for (auto& recast : recasts)
     {
         recast.RecastTime = 60s;
     }
-    target.PRecastContainer->DeleteByIndex(RECAST_ABILITY, std::size_t{ 256 });
+    target.PRecastContainer->DeleteByIndex(xi::RecastType::Ability, std::size_t{ 256 });
     CHECK(recasts.size() == 257);
     CHECK(recasts.at(0).RecastTime == 60s);
     CHECK(recasts.at(255).RecastTime == 60s);

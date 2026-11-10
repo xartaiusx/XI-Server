@@ -26,8 +26,8 @@
 
 #include "ai/ai_container.h"
 #include "ai/states/item_state.h"
+#include "data/enums/item_state.h"
 #include "entities/char_entity.h"
-#include "enums/item_state.h"
 #include "enums/msg_std.h"
 #include "item_container.h"
 #include "items/item.h"
@@ -82,7 +82,7 @@ auto applyItemUpdate(CCharEntity* PChar, uint8 LocationID, uint8 slotID, int32 q
     }
 
     // Equipped ammo decrements its stack on consumption without leaving the slot.
-    const bool isEquippedAmmo = PItem->state() == ItemState::Equipped &&
+    const bool isEquippedAmmo = PItem->state() == xi::ItemState::Equipped &&
                                 PChar->getEquip(SLOT_AMMO) == PItem;
     if (PItem->isBusy() && !isEquippedAmmo && !heldByOwner)
     {
@@ -177,7 +177,7 @@ auto applyAddItem(CCharEntity* PChar, uint8 LocationID, std::unique_ptr<CItem> P
         return 0;
     }
 
-    if (PItem->hasFlag(ItemFlag::Rare) && charutils::HasItem(PChar, PItem->getID()))
+    if (PItem->hasFlag(xi::ItemFlag::Rare) && charutils::HasItem(PChar, PItem->getID()))
     {
         if (!silence)
         {
@@ -186,28 +186,28 @@ auto applyAddItem(CCharEntity* PChar, uint8 LocationID, std::unique_ptr<CItem> P
         return ERROR_SLOTID;
     }
 
-    auto* PStorage = PChar->getStorage(LocationID);
-    uint8 SlotID   = PStorage->InsertItem(std::move(PItem));
+    auto* PInserted = PItem.get();
+    auto* PStorage  = PChar->getStorage(LocationID);
+    uint8 SlotID    = PStorage->InsertItem(std::move(PItem));
     if (SlotID == ERROR_SLOTID)
     {
         ShowDebug("AddItem: Location %i is full", LocationID);
         return SlotID;
     }
 
-    auto* PInserted = PStorage->GetItem(SlotID);
+    constexpr auto query = db::Query(
+        "INSERT INTO char_inventory("
+        "charid, "
+        "location, "
+        "slot, "
+        "itemId, "
+        "quantity, "
+        "signature, "
+        "extra) "
+        "VALUES(?, ?, ?, ?, ?, ?, ?) "
+        "LIMIT 1");
 
-    const auto Query = "INSERT INTO char_inventory("
-                       "charid, "
-                       "location, "
-                       "slot, "
-                       "itemId, "
-                       "quantity, "
-                       "signature, "
-                       "extra) "
-                       "VALUES(?, ?, ?, ?, ?, ?, ?) "
-                       "LIMIT 1";
-
-    if (!db::preparedStmt(Query, PChar->id, LocationID, SlotID, PInserted->getID(), PInserted->getQuantity(), PInserted->getSignature(), PInserted->m_extra))
+    if (!db::preparedStmt(query, PChar->id, LocationID, SlotID, PInserted->getID(), PInserted->getQuantity(), PInserted->getSignature(), PInserted->m_extra))
     {
         ShowError("AddItem: Cannot insert item to database");
         PStorage->RemoveItem(SlotID);
@@ -245,9 +245,9 @@ auto restoreItem(CCharEntity* PChar, uint8 LocationID, uint8 SlotID, std::unique
 
     auto* PRestored = PStorage->GetItem(SlotID);
 
-    const auto Query = "INSERT INTO char_inventory(charid, location, slot, itemId, quantity, signature, extra) VALUES(?, ?, ?, ?, ?, ?, ?) LIMIT 1";
+    constexpr auto query = db::Query("INSERT INTO char_inventory(charid, location, slot, itemId, quantity, signature, extra) VALUES(?, ?, ?, ?, ?, ?, ?) LIMIT 1");
 
-    if (!db::preparedStmt(Query, PChar->id, LocationID, SlotID, PRestored->getID(), quantity, PRestored->getSignature(), PRestored->m_extra))
+    if (!db::preparedStmt(query, PChar->id, LocationID, SlotID, PRestored->getID(), quantity, PRestored->getSignature(), PRestored->m_extra))
     {
         ShowError("RestoreItem: Cannot insert item to database");
         PStorage->RemoveItem(SlotID);

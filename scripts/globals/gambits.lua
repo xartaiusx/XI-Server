@@ -106,6 +106,10 @@ ai.condition =
     CASTER_STATUS_FLAG = 46,
     STATUS_MISSING_OR_EXPIRING        = 47, -- argument is effect; true if missing or <= trust refresh window
     CASTER_STATUS_MISSING_OR_EXPIRING = 48, -- argument is effect; true if caster missing or <= trust refresh window
+    COVER_OPPORTUNITY                 = 49,
+    IROHA_RECOVERY                    = 50,
+    MB_ELEMENT_AVAILABLE             = 51,
+    PARTY_DEFENSE_MISSING            = 52,
 }
 ai.c = ai.condition
 
@@ -145,6 +149,7 @@ ai.select =
     DEF_BAR_ELEMENT     = 17,
     RUNE_DAY            = 18,
     RANDOM_ANIMATION    = 19,
+    IROHA_CURE          = 20,
 }
 ai.s = ai.select
 

@@ -24,6 +24,7 @@
 #include "action/action.h"
 #include "action/interrupts.h"
 #include "ai/ai_container.h"
+#include "ai/controllers/trust_controller.h"
 #include "ai/helpers/targetfind.h"
 #include "enmity_container.h"
 #include "entities/battle_entity.h"
@@ -39,6 +40,7 @@
 #include "packets/s2c/0x029_battle_message.h"
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
+#include "utils/trust_job_development.h"
 #include "utils/trustutils.h"
 #include "zone.h"
 
@@ -56,7 +58,7 @@ CMobSkillState::CMobSkillState(xi::Badge<CState>, CBattleEntity* PEntity, const 
 auto CMobSkillState::init() -> StateErrorOr<void>
 {
     auto* skill = battleutils::GetMobSkill(m_wsid);
-    if (!skill)
+    if (!skill || (trustdevelopment::IsIrohaSignature(m_wsid) && !trustdevelopment::CanUseIrohaSignature(m_PEntity)))
     {
         return RefuseSilently();
     }
@@ -231,6 +233,7 @@ auto CMobSkillState::Update(const timer::time_point tick) -> bool
 
         action_t action{};
         m_PEntity->OnMobSkillFinished(*this, action);
+        trustcombat::RecordResolvedAction(m_PEntity, target().resolve<CBattleEntity>(), action);
 
         // Zero message ID
         if (m_PSkill->getFlag() & SKILLFLAG_NO_FINISH_MSG)
@@ -308,9 +311,9 @@ void CMobSkillState::Cleanup(timer::time_point tick)
     // Not interrupted.
     else
     {
-        if (m_PEntity->isAlive() && m_PSkill->getFinalAnimationSub().has_value())
+        if (const auto finalAnimationSub = m_PSkill->getFinalAnimationSub(); m_PEntity->isAlive() && finalAnimationSub.has_value())
         {
-            m_PEntity->animationsub = m_PSkill->getFinalAnimationSub().value();
+            m_PEntity->animationsub = *finalAnimationSub;
             m_PEntity->updatemask |= UPDATE_COMBAT;
         }
 

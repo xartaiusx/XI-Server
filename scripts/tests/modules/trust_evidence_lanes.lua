@@ -372,6 +372,7 @@ describe('Module: Trust evidence lanes', function()
         assert(ordinary.actions:prepareSoloTrustParty(), 'ordinary fixture needs its native solo party leader')
         local leader = ordinary:getPartyLeader()
         assert(leader and leader:getID() == ordinary:getID())
+        assert(ordinary:getPartyLastMemberJoinedTime() == 0, 'forming a solo party must not start the player join cooldown')
         assert(xi.trustRetailParity.spawnTrust(ordinary, xi.magic.spell.VALAINERAL) == nil)
 
         assert(ordinary:spawnTrust(xi.magic.spell.VALAINERAL) ~= nil)

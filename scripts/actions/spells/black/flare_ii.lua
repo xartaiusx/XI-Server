@@ -5,6 +5,14 @@
 local spellObject = {}
 
 spellObject.onMagicCastingCheck = function(caster, target, spell)
+    if
+        caster:isDevelopedTrust() and
+        caster:getTrustID() == xi.magic.spell.IROHA_II
+    then
+        -- This signature has a quick cast. The native burst window still applies.
+        spell:setCastTime(1000)
+    end
+
     return 0
 end
 

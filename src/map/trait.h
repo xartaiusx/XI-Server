@@ -22,6 +22,7 @@
 #pragma once
 
 #include "common/cbasetypes.h"
+#include "common/macros.h"
 #include "data/enums/job.h"
 
 #include "modifier.h"
@@ -166,37 +167,39 @@ public:
     CTrait(uint16 id);
     virtual ~CTrait() = default;
 
-    uint16 getID() const
+    DISALLOW_COPY_AND_MOVE(CTrait);
+
+    auto getID() const -> uint16
     {
         return m_id;
     }
 
-    uint8 getJob() const
+    auto getJob() const -> uint8
     {
         return m_job;
     }
 
-    uint8 getLevel() const
+    auto getLevel() const -> uint8
     {
         return m_level;
     }
 
-    xi::Mod getMod() const
+    auto getMod() const -> xi::Mod
     {
         return m_mod;
     }
 
-    int16 getValue() const
+    auto getValue() const -> int16
     {
         return m_value;
     }
 
-    uint8 getRank() const
+    auto getRank() const -> uint8
     {
         return m_rank;
     }
 
-    uint32 getMeritID() const
+    auto getMeritID() const -> uint32
     {
         return m_meritId;
     }
@@ -241,7 +244,7 @@ private:
     uint32  m_meritId{ 0 };
 };
 
-typedef std::vector<CTrait*> TraitList_t;
+using TraitList_t = std::vector<CTrait*>;
 
 namespace traits
 {

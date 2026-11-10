@@ -33,6 +33,11 @@ parser.add_argument(
     help="Force to run, even if there is an existing check.json result. The existing check.json result will be deleted.",
 )
 
+parser.add_argument(
+    "--archive",
+    help="Use a preverified local release archive instead of downloading one.",
+)
+
 args = parser.parse_args()
 
 if args.blame:
@@ -109,46 +114,45 @@ os_to_asset = {
     "Darwin": "darwin-x64.tar.gz",
 }
 
-# URL of the GitHub API
-api_url = f"https://api.github.com/repos/LuaLS/lua-language-server/releases/{f"tags/{args.version}" if args.version else "latest"}"
+archive_path = args.archive or f"./lua-language-server.{os_to_asset.get(current_os)}"
+if args.archive and not os.path.isfile(archive_path):
+    parser.error("The supplied Lua Language Server archive does not exist.")
 
-response = requests.get(api_url)
+if args.archive is None:
+    # URL of the GitHub API
+    api_url = f"https://api.github.com/repos/LuaLS/lua-language-server/releases/{f"tags/{args.version}" if args.version else "latest"}"
 
-if response.status_code == 200:
-    release_data = response.json()
-    assets = release_data.get("assets", [])
+    response = requests.get(api_url)
 
-    download_url = None
-    for asset in assets:
-        if os_to_asset.get(current_os) in asset["name"]:
-            print(f"Asset found: {asset['name']}")
-            download_url = asset["browser_download_url"]
-            break
+    if response.status_code == 200:
+        release_data = response.json()
+        assets = release_data.get("assets", [])
 
-    if download_url:
-        response = requests.get(download_url, stream=True)
-        if response.status_code == 200:
-            with open(
-                f"./lua-language-server.{os_to_asset.get(current_os)}", "wb"
-            ) as file:
-                for chunk in response.iter_content(chunk_size=8192):
-                    file.write(chunk)
-            print("Language server downloaded successfully.")
-        else:
-            print("Failed to download the language server.")
-else:
-    print("Failed to access the release page.")
+        download_url = None
+        for asset in assets:
+            if os_to_asset.get(current_os) in asset["name"]:
+                print(f"Asset found: {asset['name']}")
+                download_url = asset["browser_download_url"]
+                break
 
-if os.path.exists(f"./lua-language-server.{os_to_asset.get(current_os)}"):
+        if download_url:
+            response = requests.get(download_url, stream=True)
+            if response.status_code == 200:
+                with open(archive_path, "wb") as file:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        file.write(chunk)
+                print("Language server downloaded successfully.")
+            else:
+                print("Failed to download the language server.")
+    else:
+        print("Failed to access the release page.")
+
+if os.path.exists(archive_path):
     if current_os == "Windows":
-        with zipfile.ZipFile(
-            f"./lua-language-server.{os_to_asset.get(current_os)}", "r"
-        ) as zip_ref:
+        with zipfile.ZipFile(archive_path, "r") as zip_ref:
             zip_ref.extractall("./lua-language-server")
     else:
-        with tarfile.open(
-            f"./lua-language-server.{os_to_asset.get(current_os)}", "r:gz"
-        ) as tar_ref:
+        with tarfile.open(archive_path, "r:gz") as tar_ref:
             tar_ref.extractall("./lua-language-server", filter="data")
     print("Language server extracted successfully.")
 else:

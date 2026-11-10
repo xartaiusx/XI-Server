@@ -1,4 +1,4 @@
-set(UTIL_SOURCES
+target_sources(xi_map_battle PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/attackutils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/attackutils.h
     ${CMAKE_CURRENT_SOURCE_DIR}/auctionutils.cpp
@@ -10,6 +10,7 @@ set(UTIL_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/blueutils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/blueutils.h
     ${CMAKE_CURRENT_SOURCE_DIR}/charutils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/char_points_queries.h
     ${CMAKE_CURRENT_SOURCE_DIR}/charutils.h
     ${CMAKE_CURRENT_SOURCE_DIR}/dataset_loader.h
     ${CMAKE_CURRENT_SOURCE_DIR}/dboxutils.cpp
@@ -57,5 +58,4 @@ set(UTIL_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/trustutils.h
     ${CMAKE_CURRENT_SOURCE_DIR}/zoneutils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/zoneutils.h
-    PARENT_SCOPE
 )

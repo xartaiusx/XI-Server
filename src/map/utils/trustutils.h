@@ -132,7 +132,7 @@ void MarkTrustEvidenceTruncated(CCharEntity* PMaster, std::string_view reason);
 void LoadTrustList();
 auto SpawnTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*;
 // Returns true only when the ordinary roster action was broadcast in complete wire-sized batches.
-bool BroadcastOrdinaryTrustPartyAction(CBattleEntity* PActor, action_t& action);
+auto BroadcastOrdinaryTrustPartyAction(CBattleEntity* PActor, action_t& action) -> bool;
 void LogTrustActionPacket(CBattleEntity* PActor, const action_t& action, const CBattleEntity* PPrimaryTarget, const char* source);
 void LogTrustActionSkip(CBattleEntity* PActor, const CBattleEntity* PTarget, uint16 actionId, const char* source, const char* reason);
 

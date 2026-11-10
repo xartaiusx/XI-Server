@@ -22,6 +22,7 @@
 #pragma once
 
 #include "common/cbasetypes.h"
+#include "common/macros.h"
 #include "common/types/maybe.h"
 
 #include "base_entity.h"
@@ -32,21 +33,23 @@ public:
     CNpcEntity();
     ~CNpcEntity() override;
 
+    DISALLOW_COPY_AND_MOVE(CNpcEntity);
+
     auto entityFlags() const -> xi::EntityFlags;      // Returns the current value in m_flags
     void setEntityFlags(xi::EntityFlags EntityFlags); // Change the current value in m_flags
 
     void hideHP(bool hide);
 
     void setUntargetable(bool untargetable);
-    bool GetUntargetable() const override;
+    auto GetUntargetable() const -> bool override;
 
-    bool triggerable() const;
+    auto triggerable() const -> bool;
     void setTriggerable(bool triggerable);
 
     auto widescan() const -> uint8;
     void setWidescan(uint8 widescan);
 
-    bool alwaysRelevant() const;
+    auto alwaysRelevant() const -> bool;
     void setAlwaysRelevant(bool alwaysRelevant);
 
     auto contentDisabled() const -> bool;
@@ -56,7 +59,7 @@ public:
     // CBaseEntity
     //
 
-    bool isWideScannable() override;
+    auto isWideScannable() -> bool override;
     void PostTick() override;
 
     auto Tick(timer::time_point) -> Task<void> override

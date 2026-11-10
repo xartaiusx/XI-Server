@@ -35,20 +35,20 @@ class CLuaClientEntityPairActions
 {
 public:
     CLuaClientEntityPairActions(CLuaClientEntityPair* parent);
-    ~CLuaClientEntityPairActions() = default;
 
     void move(float x, float y, float z, sol::optional<uint8_t> rot) const;
     void useSpell(CLuaBaseEntity* target, SpellID spellId) const;
     void setBlueSpells(const sol::table& spellIds) const;
+    auto seedUndefinedBlueSpell(uint8 slot, uint16 spellId) const -> bool;
     void useWeaponskill(CLuaBaseEntity* target, uint16 wsId) const;
     void useAbility(CLuaBaseEntity* target, ABILITY abilityId) const;
-    bool useTrustSpell(CLuaBaseEntity* trust, CLuaBaseEntity* target, SpellID spellId) const;
-    bool hasTrustSpell(CLuaBaseEntity* trust, SpellID spellId) const;
-    bool useTrustAbility(CLuaBaseEntity* trust, CLuaBaseEntity* target, ABILITY abilityId) const;
-    bool useTrustWeaponskill(CLuaBaseEntity* trust, CLuaBaseEntity* target, uint16 wsId) const;
+    auto useTrustSpell(CLuaBaseEntity* trust, CLuaBaseEntity* target, SpellID spellId) const -> bool;
+    auto hasTrustSpell(CLuaBaseEntity* trust, SpellID spellId) const -> bool;
+    auto useTrustAbility(CLuaBaseEntity* trust, CLuaBaseEntity* target, ABILITY abilityId) const -> bool;
+    auto useTrustWeaponskill(CLuaBaseEntity* trust, CLuaBaseEntity* target, uint16 wsId) const -> bool;
     void flushEquipmentBatch() const;
-    bool hasTrustEntity(uint32 id) const;
-    bool prepareSoloTrustParty() const;
+    auto hasTrustEntity(uint32 id) const -> bool;
+    auto prepareSoloTrustParty() const -> bool;
     void useMonsterSkill(CLuaBaseEntity* target, uint16 datSkillId) const;
     void changeTarget(CLuaBaseEntity* target) const;
     void rangedAttack(CLuaBaseEntity* target) const;
@@ -57,8 +57,8 @@ public:
     void inviteToParty(CLuaBaseEntity* player) const;
     void formAlliance(CLuaBaseEntity* player) const;
     void acceptPartyInvite() const;
-    bool formPartyForInvalidTrustState(CLuaBaseEntity* member) const;
-    bool formAllianceForInvalidTrustState(CLuaBaseEntity* firstMember, CLuaBaseEntity* secondLeader, CLuaBaseEntity* secondMember) const;
+    auto formPartyForInvalidTrustState(CLuaBaseEntity* member) const -> bool;
+    auto formAllianceForInvalidTrustState(CLuaBaseEntity* firstMember, CLuaBaseEntity* secondLeader, CLuaBaseEntity* secondMember) const -> bool;
     auto spawnTrustForInvalidGroupState(uint16 trustId) const -> CBaseEntity*;
     void leaveParty() const;
     void requestParty(CLuaBaseEntity* player) const;
@@ -103,7 +103,7 @@ public:
     void plantHarvest(uint8 potContainer, uint8 potSlot, sol::optional<bool> uproot) const;
     void plantDry(uint8 potContainer, uint8 potSlot) const;
 
-    void placeFurniture(uint8 container, uint8 slot, uint8 x, uint8 z) const;
+    void placeFurniture(uint8 container, uint8 slot, uint8 x, uint8 z, sol::optional<uint8> y) const;
     void finishFurnishing() const;
 
     static void Register();

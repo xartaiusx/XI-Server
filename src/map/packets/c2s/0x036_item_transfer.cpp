@@ -20,6 +20,7 @@
 */
 
 #include "0x036_item_transfer.h"
+#include "ai/ai_container.h"
 
 #include "entities/char_entity.h"
 #include "entities/npc_entity.h"
@@ -47,7 +48,7 @@ auto GP_CLI_COMMAND_ITEM_TRANSFER::validate(MapSession* PSession, const CCharEnt
 {
     // A Monipulator can only trade with the Feretory's NPCs.
     return PacketValidator(PChar)
-        .blockedBy({ BlockedState::InEvent })
+        .blockedBy({ BlockedState::InEvent, BlockedState::Fishing })
         .mustEqual(PChar->m_PMonstrosity == nullptr || PChar->getZone() == xi::ZoneId::Feretory, true, "Monipulators only trade in the Feretory")
         .range("ItemNum", this->ItemNum, 1, MAX_TRADE_SLOTS);
 }
@@ -81,8 +82,9 @@ void GP_CLI_COMMAND_ITEM_TRANSFER::process(MapSession* PSession, CCharEntity* PC
         return;
     }
 
-    // Only allow trading with mobs if it's status is an NPC
-    if (PNpc->objtype == TYPE_MOB && PNpc->status != xi::Status::Normal)
+    // A hidden NPC can't be targeted, so only a modified client sends this. Mog House moogles are the exception, as for talking.
+    const auto isShown = PNpc->PAI->IsSpawned() && PNpc->status == xi::Status::Normal;
+    if (!isShown && !PChar->inMogHouse(xi::MogHouse::Own))
     {
         return;
     }

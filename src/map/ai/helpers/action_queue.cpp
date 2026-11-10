@@ -24,8 +24,8 @@
 #include "ai/ai_container.h"
 #include "entities/base_entity.h"
 
-CAIActionQueue::CAIActionQueue(CBaseEntity* _PEntity)
-: PEntity(_PEntity)
+CAIActionQueue::CAIActionQueue(CBaseEntity* entity)
+: PEntity(entity)
 {
 }
 
@@ -64,7 +64,7 @@ void CAIActionQueue::handleAction(queueAction_t& action)
     }
 }
 
-bool CAIActionQueue::isEmpty() const
+auto CAIActionQueue::isEmpty() const -> bool
 {
     return actionQueue.empty() && timerQueue.empty();
 }

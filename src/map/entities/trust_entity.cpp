@@ -106,7 +106,7 @@ auto CTrustEntity::getShieldDefense() -> int16
     return 130;
 }
 
-auto CTrustEntity::released() -> bool
+auto CTrustEntity::released() const -> bool
 {
     return released_;
 }
@@ -246,8 +246,9 @@ void CTrustEntity::FinishRaise()
 
 void CTrustEntity::PostTick()
 {
-    // NOTE: This is purposefully calling CBattleEntity's impl.
-    // TODO: Calling a grand-parent's impl. of an overridden function is bad
+    // CMobEntity::PostTick has no Disappear guard, and its pet sync only fires for a charmed mob. Trusts
+    // send party HP updates instead, and none while despawning.
+    // NOLINTNEXTLINE(bugprone-parent-virtual-call): Grandparent call, skips CMobEntity's impl on purpose.
     CBattleEntity::PostTick();
     timer::time_point now = timer::now();
     if (loc.zone && updatemask && status != xi::Status::Disappear && now > m_nextUpdateTimer)
@@ -270,6 +271,9 @@ void CTrustEntity::PostTick()
 
 void CTrustEntity::FadeOut()
 {
+    // CMobEntity::FadeOut also clears enmity. Die clears it for a defeated trust, and a released
+    // trust is never reused, since every summon builds a new entity.
+    // NOLINTNEXTLINE(bugprone-parent-virtual-call): Grandparent call, skips CMobEntity's impl on purpose.
     CBaseEntity::FadeOut();
     loc.zone->UpdateEntityPacket(this, ENTITY_DESPAWN, UPDATE_NONE);
 }
@@ -316,6 +320,7 @@ void CTrustEntity::Die()
     // Preserve native death-listener semantics, then retain the exact owner identity.
     const auto owner = m_OwnerID;
     m_OwnerID.clean();
+    // NOLINTNEXTLINE(bugprone-parent-virtual-call): Skip the ordinary mob death timer and reward handling.
     CBattleEntity::Die();
     if (retainedCorpse_)
     {
@@ -380,9 +385,8 @@ void CTrustEntity::Spawn()
         }
     }
 
-    // NOTE: This is purposefully calling CBattleEntity's impl.
-    // TODO: Calling a grand-parent's impl. of an overridden function is bad
-    // we need to skip CMobEntity's spawn because it calculates stats (and our stats are already calculated)
+    // Trust levels and stats are already calculated. The Trust spawn hook runs below.
+    // NOLINTNEXTLINE(bugprone-parent-virtual-call): Skip ordinary mob level, trait and stat initialization.
     CBattleEntity::Spawn();
     if (developed)
     {
@@ -404,7 +408,7 @@ void CTrustEntity::Spawn()
     static_cast<CCharEntity*>(PMaster)->pushPacket<CEntitySetNamePacket>(this);
 }
 
-bool CTrustEntity::ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags)
+auto CTrustEntity::ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags) -> bool
 {
     // Passive GEO trusts like Sakura etc are basically walking indicolures and cant be targeted
     if (passiveTrust_)
@@ -487,13 +491,14 @@ void CTrustEntity::OnDespawn(CDespawnState& /*unused*/)
 
 void CTrustEntity::OnCastFinished(CMagicState& state, action_t& action)
 {
-    // NOTE: This is purposefully calling CBattleEntity's impl.
-    // TODO: Calling a grand-parent's impl. of an overridden function is bad
+    // CMobEntity::OnCastFinished sets the MagicCool cooldown and taps the deaggro timer. CTrustController
+    // replaces the mob ticks that read both, and trusts gate spells on the recast below instead.
+    // NOLINTNEXTLINE(bugprone-parent-virtual-call): Grandparent call, skips CMobEntity's impl on purpose.
     CBattleEntity::OnCastFinished(state, action);
 
     auto* PSpell = state.GetSpell();
 
-    PRecastContainer->Add(RECAST_MAGIC, static_cast<Recast>(PSpell->getID()), action.recast);
+    PRecastContainer->Add(xi::RecastType::Magic, static_cast<xi::Recast>(PSpell->getID()), action.recast);
 }
 
 void CTrustEntity::OnMobSkillFinished(CMobSkillState& state, action_t& action)
@@ -503,8 +508,9 @@ void CTrustEntity::OnMobSkillFinished(CMobSkillState& state, action_t& action)
 
 void CTrustEntity::OnWeaponSkillFinished(CWeaponSkillState& state, action_t& action)
 {
-    // NOTE: This is purposefully calling CBattleEntity's impl.
-    // TODO: Calling a grand-parent's impl. of an overridden function is bad
+    // CMobEntity::OnWeaponSkillFinished only taps the deaggro timer. CTrustController replaces the mob
+    // ticks that read it.
+    // NOLINTNEXTLINE(bugprone-parent-virtual-call): Grandparent call, skips CMobEntity's impl on purpose.
     CBattleEntity::OnWeaponSkillFinished(state, action);
 
     auto* PWeaponSkill  = state.GetSkill();
@@ -529,15 +535,19 @@ void CTrustEntity::OnWeaponSkillFinished(CWeaponSkillState& state, action_t& act
             PAI->TargetFind->findSingleTarget(PBattleTarget, FINDFLAGS_NONE, TARGET_NONE);
         }
 
-        if (PAI->TargetFind->m_targets.size() == 0)
+        if (PAI->TargetFind->m_targets.empty())
         {
             // There used to be an assumed interrupt handler
             // Add a test and capture before reintroducing.
             return;
         }
 
-        for (auto&& PTarget : PAI->TargetFind->m_targets)
+        for (auto* PTarget : PAI->TargetFind->m_targets)
         {
+            if (trustcombat::IsSleepProtected(this, PTarget))
+            {
+                continue;
+            }
             bool             primary      = PTarget == PBattleTarget;
             action_target_t& actionTarget = action.addTarget(PTarget->id);
             action_result_t& actionResult = actionTarget.addResult();
@@ -596,7 +606,7 @@ void CTrustEntity::OnWeaponSkillFinished(CWeaponSkillState& state, action_t& act
     this->processActionEffectFlags(action);
 }
 
-bool CTrustEntity::GetUntargetable() const
+auto CTrustEntity::GetUntargetable() const -> bool
 {
     // Passive GEO trusts like Sakura etc are basically walking indicolures and cant be targeted
     if (passiveTrust_)

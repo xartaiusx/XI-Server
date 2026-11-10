@@ -33,6 +33,7 @@
 #include <span>
 
 #include <DetourCommon.h>
+#define ZLIB_CONST
 #include <zlib.h>
 
 namespace
@@ -92,7 +93,7 @@ auto zlibDecompress(const std::vector<uint8>& rawData) -> std::vector<uint8>
         return {};
     }
 
-    stream.next_in  = (Bytef*)rawData.data();
+    stream.next_in  = rawData.data();
     stream.avail_in = static_cast<uInt>(rawData.size());
 
     std::vector<uint8> result;
@@ -531,6 +532,19 @@ auto XiMeshImpl::query(const float x, const float y, const float z) const -> May
                 continue;
             }
 
+            const auto& w2o = w2os_[placementIdx];
+            if (block.metas.size() > kCullMinTriangles && w2o.determinant() != 0.0f)
+            {
+                const auto  start     = w2o.applyToCopy(Vector3{ x, y - kFloorEpsilon, z });
+                const auto  height    = place.yMax - (y - kFloorEpsilon);
+                const auto& el        = w2o.elements;
+                const auto  direction = Vector3{ el[1][0] * height, el[1][1] * height, el[1][2] * height };
+                if (!segmentHitsAABB(start, reciprocalDir(direction), block.aabbMin, block.aabbMax))
+                {
+                    continue;
+                }
+            }
+
             for (size_t triIdx = 0; triIdx < block.metas.size(); ++triIdx)
             {
                 const uint16 i0 = block.indices[triIdx * 3 + 0];
@@ -552,7 +566,7 @@ auto XiMeshImpl::query(const float x, const float y, const float z) const -> May
                 {
                     const auto& meta = block.metas[triIdx];
                     best             = CellHit{
-                        .type    = static_cast<TerrainType>(meta.material),
+                        .type    = static_cast<xi::TerrainType>(meta.material),
                         .mapId   = place.mapId,
                         .roofed  = place.roofed,
                         .barrier = meta.barrier != 0,
@@ -565,14 +579,8 @@ auto XiMeshImpl::query(const float x, const float y, const float z) const -> May
         return best;
     };
 
-    // Check target cell first
-    if (const auto best = searchCell(cx, cz))
-    {
-        return best;
-    }
-
-    // Miss, check neighbors
-    Maybe<CellHit> best;
+    // Neighboring cells can contain a closer overlapping floor.
+    auto best = searchCell(cx, cz);
     for (int dz = -1; dz <= 1; ++dz)
     {
         for (int dx = -1; dx <= 1; ++dx)
@@ -595,7 +603,7 @@ auto XiMeshImpl::query(const float x, const float y, const float z) const -> May
     return best;
 }
 
-auto XiMeshImpl::getTerrainAt(const float x, const float y, const float z) const -> TerrainType
+auto XiMeshImpl::getTerrainAt(const float x, const float y, const float z) const -> xi::TerrainType
 {
     TracyZoneScoped;
 
@@ -604,7 +612,7 @@ auto XiMeshImpl::getTerrainAt(const float x, const float y, const float z) const
         return hit->type;
     }
 
-    return TerrainType::None;
+    return xi::TerrainType::None;
 }
 
 auto XiMeshImpl::getFloorId(const float x, const float y, const float z) const -> uint8
@@ -992,7 +1000,7 @@ auto XiMeshImpl::rayIntersectCellHitInfo(const Vector3& start, const Vector3& en
                         .intersection = intersection,
                         .distanceSq   = distanceSq,
                         .placement    = &place,
-                        .type         = static_cast<TerrainType>(meta.material),
+                        .type         = static_cast<xi::TerrainType>(meta.material),
                         .barrier      = meta.barrier != 0,
                     };
                 }

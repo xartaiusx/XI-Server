@@ -25,6 +25,7 @@
 
 #include "action/action.h"
 #include "ai/ai_container.h"
+#include "ai/controllers/trust_controller.h"
 #include "entities/battle_entity.h"
 #include "entities/char_entity.h"
 #include "entities/trust_entity.h"
@@ -153,8 +154,9 @@ auto CWeaponSkillState::Update(const timer::time_point tick) -> bool
 
         auto*      trust     = dynamic_cast<CTrustEntity*>(m_PEntity);
         const bool permitted = !trustdevelopment::IsEnabled(trust) || trustweaponskills::CanUse(trust, m_PSkill.get());
-        if (PTarget && PTarget->isAlive() && permitted)
+        if (PTarget && PTarget->isAlive() && permitted && !trustcombat::IsSleepProtected(m_PEntity, PTarget))
         {
+            const auto sleepApplication = trustcombat::SleepApplication(m_PEntity, PTarget);
             SpendCost();
 
             m_PEntity->OnWeaponSkillFinished(*this, action);
@@ -176,6 +178,7 @@ auto CWeaponSkillState::Update(const timer::time_point tick) -> bool
 
             if (action.actiontype == ActionCategory::SkillFinish) // category changes upon being out of range. This does not count for RoE and delay is not increased beyond the normal delay.
             {
+                trustcombat::RecordResolvedAction(m_PEntity, PTarget, action, sleepApplication);
                 // only send lua the WS events if we are in range
                 const uint32 weaponskillVar    = PTarget->GetLocalVar("weaponskillHit");
                 uint32       weaponskillDamage = weaponskillVar & 0xFFFFFF;
@@ -221,16 +224,6 @@ void CWeaponSkillState::Cleanup(const timer::time_point tick)
     if (!m_PEntity)
     {
         return;
-    }
-
-    // Interrupted.
-    if (!IsCompleted())
-    {
-    }
-
-    // Not interrupted.
-    else
-    {
     }
 
     // Call listener. Feed skill result.

@@ -13,6 +13,7 @@
 #include "entities/char_entity.h"
 #include "enums/chat_message_type.h"
 #include "item_container.h"
+#include "items/craft_state.h"
 #include "items/item.h"
 #include "items/transactions/item_claim.h"
 #include "items/transactions/synth.h"
@@ -402,29 +403,29 @@ auto itemDisplayName(uint16 itemId) -> std::string
     return fmt::format("item_{}", itemId);
 }
 
-auto synthResultName(uint8 result) -> std::string
+auto synthResultName(SynthesisOutcome result) -> std::string
 {
     switch (result)
     {
-        case synthutils::SYNTHESIS_SUCCESS:
+        case SynthesisOutcome::NQ:
             return "nq";
-        case synthutils::SYNTHESIS_HQ:
+        case SynthesisOutcome::HQ1:
             return "hq1";
-        case synthutils::SYNTHESIS_HQ2:
+        case SynthesisOutcome::HQ2:
             return "hq2";
-        case synthutils::SYNTHESIS_HQ3:
+        case SynthesisOutcome::HQ3:
             return "hq3";
-        case synthutils::SYNTHESIS_FAIL:
+        case SynthesisOutcome::Fail:
         default:
             return "fail";
     }
 }
 
-auto resultForTier(const Recipe& recipe, uint8 result) -> std::pair<uint16, uint8>
+auto resultForTier(const Recipe& recipe, SynthesisOutcome result) -> std::pair<uint16, uint8>
 {
-    if (result >= synthutils::SYNTHESIS_SUCCESS && result <= synthutils::SYNTHESIS_HQ3)
+    if (result >= SynthesisOutcome::NQ && result <= SynthesisOutcome::HQ3)
     {
-        const auto index = result - 1;
+        const auto index = static_cast<std::size_t>(result) - static_cast<std::size_t>(SynthesisOutcome::NQ);
         return { recipe.results[index], recipe.resultQty[index] };
     }
 
@@ -980,7 +981,7 @@ void observeCraftCompletion(CCharEntity* PChar)
         "context={} result={} tier={} item={} item_name={} combine_packets=normal_synthutils_result_path",
         active.context,
         synthResultName(result),
-        result,
+        static_cast<uint8>(result),
         itemId,
         itemId == 0 ? "none" : itemDisplayName(itemId));
 

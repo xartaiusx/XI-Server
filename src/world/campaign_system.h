@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include "common/macros.h"
 #include "world_engine.h"
 
 class CampaignSystem
@@ -34,7 +35,9 @@ public:
 
     ~CampaignSystem() = default;
 
-    bool handleMessage(uint8 messageType, IPPMessage&& message)
+    DISALLOW_COPY_AND_MOVE(CampaignSystem);
+
+    auto handleMessage(uint8 messageType, IPPMessage&& message) -> bool
     {
         return false;
     }

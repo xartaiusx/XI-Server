@@ -49,7 +49,7 @@ CAttack::CAttack(CBattleEntity* attacker, CBattleEntity* defender, PHYSICAL_ATTA
  *  Returns the attack direction.                                       *
  *                                                                      *
  ************************************************************************/
-PHYSICAL_ATTACK_DIRECTION CAttack::GetAttackDirection() const
+auto CAttack::GetAttackDirection() const -> PHYSICAL_ATTACK_DIRECTION
 {
     return m_attackDirection;
 }
@@ -59,7 +59,7 @@ PHYSICAL_ATTACK_DIRECTION CAttack::GetAttackDirection() const
  *  Returns the attack type.                                            *
  *                                                                      *
  ************************************************************************/
-PHYSICAL_ATTACK_TYPE CAttack::GetAttackType() const
+auto CAttack::GetAttackType() const -> PHYSICAL_ATTACK_TYPE
 {
     return m_attackType;
 }
@@ -79,7 +79,7 @@ void CAttack::SetAttackType(PHYSICAL_ATTACK_TYPE type)
  *  Returns the isCritical flag.                                        *
  *                                                                      *
  ************************************************************************/
-bool CAttack::IsCritical() const
+auto CAttack::IsCritical() const -> bool
 {
     return m_isCritical;
 }
@@ -152,7 +152,7 @@ void CAttack::SetCritical(bool value)
  *  Gets the evaded flag.                                               *
  *                                                                      *
  ************************************************************************/
-bool CAttack::IsEvaded() const
+auto CAttack::IsEvaded() const -> bool
 {
     return m_isEvaded;
 }
@@ -172,22 +172,22 @@ void CAttack::SetEvaded(bool value)
  *  Gets the blocked flag.                                              *
  *                                                                      *
  ************************************************************************/
-bool CAttack::IsBlocked() const
+auto CAttack::IsBlocked() const -> bool
 {
     return m_isBlocked;
 }
 
-bool CAttack::IsParried() const
+auto CAttack::IsParried() const -> bool
 {
     return m_isParried;
 }
 
-bool CAttack::IsGuarded() const
+auto CAttack::IsGuarded() const -> bool
 {
     return m_isGuarded;
 }
 
-bool CAttack::CheckGuarded()
+auto CAttack::CheckGuarded() -> bool
 {
     m_isGuarded = attackutils::IsGuarded(m_attacker, m_victim);
     if (m_isGuarded)
@@ -198,7 +198,7 @@ bool CAttack::CheckGuarded()
     return m_isGuarded;
 }
 
-bool CAttack::CheckParried()
+auto CAttack::CheckParried() -> bool
 {
     if (m_attackType != PHYSICAL_ATTACK_TYPE::DAKEN)
     {
@@ -210,12 +210,12 @@ bool CAttack::CheckParried()
     return m_isParried;
 }
 
-bool CAttack::IsAnticipated() const
+auto CAttack::IsAnticipated() const -> bool
 {
     return m_anticipated;
 }
 
-bool CAttack::IsDeflected() const
+auto CAttack::IsDeflected() const -> bool
 {
     if (!m_victim->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::DefenseBoost))
     {
@@ -236,7 +236,7 @@ bool CAttack::IsDeflected() const
  *  Returns the isFirstSwing flag.                                      *
  *                                                                      *
  ************************************************************************/
-bool CAttack::IsFirstSwing() const
+auto CAttack::IsFirstSwing() const -> bool
 {
     return m_isFirstSwing;
 }
@@ -256,7 +256,7 @@ void CAttack::SetAsFirstSwing(bool isFirst)
  *  Gets the damage ratio.                                              *
  *                                                                      *
  ************************************************************************/
-float CAttack::GetDamageRatio() const
+auto CAttack::GetDamageRatio() const -> float
 {
     return m_damageRatio;
 }
@@ -266,7 +266,7 @@ float CAttack::GetDamageRatio() const
  *  Sets the attack type.                                               *
  *                                                                      *
  ************************************************************************/
-uint8 CAttack::GetWeaponSlot()
+auto CAttack::GetWeaponSlot() -> uint8
 {
     if (m_attackRound->IsH2H())
     {
@@ -284,7 +284,7 @@ uint8 CAttack::GetWeaponSlot()
  *  Returns the animation ID.                                           *
  *                                                                      *
  ************************************************************************/
-uint16 CAttack::GetAnimationID()
+auto CAttack::GetAnimationID() -> uint16
 {
     AttackAnimation animation{};
 
@@ -313,7 +313,7 @@ uint16 CAttack::GetAnimationID()
  *  Returns the hitrate for this swing.                                 *
  *                                                                      *
  ************************************************************************/
-uint8 CAttack::GetHitRate()
+auto CAttack::GetHitRate() -> uint8
 {
     if (m_attackType == PHYSICAL_ATTACK_TYPE::KICK)
     {
@@ -373,7 +373,7 @@ uint8 CAttack::GetHitRate()
  *  Returns the damage for this swing.                                  *
  *                                                                      *
  ************************************************************************/
-int32 CAttack::GetDamage() const
+auto CAttack::GetDamage() const -> int32
 {
     return m_damage;
 }
@@ -388,7 +388,7 @@ void CAttack::SetDamage(int32 value)
     m_damage = value;
 }
 
-bool CAttack::CheckAnticipated()
+auto CAttack::CheckAnticipated() -> bool
 {
     if (m_attackType == PHYSICAL_ATTACK_TYPE::DAKEN)
     {
@@ -423,22 +423,22 @@ bool CAttack::CheckAnticipated()
     return false;
 }
 
-bool CAttack::IsSneakAttack() const
+auto CAttack::IsSneakAttack() const -> bool
 {
     return m_isSA;
 }
 
-bool CAttack::IsTrickAttack() const
+auto CAttack::IsTrickAttack() const -> bool
 {
     return m_isTA;
 }
 
-bool CAttack::IsCountered() const
+auto CAttack::IsCountered() const -> bool
 {
     return m_isCountered;
 }
 
-bool CAttack::CheckCounter()
+auto CAttack::CheckCounter() -> bool
 {
     // TODO return false if boost is active (when boost gets refactored to be current retail accurate)
     if (m_attackType == PHYSICAL_ATTACK_TYPE::DAKEN)
@@ -463,19 +463,17 @@ bool CAttack::CheckCounter()
 
     uint16 seiganChance = 0;
 
-    if (auto* PChar = dynamic_cast<CCharEntity*>(m_victim); PChar && m_victim->getMod(xi::Mod::SEIGAN_COUNTER_BONUS) > 0)
+    if (m_victim->getMod(xi::Mod::SEIGAN_COUNTER_BONUS) > 0 &&
+        (dynamic_cast<CCharEntity*>(m_victim) != nullptr || trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(m_victim))))
     {
-        // counter check (rate AND your hit rate makes it land, else its just a regular hit)
-        // having seigan active gives chance to counter at 25% of the zanshin proc rate
-        auto* weapon             = dynamic_cast<CItemWeapon*>(PChar->m_Weapons[SLOT_MAIN]);
-        bool  isValid2HandWeapon = weapon && weapon->isTwoHanded();
-        bool  hasValidSeigan     = isValid2HandWeapon && PChar->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Seigan, 0);
-
-        if (hasValidSeigan)
+        // Seigan counters at one quarter of the Zanshin rate with a two-handed weapon.
+        const auto* weapon = dynamic_cast<CItemWeapon*>(m_victim->m_Weapons[SLOT_MAIN]);
+        if (weapon && weapon->isTwoHanded() && m_victim->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Seigan, 0))
         {
-            seiganChance = PChar->getMod(xi::Mod::ZANSHIN) + PChar->PMeritPoints->GetMeritValue(xi::Merit::ZanshinAttackRate, PChar);
-            seiganChance = std::clamp<uint16>(seiganChance, 0, 100);
-            seiganChance /= 4;
+            const auto merit   = m_victim->objtype == TYPE_TRUST ? trustdevelopment::GetMeritValue(m_victim, xi::Merit::ZanshinAttackRate)
+                                                                 : battleutils::GetMeritValue(m_victim, xi::Merit::ZanshinAttackRate);
+            const auto zanshin = m_victim->getMod(xi::Mod::ZANSHIN) + merit;
+            seiganChance       = static_cast<uint16>(std::clamp(zanshin, 0, 100) / 4);
         }
     }
 
@@ -510,12 +508,12 @@ bool CAttack::CheckCounter()
     return m_isCountered;
 }
 
-bool CAttack::IsCovered() const
+auto CAttack::IsCovered() const -> bool
 {
     return m_isCovered;
 }
 
-bool CAttack::CheckCover()
+auto CAttack::CheckCover() -> bool
 {
     CBattleEntity* PCoverAbilityUser = m_attackRound->GetCoverAbilityUserEntity();
     if (PCoverAbilityUser != nullptr && PCoverAbilityUser->isAlive())
@@ -636,17 +634,18 @@ void CAttack::ProcessDamage()
         m_baseDamage     = m_attacker->GetMainWeaponDmg();
         int32 kickDamage = 0;
 
-        if (m_attacker->objtype == TYPE_MOB)
+        // Player pets assigned H2H damage type should also be penalized
+        if (m_attacker->objtype == TYPE_MOB || m_attacker->objtype == TYPE_PET)
         {
             // Mobs use a different base damage formula than players.
             // H2H attacks from mobs have a base damage penalty applied based on what zone they are in.
-            float       mobH2HPenalty = 1.0f;
-            int32       fSTR          = battleutils::GetFSTR(m_attacker, m_victim, slot);
-            REGION_TYPE regionID      = m_attacker->loc.zone->GetRegionID();
+            float      mobH2HPenalty = 1.0f;
+            int32      fSTR          = battleutils::GetFSTR(m_attacker, m_victim, slot);
+            xi::Region regionID      = m_attacker->loc.zone->GetRegionID();
 
             if (static_cast<CMobEntity*>(m_attacker)->getMobMod(xi::MobMod::NoH2hPenalty) == 0)
             {
-                if (regionID <= REGION_TYPE::LIMBUS) // Pre TOAU zones
+                if (regionID <= xi::Region::Limbus) // Pre TOAU zones
                 {
                     mobH2HPenalty = 0.425f; // Vanilla - COP
                 }

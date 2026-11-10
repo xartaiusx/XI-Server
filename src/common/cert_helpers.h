@@ -98,11 +98,9 @@ inline auto openExclusivePrivateFile(const std::string& path) -> FILE*
 }
 
 // Creates <name>.key and <name>.cert only when neither path exists.
-inline void generateSelfSignedCert(const std::string& name = "login", const bool ellipticCurve = false)
+inline void generateCertificatePair(const std::string& keyFile, const std::string& certFile, const std::string& name, bool ellipticCurve)
 {
-    const auto keyFile   = name + ".key";
-    const auto certFile  = name + ".cert";
-    auto       closeFile = [](FILE* file) noexcept
+    auto closeFile = [](FILE* file) noexcept
     {
         fclose(file);
     };
@@ -207,6 +205,42 @@ inline void generateSelfSignedCert(const std::string& name = "login", const bool
     {
         throw std::runtime_error(fmt::format("Failed to close {}", certFile));
     }
+}
+
+inline void generateSelfSignedCert(const std::string& name, bool ellipticCurve = false)
+{
+    generateCertificatePair(name + ".key", name + ".cert", name, ellipticCurve);
+}
+
+inline void generateSelfSignedCert()
+{
+    generateCertificatePair(settings::get<std::string>("network.TLS_KEY"), settings::get<std::string>("network.TLS_CERT"), "login", false);
+}
+
+// TLS 1.3 server context loaded with the shared key and cert
+inline auto serverContext(const std::string& keyFile, const std::string& certFile) -> asio::ssl::context
+{
+    asio::ssl::context context(asio::ssl::context::tlsv13_server);
+    context.set_options(asio::ssl::context::default_workarounds);
+
+    asio::error_code ec;
+    context.use_certificate_chain_file(certFile, ec);
+    if (!ec)
+    {
+        context.use_private_key_file(keyFile, asio::ssl::context::file_format::pem, ec);
+    }
+
+    if (ec)
+    {
+        throw std::runtime_error(fmt::format("Cannot load {} and {} ({})", certFile, keyFile, ec.message()));
+    }
+
+    return context;
+}
+
+inline auto serverContext() -> asio::ssl::context
+{
+    return serverContext(settings::get<std::string>("network.TLS_KEY"), settings::get<std::string>("network.TLS_CERT"));
 }
 
 } // namespace certificateHelpers

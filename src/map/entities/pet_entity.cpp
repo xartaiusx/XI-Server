@@ -69,17 +69,17 @@ CPetEntity::~CPetEntity()
     TracyZoneScoped;
 }
 
-uint32 CPetEntity::petID() const
+auto CPetEntity::petID() const -> uint32
 {
     return petID_;
 }
 
-PET_TYPE CPetEntity::getPetType() const
+auto CPetEntity::getPetType() const -> PET_TYPE
 {
     return m_PetType;
 }
 
-uint8 CPetEntity::getSpawnLevel()
+auto CPetEntity::getSpawnLevel() const -> uint8
 {
     return m_spawnLevel;
 }
@@ -89,12 +89,12 @@ void CPetEntity::setSpawnLevel(uint8 level)
     m_spawnLevel = level;
 }
 
-bool CPetEntity::isBstPet() const
+auto CPetEntity::isBstPet() const -> bool
 {
     return getPetType() == PET_TYPE::JUG_PET || objtype == TYPE_MOB;
 }
 
-timer::time_point CPetEntity::getJugSpawnTime()
+auto CPetEntity::getJugSpawnTime() -> timer::time_point
 {
     if (m_PetType != PET_TYPE::JUG_PET)
     {
@@ -115,7 +115,7 @@ void CPetEntity::setJugSpawnTime(timer::time_point spawnTime)
     m_jugSpawnTime = spawnTime;
 }
 
-timer::duration CPetEntity::getJugDuration()
+auto CPetEntity::getJugDuration() -> timer::duration
 {
     if (m_PetType != PET_TYPE::JUG_PET)
     {
@@ -137,41 +137,32 @@ void CPetEntity::setJugDuration(timer::duration seconds)
     m_jugDuration = seconds;
 }
 
-const std::string CPetEntity::GetScriptName()
+auto CPetEntity::GetScriptName() const -> std::string
 {
     switch (getPetType())
     {
         case PET_TYPE::AVATAR:
             return "avatar";
-            break;
         case PET_TYPE::WYVERN:
             return "wyvern";
-            break;
         case PET_TYPE::JUG_PET:
             return "jug";
-            break;
         case PET_TYPE::CHARMED_MOB:
             return "charmed";
-            break;
         case PET_TYPE::AUTOMATON:
             return "automaton";
-            break;
         case PET_TYPE::ADVENTURING_FELLOW:
             return "fellow";
-            break;
         case PET_TYPE::CHOCOBO:
             return "chocobo";
-            break;
         case PET_TYPE::LUOPAN:
             return "luopan";
-            break;
         default:
             return "";
-            break;
     }
 }
 
-WYVERN_TYPE CPetEntity::getWyvernType()
+auto CPetEntity::getWyvernType() -> WYVERN_TYPE
 {
     if (PMaster == nullptr)
     {
@@ -202,8 +193,6 @@ WYVERN_TYPE CPetEntity::getWyvernType()
         case xi::Job::RNG:
         case xi::Job::COR:
         case xi::Job::DNC:
-            return WYVERN_TYPE::OFFENSIVE;
-
         default:
             return WYVERN_TYPE::OFFENSIVE;
     };
@@ -211,6 +200,9 @@ WYVERN_TYPE CPetEntity::getWyvernType()
 
 void CPetEntity::PostTick()
 {
+    // CMobEntity::PostTick sends the same update and pet sync packets, but has no Disappear guard,
+    // so a despawning pet would keep sending updates.
+    // NOLINTNEXTLINE(bugprone-parent-virtual-call): Grandparent call, skips CMobEntity's impl on purpose.
     CBattleEntity::PostTick();
     timer::time_point now = timer::now();
     if (loc.zone && updatemask && status != xi::Status::Disappear && now > m_nextUpdateTimer)
@@ -249,8 +241,9 @@ void CPetEntity::Die()
 
     luautils::OnMobDeath(this, nullptr);
 
-    // NOTE: This is purposefully calling CBattleEntity's impl.
-    // TODO: Calling a grand-parent's impl. of an overrideden function is bad
+    // CMobEntity::Die runs battlefield and spawn slot deaths, exp, drops and the defeat message, and
+    // starts a 15 s death timer. Pets give no rewards and use the timer set above.
+    // NOLINTNEXTLINE(bugprone-parent-virtual-call): Grandparent call, skips CMobEntity's impl on purpose.
     CBattleEntity::Die();
     if (PMaster && PMaster->PPet == this && dynamic_cast<const CCharEntity*>(PMaster) != nullptr)
     {
@@ -260,7 +253,6 @@ void CPetEntity::Die()
 
 void CPetEntity::Spawn()
 {
-    // we need to skip CMobEntity's spawn because it calculates stats (and our stats are already calculated)
     if (PMaster && dynamic_cast<const CCharEntity*>(PMaster) != nullptr && m_EcoSystem == xi::Ecosystem::Elemental)
     {
         this->defaultMobMod(xi::MobMod::MagicDelay, 12);
@@ -273,8 +265,9 @@ void CPetEntity::Spawn()
         m_jugSpawnTime = timer::now();
     }
 
-    // NOTE: This is purposefully calling CBattleEntity's impl.
-    // TODO: Calling a grand-parent's impl. of an overridden function is bad
+    // CMobEntity::Spawn rolls a level, recalculates stats from mob data, moves to the spawn point and
+    // starts roaming. A pet's level and stats are set at summon, and it spawns next to its master.
+    // NOLINTNEXTLINE(bugprone-parent-virtual-call): Grandparent call, skips CMobEntity's impl on purpose.
     CBattleEntity::Spawn();
     luautils::OnMobSpawn(this);
 }
@@ -359,7 +352,7 @@ void CPetEntity::OnAbility(CAbilityState& state, action_t& action)
     this->processActionEffectFlags(action);
 }
 
-bool CPetEntity::ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags)
+auto CPetEntity::ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags) -> bool
 {
     if (targetFlags & TARGET_PLAYER && PInitiator->allegiance == allegiance)
     {
@@ -368,7 +361,7 @@ bool CPetEntity::ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags)
     return CMobEntity::ValidTarget(PInitiator, targetFlags);
 }
 
-bool CPetEntity::CanAttack(CBattleEntity* PTarget, std::unique_ptr<CBasicPacket>& errMsg)
+auto CPetEntity::CanAttack(CBattleEntity* PTarget, std::unique_ptr<CBasicPacket>& errMsg) -> bool
 {
     // prevent pets from attacking mobs that the PC master does not own
     if (this->PMaster)
@@ -382,6 +375,10 @@ bool CPetEntity::CanAttack(CBattleEntity* PTarget, std::unique_ptr<CBasicPacket>
         }
     }
 
+    // CMobEntity::CanAttack repeats the claim check above, then adds the AttackSkillList reach, the
+    // navmesh detour refusal and the line-of-sight check. Pets keep the plain melee range check.
+    // TODO: Should pets get the detour and line-of-sight checks too?
+    // NOLINTNEXTLINE(bugprone-parent-virtual-call): Grandparent call, skips CMobEntity's impl on purpose.
     return CBattleEntity::CanAttack(PTarget, errMsg);
 }
 

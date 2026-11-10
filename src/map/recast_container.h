@@ -22,30 +22,22 @@
 #pragma once
 
 #include "common/cbasetypes.h"
+#include "common/macros.h"
 #include "common/timer.h"
+#include "data/enums/recast.h"
+#include "data/enums/recast_type.h"
 #include "enums/loot_recast.h"
-#include "enums/recast.h"
 
 #include <cstddef>
 #include <vector>
 
-enum RECASTTYPE
-{
-    RECAST_ITEM    = 0,
-    RECAST_MAGIC   = 1,
-    RECAST_ABILITY = 2,
-    RECAST_LOOT    = 3
-};
-
-#define MAX_RECASTTPE_SIZE 4
-
 struct Recast_t
 {
-    Recast            ID;
+    xi::Recast        ID{};
     timer::time_point TimeStamp;
-    timer::duration   RecastTime;
-    timer::duration   chargeTime;
-    uint8             maxCharges;
+    timer::duration   RecastTime{};
+    timer::duration   chargeTime{};
+    uint8             maxCharges{};
 };
 
 /************************************************************************
@@ -56,37 +48,37 @@ struct Recast_t
 
 class CBattleEntity;
 
-typedef std::vector<Recast_t> RecastList_t;
+using RecastList_t = std::vector<Recast_t>;
 
 class CRecastContainer
 {
 public:
     virtual void Check();
 
-    virtual void Del(RECASTTYPE type);
-    virtual void Del(RECASTTYPE type, Recast id);
-    virtual void DeleteByIndex(RECASTTYPE type, std::size_t index);
-    bool         Has(RECASTTYPE type, Recast id);
-    bool         HasLootRecast(LootRecastID id);
-    bool         HasRecast(RECASTTYPE type, Recast id, timer::duration recast);
-    virtual void Add(RECASTTYPE type, Recast id, timer::duration duration, timer::duration chargeTime = 0s, uint8 maxCharges = 0);
+    virtual void Del(xi::RecastType type);
+    virtual void Del(xi::RecastType type, xi::Recast id);
+    virtual void DeleteByIndex(xi::RecastType type, std::size_t index);
+    auto         Has(xi::RecastType type, xi::Recast id) -> bool;
+    auto         HasLootRecast(LootRecastID id) -> bool;
+    auto         HasRecast(xi::RecastType type, xi::Recast id, timer::duration recast) -> bool;
+    virtual void Add(xi::RecastType type, xi::Recast id, timer::duration duration, timer::duration chargeTime = 0s, uint8 maxCharges = 0);
     void         AddLootRecast(LootRecastID id, timer::duration duration);
-    Recast_t*    Load(RECASTTYPE type, Recast id, timer::duration duration, timer::duration chargeTime = 0s, uint8 maxCharges = 0);
+    auto         Load(xi::RecastType type, xi::Recast id, timer::duration duration, timer::duration chargeTime = 0s, uint8 maxCharges = 0) -> Recast_t*;
     virtual void ResetAbilities();
 
     virtual void ChangeJob()
     {
     }
 
-    virtual RecastList_t* GetRecastList(RECASTTYPE type);
-    Recast_t*             GetRecast(RECASTTYPE type, Recast id);
-    Recast_t*             GetLootRecast(LootRecastID id);
+    virtual auto GetRecastList(xi::RecastType type) -> RecastList_t*;
+    auto         GetRecast(xi::RecastType type, xi::Recast id) -> Recast_t*;
+    auto         GetLootRecast(LootRecastID id) -> Recast_t*;
 
     CRecastContainer(CBattleEntity* PChar);
 
-    virtual ~CRecastContainer()
-    {
-    }
+    virtual ~CRecastContainer() = default;
+
+    DISALLOW_COPY_AND_MOVE(CRecastContainer);
 
 protected:
     RecastList_t RecastMagicList;

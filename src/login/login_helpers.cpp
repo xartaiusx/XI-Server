@@ -40,6 +40,7 @@
 #include <algorithm>
 #include <array>
 #include <fstream>
+#include <limits>
 #include <unordered_set>
 
 namespace loginHelpers
@@ -243,7 +244,7 @@ auto entityNames() -> const std::unordered_set<std::string>&
 
 } // namespace
 
-Maybe<std::string> validateCharacterName(const std::string& name)
+auto validateCharacterName(const std::string& name) -> Maybe<std::string>
 {
     // Sanitize name & check for invalid characters
     for (const auto& letter : name)
@@ -328,10 +329,80 @@ auto characterCreationError(const uint32 accountID, const std::string& name) -> 
     return std::nullopt;
 }
 
+namespace
+{
+
+// the map server shows the pass code as ten digits
+auto parseFriendPass(const std::string& friendPass) -> Maybe<uint32>
+{
+    if (friendPass.size() != 10 || friendPass.find_first_not_of("0123456789") != std::string::npos)
+    {
+        return std::nullopt;
+    }
+
+    const auto value = std::stoull(friendPass);
+    if (value == 0 || value > std::numeric_limits<uint32>::max())
+    {
+        return std::nullopt;
+    }
+
+    return static_cast<uint32>(value);
+}
+
+} // namespace
+
+auto friendPassError(const uint32 accountID, const std::string& friendPass) -> Maybe<uint16>
+{
+    const auto code = parseFriendPass(friendPass);
+    if (!code)
+    {
+        return loginErrors::errorCode::INCORRECT_WORLD_PASS;
+    }
+
+    const auto chars = db::preparedStmt("SELECT COUNT(*) AS chars FROM chars WHERE accid = ?", accountID);
+    if (!chars || !chars->next() || chars->get<uint32>("chars") != 0)
+    {
+        return loginErrors::errorCode::WORLD_PASS_FIRST_CHARACTER_ONLY;
+    }
+
+    const auto pass = db::preparedStmt("SELECT invitee IS NOT NULL AS used, expiry <= UNIX_TIMESTAMP() AS expired FROM char_world_passes WHERE code = ?", *code);
+    if (!pass || !pass->next() || pass->get<uint8>("used") != 0)
+    {
+        return loginErrors::errorCode::INCORRECT_WORLD_PASS;
+    }
+
+    if (pass->get<uint8>("expired") != 0)
+    {
+        return loginErrors::errorCode::WORLD_PASS_EXPIRED;
+    }
+
+    return std::nullopt;
+}
+
+void useFriendPass(const uint32 charID, const std::string& friendPass)
+{
+    const auto code = parseFriendPass(friendPass);
+    if (!code)
+    {
+        return;
+    }
+
+    const auto rset = db::preparedStmt("UPDATE char_world_passes SET invitee = ?, joined = UNIX_TIMESTAMP() WHERE code = ? AND invitee IS NULL AND expiry > UNIX_TIMESTAMP()", charID, *code);
+    if (rset && rset->rowsAffected())
+    {
+        ShowInfo(fmt::format("char {} joined with Gold World Pass {}", charID, *code));
+    }
+}
+
+namespace
+{
+
 // [ip_addr][session_hash] = session
 HashMap<std::string, std::map<std::string, session_t>> authenticatedSessions_;
 
-HashMap<std::string, std::map<std::string, session_t>>& getAuthenticatedSessions()
+} // namespace
+
+auto getAuthenticatedSessions() -> HashMap<std::string, std::map<std::string, session_t>>&
 {
     return authenticatedSessions_;
 }
@@ -380,7 +451,7 @@ void clearLoginFailures(const std::string& ipAddr)
     loginFailures_.erase(ipAddr);
 }
 
-bool isStringMalformed(const std::string& str, std::size_t max_length)
+auto isStringMalformed(const std::string& str, std::size_t max_length) -> bool
 {
     const auto unprintableChar = [](const char& c) -> bool
     {
@@ -395,10 +466,13 @@ bool isStringMalformed(const std::string& str, std::size_t max_length)
     return isEmpty || isTooLong || hasInvalidChar;
 }
 
-session_t& get_authenticated_session(const std::string& ipAddr, const std::string& sessionHash)
+auto get_authenticated_session(const std::string& ipAddr, const std::string& sessionHash) -> session_t&
 {
     return authenticatedSessions_[ipAddr][sessionHash]; // NOTE: Will construct if doesn't exist
 }
+
+namespace
+{
 
 auto instancedZones() -> const std::unordered_set<xi::ZoneId>&
 {
@@ -419,6 +493,8 @@ auto instancedZones() -> const std::unordered_set<xi::ZoneId>&
 
     return zones;
 }
+
+} // namespace
 
 void loadZoneLookups()
 {
@@ -484,7 +560,7 @@ void generateErrorMessage(uint8* packet, uint16 errorCode)
     std::memcpy(packet + 12, hash, 16);
 }
 
-uint16 generateExpansionBitmask()
+auto generateExpansionBitmask() -> uint16
 {
     uint16 mask = EXPANSION_DISPLAY::BASE_GAME;
 
@@ -513,7 +589,7 @@ uint16 generateExpansionBitmask()
     return mask;
 }
 
-uint16 generateFeatureBitmask(const bool& needsOTP)
+auto generateFeatureBitmask(const bool& needsOTP) -> uint16
 {
     uint16 mask = 0;
 
@@ -543,9 +619,9 @@ uint16 generateFeatureBitmask(const bool& needsOTP)
     return mask;
 }
 
-int32 saveCharacter(uint32 accid, uint32 charid, char_mini* createchar)
+auto saveCharacter(uint32 accid, uint32 charid, char_mini* createchar) -> int32
 {
-    const auto charName = asStringFromUntrustedSource(createchar->m_name);
+    const auto charName = asStringFromUntrustedSource(createchar->m_name, sizeof(createchar->m_name));
 
     if (!db::preparedStmt("INSERT INTO chars(charid,accid,charname,pos_zone,nation) VALUES(?, ?, ?, ?, ?)", charid, accid, charName, createchar->m_zone, createchar->m_nation))
     {
@@ -623,13 +699,13 @@ int32 saveCharacter(uint32 accid, uint32 charid, char_mini* createchar)
     return 0;
 }
 
-int32 createCharacter(session_t& session, uint8* buf, lpkt_chr_info_sub2& charInfo)
+auto createCharacter(session_t& session, uint8* buf, lpkt_chr_info_sub2& charInfo) -> int32
 {
     char_mini createchar{};
 
     session.requestedNewCharacterName.copy(reinterpret_cast<char*>(createchar.m_name), sizeof(createchar.m_name) - 1);
 
-    const auto charName = asStringFromUntrustedSource(createchar.m_name);
+    const auto charName = asStringFromUntrustedSource(createchar.m_name, sizeof(createchar.m_name));
 
     createchar.m_look.race = ref<uint8>(buf, 48);
     createchar.m_look.size = ref<uint8>(buf, 57);
@@ -666,13 +742,7 @@ int32 createCharacter(session_t& session, uint8* buf, lpkt_chr_info_sub2& charIn
                              createchar.m_mjob));
     }
 
-    createchar.m_nation = ref<uint8>(buf, 54);
-
-    if (createchar.m_nation > 2) // 0x00 = San d'Oria, 0x01 = Bastok, 0x02 = Windurst
-    {
-        ShowError(fmt::format("{} attempted to create character with invalid nation {}", charName, createchar.m_nation));
-        return -1;
-    }
+    createchar.m_nation = static_cast<xi::Nation>(ref<uint8>(buf, 54));
 
     const std::vector<xi::ZoneId> bastokStartingZones   = { xi::ZoneId::BastokMines, xi::ZoneId::BastokMarkets, xi::ZoneId::PortBastok };
     const std::vector<xi::ZoneId> sandoriaStartingZones = { xi::ZoneId::SouthernSanDoria, xi::ZoneId::NorthernSanDoria, xi::ZoneId::PortSanDoria };
@@ -680,20 +750,25 @@ int32 createCharacter(session_t& session, uint8* buf, lpkt_chr_info_sub2& charIn
 
     switch (createchar.m_nation)
     {
-        case 0x02: // windy start
+        case xi::Nation::Windurst:
         {
             createchar.m_zone = windurstStartingZones[xirand::GetRandomNumber(3)];
             break;
         }
-        case 0x01: // bastok start
+        case xi::Nation::Bastok:
         {
             createchar.m_zone = bastokStartingZones[xirand::GetRandomNumber(3)];
             break;
         }
-        case 0x00: // sandy start
+        case xi::Nation::Sandoria:
         {
             createchar.m_zone = sandoriaStartingZones[xirand::GetRandomNumber(3)];
             break;
+        }
+        default:
+        {
+            ShowError(fmt::format("{} attempted to create character with invalid nation {}", charName, createchar.m_nation));
+            return -1;
         }
     }
 
@@ -735,9 +810,10 @@ int32 createCharacter(session_t& session, uint8* buf, lpkt_chr_info_sub2& charIn
     return 0;
 }
 
-std::string getHashFromPacket(const std::string& ip_str, uint8* data)
+auto getHashFromPacket(const std::string& ip_str, uint8* data) -> std::string
 {
-    auto hash = asStringFromUntrustedSource(data + 12, 16);
+    // The hash is random bytes, so a zero byte doesn't end it.
+    auto hash = std::string(reinterpret_cast<const char*>(data + 12), 16);
     if (!authenticatedSessions_[ip_str].contains(hash))
     {
         return "";
@@ -745,7 +821,7 @@ std::string getHashFromPacket(const std::string& ip_str, uint8* data)
     return hash;
 }
 
-uint32 getAccountId(std::string accountName)
+auto getAccountId(std::string accountName) -> uint32
 {
     const auto rset = db::preparedStmt("SELECT id FROM accounts WHERE accounts.login = ? LIMIT 1", accountName);
     if (rset && rset->next())

@@ -117,7 +117,7 @@ void dboxutils::SendOldItems(CCharEntity* PChar, GP_CLI_COMMAND_PBX_BOXNO BoxNo)
 
 void dboxutils::AddItemsToBeSent(CCharEntity* PChar, GP_CLI_COMMAND_PBX_BOXNO BoxNo, int8_t PostWorkNo, int8_t ItemWorkNo, uint32_t ItemStacks, const std::string& receiverName)
 {
-    DebugDeliveryBoxFmt("DBOX: AddItemsToBeSent: player: {} ({}), BoxNo: {}, PostWorkNo: {}, ItemWorkNo: {}, ItemStacks: {}, receiverName: {}",
+    DebugDeliveryBoxFmt("DBOX: AddItemsToBeSent: player: {} ({}), BoxNo: {}, PostWorkNo: {}, ItemWorkNo: {}, ItemStacks: {}, receiverName: {:?}",
                         PChar->name,
                         PChar->id,
                         static_cast<int8_t>(BoxNo),
@@ -153,12 +153,22 @@ void dboxutils::AddItemsToBeSent(CCharEntity* PChar, GP_CLI_COMMAND_PBX_BOXNO Bo
 
     if (PChar->UContainer->IsSlotEmpty(PostWorkNo))
     {
-        const auto [recvCharid, recvAccid] = charutils::getCharIdAndAccountIdFromName(receiverName);
-        if (recvCharid && recvAccid)
+        const auto receiver = db::preparedStmt("SELECT charid, accid, charname FROM chars WHERE charname = ? LIMIT 1", receiverName);
+        if (receiver && receiver->next())
         {
-            if (PItem->hasFlag(ItemFlag::NoDelivery))
+            const auto recvCharid = receiver->get<uint32>("charid");
+            const auto recvAccid  = receiver->get<uint32>("accid");
+            if (recvCharid == 0 || recvAccid == 0)
             {
-                if (!PItem->hasFlag(ItemFlag::CanSendAccount))
+                return;
+            }
+
+            // The name as saved, not as typed.
+            const auto recvName = receiver->get<std::string>("charname");
+
+            if (PItem->hasFlag(xi::ItemFlag::NoDelivery))
+            {
+                if (!PItem->hasFlag(xi::ItemFlag::CanSendAccount))
                 {
                     return;
                 }
@@ -177,7 +187,7 @@ void dboxutils::AddItemsToBeSent(CCharEntity* PChar, GP_CLI_COMMAND_PBX_BOXNO Bo
                 return;
             }
 
-            PUBoxItem->setReceiver(receiverName);
+            PUBoxItem->setReceiver(recvName);
             PUBoxItem->setSender(PChar->getName());
             PUBoxItem->setQuantity(ItemStacks);
             PUBoxItem->setSlotID(PItem->getSlotID());
@@ -196,7 +206,7 @@ void dboxutils::AddItemsToBeSent(CCharEntity* PChar, GP_CLI_COMMAND_PBX_BOXNO Bo
                 ItemStacks,
                 PItem->m_extra,
                 recvCharid,
-                receiverName);
+                recvName);
 
             if (!rset || !rset->rowsAffected())
             {
@@ -458,7 +468,7 @@ void dboxutils::SendNewItems(Scheduler& scheduler, CCharEntity* PChar, GP_CLI_CO
                                  receiver_name = PChar->getName(),
                                  date          = earth_time::timestamp()]()
                                 {
-                                    const auto query = "INSERT INTO audit_dbox(itemid, quantity, sender, sender_name, receiver, receiver_name, date) VALUES (?, ?, ?, ?, ?, ?, ?)";
+                                    constexpr auto query = db::Query("INSERT INTO audit_dbox(itemid, quantity, sender, sender_name, receiver, receiver_name, date) VALUES (?, ?, ?, ?, ?, ?, ?)");
                                     if (!db::preparedStmt(query, itemid, quantity, sender, sender_name, receiver, receiver_name, date))
                                     {
                                         ShowErrorFmt("Failed to log delivery box transaction (item: {}, quantity: {}, sender: {}, receiver: {}, date: {})", itemid, quantity, sender, receiver, date);
@@ -680,7 +690,7 @@ void dboxutils::TakeItemFromCell(CCharEntity* PChar, GP_CLI_COMMAND_PBX_BOXNO Bo
             return;
         }
 
-        if (PItem->hasFlag(ItemFlag::Rare) && charutils::HasItem(PChar, PItem->getID()))
+        if (PItem->hasFlag(xi::ItemFlag::Rare) && charutils::HasItem(PChar, PItem->getID()))
         {
             PChar->pushPacket<GP_SERV_COMMAND_MESSAGE>(PChar, PItem->getID(), 0, MsgStd::ItemEx);
             PChar->pushPacket<GP_SERV_COMMAND_PBX_RESULT>(GP_CLI_COMMAND_PBX_COMMAND::Get, BoxNo, PItem, PostWorkNo, PChar->UContainer->GetItemsCount(), 0xBA);
@@ -787,7 +797,7 @@ void dboxutils::RemoveItemFromCell(CCharEntity* PChar, GP_CLI_COMMAND_PBX_BOXNO 
 
 void dboxutils::ConfirmNameBeforeSending(CCharEntity* PChar, GP_CLI_COMMAND_PBX_BOXNO BoxNo, const std::string& receiverName)
 {
-    DebugDeliveryBoxFmt("DBOX: ConfirmNameBeforeSending: player: {} ({}), BoxNo: {}, receiverName: {}", PChar->name, PChar->id, static_cast<int8_t>(BoxNo), receiverName);
+    DebugDeliveryBoxFmt("DBOX: ConfirmNameBeforeSending: player: {} ({}), BoxNo: {}, receiverName: {:?}", PChar->name, PChar->id, static_cast<int8_t>(BoxNo), receiverName);
 
     if (!IsSendBoxOpen(PChar))
     {

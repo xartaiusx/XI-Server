@@ -89,7 +89,7 @@ using RegionsDataset      = xi::data::datasets::zones::regions::Dataset;
 #include <map/ximesh/ximesh.h>
 #include <map/ximesh/ximesh_impl.h>
 
-CZone::CZone(Scheduler& scheduler, MapConfig config, xi::ZoneId ZoneID, REGION_TYPE RegionID, CONTINENT_TYPE ContinentID, uint8 levelRestriction, const std::optional<xi::data::ZoneSettings>& settings)
+CZone::CZone(Scheduler& scheduler, MapConfig config, const xi::ZoneId ZoneID, const xi::Region RegionID, const xi::Continent ContinentID, const uint8 levelRestriction, const std::optional<xi::data::ZoneSettings>& settings)
 : scheduler_(scheduler)
 , config_(config)
 , navMesh_{ std::make_unique<NullNavMesh>() }
@@ -99,15 +99,13 @@ CZone::CZone(Scheduler& scheduler, MapConfig config, xi::ZoneId ZoneID, REGION_T
 , m_regionID(RegionID)
 , m_continentID(ContinentID)
 , m_levelRestriction(levelRestriction)
+, m_zoneEntities(new CZoneEntities(scheduler_, config_, this))
+, m_CampaignHandler(new CCampaignHandler(this))
 {
     TracyZoneScoped;
 
-    m_TreasurePool       = nullptr;
-    m_BattlefieldHandler = nullptr;
-    m_zoneEntities       = new CZoneEntities(scheduler_, config_, this);
-    m_CampaignHandler    = new CCampaignHandler(this);
-    m_spawnHandler       = std::make_unique<SpawnHandler>(this);
-    nominateManager_     = std::make_unique<NominateManager>(*this);
+    m_spawnHandler   = std::make_unique<SpawnHandler>(this);
+    nominateManager_ = std::make_unique<NominateManager>(*this);
 
     LoadZoneSettings(settings);
     LoadZoneLines(settings);
@@ -141,37 +139,37 @@ auto CZone::GetID() const -> xi::ZoneId
     return m_zoneID;
 }
 
-xi::ZoneType CZone::GetTypeMask()
+auto CZone::GetTypeMask() const -> xi::ZoneType
 {
     return m_zoneType;
 }
 
-REGION_TYPE CZone::GetRegionID()
+auto CZone::GetRegionID() const -> xi::Region
 {
     return m_regionID;
 }
 
-CONTINENT_TYPE CZone::GetContinentID()
+auto CZone::GetContinentID() const -> xi::Continent
 {
     return m_continentID;
 }
 
-uint8 CZone::getLevelRestriction()
+auto CZone::getLevelRestriction() const -> uint8
 {
     return m_levelRestriction;
 }
 
-uint32 CZone::GetIP() const
+auto CZone::GetIP() const -> uint32
 {
     return m_zoneIP;
 }
 
-uint16 CZone::GetPort() const
+auto CZone::GetPort() const -> uint16
 {
     return m_zonePort;
 }
 
-uint16 CZone::GetTax() const
+auto CZone::GetTax() const -> uint16
 {
     return m_tax;
 }
@@ -206,27 +204,27 @@ auto CZone::battlefieldHandler() const -> CBattlefieldHandler*
     return m_BattlefieldHandler;
 }
 
-const std::string& CZone::getName()
+auto CZone::getName() -> const std::string&
 {
     return m_zoneName;
 }
 
-uint16 CZone::GetSoloBattleMusic() const
+auto CZone::GetSoloBattleMusic() const -> uint16
 {
     return m_zoneMusic.m_bSongS;
 }
 
-uint16 CZone::GetPartyBattleMusic() const
+auto CZone::GetPartyBattleMusic() const -> uint16
 {
     return m_zoneMusic.m_bSongM;
 }
 
-uint16 CZone::GetBackgroundMusicDay() const
+auto CZone::GetBackgroundMusicDay() const -> uint16
 {
     return m_zoneMusic.m_songDay;
 }
 
-uint16 CZone::GetBackgroundMusicNight() const
+auto CZone::GetBackgroundMusicNight() const -> uint16
 {
     return m_zoneMusic.m_songNight;
 }
@@ -258,7 +256,7 @@ void CZone::SetBackgroundMusicNight(uint16 music)
  * with other methods that perform pattern matching.
  * E.g: %anto% matches Shantotto and Canto-anto
  */
-const QueryByNameResult_t& CZone::queryEntitiesByName(const std::string& pattern)
+auto CZone::queryEntitiesByName(const std::string& pattern) -> const QueryByNameResult_t&
 {
     TracyZoneScoped;
 
@@ -299,12 +297,12 @@ const QueryByNameResult_t& CZone::queryEntitiesByName(const std::string& pattern
     return m_queryByNameResults[pattern];
 }
 
-uint32 CZone::GetLocalVar(const char* var)
+auto CZone::GetLocalVar(const char* var) -> uint32
 {
     return localVars_[var];
 }
 
-HashMap<std::string, uint32>& CZone::GetLocalVars()
+auto CZone::GetLocalVars() -> HashMap<std::string, uint32>&
 {
     return localVars_;
 }
@@ -319,12 +317,12 @@ void CZone::ResetLocalVars()
     localVars_.clear();
 }
 
-bool CZone::CanUseMisc(xi::ZoneMisc misc) const
+auto CZone::CanUseMisc(xi::ZoneMisc misc) const -> bool
 {
     return (m_miscMask & misc) == misc;
 }
 
-zoneLine_t* CZone::GetZoneLine(uint32 zoneLineID)
+auto CZone::GetZoneLine(uint32 zoneLineID) -> zoneLine_t*
 {
     const auto it = std::ranges::find(m_zoneLineList, zoneLineID, &zoneLine_t::zoneLineId);
     return it != m_zoneLineList.end() ? *it : nullptr;
@@ -443,7 +441,7 @@ void CZone::LoadZoneSettings(const std::optional<xi::data::ZoneSettings>& settin
             navMeshData_            = settings->NavMesh;
         }
 
-        if (rset->getOrDefault<std::string>("bcnmname", "") != "") // bcnmid cannot be used now, because they start from scratch
+        if (!rset->getOrDefault<std::string>("bcnmname", "").empty()) // bcnmid cannot be used now, because they start from scratch
         {
             m_BattlefieldHandler = new CBattlefieldHandler(this);
         }
@@ -778,7 +776,8 @@ void CZone::SetWeather(const xi::Weather weather)
 
     m_zoneEntities->WeatherChange(weather);
 
-    const uint32 changeTime = earth_time::vanadiel_timestamp();
+    const auto   cycleTime  = vanadiel_time::now().time_since_epoch() % xi::vanadiel_clock::days(WeatherCycle);
+    const uint32 changeTime = static_cast<uint32>(std::chrono::floor<xi::vanadiel_clock::minutes>(cycleTime).count());
     weather_.set(weather, changeTime);
 
     m_zoneEntities->PushPacket(nullptr, CHAR_INZONE, std::make_unique<GP_SERV_COMMAND_WEATHER>(changeTime, weather, xirand::GetRandomNumber(4, 28)));
@@ -941,7 +940,7 @@ void CZone::SpawnTransport(CCharEntity* PChar)
     m_zoneEntities->SpawnTransport(PChar);
 }
 
-CBaseEntity* CZone::GetEntity(uint16 targid, uint8 filter)
+auto CZone::GetEntity(uint16 targid, uint8 filter) -> CBaseEntity*
 {
     return m_zoneEntities->GetEntity(targid, filter);
 }
@@ -966,12 +965,12 @@ void CZone::SavePlayTime()
     m_zoneEntities->SavePlayTime();
 }
 
-CCharEntity* CZone::GetCharByName(const std::string& name)
+auto CZone::GetCharByName(const std::string& name) -> CCharEntity*
 {
     return m_zoneEntities->GetCharByName(name);
 }
 
-CCharEntity* CZone::GetCharByID(uint32 id)
+auto CZone::GetCharByID(uint32 id) -> CCharEntity*
 {
     return m_zoneEntities->GetCharByID(id);
 }
@@ -1105,6 +1104,9 @@ void CZone::ForEachAllyInstance(CBaseEntity* PEntity, FnRef<void(CMobEntity*)> f
 void CZone::createZoneTimers()
 {
     TracyZoneScoped;
+
+    // The first interval run is jittered, so spawn condition-based mobs now instead of up to an interval late.
+    spawnHandler().Tick(timer::now());
 
     // We'll manually tick while testing, don't install the timers.
     if (config_.isTestServer)
@@ -1368,7 +1370,7 @@ void CZone::CharZoneOut(CCharEntity* PChar)
     charutils::WriteHistory(PChar);
 }
 
-CZoneEntities* CZone::GetZoneEntities()
+auto CZone::GetZoneEntities() -> CZoneEntities*
 {
     return m_zoneEntities;
 }

@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <common/macros.h>
 #include <map/entities/mob_entity.h>
 
 #include <common/types/flag.h>
@@ -39,12 +40,14 @@ public:
     CTrustEntity(CCharEntity* PMaster, uint32 trustId, IsPassiveTrust isPassiveTrust);
     ~CTrustEntity() override;
 
+    DISALLOW_COPY_AND_MOVE(CTrustEntity);
+
     auto trustID() const -> uint32;
 
     auto shieldSize() -> int8;
     auto getShieldDefense() -> int16;
 
-    auto released() -> bool;
+    auto released() const -> bool;
     void setReleased(bool released);
 
     auto passiveTrust() -> IsPassiveTrust;
@@ -66,14 +69,14 @@ public:
     void Die() override;
     void OnDeathTimer() override;
     void Spawn() override;
-    bool ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags) override;
+    auto ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags) -> bool override;
     void OnDespawn(CDespawnState&) override;
 
     void OnCastFinished(CMagicState& state, action_t& action) override;
     void OnMobSkillFinished(CMobSkillState& state, action_t& action) override;
     void OnWeaponSkillFinished(CWeaponSkillState& state, action_t& action) override;
 
-    bool GetUntargetable() const override;
+    auto GetUntargetable() const -> bool override;
 
 private:
     void SyncRecoveryView();

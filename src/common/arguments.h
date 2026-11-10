@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <common/macros.h>
 #include <common/types/maybe.h>
 
 #include <string>
@@ -52,6 +53,8 @@ public:
     Arguments(const ApplicationConfig& config, int argc, char** argv);
     ~Arguments() = default;
 
+    DISALLOW_COPY_AND_MOVE(Arguments);
+
     template <typename T = std::string>
     auto present(const std::string_view arg_name) const -> Maybe<T>
     {
@@ -61,14 +64,12 @@ public:
         }
         catch (const std::exception&)
         {
-            // Swallow the error
+            return std::nullopt;
         }
-
-        return std::nullopt;
     }
 
     template <typename T = std::string>
-    T get(const std::string_view arg_name) const
+    auto get(const std::string_view arg_name) const -> T
     {
         try
         {
@@ -76,10 +77,8 @@ public:
         }
         catch (const std::exception&)
         {
-            // Swallow the error
+            return {};
         }
-
-        return {};
     }
 
 private:

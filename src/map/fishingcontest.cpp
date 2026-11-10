@@ -73,10 +73,15 @@ void SetContestStartTime(uint32 startTime)
     CurrentFishingContest.startTime = startTime;
 }
 
+namespace
+{
+
 void SetContestChangeTime(uint32 changeTime)
 {
     CurrentFishingContest.changeTime = changeTime;
 }
+
+} // namespace
 
 // Contest Data: Gets
 auto GetContestStatus() -> FISHING_CONTEST_STATUS
@@ -94,17 +99,17 @@ auto GetContestMeasure() -> FISHING_CONTEST_MEASURE
     return CurrentFishingContest.measure;
 }
 
-uint16 GetContestFish()
+auto GetContestFish() -> uint16
 {
     return CurrentFishingContest.fishId;
 }
 
-uint32 GetContestStartTime()
+auto GetContestStartTime() -> uint32
 {
     return CurrentFishingContest.startTime;
 }
 
-uint32 GetContestChangeTime()
+auto GetContestChangeTime() -> uint32
 {
     return CurrentFishingContest.changeTime;
 }
@@ -199,33 +204,30 @@ void UpdateRankingHistory()
             // Set the rank value
             if (rankGroup > 0)
             {
-                const auto getQuery = [&]() -> std::string
+                const auto query = [&]
                 {
                     switch (rankGroup)
                     {
                         case 1:
-                            return ("INSERT INTO char_fishing_contest_history (charid, contest_rank_1) "
-                                    "VALUES (?, 1) ON DUPLICATE KEY UPDATE contest_rank_1 = contest_rank_1 + 1");
-                            break;
+                            return db::Query(
+                                "INSERT INTO char_fishing_contest_history (charid, contest_rank_1) "
+                                "VALUES (?, 1) ON DUPLICATE KEY UPDATE contest_rank_1 = contest_rank_1 + 1");
                         case 2:
-                            return "INSERT INTO char_fishing_contest_history (charid, contest_rank_2) "
-                                   "VALUES (?, 1) ON DUPLICATE KEY UPDATE contest_rank_2 = contest_rank_2 + 1";
-                            break;
+                            return db::Query(
+                                "INSERT INTO char_fishing_contest_history (charid, contest_rank_2) "
+                                "VALUES (?, 1) ON DUPLICATE KEY UPDATE contest_rank_2 = contest_rank_2 + 1");
                         case 3:
-                            return "INSERT INTO char_fishing_contest_history (charid, contest_rank_3) "
-                                   "VALUES (?, 1) ON DUPLICATE KEY UPDATE contest_rank_3 = contest_rank_3 + 1";
-                            break;
-                        case 4:
-                            return "INSERT INTO char_fishing_contest_history (charid, contest_rank_4) "
-                                   "VALUES (?, 1) ON DUPLICATE KEY UPDATE contest_rank_4 = contest_rank_4 + 1";
-                            break;
+                            return db::Query(
+                                "INSERT INTO char_fishing_contest_history (charid, contest_rank_3) "
+                                "VALUES (?, 1) ON DUPLICATE KEY UPDATE contest_rank_3 = contest_rank_3 + 1");
                         default:
-                            return "";
-                            break;
+                            return db::Query(
+                                "INSERT INTO char_fishing_contest_history (charid, contest_rank_4) "
+                                "VALUES (?, 1) ON DUPLICATE KEY UPDATE contest_rank_4 = contest_rank_4 + 1");
                     }
-                };
+                }();
 
-                const auto rset = db::preparedStmt(getQuery(), charID);
+                const auto rset = db::preparedStmt(db::selected(query), charID);
                 if (!rset)
                 {
                     ShowWarning("Unable to update player [%s] fishing reward history.", entry.name);
@@ -285,7 +287,7 @@ void ScoreContest()
     }
 }
 
-uint32 GetStageChangeTime(FISHING_CONTEST_STATUS stage, uint32 stageStartTime)
+auto GetStageChangeTime(FISHING_CONTEST_STATUS stage, uint32 stageStartTime) -> uint32
 {
     auto getStageTime = lua["xi"]["fishingContest"]["getStageChangeTime"];
     if (!getStageTime.valid())
@@ -307,7 +309,7 @@ uint32 GetStageChangeTime(FISHING_CONTEST_STATUS stage, uint32 stageStartTime)
 }
 
 // Contest Entries
-FishingContestEntry* GetFishRankEntry(uint8 position)
+auto GetFishRankEntry(uint8 position) -> FishingContestEntry*
 {
     // We should only return a valid entry to a player if the contest is in a state of releasing results
     // But we can also return them for GMs or support requests if we want to see the current table entries
@@ -328,7 +330,7 @@ FishingContestEntry* GetFishRankEntry(uint8 position)
     return nullptr;
 }
 
-FishingContestEntry* GetPlayerEntry(CCharEntity* PChar)
+auto GetPlayerEntry(CCharEntity* PChar) -> FishingContestEntry*
 {
     for (auto&& entry : FishingContestEntries)
     {
@@ -342,14 +344,14 @@ FishingContestEntry* GetPlayerEntry(CCharEntity* PChar)
     return nullptr;
 }
 
-uint8 FishingRankEntryCount()
+auto FishingRankEntryCount() -> uint8
 {
     // Client allows for viewing of a max of 100 entries.
     return std::min(static_cast<int>(FishingContestEntries.size()), 100);
 }
 
 // Data storage
-bool WriteContestData()
+auto WriteContestData() -> bool
 {
     // If any criteria are invalid, then do not update the db
     if (!CurrentFishingContest.isValid())
@@ -359,16 +361,17 @@ bool WriteContestData()
     }
 
     // Update the DB with the current contest data (in case the contest is changed)
-    const char* Query = "UPDATE `fishing_contest` SET "
-                        "status = ?, "       // Status
-                        "criteria = ?, "     // Criteria
-                        "measure = ?, "      // Measure
-                        "fishid = ?, "       // Fish ID
-                        "starttime = ?, "    // Start Time
-                        "nextstagetime = ?"; // Stage Change Time
+    constexpr auto query = db::Query(
+        "UPDATE `fishing_contest` SET "
+        "status = ?, "        // Status
+        "criteria = ?, "      // Criteria
+        "measure = ?, "       // Measure
+        "fishid = ?, "        // Fish ID
+        "starttime = ?, "     // Start Time
+        "nextstagetime = ?"); // Stage Change Time
 
     auto rset = db::preparedStmt(
-        Query,
+        query,
         static_cast<uint8>(CurrentFishingContest.status),
         static_cast<uint8>(CurrentFishingContest.criteria),
         static_cast<uint8>(CurrentFishingContest.measure),
@@ -385,7 +388,7 @@ bool WriteContestData()
     return true;
 }
 
-bool WriteInitialContestData()
+auto WriteInitialContestData() -> bool
 {
     // If any criteria are invalid, then do not update the db
     if (!CurrentFishingContest.isValid())
@@ -395,16 +398,17 @@ bool WriteInitialContestData()
     }
 
     // Update the DB with the current contest data (in case the contest is changed)
-    std::string Query = "INSERT INTO `fishing_contest` VALUES ("
-                        "?, " // Status
-                        "?, " // Criteria
-                        "?, " // Measure
-                        "?, " // Fish ID
-                        "?, " // Start Time
-                        "?)"; // Stage Change Time
+    constexpr auto query = db::Query(
+        "INSERT INTO `fishing_contest` VALUES ("
+        "?, "  // Status
+        "?, "  // Criteria
+        "?, "  // Measure
+        "?, "  // Fish ID
+        "?, "  // Start Time
+        "?)"); // Stage Change Time
 
     auto rset = db::preparedStmt(
-        Query,
+        query,
         static_cast<uint8>(CurrentFishingContest.status),
         static_cast<uint8>(CurrentFishingContest.criteria),
         static_cast<uint8>(CurrentFishingContest.measure),
@@ -421,7 +425,7 @@ bool WriteInitialContestData()
     return true;
 }
 
-bool WriteContestEntryData(FishingContestEntry* entry)
+auto WriteContestEntryData(FishingContestEntry* entry) -> bool
 {
     if (entry == nullptr)
     {
@@ -501,7 +505,7 @@ bool WriteContestEntryData(FishingContestEntry* entry)
 }
 
 // Player Utils
-bool SubmitFish(CCharEntity* PChar, uint32 score)
+auto SubmitFish(CCharEntity* PChar, uint32 score) -> bool
 {
     // Check to see if the player has already submitted a fish
     for (int it = 0; it < (int)FishingContestEntries.size(); it++)
@@ -540,7 +544,7 @@ bool SubmitFish(CCharEntity* PChar, uint32 score)
     return false;
 }
 
-bool WithdrawFish(CCharEntity* PChar)
+auto WithdrawFish(CCharEntity* PChar) -> bool
 {
     FishingContestEntry* PEntry = GetPlayerEntry(PChar);
 
@@ -572,7 +576,7 @@ bool WithdrawFish(CCharEntity* PChar)
     return false;
 }
 
-bool ClaimContestReward(CCharEntity* PChar)
+auto ClaimContestReward(CCharEntity* PChar) -> bool
 {
     if (PChar == nullptr)
     {
@@ -586,11 +590,12 @@ bool ClaimContestReward(CCharEntity* PChar)
         return false;
     }
 
-    std::string Query = "UPDATE fishing_contest_entries "
-                        "SET claimed = 1 "
-                        "WHERE charid = ?";
+    constexpr auto query = db::Query(
+        "UPDATE fishing_contest_entries "
+        "SET claimed = 1 "
+        "WHERE charid = ?");
 
-    auto rset = db::preparedStmt(Query, PChar->id);
+    const auto rset = db::preparedStmt(query, PChar->id);
     if (!rset)
     {
         ShowDebug("Unable to remove award on fishing contest for player %s.", PChar->getName());
@@ -611,10 +616,11 @@ auto GetFishingContestHistory(CCharEntity* PChar) -> FishingContestHistory
         return history;
     }
 
-    std::string Query = "SELECT contest_rank_1, contest_rank_2, contest_rank_3, contest_rank_4 "
-                        "FROM char_fishing_contest_history "
-                        "WHERE charid = ?";
-    auto        rset  = db::preparedStmt(Query, PChar->id);
+    constexpr auto query = db::Query(
+        "SELECT contest_rank_1, contest_rank_2, contest_rank_3, contest_rank_4 "
+        "FROM char_fishing_contest_history "
+        "WHERE charid = ?");
+    const auto rset = db::preparedStmt(query, PChar->id);
 
     if (rset && rset->rowsCount() > 0 && rset->next())
     {
@@ -698,10 +704,11 @@ void InitNewContest(uint16 fishId, FISHING_CONTEST_CRITERIA criteria, FISHING_CO
 void LoadContestParameters()
 {
     // load the overhead contest parameters
-    std::string Query = "SELECT status, criteria, measure, fishid, starttime, nextstagetime "
-                        "FROM fishing_contest";
+    constexpr auto query = db::Query(
+        "SELECT status, criteria, measure, fishid, starttime, nextstagetime "
+        "FROM fishing_contest");
 
-    auto rset = db::preparedStmt(Query);
+    const auto rset = db::preparedStmt(query);
 
     if (rset && rset->rowsCount() > 0 && rset->next())
     {
@@ -723,25 +730,26 @@ void LoadContestParameters()
 void LoadContestEntries()
 {
     // load the current entry pool
-    std::string Query = "SELECT "
-                        "c.charname AS charname, "
-                        "e.mjob AS mjob, "
-                        "e.sjob AS sjob, "
-                        "e.mlevel AS mlevel, "
-                        "e.slevel AS slevel, "
-                        "e.race AS race, "
-                        "e.allegiance AS allegiance, "
-                        "e.fishRank AS fishRank, "
-                        "e.score AS score, "
-                        "e.submitTime AS submitTime, "
-                        "e.contestRank AS contestRank, "
-                        "e.share AS share "
-                        "FROM fishing_contest_entries e "
-                        "LEFT JOIN chars c "
-                        "ON c.charid = e.charid "
-                        "ORDER BY contestRank";
+    constexpr auto query = db::Query(
+        "SELECT "
+        "c.charname AS charname, "
+        "e.mjob AS mjob, "
+        "e.sjob AS sjob, "
+        "e.mlevel AS mlevel, "
+        "e.slevel AS slevel, "
+        "e.race AS race, "
+        "e.allegiance AS allegiance, "
+        "e.fishRank AS fishRank, "
+        "e.score AS score, "
+        "e.submitTime AS submitTime, "
+        "e.contestRank AS contestRank, "
+        "e.share AS share "
+        "FROM fishing_contest_entries e "
+        "LEFT JOIN chars c "
+        "ON c.charid = e.charid "
+        "ORDER BY contestRank");
 
-    auto rset = db::preparedStmt(Query);
+    const auto rset = db::preparedStmt(query);
 
     if (rset && rset->rowsCount() > 0)
     {

@@ -25,6 +25,7 @@
 #include "action/interrupts.h"
 #include "ai/ai_container.h"
 #include "ai/controllers/pet_controller.h"
+#include "ai/controllers/trust_controller.h"
 #include "ai/states/inactive_state.h"
 #include "common/utils.h"
 #include "data/enums/mob_mod.h"
@@ -327,7 +328,12 @@ auto CMagicState::Update(timer::time_point tick) -> bool
         }
         else
         {
+            const bool deliberateDamage = m_PSpell->dealsDamage() || m_PSpell->isCure() ||
+                                          m_PSpell->getSpellFamily() == SPELLFAMILY_DIA || m_PSpell->getSpellFamily() == SPELLFAMILY_DIAGA ||
+                                          m_PSpell->getSpellFamily() == SPELLFAMILY_BIO;
+            const auto sleepApplication = deliberateDamage ? trustcombat::SleepApplication(m_PEntity, PTarget) : 0;
             m_PEntity->OnCastFinished(*this, action);
+            trustcombat::RecordResolvedAction(m_PEntity, PTarget, action, sleepApplication);
             m_PEntity->PAI->EventHandler.triggerListener("MAGIC_USE", m_PEntity, PTarget, m_PSpell.get(), &action);
             for (auto& actionTarget : action.targets)
             {
@@ -510,6 +516,14 @@ auto CMagicState::HasCost() -> bool
 
 void CMagicState::SpendCost()
 {
+    if (m_PSpell->getID() == SpellID::Full_Cure)
+    {
+        const auto cost = m_PEntity->health.mp;
+        m_PSpell->setMPCost(cost);
+        m_PEntity->addMP(-static_cast<int32>(cost));
+        return;
+    }
+
     if (m_PSpell->getSpellGroup() == SPELLGROUP_NINJUTSU)
     {
         if (!(m_flags & MAGICFLAGS_IGNORE_TOOLS))
@@ -525,7 +539,7 @@ void CMagicState::SpendCost()
         // RDM Job Point: Quick Magic Effect
         if (auto* PChar = dynamic_cast<CCharEntity*>(m_PEntity); IsInstantCast() && PChar)
         {
-            cost = (int16)(cost * (1.0f - (float)((PChar->PJobPoints->GetJobPointValue(JP_QUICK_MAGIC_EFFECT) * 2) / 100)));
+            cost = (int16)(cost * (1.0f - (PChar->PJobPoints->GetJobPointValue(JP_QUICK_MAGIC_EFFECT) * 2) / 100.0f));
         }
 
         // conserve mp

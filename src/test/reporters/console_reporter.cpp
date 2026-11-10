@@ -32,7 +32,7 @@
 namespace
 {
 
-std::string formatDuration(const std::chrono::milliseconds ms)
+auto formatDuration(const std::chrono::milliseconds ms) -> std::string
 {
     if (ms.count() < 1000)
     {
@@ -42,7 +42,7 @@ std::string formatDuration(const std::chrono::milliseconds ms)
     return fmt::format("{:.3f} s", ms.count() / 1000.0);
 }
 
-std::string pluralize(size_t count, const std::string& word)
+auto pluralize(size_t count, const std::string& word) -> std::string
 {
     return fmt::format("{} {}{}", count, word, count != 1 ? "s" : "");
 }
@@ -76,7 +76,8 @@ void ConsoleReporter::onSuiteEnd(const TestSuite& suite, std::chrono::millisecon
 
 void ConsoleReporter::onTestStart(const TestSuite& suite, const TestCase& testCase)
 {
-    std::cout << termcolor::green << "[ RUN      ]" << termcolor::reset << " " << suite.fullName() << "::" << testCase.name() << "\n";
+    std::cout << termcolor::green << "[ RUN      ]" << termcolor::reset << " " << suite.fullName() << "::" << testCase.name() << '\n'
+              << std::flush;
 }
 
 void ConsoleReporter::onTestSkipped(const TestSuite& suite, const TestCase& testCase)
