@@ -195,11 +195,11 @@ jobs:
           [[ -z "$(git status --porcelain --untracked-files=all)" ]]
           sudo apt-get update
           sudo apt-get install --assume-yes --no-install-recommends \
-            binutils-dev clang-22 cmake g++ libclang-rt-22-dev libdwarf-dev \
+            binutils-dev clang-22 cmake gcc-15 g++-15 libclang-rt-22-dev libdwarf-dev \
             libluajit-5.1-dev libmariadb-dev-compat libssl-dev libzmq3-dev \
             libzstd-dev llvm-22-dev ninja-build zlib1g-dev
-          [[ "$(/usr/bin/clang-22 --version | sed -n '1p')" == *'clang version 22.1.2 '* ]]
-          [[ "$(/usr/bin/clang++-22 --version | sed -n '1p')" == *'clang version 22.1.2 '* ]]
+          [[ "$(/usr/bin/gcc-15 -dumpfullversion)" == 15.2.0 && "$(/usr/bin/g++-15 -dumpfullversion)" == 15.2.0 ]]
+          printf '%s\n' 'Diagnostic compiler GNU 15.2.0'
           [[ "$(pkg-config --modversion libdwarf)" == 1.11.1 ]]
 
       - name: Setup exact codegen Python
@@ -326,7 +326,7 @@ jobs:
           cat > "$STAGE/trace.sh" <<'TRACE'
           #!/usr/bin/bash
           set -euo pipefail
-          export CC=/usr/bin/clang-22 CXX=/usr/bin/clang++-22 PYTHONDONTWRITEBYTECODE=1
+          export CC=/usr/bin/gcc-15 CXX=/usr/bin/g++-15 PYTHONDONTWRITEBYTECODE=1
           export CPM_SOURCE_CACHE="$TRACE_ROOT/.cpm-cache"
           /usr/bin/cmake -G Ninja -S "$TRACE_ROOT" -B "$TRACE_ROOT/build" --fresh \
             -DCMAKE_BUILD_TYPE=Debug -DTRACY_ENABLE=OFF -DPCH_ENABLE=OFF \
@@ -393,7 +393,7 @@ jobs:
               "src/map/data/datasets/monstrosity/dataset.cpp",
               "src/map/ai/controllers/trust_controller.cpp",
           )
-          COMPILER = "/usr/bin/clang++-22"
+          COMPILER = "/usr/bin/g++-15"
 
 
           def planned_commands(compile_db, source_root, build_root):
