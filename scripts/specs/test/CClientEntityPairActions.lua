@@ -26,6 +26,13 @@ end
 function CClientEntityPairActions:setBlueSpells(spellIds)
 end
 
+---Seed one empty slot with an undefined Blue Magic spell for a native regression.
+---@param slot integer Zero-based slot index
+---@param spellId integer Undefined native Blue Magic spell ID
+---@return boolean
+function CClientEntityPairActions:seedUndefinedBlueSpell(slot, spellId)
+end
+
 ---Use a weaponskill on a target
 ---@param target CBaseEntity Target entity
 ---@param wsId xi.weaponskill Weaponskill ID

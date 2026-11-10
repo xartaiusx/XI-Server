@@ -186,15 +186,14 @@ auto applyAddItem(CCharEntity* PChar, uint8 LocationID, std::unique_ptr<CItem> P
         return ERROR_SLOTID;
     }
 
-    auto* PStorage = PChar->getStorage(LocationID);
-    uint8 SlotID   = PStorage->InsertItem(std::move(PItem));
+    auto* PInserted = PItem.get();
+    auto* PStorage  = PChar->getStorage(LocationID);
+    uint8 SlotID    = PStorage->InsertItem(std::move(PItem));
     if (SlotID == ERROR_SLOTID)
     {
         ShowDebug("AddItem: Location %i is full", LocationID);
         return SlotID;
     }
-
-    auto* PInserted = PStorage->GetItem(SlotID);
 
     constexpr auto query = db::Query(
         "INSERT INTO char_inventory("

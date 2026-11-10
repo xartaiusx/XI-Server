@@ -39,6 +39,7 @@ public:
     void move(float x, float y, float z, sol::optional<uint8_t> rot) const;
     void useSpell(CLuaBaseEntity* target, SpellID spellId) const;
     void setBlueSpells(const sol::table& spellIds) const;
+    auto seedUndefinedBlueSpell(uint8 slot, uint16 spellId) const -> bool;
     void useWeaponskill(CLuaBaseEntity* target, uint16 wsId) const;
     void useAbility(CLuaBaseEntity* target, ABILITY abilityId) const;
     auto useTrustSpell(CLuaBaseEntity* trust, CLuaBaseEntity* target, SpellID spellId) const -> bool;

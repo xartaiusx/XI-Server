@@ -59,8 +59,10 @@ void SetBlueSpell(CCharEntity* PChar, CBlueSpell* PSpell, uint8 slotIndex, bool 
             // Blue spells in SetBlueSpells must be 0x200 ofsetted so it's 1 byte per spell.
             if (PChar->m_SetBlueSpells[slotIndex] != 0)
             {
-                CBlueSpell* POldSpell = static_cast<CBlueSpell*>(spell::GetSpell(static_cast<SpellID>(PChar->m_SetBlueSpells[slotIndex] + 0x200)));
-                PChar->delModifiers(&POldSpell->modList);
+                if (auto* POldSpell = static_cast<CBlueSpell*>(spell::GetSpell(static_cast<SpellID>(PChar->m_SetBlueSpells[slotIndex] + 0x200))))
+                {
+                    PChar->delModifiers(&POldSpell->modList);
+                }
                 PChar->m_SetBlueSpells[slotIndex] = 0x00;
             }
             if (addingSpell && !IsSpellSet(PChar, PSpell) && HasEnoughSetPoints(PChar, PSpell, slotIndex))
@@ -209,7 +211,10 @@ void UnequipAllBlueSpells(CCharEntity* PChar)
         {
             CBlueSpell* PSpell = static_cast<CBlueSpell*>(spell::GetSpell(static_cast<SpellID>(m_SetBlueSpell + 0x200)));
             m_SetBlueSpell     = 0;
-            PChar->delModifiers(&PSpell->modList);
+            if (PSpell)
+            {
+                PChar->delModifiers(&PSpell->modList);
+            }
         }
     }
     charutils::BuildingCharTraitsTable(PChar);
@@ -394,6 +399,12 @@ void ValidateBlueSpells(CCharEntity* PChar)
         if (PChar->m_SetBlueSpells[slot] != 0)
         {
             CBlueSpell* PSpell = static_cast<CBlueSpell*>(spell::GetSpell(static_cast<SpellID>(PChar->m_SetBlueSpells[slot] + 0x200)));
+            if (!PSpell)
+            {
+                PChar->m_SetBlueSpells[slot] = 0;
+                continue;
+            }
+
             if (currentPoints + PSpell->getSetPoints() > maxSetPoints)
             {
                 SetBlueSpell(PChar, PSpell, slot, false);

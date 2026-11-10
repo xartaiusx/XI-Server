@@ -82,6 +82,7 @@
 #include "map/packets/c2s/0x10b_bazaar_close.h"
 #include "map/packets/c2s/0x11c_party_request.h"
 #include "map/party.h"
+#include "map/spell.h"
 #include "map/status_effect_container.h"
 #include "map/utils/trustutils.h"
 #include "map/utils/zoneutils.h"
@@ -197,6 +198,21 @@ void CLuaClientEntityPairActions::setBlueSpells(const sol::table& spellIds) cons
         parent_->packets().sendBasicPacket(*packet);
         ++slot;
     }
+}
+
+// A client packet cannot seed an undefined spell because admission rejects it.
+auto CLuaClientEntityPairActions::seedUndefinedBlueSpell(const uint8 slot, const uint16 spellId) const -> bool
+{
+    auto* PChar = parent_->testChar()->entity();
+    if (!PChar || PChar->GetMJob() != xi::Job::BLU || slot >= PChar->m_SetBlueSpells.size() ||
+        spellId <= 0x200 || spellId > 0x2FF || PChar->m_SetBlueSpells[slot] != 0 ||
+        spell::GetSpell(static_cast<SpellID>(spellId)) != nullptr)
+    {
+        return false;
+    }
+
+    PChar->m_SetBlueSpells[slot] = static_cast<uint8>(spellId - 0x200);
+    return true;
 }
 
 /************************************************************************
@@ -1566,6 +1582,7 @@ void CLuaClientEntityPairActions::Register()
     SOL_REGISTER("move", CLuaClientEntityPairActions::move);
     SOL_REGISTER("useSpell", CLuaClientEntityPairActions::useSpell);
     SOL_REGISTER("setBlueSpells", CLuaClientEntityPairActions::setBlueSpells);
+    SOL_REGISTER("seedUndefinedBlueSpell", CLuaClientEntityPairActions::seedUndefinedBlueSpell);
     SOL_REGISTER("useWeaponskill", CLuaClientEntityPairActions::useWeaponskill);
     SOL_REGISTER("useAbility", CLuaClientEntityPairActions::useAbility);
     SOL_REGISTER("useTrustSpell", CLuaClientEntityPairActions::useTrustSpell);

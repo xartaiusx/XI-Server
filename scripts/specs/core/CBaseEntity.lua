@@ -2497,6 +2497,12 @@ end
 function CBaseEntity:addSpell(spellID, arg0)
 end
 
+---Return the spell IDs in the player's occupied Blue Magic slots, in slot order.
+---@nodiscard
+---@return integer[]
+function CBaseEntity:getSetBlueSpells()
+end
+
 ---@nodiscard
 ---@param spellID integer
 ---@return boolean
