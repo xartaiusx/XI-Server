@@ -228,10 +228,16 @@ jobs:
           LLVM_PACKAGES
           [[ "${#debs[@]}" == 11 ]]
           sudo apt-get update
-          sudo apt-get --assume-yes --no-remove --no-install-recommends install \
-            binutils-dev clang-22 cmake g++ libclang-rt-22-dev libdwarf-dev \
-            libluajit-5.1-dev libmariadb-dev-compat libssl-dev libzmq3-dev \
-            libzstd-dev llvm-22-dev ninja-build zlib1g-dev
+          dependencies=(binutils-dev clang-22 cmake g++ libclang-rt-22-dev libdwarf-dev
+            libluajit-5.1-dev libmariadb-dev-compat libssl-dev libzmq3-dev
+            libzstd-dev llvm-22-dev ninja-build zlib1g-dev)
+          sudo apt-get --simulate --no-install-recommends install "${dependencies[@]}" \
+            > "$STAGE/ubuntu-apt-plan.log"
+          # The pinned image's MariaDB development package replaces these two MySQL packages.
+          removals=$(awk '$1 == "Remv" { sub(/:amd64$/, "", $2); print $2 }' \
+            "$STAGE/ubuntu-apt-plan.log" | LC_ALL=C sort)
+          [[ "$removals" == $'libmysqlclient-dev\nmysql-server' ]]
+          sudo apt-get --assume-yes --no-install-recommends install "${dependencies[@]}"
           llvm_root="$STAGE/llvm22"
           mkdir -m 0700 -- "$llvm_root"
           for deb in "${debs[@]}"; do
