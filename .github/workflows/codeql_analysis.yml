@@ -28,7 +28,7 @@ jobs:
   analyze:
     name: Analyze
     runs-on: ${{ matrix.build-mode == 'manual' && 'ubuntu-26.04' || 'ubuntu-latest' }}
-    timeout-minutes: ${{ matrix.build-mode == 'manual' && 150 || 60 }}
+    timeout-minutes: ${{ matrix.build-mode == 'manual' && 270 || 60 }}
     permissions:
       actions: read
       contents: read
