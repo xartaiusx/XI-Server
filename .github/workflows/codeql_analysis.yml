@@ -172,7 +172,8 @@ jobs:
           stage="$(cygpath -u "$RUNNER_TEMP")/mochirii-selected-msvc"
           mkdir -- "$stage"
           mkdir -- "$stage/artifact" "$stage/tool" "$stage/public"
-          [[ "$RECIPIENT_DER" =~ ^[A-Za-z0-9+/=]{300,4000}$ && "$RECIPIENT_SHA" =~ ^[0-9a-f]{64}$ ]]
+          (( ${#RECIPIENT_DER} >= 300 && ${#RECIPIENT_DER} <= 4000 ))
+          [[ "$RECIPIENT_DER" =~ ^[A-Za-z0-9+/=]+$ && "$RECIPIENT_SHA" =~ ^[0-9a-f]{64}$ ]]
           printf '%s' "$RECIPIENT_DER" | /usr/bin/base64 --decode > "$stage/recipient.der"
           printf '%s  %s\n' "$RECIPIENT_SHA" "$stage/recipient.der" | sha256sum --check --status
           [[ "$(/usr/bin/openssl version)" == 'OpenSSL 3.'* ]]
