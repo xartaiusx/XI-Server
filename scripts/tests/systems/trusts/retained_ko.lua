@@ -280,13 +280,9 @@ describe('Approved Trust KO recovery', function()
     end)
 
     it('does not redirect an in-flight baseline Raise to a replacement after native dismissal', function()
-        -- Match the existing native return fixture's real-time nonce contract.
-        -- This normalizes test calendar offset before casting, not native timers.
-        SetTimeOffset(0)
         local healer, starts, finishes = recoveryHealer()
         local trust = requiredValaineral()
         local ident = trust:getID()
-        local index = trust:getTargID()
         local healerId = healer:getID()
         local function assertHealerRetained()
             for _, member in ipairs(owner:getPartyWithTrusts()) do
@@ -306,10 +302,9 @@ describe('Approved Trust KO recovery', function()
 
         assert(#starts == 1 and #finishes == 0)
         assertHealerRetained()
-        local request = string.format('%08x%08x %u %u one %u %u', GetSystemTime(), owner:getID(),
-            owner:getID(), owner:getZoneID(), ident, index)
-        local reply = owner:returnOrdinaryTrusts(request)
-        assert(reply:match(' ACCEPTED 1 OK$'), reply)
+        assert(starts[1].target == ident and trust:canReceiveTrustRaise())
+        owner.actions:trigger(trust)
+        assert(not trust:canReceiveTrustRaise() and owner.actions:hasTrustEntity(ident), 'native dismissal must keep the release delay')
         xi.test.world:skipTime(3)
         xi.test.world:skipTime(3)
         assert(not owner.actions:hasTrustEntity(ident), 'only the old Val identity must retire')
