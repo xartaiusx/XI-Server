@@ -2,14 +2,19 @@
   "schemaVersion": 1,
   "remote": "https://github.com/LandSandBoat/server.git",
   "branch": "base",
-  "previousSnapshot": "19caf2f2ffd293ca91751b4698b648f327c908a0",
-  "currentSnapshot": "bd41d2c6e724edbf67ecf98cca9ddde4c70dcf97",
-  "commitCount": 6,
-  "changedFileCount": 6,
-  "appliedWith": "Three-way integration with the recorded snapshot as explicit base. All six downstream preimages match the upstream base.",
-  "reason": "First bounded intake of the already reviewed upstream range, with standard protected review and CodeQL.",
-  "verifiedOverlaps": [],
+  "previousSnapshot": "bd41d2c6e724edbf67ecf98cca9ddde4c70dcf97",
+  "currentSnapshot": "8c8361d189b110358be2ccc2c6cede788a5d3b79",
+  "commitCount": 2,
+  "changedFileCount": 5,
+  "appliedWith": "Three-way integration with the recorded upstream snapshot as the explicit base.",
+  "reason": "Continue the upstream intake through the last snapshot before migration 073.",
+  "verifiedOverlaps": [
+    "scripts/specs/test/CClientEntityPairActions.lua",
+    "src/map/packets/c2s/0x0fa_myroom_layout.cpp",
+    "src/test/lua/helpers/lua_client_entity_pair_actions.cpp",
+    "src/test/lua/helpers/lua_client_entity_pair_actions.h"
+  ],
   "capturedAt": "2026-11-11",
   "preservation": "The interrupted August integration, its rejected hunks, source history, and working binaries are preserved outside Git.",
-  "runtimeBoundary": "Source-only intake. Production database and installed binaries remain at the separately accepted release."
+  "runtimeBoundary": "Source-only intake. Production database and installed binaries retain their separately accepted release."
 }
