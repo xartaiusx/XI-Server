@@ -5082,7 +5082,7 @@ int32 OnSteal(CBattleEntity* PChar, CBattleEntity* PMob, CAbility* PAbility, act
     return 0;
 }
 
-bool OnCanUseSpell(CBattleEntity* PChar, CSpell* PSpell) // triggers when CanUseSpell is invoked on spell.cpp for PCs only
+SpellUseOverride OnCanUseSpell(CBattleEntity* PChar, CSpell* PSpell)
 {
     TracyZoneScoped;
 
@@ -5090,7 +5090,7 @@ bool OnCanUseSpell(CBattleEntity* PChar, CSpell* PSpell) // triggers when CanUse
 
     if (!canUseSpellOverride.valid())
     {
-        return false;
+        return {};
     }
 
     auto result = canUseSpellOverride(PChar, PSpell);
@@ -5098,10 +5098,24 @@ bool OnCanUseSpell(CBattleEntity* PChar, CSpell* PSpell) // triggers when CanUse
     {
         sol::error err = result;
         ShowError("luautils::OnCanUseSpell: %s", err.what());
-        return false;
+        return {};
     }
 
-    return result.get_type(0) == sol::type::boolean ? result.get<bool>(0) : true;
+    if (result.return_count() == 0 || result.get_type(0) != sol::type::boolean)
+    {
+        return {};
+    }
+
+    const auto optionalFlag = [&result](const int index)
+    {
+        return result.return_count() > index && result.get_type(index) == sol::type::boolean && result.get<bool>(index);
+    };
+
+    return {
+        .allow               = result.get<bool>(0),
+        .skipMainJobLevel    = optionalFlag(1),
+        .skipSupportJobLevel = optionalFlag(2),
+    };
 }
 
 void Terminate()

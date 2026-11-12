@@ -5567,6 +5567,11 @@ void SaveSpell(CCharEntity* PChar, uint16 spellID)
 {
     TracyZoneScoped;
 
+    if (spell::GetSpell(static_cast<SpellID>(spellID)) == nullptr)
+    {
+        return;
+    }
+
     db::preparedStmt("INSERT IGNORE INTO char_spells "
                      "VALUES (?, ?) LIMIT 1",
                      PChar->id,

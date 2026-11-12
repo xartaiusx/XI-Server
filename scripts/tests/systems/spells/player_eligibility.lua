@@ -1,6 +1,8 @@
 describe('Player spell eligibility', function()
     ---@type CClientEntityPair
     local player
+    ---@type CTestEntity|nil
+    local rabbit
     local starts
 
     before_each(function()
@@ -18,9 +20,17 @@ describe('Player spell eligibility', function()
         end)
     end)
 
+    after_each(function()
+        if rabbit then
+            rabbit:respawn()
+            rabbit = nil
+        end
+    end)
+
     it('rejects a learned Diaga III while allowing Dia III on the same target', function()
-        local rabbit = player.entities:moveTo('Forest_Hare')
-        rabbit:spawn()
+        rabbit = player.entities:get('Forest_Hare')
+        rabbit:respawn()
+        player.entities:moveTo(rabbit)
         player:addSpell(xi.magic.spell.DIAGA_III, { saveToDB = false })
         player:addSpell(xi.magic.spell.DIA_III, { saveToDB = false })
         assert(player:hasSpell(xi.magic.spell.DIAGA_III))
@@ -31,6 +41,8 @@ describe('Player spell eligibility', function()
         assert(#starts == 0 and player:getMP() == mp)
         assert(not player:hasRecast(xi.recast.MAGIC, xi.magic.spell.DIAGA_III))
 
+        -- The regional target can roam during the rejected cast's wait.
+        player.entities:moveTo(rabbit)
         player.actions:useSpell(rabbit, xi.magic.spell.DIA_III)
         xi.test.world:skipTime(3)
         assert(#starts == 1 and starts[1] == xi.magic.spell.DIA_III)

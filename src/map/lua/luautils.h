@@ -486,7 +486,14 @@ auto  OnUseWeaponSkill(CBattleEntity* PUser, CBaseEntity* PMob, CWeaponSkill* ws
 int32 OnUseAbility(CBattleEntity* PUser, CBattleEntity* PTarget, CAbility* PAbility, action_t* action);
 int32 OnSteal(CBattleEntity* PChar, CBattleEntity* PTarget, CAbility* PAbility, action_t* action);
 
-bool OnCanUseSpell(CBattleEntity* PChar, CSpell* Spell); // triggers when CanUseSpell is invoked on spell.cpp for PCs only
+struct SpellUseOverride
+{
+    bool allow{};
+    bool skipMainJobLevel{};
+    bool skipSupportJobLevel{};
+};
+
+SpellUseOverride OnCanUseSpell(CBattleEntity* PChar, CSpell* Spell); // Used by spell.cpp for PCs only.
 
 auto GetCachedInstanceScript(uint16 instanceId) -> sol::table;
 

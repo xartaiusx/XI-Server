@@ -115,7 +115,7 @@ void GP_CLI_COMMAND_EXTENDED_JOB::process(MapSession* PSession, CCharEntity* PCh
                 {
                     spellInQuestion = bluData.Spells[i];
                     spellIndex      = i;
-                    auto* spell     = static_cast<CBlueSpell*>(spell::GetSpell(
+                    auto* spell     = dynamic_cast<CBlueSpell*>(spell::GetSpell(
                         static_cast<SpellID>(spellInQuestion + 0x200))); // the spells in this packet are offsetted by 0x200 from their spell IDs.
 
                     if (spell != nullptr)
@@ -159,15 +159,15 @@ void GP_CLI_COMMAND_EXTENDED_JOB::process(MapSession* PSession, CCharEntity* PCh
 
             if (spellIndex != -1 && spellInQuestion != 0)
             {
-                CBlueSpell* spell = static_cast<CBlueSpell*>(spell::GetSpell(
+                CBlueSpell* spell = dynamic_cast<CBlueSpell*>(spell::GetSpell(
                     static_cast<SpellID>(spellInQuestion + 0x200))); // the spells in this packet are offsetted by 0x200 from their spell IDs.
 
                 if (spell != nullptr)
                 {
-                    const uint8 mLevel = PChar->m_LevelRestriction != 0 && PChar->m_LevelRestriction < PChar->GetMLevel() ? PChar->m_LevelRestriction : PChar->GetMLevel();
-                    const uint8 sLevel = floor(mLevel / 2);
+                    const uint8 mLevel    = PChar->m_LevelRestriction != 0 && PChar->m_LevelRestriction < PChar->GetMLevel() ? PChar->m_LevelRestriction : PChar->GetMLevel();
+                    const uint8 blueLevel = PChar->GetMJob() == xi::Job::BLU ? mLevel : PChar->GetSLevel();
 
-                    if (mLevel < spell->getJob(PChar->GetMJob()) && sLevel < spell->getJob(PChar->GetSJob()))
+                    if (blueLevel < spell->getJob(xi::Job::BLU))
                     {
                         ShowWarning("GP_CLI_COMMAND_EXTENDED_JOB: Player %s trying to set BLU spell at invalid level!", PChar->getName());
                         return;

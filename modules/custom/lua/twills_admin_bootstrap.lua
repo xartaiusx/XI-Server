@@ -1453,7 +1453,12 @@ local function repairCore(player)
     callHelper(player, commandHelpers.addAllWeaponSkills)
     local travelAdded = repairTravelUnlocks(player)
 
-    addAllSpells.onTrigger(player, nil, nil, xi.magic.spell.DIAGA_III)
+    addAllSpells.onTrigger(player, nil, nil,
+    {
+        [xi.magic.spell.DIAGA_II] = true,
+        [xi.magic.spell.DIAGA_III] = true,
+        [xi.magic.spell.POISONGA_II] = true,
+    })
     commandHelpers.addAllTrusts.onTrigger(player)
     repairUnityAndLimitedTrusts(player)
     local addedKeyItems = addRequiredKeyItems(player)

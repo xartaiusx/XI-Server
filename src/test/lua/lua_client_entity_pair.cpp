@@ -20,6 +20,7 @@
 */
 
 #include "lua_client_entity_pair.h"
+#include "common/database.h"
 #include "enums/tick_type.h"
 #include "map/entities/base_entity.h"
 #include "map/entities/char_entity.h"
@@ -202,6 +203,21 @@ auto CLuaClientEntityPair::isPendingZone() const -> bool
 auto CLuaClientEntityPair::getSearchMessage() const -> std::string
 {
     return testChar_->entity()->search.message;
+}
+
+auto CLuaClientEntityPair::hasPersistedSpell(uint16 spellId) const -> bool
+{
+    const auto result = db::preparedStmt(
+        "SELECT COUNT(*) AS learned FROM char_spells WHERE charid = ? AND spellid = ?",
+        testChar_->charId(),
+        spellId);
+    if (!result || !result->next())
+    {
+        TestError("Unable to read persisted spell status for the test character");
+        return false;
+    }
+
+    return result->get<uint32>("learned") > 0;
 }
 
 /************************************************************************
@@ -420,6 +436,7 @@ void CLuaClientEntityPair::Register()
     SOL_REGISTER("simulateZoneOutLifecycle", CLuaClientEntityPair::simulateZoneOutLifecycle);
     SOL_REGISTER("isPendingZone", CLuaClientEntityPair::isPendingZone);
     SOL_REGISTER("getSearchMessage", CLuaClientEntityPair::getSearchMessage);
+    SOL_REGISTER("hasPersistedSpell", CLuaClientEntityPair::hasPersistedSpell);
     SOL_REGISTER("getLinkshellId", CLuaClientEntityPair::getLinkshellId);
     SOL_REGISTER("getItemInvSlot", CLuaClientEntityPair::getItemInvSlot);
     SOL_REGISTER("claimAndKillMob", CLuaClientEntityPair::claimAndKillMob);
