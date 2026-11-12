@@ -69,7 +69,7 @@ addSpellsInBatches = function(player, targetName, validSpells, batchSize, learne
     end
 end
 
-commandObj.onTrigger = function(player, target, alternateSpellList)
+commandObj.onTrigger = function(player, target, alternateSpellList, excludedSpellId)
     local validSpells =
     {
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37,
@@ -123,6 +123,15 @@ commandObj.onTrigger = function(player, target, alternateSpellList)
     if alternateSpellList then
         validSpells = alternateSpellList
     else
+        if excludedSpellId then
+            for index, spellId in ipairs(validSpells) do
+                if spellId == excludedSpellId then
+                    table.remove(validSpells, index)
+                    break
+                end
+            end
+        end
+
         player:printToPlayer(fmt('Queuing unlock of all non-trust spells for {}', targetName), xi.msg.channel.SYSTEM_3)
     end
 
