@@ -1,7 +1,7 @@
 describe('Player Breakga', function()
     local scroll = 4889
     local spellId = xi.magic.spell.BREAKGA
-    ---@type CTestEntity
+    ---@type CTestEntity|nil
     local rabbit
 
     after_each(function()

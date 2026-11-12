@@ -1,5 +1,5 @@
 describe('Player enemy-only spell eligibility', function()
-    ---@type CTestEntity
+    ---@type CTestEntity|nil
     local rabbit
 
     after_each(function()
@@ -11,8 +11,9 @@ describe('Player enemy-only spell eligibility', function()
 
     local function checkSpell(job, enemySpell, playerSpell)
         local player = xi.test.world:spawnPlayer({ job = job, level = 99, zone = xi.zone.WEST_RONFAURE })
-        rabbit = player.entities:moveTo('Forest_Hare')
-        rabbit:spawn()
+        rabbit = player.entities:get('Forest_Hare')
+        rabbit:respawn()
+        player.entities:moveTo(rabbit)
         player:setMP(player:getMaxMP())
 
         assert(not player:hasSpell(enemySpell) and not player:hasSpell(playerSpell))
@@ -34,6 +35,8 @@ describe('Player enemy-only spell eligibility', function()
         assert(#starts == 0 and player:getMP() == mp)
         assert(not player:hasRecast(xi.recast.MAGIC, enemySpell))
 
+        -- The regional target can roam during the rejected cast's wait.
+        player.entities:moveTo(rabbit)
         player.actions:useSpell(rabbit, playerSpell)
         xi.test.world:skipTime(5)
         assert(#starts == 1 and starts[1] == playerSpell)
