@@ -65,6 +65,124 @@ describe('Command and submap requests', function()
         end
     end)
 
+    it('grants Savage Blade only from an eligible main-hand sword until permanently unlocked', function()
+        player:changeJob(xi.job.RDM)
+        player:setLevel(99)
+        player:setSkillLevel(xi.skill.SWORD, 2400)
+        assert(not player:hasLearnedWeaponskill(xi.wsUnlock.SAVAGE_BLADE), 'fixture already learned Savage Blade')
+
+        for _, item in ipairs({ xi.item.ELETTA_SWORD, xi.item.KAJA_SWORD, xi.item.NAEGLING }) do
+            player:addItem(item)
+        end
+
+        local function expectSavageBlade(item, expected)
+            player:equipItem(item, nil, xi.slot.MAIN)
+            assert(player:getEquipID(xi.slot.MAIN) == item, 'wrong sword equipped')
+            player.packets:clear()
+            requestCommands()
+
+            local matching = responses(0x0AC)
+            assert(#matching == 1, 'Expected exactly one command-data response')
+            local id = xi.weaponskill.SAVAGE_BLADE
+            local byte = matching[1].data[0x04 + math.floor(id / 8)]
+            local available = bit.band(byte, bit.lshift(1, id % 8)) ~= 0
+            assert(available == expected, string.format('unexpected Savage Blade availability with item %d', item))
+        end
+
+        expectSavageBlade(xi.item.ELETTA_SWORD, false)
+        expectSavageBlade(xi.item.KAJA_SWORD, true)
+        expectSavageBlade(xi.item.NAEGLING, true)
+        expectSavageBlade(xi.item.ELETTA_SWORD, false)
+        assert(not player:hasLearnedWeaponskill(xi.wsUnlock.SAVAGE_BLADE), 'equipment permanently learned Savage Blade')
+
+        player:addLearnedWeaponskill(xi.wsUnlock.SAVAGE_BLADE)
+        expectSavageBlade(xi.item.ELETTA_SWORD, true)
+    end)
+
+    local function expectWeaponSkill(weaponSkill, expected)
+        player.packets:clear()
+        requestCommands()
+
+        local matching = responses(0x0AC)
+        assert(#matching == 1, 'Expected exactly one command-data response')
+        local byte = matching[1].data[0x04 + math.floor(weaponSkill / 8)]
+        local available = bit.band(byte, bit.lshift(1, weaponSkill % 8)) ~= 0
+        assert(available == expected, string.format('unexpected availability for weapon skill %d', weaponSkill))
+    end
+
+    local function equipWeapon(item, slot)
+        player:equipItem(item, nil, slot)
+        assert(player:getEquipID(slot) == item, 'wrong weapon equipped')
+    end
+
+    it('grants Evisceration from Kaja Knife and Tauret only in the main hand', function()
+        player:changeJob(xi.job.NIN)
+        player:setLevel(99)
+        player:setSkillLevel(xi.skill.DAGGER, 2300)
+        local skill = xi.weaponskill.EVISCERATION
+        local unlock = xi.wsUnlock.EVISCERATION
+        assert(not player:hasLearnedWeaponskill(unlock), 'fixture already learned Evisceration')
+
+        player:addItem(xi.item.ELETTA_KNIFE)
+        equipWeapon(xi.item.ELETTA_KNIFE, xi.slot.MAIN)
+        expectWeaponSkill(skill, false)
+
+        for _, weapon in ipairs({ xi.item.KAJA_KNIFE, xi.item.TAURET }) do
+            player:addItem(weapon)
+            equipWeapon(weapon, xi.slot.SUB)
+            expectWeaponSkill(skill, false)
+
+            player:unequipItem(xi.slot.SUB)
+            equipWeapon(weapon, xi.slot.MAIN)
+            expectWeaponSkill(skill, true)
+
+            equipWeapon(xi.item.ELETTA_KNIFE, xi.slot.MAIN)
+            expectWeaponSkill(skill, false)
+        end
+
+        assert(not player:hasLearnedWeaponskill(unlock), 'equipment permanently learned Evisceration')
+        player:addLearnedWeaponskill(unlock)
+        expectWeaponSkill(skill, true)
+    end)
+
+    it('offers equipment-granted Evisceration to Puppetmaster', function()
+        player:changeJob(xi.job.PUP)
+        player:setLevel(99)
+        player:setSkillLevel(xi.skill.DAGGER, 2300)
+
+        for _, weapon in ipairs({ xi.item.KAJA_KNIFE, xi.item.TAURET }) do
+            player:addItem(weapon)
+            equipWeapon(weapon, xi.slot.MAIN)
+            expectWeaponSkill(xi.weaponskill.EVISCERATION, true)
+        end
+
+        assert(not player:hasLearnedWeaponskill(xi.wsUnlock.EVISCERATION), 'equipment permanently learned Evisceration')
+    end)
+
+    it('grants Decimation from Kaja Axe and Dolichenus until unequipped', function()
+        player:setSkillLevel(xi.skill.AXE, 2400)
+        local skill = xi.weaponskill.DECIMATION
+        local unlock = xi.wsUnlock.DECIMATION
+        assert(not player:hasLearnedWeaponskill(unlock), 'fixture already learned Decimation')
+
+        for _, weapon in ipairs({ xi.item.ELETTA_AXE, xi.item.KAJA_AXE, xi.item.DOLICHENUS }) do
+            player:addItem(weapon)
+        end
+
+        equipWeapon(xi.item.ELETTA_AXE, xi.slot.MAIN)
+        expectWeaponSkill(skill, false)
+        equipWeapon(xi.item.KAJA_AXE, xi.slot.MAIN)
+        expectWeaponSkill(skill, true)
+        equipWeapon(xi.item.DOLICHENUS, xi.slot.MAIN)
+        expectWeaponSkill(skill, true)
+        equipWeapon(xi.item.ELETTA_AXE, xi.slot.MAIN)
+        expectWeaponSkill(skill, false)
+
+        assert(not player:hasLearnedWeaponskill(unlock), 'equipment permanently learned Decimation')
+        player:addLearnedWeaponskill(unlock)
+        expectWeaponSkill(skill, true)
+    end)
+
     it('does not answer an ability-list request during an event', function()
         player:startEvent(1)
         assert(player:isInEvent(), 'Event did not start')

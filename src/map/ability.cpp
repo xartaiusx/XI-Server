@@ -488,12 +488,14 @@ auto GetTwoHourAbility(xi::Job JobID) -> CAbility*
 bool CanLearnAbility(CBattleEntity* PUser, uint16 AbilityID)
 {
     auto* PAbility = GetAbility(AbilityID);
-    if (PAbility)
+    if (PAbility && (PAbility->getAddType() & ADDTYPE_LEARNED))
     {
         const auto Job    = PAbility->getJob();
         uint8      JobLvl = PAbility->getLevel();
 
-        return ((PUser->GetMJob() == Job && PUser->GetMLevel() >= JobLvl) || (PUser->GetSJob() == Job && PUser->GetSLevel() >= JobLvl));
+        return (PUser->GetMJob() == Job && PUser->GetMLevel() >= JobLvl) ||
+               (Job != xi::Job::NONE && !(PAbility->getAddType() & ADDTYPE_MAIN_ONLY) &&
+                PUser->GetSJob() == Job && PUser->GetSLevel() >= JobLvl);
     }
     return false;
 }

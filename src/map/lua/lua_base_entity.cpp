@@ -11489,7 +11489,7 @@ void CLuaBaseEntity::addLearnedAbility(uint16 abilityID)
 
     auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
 
-    if (charutils::addLearnedAbility(PChar, abilityID))
+    if (ability::CanLearnAbility(PChar, abilityID) && charutils::addLearnedAbility(PChar, abilityID))
     {
         charutils::addAbility(PChar, abilityID);
         charutils::SaveLearnedAbilities(PChar);

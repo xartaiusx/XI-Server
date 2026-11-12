@@ -720,6 +720,7 @@ bool CanUseSpell(CBattleEntity* PCaster, CSpell* spell)
 
     bool  usable       = false;
     uint8 requirements = 0;
+    luautils::SpellUseOverride spellOverride{};
 
     // A Monipulator casts with its species' jobs.
     const auto [mainJob, subJob] = [&]() -> std::pair<xi::Job, xi::Job>
@@ -745,13 +746,47 @@ bool CanUseSpell(CBattleEntity* PCaster, CSpell* spell)
             return true;
 
         case TYPE_PC:
+            // These enemy spells retain their inherited job levels for other actor paths.
+            if ((spell->getID() == SpellID::Diaga_II || spell->getID() == SpellID::Poisonga_II) &&
+                !monstrosity::AsMonipulator(PCaster))
+            {
+                return false;
+            }
+
+            // Keep the existing enemy spell row for mobs and Monipulators.
+            if (spell->getID() == SpellID::Breakga && !monstrosity::AsMonipulator(PCaster))
+            {
+                return luautils::IsContentEnabled(spell->getContentTag()) &&
+                       ((mainJob == xi::Job::BLM && PCaster->GetMLevel() >= 95) ||
+                        (subJob == xi::Job::BLM && PCaster->GetSLevel() >= 95));
+            }
+
             if (spell->getSpellGroup() == SPELLGROUP_TRUST)
             {
                 return true; // every PC can use trusts
             }
-            else if (luautils::OnCanUseSpell(PCaster, spell))
+            spellOverride = luautils::OnCanUseSpell(PCaster, spell);
+            if (spellOverride.allow)
             {
                 return true;
+            }
+
+            // These gift-only spells also carry native job levels for other actor paths.
+            if (!monstrosity::AsMonipulator(PCaster))
+            {
+                const auto requiresGiftUnlock = [id = spell->getID()](xi::Job job)
+                {
+                    const bool rdmGift = id == SpellID::Distract_III ||
+                                         id == SpellID::Frazzle_III ||
+                                         id == SpellID::Addle_II ||
+                                         id == SpellID::Refresh_III ||
+                                         id == SpellID::Temper_II;
+                    return (job == xi::Job::RDM && rdmGift) ||
+                           (job == xi::Job::DRK && id == SpellID::Drain_III) ||
+                           (job == xi::Job::SCH && id >= SpellID::Geohelix_II && id <= SpellID::Luminohelix_II);
+                };
+                spellOverride.skipMainJobLevel    = spellOverride.skipMainJobLevel || requiresGiftUnlock(mainJob);
+                spellOverride.skipSupportJobLevel = spellOverride.skipSupportJobLevel || requiresGiftUnlock(subJob);
             }
             [[fallthrough]];
         case TYPE_FELLOW:
@@ -759,7 +794,7 @@ bool CanUseSpell(CBattleEntity* PCaster, CSpell* spell)
             requirements = spell->getRequirements();
 
             // Make sure caster has the right main job and level
-            if (PCaster->GetMLevel() >= spell->getJob(mainJob))
+            if (!spellOverride.skipMainJobLevel && PCaster->GetMLevel() >= spell->getJob(mainJob))
             {
                 usable = true;
                 if (requirements & SPELLREQ_TABULA_RASA)
@@ -807,7 +842,7 @@ bool CanUseSpell(CBattleEntity* PCaster, CSpell* spell)
             }
 
             // Make sure caster has the right sub job and level
-            if (PCaster->GetSLevel() >= spell->getJob(subJob) && !(requirements & SPELLREQ_MAIN_JOB_ONLY))
+            if (!spellOverride.skipSupportJobLevel && PCaster->GetSLevel() >= spell->getJob(subJob) && !(requirements & SPELLREQ_MAIN_JOB_ONLY))
             {
                 usable = true;
                 if (requirements & SPELLREQ_TABULA_RASA)

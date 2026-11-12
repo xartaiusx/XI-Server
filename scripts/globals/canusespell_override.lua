@@ -52,7 +52,7 @@ local jobPointSpellGiftMap =
     [xi.job.DRK] =
     {
         [xi.magic.spell.ENDARK_II] = 100,
-        [xi.magic.spell.DRAIN_III] = 100,
+        [xi.magic.spell.DRAIN_III] = 550,
     },
 
     [xi.job.BRD] =
@@ -87,6 +87,8 @@ local jobPointSpellGiftMap =
         [xi.magic.spell.CRYOHELIX_II]    = 1200,
         [xi.magic.spell.ANEMOHELIX_II]   = 1200,
         [xi.magic.spell.GEOHELIX_II]     = 1200,
+        [xi.magic.spell.HYDROHELIX_II]   = 1200,
+        [xi.magic.spell.IONOHELIX_II]    = 1200,
         [xi.magic.spell.LUMINOHELIX_II]  = 1200,
         [xi.magic.spell.NOCTOHELIX_II]   = 1200,
     },
@@ -127,22 +129,37 @@ local function getSpellJobPointCostForJob(job, spellID)
     return -1
 end
 
--- return true to indicate that the spell can indeed be cast
--- return false falls back to default behavior of checking main/sub job levels for cast availability
--- note: this only affects whether or not you are able to cast a spell in general, MP costs (if any) are still required.
+-- A true first result permits the spell. A false result keeps normal job checks.
+-- Optional second and third results suppress the respective main and support job level fallbacks.
+-- Spell costs and all other cast checks still apply.
 xi.spells.canUseSpellOverride = function(player, spell)
     local job            = player:getMainJob()
     local spellID        = spell:getID()
     local jobPointsSpent = player:getSpentJobPoints()
 
     local jobPointCostForSpell = getSpellJobPointCostForJob(job, spellID)
-
-    if jobPointCostForSpell == -1 then -- that job can't cast that spell no matter how many JP they have
-        return false
+    local rdmGift = getSpellJobPointCostForJob(xi.job.RDM, spellID) ~= -1
+    local drkGift = spellID == xi.magic.spell.DRAIN_III
+    local schGift = spellID >= xi.magic.spell.GEOHELIX_II and spellID <= xi.magic.spell.LUMINOHELIX_II
+    local mainGift =
+        (rdmGift and job == xi.job.RDM) or
+        (drkGift and job == xi.job.DRK) or
+        (schGift and job == xi.job.SCH)
+    if jobPointCostForSpell ~= -1 and
+        jobPointsSpent >= jobPointCostForSpell and
+        (not mainGift or player:getMainLvl() == 99)
+    then
+        return true
     end
 
-    if jobPointsSpent >= jobPointCostForSpell then
-        return true
+    if rdmGift or drkGift or schGift then
+        local supportJob = player:getSubJob()
+        local supportGift =
+            (rdmGift and supportJob == xi.job.RDM) or
+            (drkGift and supportJob == xi.job.DRK) or
+            (schGift and supportJob == xi.job.SCH)
+
+        return false, mainGift, supportGift
     end
 
     return false

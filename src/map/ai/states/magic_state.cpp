@@ -37,6 +37,7 @@
 #include "enums/msg_basic.h"
 #include "job_points.h"
 #include "lua/luautils.h"
+#include "monstrosity.h"
 #include "packets/s2c/0x028_battle2.h"
 #include "packets/s2c/0x029_battle_message.h"
 #include "spell.h"
@@ -81,6 +82,14 @@ auto CMagicState::init() -> StateErrorOr<void>
     }
 
     m_PSpell = PSpell->clone();
+
+    if (m_spellId == SpellID::Breakga && m_PEntity->objtype == TYPE_PC && !monstrosity::AsMonipulator(m_PEntity))
+    {
+        // The player version has different costs and timings from the enemy spell row.
+        m_PSpell->setMPCost(78);
+        m_PSpell->setCastTime(3500ms);
+        m_PSpell->setRecastTime(45s);
+    }
 
     auto* PTarget = m_PEntity->IsValidTarget(target(), m_PSpell->getValidTarget(), m_errorMsg);
     if (!PTarget || this->HasErrorMsg())

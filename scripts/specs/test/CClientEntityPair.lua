@@ -55,6 +55,13 @@ end
 function CClientEntityPair:getSearchMessage()
 end
 
+---Check whether the native learned-spell row exists for this test character.
+---@nodiscard
+---@param spellId integer
+---@return boolean
+function CClientEntityPair:hasPersistedSpell(spellId)
+end
+
 ---Linkshell id in slot 1 or 2, 0 if none
 ---@nodiscard
 ---@param lsNum integer 1 or 2

@@ -527,6 +527,29 @@ void RefreshGiftMods(CCharEntity* PChar)
             }
             break;
 
+        case xi::Job::SCH:
+            if (totalJpSpent >= 1200)
+            {
+                for (const SpellID helix : { SpellID::Geohelix_II,
+                                             SpellID::Hydrohelix_II,
+                                             SpellID::Anemohelix_II,
+                                             SpellID::Pyrohelix_II,
+                                             SpellID::Cryohelix_II,
+                                             SpellID::Ionohelix_II,
+                                             SpellID::Noctohelix_II,
+                                             SpellID::Luminohelix_II })
+                {
+                    const auto spellId = static_cast<uint16>(helix);
+                    if (charutils::addSpell(PChar, spellId))
+                    {
+                        charutils::SaveSpell(PChar, spellId);
+                        sendUpdate = true;
+                    }
+                }
+            }
+
+            break;
+
         case xi::Job::WHM:
             if (totalJpSpent >= 100 && !charutils::hasSpell(PChar, (uint16)SpellID::Reraise_IV))
             {
