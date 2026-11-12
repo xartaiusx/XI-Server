@@ -145,7 +145,8 @@ xi.spells.canUseSpellOverride = function(player, spell)
         (rdmGift and job == xi.job.RDM) or
         (drkGift and job == xi.job.DRK) or
         (schGift and job == xi.job.SCH)
-    if jobPointCostForSpell ~= -1 and
+    if
+        jobPointCostForSpell ~= -1 and
         jobPointsSpent >= jobPointCostForSpell and
         (not mainGift or player:getMainLvl() == 99)
     then

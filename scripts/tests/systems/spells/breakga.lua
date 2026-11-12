@@ -81,6 +81,7 @@ describe('Player Breakga', function()
         player:addListener('MAGIC_START', 'PLAYER_BREAKGA_OFF_JOB_START', function()
             starts = starts + 1
         end)
+
         local mp = player:getMP()
         player.actions:useSpell(rabbit, spellId)
         xi.test.world:skipTime(5)

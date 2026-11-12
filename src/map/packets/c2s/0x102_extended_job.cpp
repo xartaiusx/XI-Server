@@ -164,7 +164,7 @@ void GP_CLI_COMMAND_EXTENDED_JOB::process(MapSession* PSession, CCharEntity* PCh
 
                 if (spell != nullptr)
                 {
-                    const uint8 mLevel = PChar->m_LevelRestriction != 0 && PChar->m_LevelRestriction < PChar->GetMLevel() ? PChar->m_LevelRestriction : PChar->GetMLevel();
+                    const uint8 mLevel    = PChar->m_LevelRestriction != 0 && PChar->m_LevelRestriction < PChar->GetMLevel() ? PChar->m_LevelRestriction : PChar->GetMLevel();
                     const uint8 blueLevel = PChar->GetMJob() == xi::Job::BLU ? mLevel : PChar->GetSLevel();
 
                     if (blueLevel < spell->getJob(xi::Job::BLU))

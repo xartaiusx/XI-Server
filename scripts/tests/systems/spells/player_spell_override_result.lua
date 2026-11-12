@@ -30,23 +30,32 @@ describe('Player spell-use override result', function()
     end
 
     it('falls back to job eligibility when the override returns no value', function()
-        checkFallback(function() end)
+        checkFallback(function()
+        end)
     end)
 
     it('falls back to job eligibility when the override returns nil', function()
-        checkFallback(function() return nil end)
+        checkFallback(function()
+            return nil
+        end)
     end)
 
     it('falls back to job eligibility when the override returns a nonboolean value', function()
-        checkFallback(function() return 1 end)
+        checkFallback(function()
+            return 1
+        end)
     end)
 
     it('falls back to job eligibility when the override explicitly returns false', function()
-        checkFallback(function() return false end)
+        checkFallback(function()
+            return false
+        end)
     end)
 
     it('keeps the gift gate when the override result is malformed', function()
-        stub('xi.spells.canUseSpellOverride', function() return nil end)
+        stub('xi.spells.canUseSpellOverride', function()
+            return nil
+        end)
 
         local giftCases =
         {

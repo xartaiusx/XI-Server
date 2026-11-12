@@ -718,8 +718,8 @@ bool CanUseSpell(CBattleEntity* PCaster, CSpell* spell)
         return false;
     }
 
-    bool  usable       = false;
-    uint8 requirements = 0;
+    bool                       usable       = false;
+    uint8                      requirements = 0;
     luautils::SpellUseOverride spellOverride{};
 
     // A Monipulator casts with its species' jobs.
