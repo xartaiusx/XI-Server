@@ -843,6 +843,15 @@ function precast(spell)
     elseif spell.type == 'JobAbility' then
         qa_equip('sets.precast.JA.' .. spell.english, sets.precast.JA[spell.english] or sets.precast.JA, spell, 'precast')
     elseif spell.action_type == 'Magic' then
+        -- Let a changed Fast Cast ammo settle before sending the spell and midcast gear.
+        if spell.type ~= 'Trust' and player.main_job_id == 5 and player.sub_job_id == 20 then
+            local equipment = windower.ffxi.get_items('equipment')
+            local ammo = equipment and equipment.ammo and equipment.ammo > 0 and
+                windower.ffxi.get_items(equipment.ammo_bag, equipment.ammo)
+            if not ammo or ammo.id ~= 22252 then -- Sapience Orb
+                cast_delay(1)
+            end
+        end
         qa_equip('sets.precast.FC', sets.precast.FC, spell, 'precast')
     end
 end
