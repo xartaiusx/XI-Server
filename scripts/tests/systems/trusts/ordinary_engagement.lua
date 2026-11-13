@@ -285,6 +285,53 @@ describe('Ordinary Trust engagement', function()
         assert(onTarget(val, mob) and onTarget(iroha, mob))
     end)
 
+    it('assists a Trust hostile action and preserves the owner focus after a later Trust action', function()
+        xi.test.world:setSetting('main.ENABLE_TRUST_DEFENSIVE_MODE', false)
+        local first = fixtureMob('Ordinary_Trust_Party_Provoke', 0)
+        local second = fixtureMob('Ordinary_Trust_Owner_Paralyze', 2)
+
+        assert(owner.actions:useTrustAbility(val, val, xi.jobAbility.DEFENDER))
+        xi.test.world:skipTime(4)
+        assert(val:hasStatusEffect(xi.effect.DEFENDER))
+        assert(not val:isEngaged() and not iroha:isEngaged(), 'a friendly ability cannot pull')
+
+        local provoked = false
+        val:addListener('ABILITY_USE', 'ORDINARY_TRUST_PARTY_PROVOKE', function(actor, target, ability)
+            provoked = actor:getID() == val:getID() and target and target:getID() == first:getID() and ability:getID() == xi.jobAbility.PROVOKE
+        end)
+
+        assert(owner.actions:useTrustAbility(val, first, xi.jobAbility.PROVOKE))
+        xi.test.world:skipTime(5)
+        val:removeListener('ORDINARY_TRUST_PARTY_PROVOKE')
+        assert(provoked and first:getVE(val) > 0 and not owner:isEngaged())
+        -- Controllers consume the completed ability on a subsequent world tick.
+        xi.test.world:skipTime(1)
+        assert(onTarget(val, first) and onTarget(iroha, first), 'the other Trust assists a resolved hostile ability')
+
+        playerSpell(second, xi.magic.spell.PARALYZE)
+        assert(onTarget(val, second) and onTarget(iroha, second))
+        assert(owner.actions:useTrustAbility(val, first, xi.jobAbility.TOMAHAWK))
+        xi.test.world:skipTime(5)
+        assert(first:hasStatusEffect(xi.effect.TOMAHAWK), 'the later hostile action must resolve on the old target')
+        assert(onTarget(val, second) and onTarget(iroha, second), 'the owner focus remains authoritative')
+    end)
+
+    it('does not assist a Trust hostile action when shared targeting is disabled', function()
+        xi.test.world:setSetting('main.ENABLE_TRUST_SHARED_TARGETING', false)
+        local mob = fixtureMob('Ordinary_Trust_Party_Sharing_Disabled', 0)
+        local provoked = false
+        val:addListener('ABILITY_USE', 'ORDINARY_TRUST_DISABLED_PROVOKE', function(_, target, ability)
+            provoked = target and target:getID() == mob:getID() and ability:getID() == xi.jobAbility.PROVOKE
+        end)
+
+        assert(owner.actions:useTrustAbility(val, mob, xi.jobAbility.PROVOKE))
+        xi.test.world:skipTime(5)
+        val:removeListener('ORDINARY_TRUST_DISABLED_PROVOKE')
+        assert(provoked and mob:getVE(val) > 0 and not owner:isEngaged())
+        xi.test.world:skipTime(1)
+        assert(not val:isEngaged() and not iroha:isEngaged())
+    end)
+
     it('retaliates when a mob lands a native attack on Iroha with Twills idle', function()
         local mob = fixtureMob('Ordinary_Trust_Attacker', 1)
         local startingHp = iroha:getHP()
@@ -303,6 +350,54 @@ describe('Ordinary Trust engagement', function()
 
         assert(iroha:getHP() < startingHp, 'a real mob swing must reach the Trust')
         assert(not owner:isEngaged() and onTarget(val, mob) and onTarget(iroha, mob))
+    end)
+
+    local function collateralAttack(exclusiveClaim)
+        local mob = fixtureMob('Ordinary_Trust_Collateral', 0)
+        local outsider = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.WAR, level = 99 })
+        outsider:setUnkillable(true)
+        outsider:setPos(mob:getXPos(), mob:getYPos(), mob:getZPos() - 1)
+        mob:setAggressive(false)
+        mob:setMobMod(xi.mobMod.AOE_HIT_ALL, 1)
+        if exclusiveClaim then
+            mob:updateClaim(outsider)
+            assert(outsider:hasClaim(mob) and not owner:hasClaim(mob))
+        end
+
+        stub('xi.mobskills.mobPhysicalMove',
+            {
+                damage     = 100,
+                hitsLanded = 3,
+                isCritical = false,
+            })
+
+        local hp = owner:getHP()
+        local nidhoggSpikeFlail = 1040
+        mob:setTP(3000)
+        mob:useMobAbility(nidhoggSpikeFlail, outsider, 0)
+        xi.test.world:tickEntity(mob)
+        assert(owner:getHP() == hp - 100, 'the native AoE must hit Twills as a secondary recipient')
+        assert(outsider:hasClaim(mob) == exclusiveClaim and not owner:hasClaim(mob), 'the forced result must preserve claim')
+        local partyIds = { [owner:getID()] = true, [val:getID()] = true, [iroha:getID()] = true }
+        for _, entry in ipairs(mob:getEnmityList()) do
+            assert(not partyIds[entry.entity:getID()], 'no trio member may have an attacker enmity entry')
+        end
+
+        xi.test.world:skipTime(1)
+        assert(not owner:isEngaged())
+        return mob
+    end
+
+    it('retaliates against a recent claimable collateral attack without enmity', function()
+        local mob = collateralAttack(false)
+        assert(onTarget(val, mob) and onTarget(iroha, mob))
+        xi.test.world:skipTime(4)
+        assert(not val:isEngaged() and not iroha:isEngaged(), 'the unrenewed collateral fallback expires')
+    end)
+
+    it('does not retaliate against a collateral attacker under another party claim', function()
+        local mob = collateralAttack(true)
+        assert(not onTarget(val, mob) and not onTarget(iroha, mob))
     end)
 
     it('rejects a queued hostile effect when its target is put to sleep', function()

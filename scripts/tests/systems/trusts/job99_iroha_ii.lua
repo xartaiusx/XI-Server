@@ -305,7 +305,7 @@ describe('Iroha II developed jobs', function()
         assert(not owner:isDead())
     end)
 
-    describe('Iroha II native Flare II', function()
+    describe('Iroha II native combat', function()
         local owner
         local iroha
         local mob
@@ -371,6 +371,75 @@ describe('Iroha II developed jobs', function()
             end
 
             mobId = nil
+        end)
+
+        local function watchOffensiveSignature(expectedId)
+            -- Use the real spawn gambits with a healthy party, and isolate TP from melee.
+            iroha:setMobAbilityEnabled(true)
+            iroha:setMP(0)
+            assert(iroha:addStatusEffect(xi.effect.HASSO, { power = 1, duration = 60, origin = iroha }))
+            require('scripts/actions/spells/trust/iroha_ii').onMobSpawn(iroha)
+            local actions = {}
+            iroha:addListener('WEAPONSKILL_USE', 'IROHA_TEST_OFFENSIVE_SIGNATURE', function(actor, target, skill, spentTp, action, damage)
+                assert(actor:getID() == iroha:getID() and target:getID() == mobId)
+                assert(skill:getID() == expectedId and action:getCategory() == xi.action.category.MOBABILITY_FINISH)
+                table.insert(actions, { spentTp = spentTp, remainingTp = actor:getTP(), damage = damage })
+            end)
+
+            iroha:setTP(3000)
+            return actions
+        end
+
+        local function assertOffensiveSignature(actions, startingHp)
+            iroha:removeListener('WEAPONSKILL_USE', 'IROHA_TEST_OFFENSIVE_SIGNATURE')
+            assert(#actions == 1, 'Iroha must autonomously finish one offensive signature')
+            local finish = actions[1]
+            assert(finish.spentTp == 3000 and finish.remainingTp == 0)
+            assert(finish.damage > 0 and mob:getHP() < startingHp)
+        end
+
+        it('uses Amatsu Kyori to open an autonomous skillchain at capped TP', function()
+            local hp = mob:getHP()
+            local actions = watchOffensiveSignature(3733)
+            for _ = 1, 10 do
+                xi.test.world:skipTime(1)
+                if #actions > 0 then
+                    break
+                end
+            end
+
+            assertOffensiveSignature(actions, hp)
+            local opening = assert(mob:getStatusEffect(xi.effect.SKILLCHAIN))
+            assert(opening:getTier() == 0 and opening:getPower() == xi.skillchainType.INDURATION)
+        end)
+
+        it('holds capped TP for a fresh opening and closes Light in the native window', function()
+            local hp = mob:getHP()
+            local actions = watchOffensiveSignature(3737)
+            assert(mob:addStatusEffect(xi.effect.SKILLCHAIN, {
+                icon     = 0,
+                power    = xi.skillchainType.FRAGMENTATION,
+                tier     = 0,
+                duration = 10,
+                origin   = owner,
+            }))
+
+            for _ = 1, 6 do
+                xi.test.world:skipTime(1)
+                assert(#actions == 0 and iroha:getTP() == 3000 and mob:getHP() == hp)
+                mob:getStatusEffect(xi.effect.SKILLCHAIN):resetStartTime()
+            end
+
+            for _ = 1, 8 do
+                xi.test.world:skipTime(1)
+                if #actions > 0 then
+                    break
+                end
+            end
+
+            assertOffensiveSignature(actions, hp)
+            local chain = assert(mob:getStatusEffect(xi.effect.SKILLCHAIN))
+            assert(chain:getTier() == 3 and chain:getPower() == xi.skillchainType.LIGHT)
         end)
 
         local function resonance(kind, seconds)

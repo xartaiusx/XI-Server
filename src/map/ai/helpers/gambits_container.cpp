@@ -2084,6 +2084,13 @@ bool CGambitsContainer::TryTrustSkill()
             {
                 auto* PSCEffect = target->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::Skillchain);
 
+                // Iroha's instant signatures cannot close before the native minimum, even at capped TP.
+                if (PSCEffect && PSCEffect->GetStartTime() + 3s >= timer::now() &&
+                    POwner->trustID() == 1018 && trustdevelopment::IsEnabled(POwner))
+                {
+                    return false;
+                }
+
                 if (!PSCEffect) // Opener
                 {
                     // TODO: This relies on the skills being passed in in some kind of correct order...

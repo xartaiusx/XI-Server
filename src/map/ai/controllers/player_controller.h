@@ -58,8 +58,16 @@ public:
 
     auto canAct() -> bool;
 
-    EntityId              ordinaryTrustActionTarget;
-    std::vector<EntityId> ordinaryTrustAttackers;
+    struct OrdinaryTrustAttack
+    {
+        EntityId          attacker;
+        EntityId          victim;
+        timer::time_point resolvedAt;
+    };
+
+    EntityId                         ordinaryTrustActionTarget;
+    EntityId                         ordinaryTrustPartyActionTarget;
+    std::vector<OrdinaryTrustAttack> ordinaryTrustAttackers;
 
 protected:
     timer::time_point m_lastAttackTime{ timer::now() };

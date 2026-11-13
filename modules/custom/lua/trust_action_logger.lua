@@ -901,6 +901,8 @@ local focusReasons =
     [1] = 'master_target',
     [2] = 'defensive',
     [3] = 'current_target',
+    [4] = 'owner_action',
+    [5] = 'party_action',
 }
 
 local roleEnmityActions =

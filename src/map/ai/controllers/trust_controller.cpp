@@ -74,6 +74,7 @@ enum TRUST_MOVEMENT_TYPE : int8
 };
 
 constexpr float DefensiveEngageDistance       = 40.0f;
+constexpr auto  RecentDefensiveActionWindow   = 3s;
 constexpr float CasterRestFollowBreakDistance = 12.0f;
 constexpr auto  TrustRestModeVar              = "MochiTrustRestMode";
 constexpr auto  TrustRestStartReasonVar       = "MochiTrustRestStartReason";
@@ -134,6 +135,7 @@ enum class TrustFocusReason : uint8
     Defensive     = 2,
     CurrentTarget = 3,
     OwnerAction   = 4,
+    PartyAction   = 5,
 };
 
 enum class TrustRoleEnmityAction : uint8
@@ -359,26 +361,48 @@ bool IsOrdinaryTrustEnemy(CMobEntity* PMob, CCharEntity* PMaster)
            distance(PMaster->loc.p, PMob->loc.p) <= DefensiveEngageDistance && PMaster->IsMobOwner(PMob);
 }
 
+bool IsOrdinaryTrustPartyMember(CBattleEntity* member, CCharEntity* owner)
+{
+    if (!member || !member->isAlive() || member->loc.zone != owner->loc.zone ||
+        member->PInstance != owner->PInstance || member->PBattlefield != owner->PBattlefield ||
+        member->getBattleID() != owner->getBattleID())
+    {
+        return false;
+    }
+    if (member == owner)
+    {
+        return true;
+    }
+    auto* trust = dynamic_cast<CTrustEntity*>(member);
+    return trust && trust->PMaster == owner && std::ranges::contains(owner->PTrusts, trust);
+}
+
 bool ThreatensOrdinaryTrustParty(CMobEntity* PMob, CCharEntity* PMaster)
 {
     return MobThreatensEntity(PMob, PMaster) ||
            std::ranges::any_of(PMaster->PTrusts, [&](auto* trust)
                                {
-                                   return trust && trust->isAlive() && trust->loc.zone == PMaster->loc.zone &&
-                                          trust->PInstance == PMaster->PInstance && trust->getBattleID() == PMaster->getBattleID() &&
-                                          MobThreatensEntity(PMob, trust);
+                                   return IsOrdinaryTrustPartyMember(trust, PMaster) && MobThreatensEntity(PMob, trust);
                                });
 }
 
 auto ResolveOrdinaryTrustFocus(CCharEntity* PMaster, CTrustEntity* PTrust) -> TrustFocusResult
 {
-    auto* controller = static_cast<CPlayerController*>(PMaster->PAI->GetController());
-    auto* target     = controller->ordinaryTrustActionTarget.resolve<CMobEntity>();
-    auto& attackers  = controller->ordinaryTrustAttackers;
-    std::erase_if(attackers, [&](const EntityId& attacker)
+    auto*      controller = static_cast<CPlayerController*>(PMaster->PAI->GetController());
+    auto*      target     = controller->ordinaryTrustActionTarget.resolve<CMobEntity>();
+    auto&      attackers  = controller->ordinaryTrustAttackers;
+    const auto now        = timer::now();
+    std::erase_if(attackers, [&](const CPlayerController::OrdinaryTrustAttack& action)
                   {
-                      auto* mob = attacker.resolve<CMobEntity>();
-                      return !IsOrdinaryTrustEnemy(mob, PMaster) || !ThreatensOrdinaryTrustParty(mob, PMaster);
+                      auto* mob = action.attacker.resolve<CMobEntity>();
+                      if (!IsOrdinaryTrustEnemy(mob, PMaster))
+                      {
+                          return true;
+                      }
+                      // A real collateral hit can leave no enmity entry for its victim.
+                      const bool recentHit = now - action.resolvedAt <= RecentDefensiveActionWindow &&
+                                             IsOrdinaryTrustPartyMember(action.victim.resolve<CBattleEntity>(), PMaster);
+                      return !recentHit && !ThreatensOrdinaryTrustParty(mob, PMaster);
                   });
 
     TrustFocusResult protectedFocus;
@@ -395,25 +419,35 @@ auto ResolveOrdinaryTrustFocus(CCharEntity* PMaster, CTrustEntity* PTrust) -> Tr
         protectedFocus = { target, TrustFocusReason::OwnerAction, true };
     }
 
-    if (!settings::get<bool>("main.ENABLE_TRUST_DEFENSIVE_MODE"))
+    if (settings::get<bool>("main.ENABLE_TRUST_DEFENSIVE_MODE"))
     {
-        return protectedFocus;
-    }
-
-    for (auto it = attackers.rbegin(); it != attackers.rend(); ++it)
-    {
-        auto* mob = it->resolve<CMobEntity>();
-        if (mob && PTrust->CanSeeTarget(mob))
+        for (auto it = attackers.rbegin(); it != attackers.rend(); ++it)
         {
-            if (!trustcombat::IsSleepProtected(PTrust, mob))
+            auto* mob = it->attacker.resolve<CMobEntity>();
+            if (mob && PTrust->CanSeeTarget(mob))
             {
-                return { mob, TrustFocusReason::Defensive };
-            }
-            if (!protectedFocus.PMob)
-            {
-                protectedFocus = { mob, TrustFocusReason::Defensive, true };
+                if (!trustcombat::IsSleepProtected(PTrust, mob))
+                {
+                    return { mob, TrustFocusReason::Defensive };
+                }
+                if (!protectedFocus.PMob)
+                {
+                    protectedFocus = { mob, TrustFocusReason::Defensive, true };
+                }
             }
         }
+    }
+
+    auto& partyTarget = controller->ordinaryTrustPartyActionTarget;
+    auto* partyEnemy  = partyTarget.resolve<CMobEntity>();
+    if (!IsOrdinaryTrustEnemy(partyEnemy, PMaster))
+    {
+        partyTarget.clean();
+    }
+    else if (settings::get<bool>("main.ENABLE_TRUST_SHARED_TARGETING") && PTrust->CanSeeTarget(partyEnemy) &&
+             !trustcombat::IsSleepProtected(PTrust, partyEnemy))
+    {
+        return { partyEnemy, TrustFocusReason::PartyAction };
     }
 
     return protectedFocus;
@@ -865,28 +899,48 @@ auto trustcombat::SleepApplication(CBattleEntity* actor, CBattleEntity* target) 
 
 void trustcombat::RecordResolvedAction(CBattleEntity* actor, CBattleEntity* primaryTarget, const action_t& action, uint64 sleepApplication)
 {
-    if (!actor || (actor->objtype != TYPE_PC && actor->objtype != TYPE_MOB) ||
+    if (!actor || (actor->objtype != TYPE_PC && actor->objtype != TYPE_TRUST && actor->objtype != TYPE_MOB) ||
         action.actorId != actor->id || action.targets.empty())
     {
         return;
     }
 
-    if (actor->objtype == TYPE_PC)
+    if (actor->objtype == TYPE_PC || actor->objtype == TYPE_TRUST)
     {
-        auto* owner = static_cast<CCharEntity*>(actor);
-        auto* enemy = dynamic_cast<CMobEntity*>(primaryTarget);
-        if (CanUseOrdinaryTrustCombat(owner) && IsOrdinaryTrustEnemy(enemy, owner) &&
-            std::ranges::any_of(action.targets, [&](const auto& target)
-                                {
-                                    return target.actorId == enemy->id && !target.results.empty();
-                                }))
+        auto* trust = actor->objtype == TYPE_TRUST ? static_cast<CTrustEntity*>(actor) : nullptr;
+        auto* owner = trust ? dynamic_cast<CCharEntity*>(trust->PMaster) : static_cast<CCharEntity*>(actor);
+        auto* enemy = primaryTarget && primaryTarget->objtype == TYPE_MOB ? static_cast<CMobEntity*>(primaryTarget) : nullptr;
+        if (!CanUseOrdinaryTrustCombat(owner) || !IsOrdinaryTrustEnemy(enemy, owner) ||
+            actor->allegiance == enemy->allegiance ||
+            !std::ranges::any_of(action.targets, [&](const auto& target)
+                                 {
+                                     return target.actorId == enemy->id && !target.results.empty();
+                                 }))
         {
-            auto* controller                      = static_cast<CPlayerController*>(owner->PAI->GetController());
-            controller->ordinaryTrustActionTarget = enemy->entityId();
-            if (sleepApplication != 0)
+            return;
+        }
+
+        auto* controller = static_cast<CPlayerController*>(owner->PAI->GetController());
+        if (trust)
+        {
+            // A delayed or routine Trust action must not take focus from the owner's last action.
+            if (settings::get<bool>("main.ENABLE_TRUST_SHARED_TARGETING") &&
+                std::ranges::contains(owner->PTrusts, trust) && trust->isAlive() && !trust->isCharmed &&
+                trust->loc.zone == owner->loc.zone && trust->PInstance == owner->PInstance &&
+                trust->PBattlefield == owner->PBattlefield && trust->getBattleID() == owner->getBattleID() &&
+                !IsOrdinaryTrustEnemy(controller->ordinaryTrustActionTarget.resolve<CMobEntity>(), owner) &&
+                !IsSleepProtected(trust, enemy))
             {
-                enemy->StatusEffectContainer->ReleaseOrdinaryTrustSleepProtection(owner->serial(), sleepApplication);
+                controller->ordinaryTrustPartyActionTarget = enemy->entityId();
             }
+            return;
+        }
+
+        controller->ordinaryTrustActionTarget = enemy->entityId();
+        controller->ordinaryTrustPartyActionTarget.clean();
+        if (sleepApplication != 0)
+        {
+            enemy->StatusEffectContainer->ReleaseOrdinaryTrustSleepProtection(owner->serial(), sleepApplication);
         }
         return;
     }
@@ -915,13 +969,8 @@ void trustcombat::RecordResolvedAction(CBattleEntity* actor, CBattleEntity* prim
         if (auto* trust = dynamic_cast<CTrustEntity*>(victim))
         {
             owner = dynamic_cast<CCharEntity*>(trust->PMaster);
-            if (!owner || !std::ranges::contains(owner->PTrusts, trust))
-            {
-                continue;
-            }
         }
-        if (!CanUseOrdinaryTrustCombat(owner) || victim->loc.zone != owner->loc.zone ||
-            victim->PInstance != owner->PInstance || victim->getBattleID() != owner->getBattleID() ||
+        if (!CanUseOrdinaryTrustCombat(owner) || !IsOrdinaryTrustPartyMember(victim, owner) ||
             !IsOrdinaryTrustEnemy(attacker, owner))
         {
             continue;
@@ -930,11 +979,12 @@ void trustcombat::RecordResolvedAction(CBattleEntity* actor, CBattleEntity* prim
         auto*      controller = static_cast<CPlayerController*>(owner->PAI->GetController());
         auto&      attackers  = controller->ordinaryTrustAttackers;
         const auto id         = attacker->entityId();
-        if (attackers.empty() || attackers.back() != id)
-        {
-            std::erase(attackers, id);
-            attackers.push_back(id);
-        }
+        const auto victimId   = victim->entityId();
+        std::erase_if(attackers, [&](const CPlayerController::OrdinaryTrustAttack& previous)
+                      {
+                          return previous.attacker == id && previous.victim == victimId;
+                      });
+        attackers.push_back({ id, victimId, timer::now() });
     }
 }
 
