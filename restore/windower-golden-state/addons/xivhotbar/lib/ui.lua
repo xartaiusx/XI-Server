@@ -90,9 +90,6 @@ ui.hotbar_spacing = 0
 ui.slot_spacing = 0
 ui.pos_x = 0
 ui.pos_y = 0
-ui.current_row = 0
-ui.current_column = 0
-ui.current_text_size = 0
 
 ui.image_height = 40
 ui.image_width = 40
@@ -398,31 +395,35 @@ local function setup_disabled_icons(ui)
     end
 end
 
+local function position_environment(ui, x, y)
+    ui.active_environment['battle']:pos(x, y)
+    ui.active_environment['field']:pos(x, y + ui.theme.font_size + 41)
+    ui.inventory_count:pos(x + 10, y + ui.theme.font_size + 91)
+end
+
 local function setup_environment_numbers(ui)
     if ui.theme.hide_battle_notice == false then
-        ui.active_environment['field']:text('  1  ')
-        ui.active_environment['battle']:text('  2  ')
+        ui.active_environment['battle']:text('  1  ')
+        ui.active_environment['field']:text('  2  ')
     else
         ui.active_environment['field']:text('')
         ui.active_environment['battle']:text('')
     end
-    local env_pos_x = get_slot_x(ui, ui.theme.environment.hook_onto_bar, ui.theme.columns+1) - 10
+    local env_pos_x = get_slot_x(ui, ui.theme.environment.hook_onto_bar, ui.theme.columns+1)
     local env_pos_y = get_slot_y(ui, ui.theme.environment.hook_onto_bar, 0)
-    ui.active_environment['field']:pos(env_pos_x, env_pos_y)
     ui.active_environment['field']:size(ui.theme.font_size + 13)
     ui.active_environment['field']:show()
     ui.active_environment['field']:italic(false)
-    ui.active_environment['battle']:pos(env_pos_x, env_pos_y + ui.theme.font_size + 41)
     ui.active_environment['battle']:italic(false)
     ui.active_environment['battle']:size(ui.theme.font_size + 13)
     ui.active_environment['battle']:show()
 
     ui.inventory_count = texts.new(inventory_count_setup)
     setup_text(ui.inventory_count, ui.theme)
+    position_environment(ui, env_pos_x, env_pos_y)
     ui.active_inv_pos_y = ui.pos_y + ui.image_height/2 +5
 
     if (ui.theme.hide_inventory_count == false) then
-        ui.inventory_count:pos(env_pos_x + 10, env_pos_y + ui.theme.font_size + 91)
         ui.inventory_count:size(ui.theme.font_size+1)
         get_inventory_count(ui.theme, ui.inventory_count, ui.playerinv.inventory)
         ui.inventory_count:show()
@@ -548,6 +549,7 @@ local function load(ui)
     end
     ui.action_info = texts.new()
     setup_action_info(ui.action_info, ui.theme)
+    ui.action_info:hide()
 
     -- load feedback icon last so it stays above everything else
     setup_feedback(ui)
@@ -680,6 +682,7 @@ end
 
 -- hide all ui components
 function ui:hide()
+    self:hide_hover()
     self.battle_notice:hide()
     self.feedback_icon:hide()
     self.inventory_count:hide()
@@ -704,6 +707,7 @@ function ui:hide()
 end
 
 function ui:hide_hover()
+    self.hovered_tooltip = nil
     self.hover_icon:hide()
     self.action_info:hide()
 end
@@ -742,6 +746,7 @@ end
 
 -- load player hotbar
 function ui:load_player_hotbar(player_hotbar, environment, player_vitals)
+    self:hide_hover()
     if environment == 'battle' and self.theme.hide_battle_notice == false then
         self.active_environment['field']:color(255, 255, 255)
         self.active_environment['battle']:color(100, 100, 100)
@@ -955,14 +960,12 @@ function ui:hovered(x, y)
     local off_x
     local off_y
     local found = false
-    pos_x = self.active_environment['battle']:pos_x()
-    pos_y = self.active_environment['battle']:pos_y() - 60
-    off_x = pos_x + 60
-    off_y = pos_y + 100
-    if  ((pos_x <= x and x <= off_x) or (pos_x >= x and x >= off_x))
-    and ((pos_y <= y and y <= off_y) or (pos_y >= y and y >= off_y))
-    then
-        hotbar, slot, found = nil, 100, true
+    if not self.theme.hide_battle_notice then
+        pos_x = self.active_environment['battle']:pos_x()
+        pos_y = math.min(self.active_environment['battle']:pos_y(), self.active_environment['field']:pos_y()) - 12
+        if pos_x <= x and x <= pos_x + 60 and pos_y <= y and y <= pos_y + 100 then
+            return nil, 100
+        end
     end
     if found == false then
         for h=1,#self.hotbars,1 do
@@ -989,46 +992,159 @@ function ui:hovered(x, y)
     return row, slot
 end
 
-function ui:light_up_action(x, y, row, column, player_hotbar, environment, vitals)
-    local icon_x = get_slot_x(self, row, column)
-    local icon_y = get_slot_y(self, row, column)
-    self.hover_icon:pos(icon_x-1, icon_y-1)
-    self.hover_icon:alpha(255)
-    self.hover_icon:show()
-    local action = player_hotbar[environment]['hotbar_' .. row]['slot_' .. column]
-    if (self.theme.show_description == true and action ~= nil) then
-        if (S{'ma', 'ja', 'ws'}:contains(action.type)) then
-            if (self.current_row ~= row or self.current_column ~= column) then
-                local text_msg = ""
-                local line_space = 6
-                if (action.type == "ma") then
-                    text_msg = formatter.format_spell_info(database, action.action, action.target)
-                    self.action_info:text(text_msg)
-                elseif (action.type == "ja") then
-                    text_msg = formatter.format_ability_info(database, action.action, action.target)
-                    self.action_info:text(text_msg)
-                elseif (action.type == "ws") then
-                    text_msg = formatter.format_ws_info(database, action.action, action.target)
-                    self.action_info:text(text_msg)
-                end
-                local _, count = text_msg:gsub('\n', '\n')
-                count = count + 1
-                self.current_text_size = ((self.action_info:size()+line_space)*count + line_space)
-                self.action_info:alpha(255)
-                self.action_info:pos(x+ui.image_width, y)
-                self.current_row = row
-                self.current_column = column
-            end
-                if ((ui.scaled_pos_y - y) < self.current_text_size) then
-                    self.action_info:pos(x+ui.image_width, y-self.current_text_size)
-                else
-                    self.action_info:pos(x+ui.image_width, y)
-                end
-                self.action_info:show()
-        else
-            self.action_info:hide()
+local native_tooltips = {
+    ma = formatter.format_spell_info,
+    ja = formatter.format_ability_info,
+    ws = formatter.format_ws_info,
+}
+
+local button_help = {
+    ct = {
+        ['attack'] = { 'Attack', 'Start auto-attacking the selected enemy.' },
+        ['mount chocobo'] = { 'Mount Chocobo', 'Ride your Chocobo mount in an eligible area.' },
+        ['dismount'] = { 'Dismount', 'Dismount and return to travelling on foot.' },
+        ['map'] = { 'Open Map', 'Open the current area map.' },
+        ['heal'] = { 'Rest', 'Toggle resting to recover HP and MP.' },
+        ['lockstyle on'] = { 'Lock Appearance', 'Keep your current equipment appearance when gear changes.' },
+        ['refa all'] = { 'Return All Trusts', 'Return all of your summoned Trusts to the Aether.' },
+        ['names'] = { 'Character Names', 'Toggle character name display.' },
+        ['hidetrust on'] = { 'Hide Other Trusts', 'Hide other players\' Trusts.' },
+        ['clock'] = { 'Game Clock', 'Display the in-game clock.' },
+        ['playtime'] = { 'Play Time', 'Display this character\'s total play time.' },
+        ['target'] = {
+            me = { 'Target Self', 'Target your own character.' },
+        },
+        ['targetnpc'] = { 'Target NPC', 'Target the closest eligible non-player character.' },
+        ['targetpc'] = { 'Target Player', 'Target the closest eligible player character.' },
+        ['assist'] = { 'Assist Battle Target', 'Switch to the battle target\'s current target.' },
+        ['follow'] = { 'Follow Player', 'Select a player character to follow.' },
+    },
+    party_target = {
+        ['Target party member 1'] = { 'Target Party Member 1', 'Use F2 to target the first party member after yourself.' },
+        ['Target party member 2'] = { 'Target Party Member 2', 'Use F3 to target the second party member after yourself.' },
+    },
+    gs = {
+        ['c nuke burst'] = { 'Magic Burst Mode', 'Switch to the caster role with Magic Burst equipment selected.' },
+        ['c nuke free'] = { 'Free Casting Mode', 'Switch to the caster role with free-casting equipment selected.' },
+        ['c idle'] = { 'Idle Role', 'Select the GearSwap idle role.' },
+        ['c dt'] = { 'Idle Damage Reduction', 'Select the damage reduction set for the idle role.' },
+        ['c refresh'] = { 'Idle Refresh', 'Select the MP recovery set for the idle role.' },
+        ['c healer'] = { 'Healer Role', 'Select the GearSwap healer role.' },
+        ['c debuffer'] = { 'Enfeebling Role', 'Select the GearSwap enfeebling role.' },
+        ['c caster'] = { 'Caster Role', 'Select the GearSwap offensive casting role.' },
+        ['c melee'] = { 'Melee Role', 'Select the GearSwap melee role.' },
+        ['c weapon crocea'] = { 'Crocea Mors', 'Select Crocea Mors for the GearSwap weapon mode.' },
+        ['c weapon daybreak'] = { 'Daybreak', 'Select Daybreak for the GearSwap weapon mode.' },
+        ['c weapon naegling'] = { 'Naegling', 'Select Naegling for the GearSwap weapon mode.' },
+        ['c validate'] = { 'Validate GearSwap', 'List missing set items and unused inventory items.' },
+        ['c status'] = { 'GearSwap Status', 'Display the current GearSwap role and equipment modes.' },
+    },
+    macro = {
+        ['screenshot jpg'] = { 'Take Screenshot', 'Save the current Windower view as a JPEG.' },
+        ['xp setup off'] = { 'Close XivParty Setup', 'Close the layout editor and return to the live party roster.' },
+        ['htb battle'] = { 'Battle Hotbars', 'Select the Battle hotbar page.' },
+        ['htb field'] = { 'Field Hotbars', 'Select the Field hotbar page.' },
+        ['mscreenshotqa status'] = { 'Command Bridge Status', 'Display the Windower command bridge status.' },
+        ['mscreenshotqa snapshot'] = { 'Equipment Snapshot', 'Capture the current native equipment snapshot.' },
+        ['lua list'] = { 'List Addons', 'List the loaded Windower Lua addons.' },
+        ['pivot s'] = { 'XIPivot Status', 'Display the current XIPivot overlay status.' },
+        ['gs validate sets'] = { 'Validate GearSwap Sets', 'List items in GearSwap sets that are missing from inventory.' },
+        ['gs validate inv'] = { 'Validate Inventory', 'List inventory items that none of your GearSwap sets uses.' },
+        ['gs c gearscore'] = { 'Gear Notes', 'Display Twills\' recorded equipment comparison notes.' },
+        ['plugin_list'] = { 'List Plugins', 'List the loaded Windower plugins.' },
+    },
+}
+
+local function describe_action(action)
+    local name = action.action
+    local kind = action.type
+    local format = native_tooltips[kind]
+    if format then
+        local record = database[kind][name:lower()]
+        if record and type(record.desc) == 'string' and record.desc:find('%S') and record.range then
+            return format(database, name, action.target or '')
         end
     end
+
+    local definitions = button_help[kind]
+    local help = definitions and definitions[name]
+    if help and not help[1] then
+        help = help[action.target]
+    end
+
+    local title = help and help[1] or name
+    local description = help and help[2] or 'Detailed description unavailable.'
+    if kind == 'macro' and name:sub(1, 8) == 'findall ' then
+        title = 'Find ' .. name:sub(9)
+        description = 'Search FindAll\'s recorded inventories for matching items.'
+    end
+
+    return formatter.format_custom_info(title, action.target, description)
+end
+
+local function initial_tooltip_bounds(content, font_size)
+    local columns, lines = 0, 0
+    for line in (content .. '\n'):gmatch('([^\n]*)\n') do
+        local plain = line:gsub('\\cs%([^)]*%)', ''):gsub('\\cr', '')
+        columns = math.max(columns, #plain)
+        lines = lines + 1
+    end
+    local size = font_size + 5
+    return (columns + 1) * size * 2, (lines + 1) * size * 2.5
+end
+
+local function place_tooltip(self, hover)
+    local margin = 8
+    local width, height = hover.width, hover.height
+    local tooltip_x = hover.icon_x - width - margin
+    if tooltip_x < margin then
+        tooltip_x = hover.icon_x + self.image_width + margin
+    end
+    tooltip_x = math.max(margin, math.min(tooltip_x, self.scaled_pos_x - width - margin))
+    local tooltip_y = math.max(margin, math.min(hover.cursor_y, self.scaled_pos_y - height - margin))
+    self.action_info:pos(tooltip_x, tooltip_y)
+end
+
+function ui:light_up_action(x, y, row, column, player_hotbar, environment)
+    local action = player_hotbar[environment]['hotbar_' .. row]['slot_' .. column]
+    if not action then
+        self:hide_hover()
+        return
+    end
+
+    local icon_x = get_slot_x(self, row, column)
+    local icon_y = get_slot_y(self, row, column)
+    self.hover_icon:pos(icon_x - 1, icon_y - 1)
+    self.hover_icon:alpha(255)
+    self.hover_icon:show()
+
+    if not self.theme.show_description then
+        self.hovered_tooltip = nil
+        self.action_info:hide()
+        return
+    end
+
+    local hover = self.hovered_tooltip
+    if not hover or hover.action ~= action then
+        local previous_width, previous_height = self.action_info:extents()
+        local content = describe_action(action)
+        local width, height = initial_tooltip_bounds(content, self.theme.font_size)
+        hover = {
+            action = action,
+            width = width,
+            height = height,
+            previous_width = previous_width,
+            previous_height = previous_height,
+            polls = 2,
+        }
+        self.hovered_tooltip = hover
+        self.action_info:text(content)
+        self.action_info:alpha(255)
+    end
+
+    hover.icon_x, hover.cursor_y = icon_x, y
+    place_tooltip(self, hover)
+    self.action_info:show()
 end
 
 function ui:move_icons(moved_row_info)
@@ -1055,18 +1171,41 @@ function ui:move_icons(moved_row_info)
         self.hotbars[r].number:pos(get_slot_x(self, r, 0)+30, get_slot_y(self, r, 0))
     end
     if (r == self.theme.environment.hook_onto_bar) then
-        local env_pos_x = get_slot_x(self, self.theme.environment.hook_onto_bar, self.theme.columns+1) - 10
+        local env_pos_x = get_slot_x(self, self.theme.environment.hook_onto_bar, self.theme.columns+1)
         local env_pos_y = get_slot_y(self, self.theme.environment.hook_onto_bar, 0)
 
-        self.active_environment['field']:pos(env_pos_x, env_pos_y)
-        self.active_environment['battle']:pos(env_pos_x, env_pos_y + 50)
-        self.inventory_count:pos(env_pos_x + 10, env_pos_y + 100)
+        position_environment(self, env_pos_x, env_pos_y)
     end
 end
 
 --[[
     Register events
 ]]--
+windower.register_event('lose focus', function()
+    if ui.hotbar.ready then
+        ui:hide_hover()
+    end
+end)
+
+windower.register_event('postrender', function()
+    local hover = ui.hovered_tooltip
+    if not hover or hover.polls == 0 then
+        return
+    end
+
+    -- Native extents may be zero or describe the previously drawn text.
+    -- Keep the initial bounds if both render ticks are inconclusive.
+    hover.polls = hover.polls - 1
+    local width, height = ui.action_info:extents()
+    if type(width) == 'number' and type(height) == 'number' and
+        width > 0 and width < math.huge and height > 0 and height < math.huge and
+        (width ~= hover.previous_width or height ~= hover.previous_height) then
+        hover.width, hover.height = width, height
+        hover.polls = 0
+        place_tooltip(ui, hover)
+    end
+end)
+
 windower.register_event('incoming chunk', update_buffs)
 
 return ui

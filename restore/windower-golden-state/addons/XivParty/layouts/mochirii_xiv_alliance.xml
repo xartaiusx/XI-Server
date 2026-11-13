@@ -214,10 +214,10 @@
                 <cursor>
                     <color>#FFFFFFFF</color>
                     <enabled>true</enabled>
-                    <path>assets/xiv/AllyCursor.png</path>
-                    <pos>-6,-6</pos>
-                    <size>116,53</size>
-                    <zOrder>1</zOrder>
+                    <path>assets/mochirii-target-chevron.png</path>
+                    <pos>22,-5</pos>
+                    <size>16,9</size>
+                    <zOrder>13</zOrder>
                 </cursor>
                 <txtName>
                     <color>#F0FFFFFF</color>

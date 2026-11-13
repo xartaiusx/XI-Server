@@ -45,13 +45,13 @@
     },
     {
       "relativePath": "addons/XivParty/layouts/mochirii_xiv.xml",
-      "bytes": 16725,
-      "sha256": "d6716a85d808fe7a8764c8d720fb339930c42526f903b670dd9a9ca01595fde0"
+      "bytes": 16738,
+      "sha256": "8b73e0a1e447c652b4500076989409e251568e354a417f6ecc6275a781813292"
     },
     {
       "relativePath": "addons/XivParty/layouts/mochirii_xiv_alliance.xml",
-      "bytes": 10512,
-      "sha256": "f61a1ce7986f1cfa4ae7723f4bd4e8c53d3a0e32016da1103d2c3fc644037529"
+      "bytes": 10520,
+      "sha256": "86c102719937f3690c123707f42cb3131311ead98edcfd3f21515d92ad11d242"
     },
     {
       "relativePath": "addons/XivParty/player.lua",
@@ -70,23 +70,23 @@
     },
     {
       "relativePath": "addons/xivhotbar/data/Twills/General.lua",
-      "bytes": 3846,
-      "sha256": "aaa4ea3a49c51ba665e60f9974d9ed7fa0fa3e85dd4b2e3dc65b3f359d12e569"
+      "bytes": 6452,
+      "sha256": "8fdbe5e89e440a5f5b8ee5f7e72917bf5664d4ff53d93833ff5cc911db409406"
     },
     {
       "relativePath": "addons/xivhotbar/data/Twills/RDM.lua",
-      "bytes": 3651,
-      "sha256": "3fcf5eff9c530036096d35b8cd763ffd975d37ebd5ea19ca59b58b47e9fd8c06"
+      "bytes": 5806,
+      "sha256": "0ae91dfc11d39286ba4d9d1899c1f29a59f7b54b3621431f3ce9bca0539e90ec"
     },
     {
       "relativePath": "addons/xivhotbar/data/keybinds.lua",
-      "bytes": 3535,
-      "sha256": "f0595f11063904cfaed86d933a836384238688e9ecc184cc52cf9de816b28c53"
+      "bytes": 689,
+      "sha256": "f9008cc91222a379c01dbc6ae7c5b845bc9c050ea12ff28312e5ff5bef9c381f"
     },
     {
       "relativePath": "addons/xivhotbar/data/settings.xml",
-      "bytes": 4508,
-      "sha256": "2412e0fc97eb24456ec6d98468ee4b793420c89c15a78055063c5c089874fe06"
+      "bytes": 4502,
+      "sha256": "9f62612897c063ecd4e688f66ac79e15a096495127a8c611ed118b1ee84fa3d4"
     },
     {
       "relativePath": "addons/xivhotbar/defaults.lua",
@@ -95,13 +95,18 @@
     },
     {
       "relativePath": "addons/xivhotbar/lib/player.lua",
-      "bytes": 5574,
-      "sha256": "5732db3c7c16930d3bd3b923966319a377c0866205d752ed2aad6dceed2f41e6"
+      "bytes": 8504,
+      "sha256": "cadfc2922fff97d0b5d66d16ae87e2000e08bd47114cedcbc7e7858032f5734b"
+    },
+    {
+      "relativePath": "addons/xivhotbar/lib/text_formatter.lua",
+      "bytes": 4270,
+      "sha256": "bd9ecac4276cea035285aa1c2b270e0766be341e3f2589aa27d414640ddabd10"
     },
     {
       "relativePath": "addons/xivhotbar/lib/ui.lua",
-      "bytes": 38896,
-      "sha256": "36b84cbcb6f849402ea6aef71fd9265fda79e383556b0f903b1e9caf3b7d9dab"
+      "bytes": 45240,
+      "sha256": "620d13eb9d1e456710ac4044c6b47ae959daf3456e79b714fa6b51ba14b5f139"
     },
     {
       "relativePath": "addons/xivhotbar/xivhotbar.lua",
@@ -145,6 +150,47 @@
     "Tracked files are Git-safe Twills configs and Mochirii QA addon state, including the custom XivParty layout and XICamera settings but not third-party binaries or source archives.",
     "The tracked XIVHotbar ui.lua is the Mochirii drag/layout compatibility copy; the original upstream Git metadata remains archived outside Git.",
     "Full patched third-party addon source is preserved in the encrypted Windower bundle.",
-    "MochiriiScreenshotQA targets the canonical Windows runtime bridge; rewrite that path when restoring on another Windows or Wine prefix."
-  ]
+    "MochiriiScreenshotQA targets the canonical Windows runtime bridge; rewrite that path when restoring on another Windows or Wine prefix.",
+    "The historical encrypted bundle recorded above predates the current XIVHotbar assets. Use the separately verified XIVHotbar snapshot identified in currentXivHotbarRestoreDependency for those assets alongside the tracked XIVHotbar files.",
+    "The XIVHotbar asset snapshot predates the GearSwap ammo restoration fix. Its decryption key is retained only in the canonical runtime credential directory.",
+    "Install the public XIVHotbar and XivParty add-ons, then extract the verified private asset snapshot. Apply the tracked hotbar and marker source files after extraction, including every requiredTrackedOverlay entry and the PR #78 GearSwap profile. The snapshot predates the tracked XIVHotbar action-confirmation and page-indicator corrections."
+  ],
+  "currentXivHotbarRestoreDependency": {
+    "state": "verified_xivhotbar_asset_snapshot",
+    "baseCiphertextSha256": "1e1d77a05c5e2d9c164e038458538e35ee4a81c984d81cb3cd2252bb5f9e1b0f",
+    "baseIsolatedRestoreReceiptSha256": "e86a2c764b8a3818ee4e929d35da559404be2f4e15761b9b5da02b3a73b87b49",
+    "baseInventorySha256": "6c06873eede42f75a6513f3aa421d8937a3415fe2adf734e73993dfff9839cc4",
+    "goldenOverlayManifestSha256": [
+      "b3af81115c2e4830ecf0fcc57785ad84eafd1a29ea4bf284d6eb7b5383232f37",
+      "aec156e624a310a9657aadbc70d99a01d5303a22d7754ba05b7d244ad1869f4e"
+    ],
+    "goldenManifestSha256": "6fc71b62da58aaedcf459d39f58de114937c928cd7bdf45bc35513e38ae98ef7",
+    "completeGoldenInventorySha256": "69c72b678b1d88df08523434435438b94e1c4e38ebd78b44d4f147f338728fde",
+    "privateIconInventorySha256": "fe14ba85373d374f44b5295fd9c81605a79c6a420152a02bca81d08a0ee30900",
+    "goldenFiles": 187,
+    "goldenDirectories": 33,
+    "goldenManifestMembers": 180,
+    "privateIconFiles": 145,
+    "verifiedBundle": {
+      "fileName": "windower-golden-state-20261112-063710.tar.gz.enc",
+      "runtimeLocation": "/home/xartyzx/projects/FFXI-Runtime/trio-trust-20261109/client-portable-current-hotbar-20261112-1/portable-restore/artifacts/windower-golden-state-20261112-063710.tar.gz.enc",
+      "bytes": 1267984,
+      "sha256": "0c4cd92b01a4e045fed4be128a78749d7658ba7a1e4d32a136a405a5bc45917d",
+      "isolatedRestoreReceiptSha256": "9bb64b7d76b890ea5d6d667164ff675452025e5c03b38a08934c4365f4fdbdba",
+      "format": "tar -cz windower-golden-state | openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000",
+      "plaintextCommitted": false
+    },
+    "requiredTrackedOverlay": [
+      "addons/xivhotbar/lib/player.lua",
+      "addons/xivhotbar/lib/ui.lua",
+      "addons/GearSwap/data/Twills.lua"
+    ]
+  },
+  "xivPartyMarkerRestoreDependency": {
+    "relativePath": "addons/XivParty/assets/mochirii-target-chevron.png",
+    "bytes": 3326,
+    "sha256": "d74e3d8450df5ba55e7ea21a13607be456ff13226ab3c0c26d0fdbf1089fb905",
+    "bundleSha256": "0c4cd92b01a4e045fed4be128a78749d7658ba7a1e4d32a136a405a5bc45917d",
+    "isolatedRestoreReceiptSha256": "9bb64b7d76b890ea5d6d667164ff675452025e5c03b38a08934c4365f4fdbdba"
+  }
 }

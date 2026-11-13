@@ -28,6 +28,67 @@
 
 local action_manager = require('lib/action_manager')
 local player = {}
+local armed_action
+local guarded = { Convert = true, Stymie = true, Spontaneity = true, Composure = true, Saboteur = true }
+
+local party_target_keys = { p1 = 'f2', p2 = 'f3' }
+local modifier_keys = {
+    [0x1D] = true, [0x9D] = true, -- Control
+    [0x2A] = true, [0x36] = true, -- Shift
+    [0x38] = true, [0xB8] = true, -- Alt
+    [0xDB] = true, [0xDC] = true, -- Windows
+}
+local held_modifiers = {}
+local pending_party_target
+
+local function party_member_id(slot)
+    local party = windower.ffxi.get_party()
+    local member = party and party[slot]
+    local mob = member and member.mob
+    return mob and mob.id and mob.id > 0 and mob.id or nil
+end
+
+local function send_pending_party_target()
+    local request = pending_party_target
+    if not request or next(held_modifiers) then return end
+
+    -- Let the last physical modifier release reach the game before the pulse.
+    coroutine.schedule(function()
+        if pending_party_target ~= request or next(held_modifiers) then return end
+        pending_party_target = nil
+        local info = windower.ffxi.get_info()
+        if info and info.logged_in and not info.chat_open and not info.menu_open and
+            info.zone == request.zone and party_member_id(request.slot) == request.id then
+            windower.send_command(('setkey %s down; wait 0.1; setkey %s up'):format(request.key, request.key))
+        end
+    end, 0.05)
+end
+
+local function queue_party_target(slot, zone)
+    pending_party_target = nil
+    local key = party_target_keys[slot]
+    local id = key and party_member_id(slot)
+    if not id then return end
+
+    local request = { slot = slot, key = key, id = id, zone = zone }
+    pending_party_target = request
+    coroutine.schedule(function()
+        if pending_party_target == request then pending_party_target = nil end
+    end, 1)
+    send_pending_party_target()
+end
+
+windower.register_event('keyboard', function(dik, pressed)
+    if not modifier_keys[dik] then return end
+    held_modifiers[dik] = pressed and true or nil
+    if not pressed then send_pending_party_target() end
+end)
+
+windower.register_event('lose focus', 'zone change', 'logout', function()
+    pending_party_target = nil
+    held_modifiers = {}
+    armed_action = nil
+end)
 
 --job_functions = {}
 
@@ -136,9 +197,22 @@ end
 
 -- execute action from given slot
 function player:execute_action(slot)
-    action = action_manager:get_action(slot)
+    local action = action_manager:get_action(slot)
+    local info = windower.ffxi.get_info()
+    if not action or not info or not info.logged_in or info.chat_open or info.menu_open then
+        armed_action = nil
+        return
+    end
 
-    if action == nil then return end
+    if action.type == 'ja' and guarded[action.action] then
+        local now = os.clock()
+        if not armed_action or armed_action.name ~= action.action or now > armed_action.deadline then
+            armed_action = { name = action.action, deadline = now + 4 }
+            windower.add_to_chat(122, '[XIVHotbar] '..action.action..': press the SAME action again within 4s to confirm.')
+            return
+        end
+    end
+    armed_action = nil
 
     if action.type == 'ct' then
         local command = '/' .. action.action
@@ -149,6 +223,8 @@ function player:execute_action(slot)
 
         windower.chat.input(command)
         return
+    elseif action.type == 'party_target' then
+        queue_party_target(action.target, info.zone)
     elseif action.type == 'macro' then
         windower.chat.input('//'.. action.action)
     elseif action.type == 'ws' then
