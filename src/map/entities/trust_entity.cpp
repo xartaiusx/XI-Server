@@ -536,8 +536,12 @@ void CTrustEntity::OnWeaponSkillFinished(CWeaponSkillState& state, action_t& act
             return;
         }
 
-        for (auto&& PTarget : PAI->TargetFind->m_targets)
+        for (auto* PTarget : PAI->TargetFind->m_targets)
         {
+            if (trustcombat::IsSleepProtected(this, PTarget))
+            {
+                continue;
+            }
             bool             primary      = PTarget == PBattleTarget;
             action_target_t& actionTarget = action.addTarget(PTarget->id);
             action_result_t& actionResult = actionTarget.addResult();

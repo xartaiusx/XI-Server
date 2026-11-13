@@ -22,6 +22,8 @@
 
 #include "controller.h"
 
+#include <vector>
+
 class CCharEntity;
 class CWeaponSkill;
 
@@ -55,6 +57,9 @@ public:
     auto getLastWeaponSkill() -> CWeaponSkill*;
 
     auto canAct() -> bool;
+
+    EntityId              ordinaryTrustActionTarget;
+    std::vector<EntityId> ordinaryTrustAttackers;
 
 protected:
     timer::time_point m_lastAttackTime{ timer::now() };

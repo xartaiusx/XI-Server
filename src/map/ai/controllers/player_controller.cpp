@@ -46,6 +46,13 @@ CPlayerController::~CPlayerController()
 
 auto CPlayerController::Tick(timer::time_point /*tick*/) -> Task<void>
 {
+    const auto* PChar = static_cast<CCharEntity*>(POwner);
+    if (PChar->PTrusts.empty() || PChar->isDead())
+    {
+        ordinaryTrustActionTarget.clean();
+        ordinaryTrustAttackers.clear();
+    }
+
     co_return;
 }
 

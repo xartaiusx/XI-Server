@@ -24,6 +24,7 @@
 #include "ability.h"
 #include "action/action.h"
 #include "ai/ai_container.h"
+#include "ai/controllers/trust_controller.h"
 #include "common/utils.h"
 #include "enmity_container.h"
 #include "entities/char_entity.h"
@@ -213,13 +214,31 @@ auto CAbilityState::Update(const timer::time_point tick) -> bool
     if (!IsCompleted() && tick > GetEntryTime() + m_castTime)
     {
         // A failed validity check exits immediately and doesn't serve out the animation lock.
-        if (!CanUseAbility())
+        auto* PTarget = target().resolve<CBattleEntity>();
+        if (!CanUseAbility() || trustcombat::IsSleepProtected(m_PEntity, PTarget))
         {
             return true;
         }
 
-        action_t action{};
+        const auto sleepApplication = trustcombat::SleepApplication(m_PEntity, PTarget);
+        action_t   action{};
         m_PEntity->OnAbility(*this, action);
+        const auto isDamageMessage = [](MsgBasic message)
+        {
+            return message == MsgBasic::UsesAbilityTakesDamage || message == MsgBasic::UsesAbilityResistsDamage ||
+                   message == MsgBasic::UsesSkillTakesDamage || message == MsgBasic::TargetTakesDamage;
+        };
+        const bool deliberateDamage = sleepApplication != 0 &&
+                                      (isDamageMessage(m_PAbility->getMessage()) ||
+                                       std::ranges::any_of(action.targets, [&](const auto& target)
+                                                           {
+                                                               return target.actorId == PTarget->id &&
+                                                                      std::ranges::any_of(target.results, [&](const auto& result)
+                                                                                          {
+                                                                                              return isDamageMessage(result.messageID);
+                                                                                          });
+                                                           }));
+        trustcombat::RecordResolvedAction(m_PEntity, PTarget, action, deliberateDamage ? sleepApplication : 0);
         m_PEntity->PAI->EventHandler.triggerListener("ABILITY_USE", m_PEntity, target().resolve(), m_PAbility.get(), &action);
         // Only send packet if action was populated (e.g. interrupts return early)
         if (!action.targets.empty())

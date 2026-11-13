@@ -29,6 +29,7 @@
 #include "ai/states/range_state.h"
 #include "ai/states/weaponskill_state.h"
 #include "enmity_container.h"
+#include "lua/luautils.h"
 #include "notoriety_container.h"
 #include "recast_container.h"
 #include "spell.h"
@@ -44,12 +45,55 @@
 #include "zone.h"
 
 #include <algorithm>
+#include <array>
 
 namespace gambits
 {
 
 namespace
 {
+
+auto ResolveIrohaEmergencyCure(CTrustEntity* trust, CBattleEntity* target) -> Maybe<SpellID>
+{
+    if (trust->trustID() != 1018 || !trustdevelopment::IsEnabled(trust))
+    {
+        return std::nullopt;
+    }
+
+    constexpr std::array cures{ SpellID::Cure, SpellID::Cure_II, SpellID::Cure_III, SpellID::Cure_IV, SpellID::Cure_V, SpellID::Cure_VI, SpellID::Full_Cure };
+    uint32               ready = 0;
+    for (size_t index = 0; index < cures.size(); ++index)
+    {
+        const auto id = cures[index];
+        if (id == SpellID::Full_Cure && trust->GetMPP() < 80)
+        {
+            continue;
+        }
+
+        if (auto* PSpell = spell::GetSpell(id); PSpell && trust->CanUseSpell(PSpell) &&
+                                                !trust->PRecastContainer->Has(RECAST_MAGIC, static_cast<Recast>(id)) &&
+                                                battleutils::CanAffordSpell(trust, PSpell, 0, battleutils::SpellCostCheck::Guaranteed))
+        {
+            ready |= 1U << index;
+        }
+    }
+
+    if (ready == 0)
+    {
+        return std::nullopt;
+    }
+
+    const auto selected = static_cast<SpellID>(luautils::callGlobal<uint16>("xi.spells.healing.selectIrohaEmergencyCure", trust, target, ready));
+    for (size_t index = 0; index < cures.size(); ++index)
+    {
+        if (cures[index] == selected && (ready & (1U << index)) != 0)
+        {
+            return selected;
+        }
+    }
+
+    return std::nullopt;
+}
 
 auto IsRaiseRecoveryGambit(const Gambit_t& gambit) -> bool
 {
@@ -248,7 +292,7 @@ auto CGambitsContainer::HasRaiseRecoveryTarget() const -> bool
     return found;
 }
 
-auto CGambitsContainer::Tick(timer::time_point tick, bool raiseRecoveryOnly) -> Task<void>
+auto CGambitsContainer::Tick(timer::time_point tick, bool raiseRecoveryOnly, bool friendlyOnly) -> Task<void>
 {
     TracyZoneScoped;
 
@@ -278,9 +322,10 @@ auto CGambitsContainer::Tick(timer::time_point tick, bool raiseRecoveryOnly) -> 
     auto random_offset = static_cast<std::chrono::milliseconds>(xirand::GetRandomNumber(2000, 3000));
     m_lastAction       = tick + random_offset;
 
-    // Deal with TP skills before any gambits
-    // TODO: Should this be its own special gambit?
-    if (!raiseRecoveryOnly && POwner->health.tp >= 1000 && TryTrustSkill())
+    // The two developed roles check higher-priority actions first.
+    const bool prioritizeGambits = trustdevelopment::IsEnabled(POwner);
+    const bool requireStarted    = raiseRecoveryOnly || friendlyOnly || prioritizeGambits;
+    if (!raiseRecoveryOnly && !friendlyOnly && !prioritizeGambits && POwner->health.tp >= 1000 && TryTrustSkill())
     {
         co_return;
     }
@@ -293,14 +338,23 @@ auto CGambitsContainer::Tick(timer::time_point tick, bool raiseRecoveryOnly) -> 
             continue;
         }
 
+        if (friendlyOnly &&
+            (gambit.target_selector == G_TARGET::TARGET || gambit.target_selector == G_TARGET::TRIGGER_SELF_ACTION_TARGET ||
+             gambit.target_selector == G_TARGET::TRIGGER_TARGET_ACTION_SELF))
+        {
+            continue;
+        }
+
         if (tick < gambit.last_used + std::chrono::seconds(gambit.retry_delay))
         {
             continue;
         }
 
-        auto isValidMember = [this](CBattleEntity* PSettableTarget, CBattleEntity* PPartyTarget)
+        auto isValidMember = [this, requireStarted](CBattleEntity* PSettableTarget, CBattleEntity* PPartyTarget)
         {
             return !PSettableTarget && PPartyTarget->isAlive() && POwner->loc.zone == PPartyTarget->loc.zone &&
+                   (!requireStarted || (POwner->PInstance == PPartyTarget->PInstance && POwner->PBattlefield == PPartyTarget->PBattlefield &&
+                                        POwner->allegiance == PPartyTarget->allegiance)) &&
                    distance(POwner->loc.p, PPartyTarget->loc.p) <= 15.0f;
         };
 
@@ -509,6 +563,10 @@ auto CGambitsContainer::Tick(timer::time_point tick, bool raiseRecoveryOnly) -> 
             {
                 return POwner->SpellContainer->GetBestAvailable(static_cast<SPELLFAMILY>(action.select_arg));
             }
+            else if (action.select == G_SELECT::IROHA_CURE)
+            {
+                return targetType == G_TARGET::PARTY ? ResolveIrohaEmergencyCure(POwner, resolvedTarget) : std::nullopt;
+            }
             else if (action.select == G_SELECT::LOWEST)
             {
                 // Not implemented yet: treat as unavailable
@@ -651,6 +709,14 @@ auto CGambitsContainer::Tick(timer::time_point tick, bool raiseRecoveryOnly) -> 
                             maybeSpell = std::nullopt;
                         }
                     }
+                    if (friendlyOnly && maybeSpell.has_value())
+                    {
+                        auto* spell = spell::GetSpell(maybeSpell.value());
+                        if (!spell || (spell->getValidTarget() & TARGET_ENEMY && !spell->isCure()))
+                        {
+                            maybeSpell = std::nullopt;
+                        }
+                    }
                     if (!maybeSpell.has_value())
                     {
                         // Couldn't resolve first spell -> cannot use this gambit now
@@ -735,6 +801,29 @@ auto CGambitsContainer::Tick(timer::time_point tick, bool raiseRecoveryOnly) -> 
             }
 
             const auto& action = gambit.actions[i];
+            if (friendlyOnly)
+            {
+                if (action.reaction == G_REACTION::JA)
+                {
+                    const auto* ability = ability::GetAbility(action.select_arg);
+                    if (action.select != G_SELECT::SPECIFIC || !ability || (ability->getValidTarget() & TARGET_ENEMY))
+                    {
+                        continue;
+                    }
+                }
+                else if (action.reaction == G_REACTION::MS)
+                {
+                    const auto* skill = battleutils::GetMobSkill(action.select_arg);
+                    if (action.select != G_SELECT::SPECIFIC || !skill || skill->getValidTargets() != TARGET_SELF)
+                    {
+                        continue;
+                    }
+                }
+                else if (action.reaction != G_REACTION::MA)
+                {
+                    continue;
+                }
+            }
             if (raiseRecoveryOnly)
             {
                 auto* recoverySpell = resolvedSpells[i].has_value() ? spell::GetSpell(resolvedSpells[i].value()) : nullptr;
@@ -755,7 +844,7 @@ auto CGambitsContainer::Tick(timer::time_point tick, bool raiseRecoveryOnly) -> 
                 if (resolvedSpells[i].has_value())
                 {
                     const bool started = controller->Cast(target->entityId(), resolvedSpells[i].value());
-                    executedAnyAction  = !raiseRecoveryOnly || started;
+                    executedAnyAction  = !requireStarted || started;
                 }
                 else
                 {
@@ -1035,8 +1124,8 @@ auto CGambitsContainer::Tick(timer::time_point tick, bool raiseRecoveryOnly) -> 
                 {
                     if (target != nullptr)
                     {
-                        controller->Ability(target->entityId(), PAbility->getID());
-                        executedAnyAction = true;
+                        const bool started = controller->Ability(target->entityId(), PAbility->getID());
+                        executedAnyAction  = !requireStarted || started;
                     }
                 }
 
@@ -1158,8 +1247,8 @@ auto CGambitsContainer::Tick(timer::time_point tick, bool raiseRecoveryOnly) -> 
             {
                 if (action.select == G_SELECT::SPECIFIC)
                 {
-                    controller->MobSkill(target->entityId(), action.select_arg, std::nullopt);
-                    executedAnyAction = true;
+                    const bool started = controller->MobSkill(target->entityId(), action.select_arg, std::nullopt);
+                    executedAnyAction  = !requireStarted || started;
                 }
             }
             else if (action.reaction == G_REACTION::ANIM_STRING)
@@ -1220,11 +1309,18 @@ auto CGambitsContainer::Tick(timer::time_point tick, bool raiseRecoveryOnly) -> 
         {
             gambit.last_used = tick;
         }
-        if (raiseRecoveryOnly && executedAnyAction)
+        if (requireStarted && executedAnyAction)
         {
             co_return;
         }
     }
+
+    if (!raiseRecoveryOnly && !friendlyOnly && prioritizeGambits && POwner->health.tp >= 1000)
+    {
+        TryTrustSkill();
+    }
+
+    co_return;
 }
 
 auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const Gambit_t& gambit, size_t predicateGroupIndex, PredicateGroup_t& predicateGroup) -> bool
@@ -1510,6 +1606,53 @@ auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const G
                 predicateResults.push_back(PSCEffect && PSCEffect->GetStartTime() + 3s < timer::now() && PSCEffect->GetTier() > 0);
                 continue;
             }
+            case G_CONDITION::MB_ELEMENT_AVAILABLE:
+            {
+                const auto* effect = triggerTarget->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::Skillchain);
+                if (!effect || effect->GetTier() == 0 || effect->GetStartTime() + effect->GetDuration() < timer::now() + 2s)
+                {
+                    predicateResults.push_back(false);
+                    continue;
+                }
+                const auto elements = battleutils::GetSkillchainMagicElement(static_cast<SKILLCHAIN_ELEMENT>(effect->GetPower()));
+                predicateResults.push_back(std::ranges::find(elements, static_cast<ELEMENT>(predicate.condition_arg)) != elements.end());
+                continue;
+            }
+            case G_CONDITION::IROHA_RECOVERY:
+            case G_CONDITION::PARTY_DEFENSE_MISSING:
+            {
+                const auto  defense       = static_cast<xi::StatusEffect>(predicate.condition_arg);
+                const bool  recovery      = predicate.condition == G_CONDITION::IROHA_RECOVERY;
+                auto*       master        = dynamic_cast<CCharEntity*>(POwner->PMaster);
+                auto*       recoverySkill = recovery ? battleutils::GetMobSkill(3738) : nullptr;
+                const auto* defenseSpell  = !recovery && defense == xi::StatusEffect::Protect ? spell::GetSpell(SpellID::Protectra_V)
+                                            : !recovery && defense == xi::StatusEffect::Shell ? spell::GetSpell(SpellID::Shellra_V)
+                                                                                              : nullptr;
+                const auto  radius        = recoverySkill ? recoverySkill->getRadius() : defenseSpell ? defenseSpell->getRadius()
+                                                                                                      : 0.0f;
+                uint8       wounded       = 0;
+                bool        needed        = false;
+                if (master && radius > 0.0f)
+                {
+                    master->ForPartyWithTrusts([&](CBattleEntity* member)
+                                               {
+                                                   if (!member->isAlive() || member->loc.zone != POwner->loc.zone || member->PInstance != POwner->PInstance ||
+                                                       member->PBattlefield != POwner->PBattlefield || member->allegiance != POwner->allegiance ||
+                                                       member->StatusEffectContainer->GetConfrontationEffect() != POwner->StatusEffectContainer->GetConfrontationEffect() ||
+                                                       distance(POwner->loc.p, member->loc.p) > radius)
+                                                   {
+                                                       return;
+                                                   }
+                                                   if (recovery && member->GetHPP() <= 75)
+                                                   {
+                                                       ++wounded;
+                                                   }
+                                                   needed = needed || (recovery ? member->StatusEffectContainer->IsAsleep() : StatusMissingOrExpiring(member, defense));
+                                               });
+                }
+                predicateResults.push_back(needed || wounded >= 3);
+                continue;
+            }
             case G_CONDITION::LUNGE_MB_AVAILABLE:
             {
                 auto* PSCEffect     = triggerTarget->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::Skillchain);
@@ -1695,11 +1838,21 @@ auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const G
                 predicateResults.push_back(triggerTarget->animationsub == predicate.condition_arg);
                 continue;
             }
+            case G_CONDITION::COVER_OPPORTUNITY:
+            {
+                const auto* attacker = dynamic_cast<const CMobEntity*>(POwner->GetBattleTarget());
+                predicateResults.push_back(attacker && attacker->GetBattleTarget() == triggerTarget &&
+                                           battleutils::HasCoverGeometry(POwner, triggerTarget, attacker));
+                continue;
+            }
             case G_CONDITION::VAL_URIEL_CHECK:
             {
                 bool  canUseUriel = false;
                 auto* PMaster     = dynamic_cast<CCharEntity*>(POwner->PMaster);
-                auto* PMob        = dynamic_cast<CMobEntity*>(PMaster->GetBattleTarget());
+                auto* PMob        = dynamic_cast<CMobEntity*>(trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(POwner))
+                                                                  ? POwner->GetBattleTarget()
+                                                              : PMaster ? PMaster->GetBattleTarget()
+                                                                        : nullptr);
 
                 if (PMob != nullptr && PMob->PEnmityContainer != nullptr)
                 {

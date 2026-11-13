@@ -25,6 +25,7 @@
 #include "entities/battle_entity.h"
 
 #include "ai/ai_container.h"
+#include "ai/controllers/trust_controller.h"
 #include "entities/char_entity.h"
 #include "packets/s2c/0x028_battle2.h"
 #include "packets/s2c/0x058_assist.h"
@@ -80,7 +81,7 @@ auto CAttackState::Update(timer::time_point tick) -> bool
     // Subtract on every tick, including the one we swing on, or each swing costs an extra tick.
     m_attackTime -= (m_PEntity->PAI->getTick() - m_PEntity->PAI->getPrevTick());
 
-    if (AttackReady())
+    if (AttackReady() && !trustcombat::IsSleepProtected(m_PEntity, PTarget))
     {
         if (CanAttack(PTarget))
         {
@@ -89,7 +90,8 @@ auto CAttackState::Update(timer::time_point tick) -> bool
             {
                 return true;
             }
-            action_t action{};
+            const auto sleepApplication = trustcombat::SleepApplication(m_PEntity, PTarget);
+            action_t   action{};
             if (m_PEntity->OnAttack(*this, action))
             {
                 // TODO: what about AoE auto attacks?
@@ -98,6 +100,7 @@ auto CAttackState::Update(timer::time_point tick) -> bool
                 // CMobEntity::OnAttack(...) can generate it's own action with a mobmod, and that leaves this action.actionType = 0, which is never valid. Skip sending the packet.
                 if (action.actiontype != ActionCategory::None)
                 {
+                    trustcombat::RecordResolvedAction(m_PEntity, PTarget, action, sleepApplication);
                     trustutils::LogTrustActionPacket(m_PEntity, action, PTarget, "attack_state");
                     m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
                 }

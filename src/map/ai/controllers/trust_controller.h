@@ -27,6 +27,16 @@
 
 class CCharEntity;
 class CTrustEntity;
+struct action_t;
+
+namespace trustcombat
+{
+
+auto SleepApplication(CBattleEntity* actor, CBattleEntity* target) -> uint64;
+void RecordResolvedAction(CBattleEntity* actor, CBattleEntity* primaryTarget, const action_t& action, uint64 sleepApplication = 0);
+bool IsSleepProtected(CBattleEntity* actor, CBattleEntity* target);
+
+} // namespace trustcombat
 
 namespace gambits
 {
