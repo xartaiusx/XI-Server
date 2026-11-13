@@ -325,10 +325,10 @@
                 <cursor>
                     <color>#FFFFFFFF</color>
                     <enabled>true</enabled>
-                    <path>assets/xiv/Cursor.png</path>
-                    <pos>20,-8</pos>
-                    <size>390,60</size>
-                    <zOrder>1</zOrder>
+                    <path>assets/mochirii-target-chevron.png</path>
+                    <pos>-17,36</pos>
+                    <size>16,9</size>
+                    <zOrder>13</zOrder>
                 </cursor>
                 <buffIcons>
                     <alignRight>true</alignRight>
