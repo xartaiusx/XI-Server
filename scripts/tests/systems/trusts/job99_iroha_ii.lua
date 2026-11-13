@@ -158,34 +158,55 @@ describe('Iroha II developed jobs', function()
             member:setPos(x, y, z)
         end
 
-        for _, member in ipairs({ owner, iroha, valaineral }) do
+        local members = { owner, iroha, valaineral }
+        local startingMP = { 13, 7, 11 }
+        for i, member in ipairs(members) do
+            -- Use the empty Decoy Shot status to exclude passive idle recovery from this action sample.
+            assert(member:addStatusEffect(xi.effect.DECOY_SHOT, {
+                duration = 10,
+                flag     = xi.effectFlag.NO_REST,
+                origin   = member,
+                silent   = true,
+            }))
+            assert(member:hasStatusEffectByFlag(xi.effectFlag.NO_REST), 'fixture must block native resting')
             member:setMod(xi.mod.REFRESH, 0)
             member:setHP(1)
+            member:setMP(startingMP[i])
+            assert(member:getHP() == 1 and member:getMP() == startingMP[i], 'unexpected fixture HP or MP before Benediction')
         end
 
-        owner:setMP(13)
-        valaineral:setMP(11)
-        iroha:setMP(7)
         local maxMP = iroha:getMaxMP()
         assert(iroha:getJobPointLevel(xi.jp.BENEDICTION_EFFECT) == 20)
-        assert(maxMP == 747 and owner:getMP() == 13 and valaineral:getMP() == 11 and iroha:getMP() == 7)
+        assert(maxMP == 747)
+        local expectedMP = startingMP[2] + math.floor(maxMP * 20 / 100)
 
         local completions = 0
-        iroha:addListener('ABILITY_USE', 'IROHA_TEST_BENEDICTION', function(_, _, ability, action)
-            if ability:getID() == xi.jobAbility.BENEDICTION then
-                completions = completions + 1
-                assert(ability:getRecast() == 2700 and action:getRecast() == 2700)
+        iroha:addListener('ABILITY_USE', 'IROHA_TEST_BENEDICTION', function(actor, target, ability, action)
+            if ability:getID() ~= xi.jobAbility.BENEDICTION then
+                return
+            end
+
+            completions = completions + 1
+            assert(actor:getID() == iroha:getID() and target:getID() == iroha:getID())
+            assert(action:getCategory() == xi.action.category.JOBABILITY_FINISH)
+            assert(ability:getRecast() == 2700 and action:getRecast() == 2700)
+            assert(iroha:getMP() == expectedMP, string.format('Benediction restored Iroha to %d MP, expected %d', iroha:getMP(), expectedMP))
+            assert(owner:getMP() == startingMP[1] and valaineral:getMP() == startingMP[3], 'Benediction must not restore party MP')
+            for _, member in ipairs(members) do
+                assert(action:getParam(member:getID()) == member:getMaxHP() - 1, 'Benediction must heal every fixture recipient from 1 HP')
+                assert(member:getHP() == member:getMaxHP())
             end
         end)
 
         assert(owner.actions:useTrustAbility(iroha, iroha, xi.jobAbility.BENEDICTION))
         xi.test.world:tickEntity(iroha)
         xi.test.world:skipTime(1)
+        iroha:removeListener('IROHA_TEST_BENEDICTION')
 
-        assert(completions == 1)
-        assert(iroha:getMP() == 7 + math.floor(maxMP * 20 / 100))
-        assert(owner:getMP() == 13 and valaineral:getMP() == 11)
-        for _, member in ipairs({ owner, iroha, valaineral }) do
+        assert(completions == 1, 'expected one native Benediction completion')
+        assert(iroha:getMP() == expectedMP, string.format('Iroha has %d MP after Benediction, expected %d', iroha:getMP(), expectedMP))
+        assert(owner:getMP() == startingMP[1] and valaineral:getMP() == startingMP[3])
+        for _, member in ipairs(members) do
             assert(member:getHP() == member:getMaxHP())
         end
 
