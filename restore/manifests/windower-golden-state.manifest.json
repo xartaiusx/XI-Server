@@ -100,8 +100,8 @@
     },
     {
       "relativePath": "addons/xivhotbar/lib/text_formatter.lua",
-      "bytes": 3788,
-      "sha256": "7d37a35096c75f828c03d8e61538b728de82873fad339967da740f21c341bd02"
+      "bytes": 4270,
+      "sha256": "bd9ecac4276cea035285aa1c2b270e0766be341e3f2589aa27d414640ddabd10"
     },
     {
       "relativePath": "addons/xivhotbar/lib/ui.lua",
