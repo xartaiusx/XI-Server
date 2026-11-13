@@ -128,6 +128,9 @@ public:
 
     void WakeUp(); // remove sleep effects
     bool IsAsleep();
+    auto OrdinaryTrustSleepApplication() -> uint64;
+    void ReleaseOrdinaryTrustSleepProtection(uint64 ownerSerial, uint64 application);
+    bool IsOrdinaryTrustSleepProtected(uint64 ownerSerial);
     bool HasPreventActionEffect(bool ignoreCharm = false); // checks if owner has an effect that prevents actions, like stun, petrify, sleep etc
 
     uint16 GetConfrontationEffect();                        // gets confrontation number (bcnm, confrontation, campaign, reive mark)
@@ -139,6 +142,11 @@ public:
 
 private:
     CBattleEntity* m_POwner = nullptr;
+
+    // A deliberate player attack authorizes their Trusts to wake this application.
+    // A newly gained Sleep or Lullaby always resets the authorization.
+    uint64 ordinaryTrustSleepReleasedBy_{ 0 };
+    uint64 ordinaryTrustSleepApplication_{ 0 };
 
     uint64 m_Flags{ 0 };        // Bits of overflow of bytes m_statusicons (two battles for each effect)
     uint8  m_StatusIcons[32]{}; // Icons status effects

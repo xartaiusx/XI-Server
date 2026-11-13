@@ -186,7 +186,7 @@ bool CSpell::isHeal()
 bool CSpell::isCure()
 {
     return ((static_cast<uint16>(m_ID) >= 1 && static_cast<uint16>(m_ID) <= 11) || m_ID == SpellID::Cura || m_ID == SpellID::Cura_II ||
-            m_ID == SpellID::Cura_III);
+            m_ID == SpellID::Cura_III || m_ID == SpellID::Full_Cure);
 }
 
 bool CSpell::isDebuff()
@@ -718,6 +718,14 @@ bool CanUseSpell(CBattleEntity* PCaster, CSpell* spell)
         return false;
     }
 
+    // This spell definition is scoped to the approved ordinary Iroha II profile.
+    if (spell->getID() == SpellID::Full_Cure)
+    {
+        const auto* trust = dynamic_cast<CTrustEntity*>(PCaster);
+        return trustdevelopment::IsEnabled(trust) && trustdevelopment::CanUseSpecialSpell(*trustdevelopment::GetProfile(trust->trustID()), spell->getID()) &&
+               !trust->IsNameHidden() && !trust->GetUntargetable();
+    }
+
     bool                       usable       = false;
     uint8                      requirements = 0;
     luautils::SpellUseOverride spellOverride{};
@@ -906,12 +914,17 @@ bool CanUseSpell(CBattleEntity* PCaster, CSpell* spell)
 
             if (auto* PTrust = dynamic_cast<CTrustEntity*>(PCaster); trustdevelopment::IsEnabled(PTrust))
             {
-                if (spell->getSpellGroup() == SPELLGROUP_TRUST || spell->getSpellGroup() == SPELLGROUP_BLUE)
+                if (!trustdevelopment::IsJobCatalogSpell(*spell))
                 {
                     return false;
                 }
 
                 const auto* profile = trustdevelopment::GetProfile(PTrust->trustID());
+                if (trustdevelopment::CanUseSpecialSpell(*profile, spell->getID()))
+                {
+                    return true;
+                }
+
                 for (const auto job : { profile->mainJob, profile->supportJob })
                 {
                     if (spell->getJob(job) > trustdevelopment::GetActionJobLevel(PTrust, job))

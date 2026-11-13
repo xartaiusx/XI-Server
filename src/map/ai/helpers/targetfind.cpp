@@ -22,6 +22,7 @@
 #include "targetfind.h"
 
 #include "ai/ai_container.h"
+#include "ai/controllers/trust_controller.h"
 #include "common/mmo.h"
 #include "common/utils.h"
 #include "data/enums/claim_type.h"
@@ -483,8 +484,7 @@ validEntity will check if the given entity can be targeted in the AoE.
 */
 bool CTargetFind::validEntity(CBattleEntity* PTarget)
 {
-    // Assume entity is valid only need to check target not null
-    if (PTarget == nullptr)
+    if (PTarget == nullptr || trustcombat::IsSleepProtected(m_PBattleEntity, PTarget))
     {
         return false;
     }
@@ -707,7 +707,7 @@ auto CTargetFind::getValidTarget(const uint16 actionTargetID, const uint16 valid
 
 auto CTargetFind::getValidTarget(CBattleEntity* PTarget, const uint16 validTargetFlags) const -> CBattleEntity*
 {
-    if (PTarget == nullptr)
+    if (PTarget == nullptr || ((validTargetFlags & TARGET_ENEMY) && trustcombat::IsSleepProtected(m_PBattleEntity, PTarget)))
     {
         return nullptr;
     }

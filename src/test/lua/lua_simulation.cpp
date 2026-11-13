@@ -257,6 +257,17 @@ void CLuaSimulation::restoreSettings()
 }
 
 /************************************************************************
+ *  Function: getSteadyTime()
+ *  Purpose : Reads the simulated steady clock in seconds.
+ *  Example : local startedAt = sim:getSteadyTime()
+ ************************************************************************/
+
+auto CLuaSimulation::getSteadyTime() const -> double
+{
+    return std::chrono::duration<double>(timer::now().time_since_epoch()).count();
+}
+
+/************************************************************************
  *  Function: setVanaTime()
  *  Purpose : Sets to specific Vana'diel time.
  *  Example : sim:setVanaTime(6, 0) -- set to 6:00am
@@ -1018,6 +1029,7 @@ void CLuaSimulation::Register()
     SOL_REGISTER("tick", CLuaSimulation::tick);
     SOL_REGISTER("tickEntity", CLuaSimulation::tickEntity);
     SOL_REGISTER("skipTime", CLuaSimulation::skipTime);
+    SOL_REGISTER("getSteadyTime", CLuaSimulation::getSteadyTime);
     SOL_REGISTER("getStatusEffectStartTime", CLuaSimulation::getStatusEffectStartTime);
     SOL_REGISTER("probeTrustRaiseCatalog", CLuaSimulation::probeTrustRaiseCatalog);
     SOL_REGISTER("setVanaTime", CLuaSimulation::setVanaTime);

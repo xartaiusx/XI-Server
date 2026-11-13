@@ -84,10 +84,11 @@
 void BuildTrustData(uint32 TrustID);
 auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*;
 void LoadTrustStatsAndSkills(CTrustEntity* PTrust, bool refresh = false);
-void AppendDevelopedWeaponSkills(CTrustEntity* PTrust);
 
 namespace
 {
+
+void AppendDevelopedWeaponSkills(CTrustEntity* PTrust);
 
 // Only the native base contribution is replaced on a scaling refresh. Earned
 // AEP/Unity additions and active effect modifiers remain owned by their paths.
@@ -2524,7 +2525,10 @@ auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*
     if (auto* mainWeapon = dynamic_cast<CItemWeapon*>(PTrust->m_Weapons[SLOT_MAIN]))
     {
         mainWeapon->setMaxHit(1);
-        mainWeapon->setSkillType(static_cast<xi::SkillType>(trustData->cmbSkill));
+        const auto skillType = PTrust->trustID() == 1018 && trustdevelopment::IsEnabled(PTrust)
+                                   ? xi::SkillType::Polearm
+                                   : static_cast<xi::SkillType>(trustData->cmbSkill);
+        mainWeapon->setSkillType(skillType);
 
         mainWeapon->setDamage(finalDamage);
         mainWeapon->setDelay(trustData->cmbDelay);
@@ -2711,11 +2715,17 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust, bool refresh)
     jobStat  = 0;
     sJobStat = 0;
 
+    // Iroha II keeps SAM combat stats and receives the native WHM MP curve at
+    // her Trust stat level. Counting WHM only here keeps its full costs usable.
+    const bool fullSupportMp = developed && PTrust->trustID() == 1018;
+    const auto mpJob         = fullSupportMp ? sJob : mJob;
+    const auto mpSupportJob  = fullSupportMp ? mJob : sJob;
+
     grade = scaleToGrade(PTrust->MPscale);
 
-    if (grade::GetJobGrade(mJob, 1) == 0)
+    if (grade::GetJobGrade(mpJob, 1) == 0)
     {
-        if (grade::GetJobGrade(sJob, 1) != 0 && sLvl > 0)
+        if (grade::GetJobGrade(mpSupportJob, 1) != 0 && sLvl > 0)
         {
             raceStat = (grade::GetMPScale(grade, 0) + grade::GetMPScale(grade, scaleTo60Column) * (sLvl - 1)) / settings::get<uint8>("map.SJ_MP_DIVISOR");
         }
@@ -2726,7 +2736,7 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust, bool refresh)
                    grade::GetMPScale(grade, scaleOver60) * mainLevelOver60;
     }
 
-    grade = grade::GetJobGrade(mJob, 1);
+    grade = grade::GetJobGrade(mpJob, 1);
 
     if (grade > 0)
     {
@@ -2736,7 +2746,7 @@ void LoadTrustStatsAndSkills(CTrustEntity* PTrust, bool refresh)
 
     if (sLvl > 0)
     {
-        grade    = grade::GetJobGrade(sJob, 1);
+        grade    = grade::GetJobGrade(mpSupportJob, 1);
         sJobStat = grade::GetMPScale(grade, 0) + grade::GetMPScale(grade, scaleTo60Column);
     }
 
@@ -2994,21 +3004,33 @@ void trustutils::RefreshDevelopedSpellCatalog(CTrustEntity* PTrust)
     // This container belongs to the summoned entity. Never mutate the shared
     // SQL list. Only qualified assigned-job spells belong to this catalog.
     PTrust->SpellContainer->ClearSpells();
+    const auto& profile = *trustdevelopment::GetProfile(PTrust->trustID());
     for (uint16 id = 1; id < MAX_SPELL_ID; ++id)
     {
         auto* spell = spell::GetSpell(static_cast<SpellID>(id));
-        if (!spell)
+        if (!spell || !trustdevelopment::IsJobCatalogSpell(*spell))
         {
             continue;
         }
         const auto mainLevel = spell->getJob(PTrust->GetMJob());
         const auto subLevel  = spell->getJob(PTrust->GetSJob());
-        if ((mainLevel > 0 && mainLevel <= 99) || (subLevel > 0 && subLevel <= 99))
+        if ((mainLevel > 0 && mainLevel <= 99) || (subLevel > 0 && subLevel <= 99) || trustdevelopment::CanUseSpecialSpell(profile, spell->getID()))
         {
-            PTrust->SpellContainer->AddSpell(static_cast<SpellID>(id));
+            if (spell->getID() == SpellID::Sacrifice)
+            {
+                // Sacrifice transfers an ailment and has no generic spell-list category.
+                PTrust->SpellContainer->m_naList.emplace_back(spell->getID());
+            }
+            else
+            {
+                PTrust->SpellContainer->AddSpell(spell->getID());
+            }
         }
     }
 }
+
+namespace
+{
 
 void AppendDevelopedWeaponSkills(CTrustEntity* PTrust)
 {
@@ -3034,11 +3056,26 @@ void AppendDevelopedWeaponSkills(CTrustEntity* PTrust)
         }
         skills.emplace_back(gambits::G_REACTION::WS, id, skill->getPrimarySkillchain(), skill->getSecondarySkillchain(), skill->getTertiarySkillchain(), battleutils::isValidSelfTargetWeaponskill(id) ? TARGET_SELF : TARGET_ENEMY);
     }
+
+    if (PTrust->trustID() == 1018)
+    {
+        // Add Kyori last as the native HIGHEST selector's no-chain opener.
+        // The supportive Rise from Ashes is a separate conditional gambit.
+        for (const auto id : std::array<uint16, 4>{ 3734, 3737, 3736, 3733 })
+        {
+            if (auto* skill = battleutils::GetMobSkill(id))
+            {
+                skills.emplace_back(gambits::G_REACTION::MS, id, skill->getPrimarySkillchain(), skill->getSecondarySkillchain(), skill->getTertiarySkillchain(), TARGET_ENEMY);
+            }
+        }
+    }
 }
+
+} // namespace
 
 void trustutils::RefreshDevelopedTrusts(CCharEntity* PMaster)
 {
-    if (!PMaster || PMaster->PTrusts.empty() || !settings::get<bool>("main.TRUST_JOB99_VALAINERAL"))
+    if (!PMaster || PMaster->PTrusts.empty())
     {
         return;
     }

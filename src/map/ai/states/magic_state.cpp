@@ -25,6 +25,7 @@
 #include "action/interrupts.h"
 #include "ai/ai_container.h"
 #include "ai/controllers/pet_controller.h"
+#include "ai/controllers/trust_controller.h"
 #include "ai/states/inactive_state.h"
 #include "common/utils.h"
 #include "data/enums/mob_mod.h"
@@ -336,7 +337,19 @@ auto CMagicState::Update(timer::time_point tick) -> bool
         }
         else
         {
+            const auto spellId = m_PSpell->getID();
+            // Only Cure I-VI damage an opposing undead target. Other Cure results are support or no-effect.
+            const bool cureDamage       = spellId >= SpellID::Cure && spellId <= SpellID::Cure_VI &&
+                                          PTarget->allegiance != m_PEntity->allegiance && PTarget->m_EcoSystem == xi::Ecosystem::Undead;
+            const bool deliberateDamage = m_PSpell->dealsDamage() || cureDamage ||
+                                          m_PSpell->getSpellFamily() == SPELLFAMILY_DIA || m_PSpell->getSpellFamily() == SPELLFAMILY_DIAGA ||
+                                          m_PSpell->getSpellFamily() == SPELLFAMILY_BIO;
+            const auto sleepApplication = deliberateDamage ? trustcombat::SleepApplication(m_PEntity, PTarget) : 0;
             m_PEntity->OnCastFinished(*this, action);
+            if (!m_PSpell->isCure() || cureDamage)
+            {
+                trustcombat::RecordResolvedAction(m_PEntity, PTarget, action, sleepApplication);
+            }
             m_PEntity->PAI->EventHandler.triggerListener("MAGIC_USE", m_PEntity, PTarget, m_PSpell.get(), &action);
             for (auto& actionTarget : action.targets)
             {
@@ -519,6 +532,14 @@ auto CMagicState::HasCost() -> bool
 
 void CMagicState::SpendCost()
 {
+    if (m_PSpell->getID() == SpellID::Full_Cure)
+    {
+        const auto cost = m_PEntity->health.mp;
+        m_PSpell->setMPCost(cost);
+        m_PEntity->addMP(-static_cast<int32>(cost));
+        return;
+    }
+
     if (m_PSpell->getSpellGroup() == SPELLGROUP_NINJUTSU)
     {
         if (!(m_flags & MAGICFLAGS_IGNORE_TOOLS))

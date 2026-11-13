@@ -24,6 +24,7 @@
 #include "enums/four_cc.h"
 
 #include "ai/ai_container.h"
+#include "ai/controllers/trust_controller.h"
 #include "entities/battle_entity.h"
 #include "entities/char_entity.h"
 
@@ -208,6 +209,7 @@ auto CItemState::Update(const timer::time_point tick) -> bool
             // Only send packet if action was populated (e.g. interrupts return early)
             if (!action.targets.empty())
             {
+                trustcombat::RecordResolvedAction(m_PEntity, target().resolve<CBattleEntity>(), action);
                 m_PEntity->processActionEffectFlags(action);
                 m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
             }
