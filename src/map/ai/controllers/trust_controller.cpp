@@ -346,10 +346,16 @@ auto IsValidTrustFocusTarget(CMobEntity* PMob, CCharEntity* PMaster) -> bool
     return PMob && PMaster && PMob->isAlive() && PMob->allegiance != PMaster->allegiance && !PMob->PAI->IsUntargetable();
 }
 
-bool CanUseOrdinaryTrustCombat(CCharEntity* PMaster)
+bool HasOrdinaryTrustCombatAccess(CCharEntity* PMaster)
 {
-    return PMaster && !PMaster->PTrusts.empty() && !PMaster->isDead() && !PMaster->isCharmed &&
+    return PMaster && !PMaster->PTrusts.empty() && !PMaster->isCharmed &&
            trustutils::CanUseTwillsTrustGameplay(PMaster);
+}
+
+bool CanUseOrdinaryTrustCombat(CCharEntity* PMaster, const CTrustEntity* PTrust)
+{
+    return HasOrdinaryTrustCombatAccess(PMaster) &&
+           (PMaster->isAlive() || (settings::get<bool>("main.ENABLE_TRUST_DEFENSIVE_MODE") && trustdevelopment::IsEnabled(PTrust)));
 }
 
 bool IsOrdinaryTrustEnemy(CMobEntity* PMob, CCharEntity* PMaster)
@@ -379,7 +385,7 @@ bool IsOrdinaryTrustPartyMember(CBattleEntity* member, CCharEntity* owner)
 
 bool ThreatensOrdinaryTrustParty(CMobEntity* PMob, CCharEntity* PMaster)
 {
-    return MobThreatensEntity(PMob, PMaster) ||
+    return (PMaster->isAlive() && MobThreatensEntity(PMob, PMaster)) ||
            std::ranges::any_of(PMaster->PTrusts, [&](auto* trust)
                                {
                                    return IsOrdinaryTrustPartyMember(trust, PMaster) && MobThreatensEntity(PMob, trust);
@@ -389,7 +395,8 @@ bool ThreatensOrdinaryTrustParty(CMobEntity* PMob, CCharEntity* PMaster)
 auto ResolveOrdinaryTrustFocus(CCharEntity* PMaster, CTrustEntity* PTrust) -> TrustFocusResult
 {
     auto*      controller = static_cast<CPlayerController*>(PMaster->PAI->GetController());
-    auto*      target     = controller->ordinaryTrustActionTarget.resolve<CMobEntity>();
+    const bool ownerAlive = PMaster->isAlive();
+    auto*      target     = ownerAlive ? controller->ordinaryTrustActionTarget.resolve<CMobEntity>() : nullptr;
     auto&      attackers  = controller->ordinaryTrustAttackers;
     const auto now        = timer::now();
     std::erase_if(attackers, [&](const CPlayerController::OrdinaryTrustAttack& action)
@@ -439,7 +446,7 @@ auto ResolveOrdinaryTrustFocus(CCharEntity* PMaster, CTrustEntity* PTrust) -> Tr
     }
 
     auto& partyTarget = controller->ordinaryTrustPartyActionTarget;
-    auto* partyEnemy  = partyTarget.resolve<CMobEntity>();
+    auto* partyEnemy  = ownerAlive ? partyTarget.resolve<CMobEntity>() : nullptr;
     if (!IsOrdinaryTrustEnemy(partyEnemy, PMaster))
     {
         partyTarget.clean();
@@ -451,6 +458,19 @@ auto ResolveOrdinaryTrustFocus(CCharEntity* PMaster, CTrustEntity* PTrust) -> Tr
     }
 
     return protectedFocus;
+}
+
+bool IsDefendingWhileOwnerKO(CTrustEntity* PTrust)
+{
+    auto* PMaster = dynamic_cast<CCharEntity*>(PTrust->PMaster);
+    if (!CanUseOrdinaryTrustCombat(PMaster, PTrust) || !IsOrdinaryTrustPartyMember(PTrust, PMaster))
+    {
+        return false;
+    }
+
+    const auto focus = ResolveOrdinaryTrustFocus(PMaster, PTrust);
+    return focus.reason == TrustFocusReason::Defensive && focus.PMob && !focus.sleepProtected &&
+           PTrust->battleTarget() == focus.PMob->entityId();
 }
 
 auto TrustProfileKey(CBattleEntity* PEntity) -> std::string
@@ -910,7 +930,7 @@ void trustcombat::RecordResolvedAction(CBattleEntity* actor, CBattleEntity* prim
         auto* trust = actor->objtype == TYPE_TRUST ? static_cast<CTrustEntity*>(actor) : nullptr;
         auto* owner = trust ? dynamic_cast<CCharEntity*>(trust->PMaster) : static_cast<CCharEntity*>(actor);
         auto* enemy = primaryTarget && primaryTarget->objtype == TYPE_MOB ? static_cast<CMobEntity*>(primaryTarget) : nullptr;
-        if (!CanUseOrdinaryTrustCombat(owner) || !IsOrdinaryTrustEnemy(enemy, owner) ||
+        if (!HasOrdinaryTrustCombatAccess(owner) || owner->isDead() || !IsOrdinaryTrustEnemy(enemy, owner) ||
             actor->allegiance == enemy->allegiance ||
             !std::ranges::any_of(action.targets, [&](const auto& target)
                                  {
@@ -970,7 +990,8 @@ void trustcombat::RecordResolvedAction(CBattleEntity* actor, CBattleEntity* prim
         {
             owner = dynamic_cast<CCharEntity*>(trust->PMaster);
         }
-        if (!CanUseOrdinaryTrustCombat(owner) || !IsOrdinaryTrustPartyMember(victim, owner) ||
+        if (!HasOrdinaryTrustCombatAccess(owner) || !IsOrdinaryTrustPartyMember(victim, owner) ||
+            (owner->isDead() && !trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(victim))) ||
             !IsOrdinaryTrustEnemy(attacker, owner))
         {
             continue;
@@ -1040,7 +1061,34 @@ auto CTrustController::Tick(timer::time_point tick) -> Task<void>
 
     if (PTrust->PMaster->isDead())
     {
-        TryRecoveryTick(tick);
+        if (TryRecoveryTick(tick))
+        {
+            co_return;
+        }
+
+        auto* PMaster = static_cast<CCharEntity*>(PTrust->PMaster);
+        if (CanUseOrdinaryTrustCombat(PMaster, PTrust))
+        {
+            if (POwner->PAI->IsEngaged())
+            {
+                co_await DoCombatTick(tick);
+            }
+            else
+            {
+                const auto focus = ResolveOrdinaryTrustFocus(PMaster, PTrust);
+                SetTrustFocusVars(PTrust, focus);
+                if (focus.PMob && !focus.sleepProtected && POwner->PAI->CanChangeState())
+                {
+                    POwner->PAI->Internal_Engage(focus.PMob->entityId());
+                }
+            }
+        }
+        else if (POwner->PAI->IsEngaged())
+        {
+            POwner->PAI->Internal_Disengage();
+            POwner->PAI->PathFind->Clear();
+            SetTrustFocusVars(PTrust, {});
+        }
         co_return;
     }
     // A developed Iroha can revive Valaineral without abandoning a live fight.
@@ -1062,7 +1110,7 @@ auto CTrustController::Tick(timer::time_point tick) -> Task<void>
 
     const bool nonCombatFollowTrust = PTrust->getMobMod(xi::MobMod::TrustDistance) == TRUST_MOVEMENT_TYPE::NON_COMBAT;
 
-    const bool ordinaryFocus = nonCombatFollowTrust && CanUseOrdinaryTrustCombat(static_cast<CCharEntity*>(PTrust->PMaster)) &&
+    const bool ordinaryFocus = nonCombatFollowTrust && CanUseOrdinaryTrustCombat(static_cast<CCharEntity*>(PTrust->PMaster), PTrust) &&
                                ResolveOrdinaryTrustFocus(static_cast<CCharEntity*>(PTrust->PMaster), PTrust).PMob;
     if (nonCombatFollowTrust && (PTrust->PMaster->PAI->IsEngaged() || ordinaryFocus))
     {
@@ -1147,7 +1195,7 @@ auto CTrustController::DoCombatTick(timer::time_point tick) -> Task<void>
     CTrustEntity* PTrust             = static_cast<CTrustEntity*>(POwner);
     CCharEntity*  PMaster            = static_cast<CCharEntity*>(POwner->PMaster);
     const bool    fullAllianceActive = trustutils::IsTwillsFullAllianceActive(PMaster);
-    const bool    ordinaryCombat     = CanUseOrdinaryTrustCombat(PMaster);
+    const bool    ordinaryCombat     = CanUseOrdinaryTrustCombat(PMaster, PTrust);
     setTarget(POwner->GetBattleTarget());
     auto* PTarget = target().resolve<CBattleEntity>();
 
@@ -1328,7 +1376,7 @@ auto CTrustController::DoNonCombatTick(const timer::time_point tick) -> Task<voi
 
     // Keep COMBAT_TICK target valid for listeners/gambits.
     const bool fullAllianceActive = trustutils::IsTwillsFullAllianceActive(PMaster);
-    const bool ordinaryCombat     = CanUseOrdinaryTrustCombat(PMaster);
+    const bool ordinaryCombat     = CanUseOrdinaryTrustCombat(PMaster, PTrust);
     bool       sleepProtected     = false;
     if (fullAllianceActive || ordinaryCombat)
     {
@@ -1429,7 +1477,7 @@ auto CTrustController::DoRoamTick(timer::time_point tick) -> Task<void>
     const bool masterMeleeSwing     = masterLastAttackTime > timer::now() - 1s;
 
     const bool fullAllianceActive    = trustutils::IsTwillsFullAllianceActive(PMaster);
-    const bool ordinaryCombat        = CanUseOrdinaryTrustCombat(PMaster);
+    const bool ordinaryCombat        = CanUseOrdinaryTrustCombat(PMaster, PTrust);
     auto       focus                 = fullAllianceActive ? ResolveTrustFocusTarget(PMaster, PTrust)
                                        : ordinaryCombat   ? ResolveOrdinaryTrustFocus(PMaster, PTrust)
                                                           : TrustFocusResult{};
@@ -1820,13 +1868,19 @@ auto CTrustController::Ability(const EntityId target, uint16 abilityid) -> bool
 {
     TracyZoneScoped;
 
-    if (POwner->isDead() || !POwner->PMaster || POwner->PMaster->isDead())
+    if (POwner->isDead() || !POwner->PMaster)
     {
         return false;
     }
-    const auto* trust     = static_cast<CTrustEntity*>(POwner);
-    auto*       PAbility  = ability::GetAbility(abilityid);
-    const bool  developed = trustdevelopment::IsEnabled(trust);
+    auto*      trust     = static_cast<CTrustEntity*>(POwner);
+    auto*      PAbility  = ability::GetAbility(abilityid);
+    const bool developed = trustdevelopment::IsEnabled(trust);
+    if (POwner->PMaster->isDead() &&
+        (!IsDefendingWhileOwnerKO(trust) || !PAbility ||
+         ((PAbility->getValidTarget() & TARGET_ENEMY) && target != POwner->battleTarget())))
+    {
+        return false;
+    }
     if (developed && (!PAbility || !trustdevelopment::HasMainJobAccess(POwner, PAbility->getJob()) ||
                       trustdevelopment::GetActionJobLevel(POwner, PAbility->getJob()) < PAbility->getLevel()))
     {
@@ -1850,7 +1904,9 @@ auto CTrustController::RangedAttack(const EntityId target) -> bool
 {
     TracyZoneScoped;
 
-    if (POwner->isDead() || !POwner->PMaster || POwner->PMaster->isDead())
+    if (POwner->isDead() || !POwner->PMaster ||
+        (POwner->PMaster->isDead() &&
+         (target != POwner->battleTarget() || !IsDefendingWhileOwnerKO(static_cast<CTrustEntity*>(POwner)))))
     {
         return false;
     }
@@ -1883,7 +1939,9 @@ auto CTrustController::Cast(const EntityId target, SpellID spellid) -> bool
     }
     const bool recoverySpell = spellid == SpellID::Raise || spellid == SpellID::Raise_II ||
                                spellid == SpellID::Raise_III || spellid == SpellID::Arise;
-    if (POwner->PMaster->isDead() && (!trustdevelopment::IsEnabled(static_cast<CTrustEntity*>(POwner)) || !recoverySpell))
+    auto*      trust         = static_cast<CTrustEntity*>(POwner);
+    if (POwner->PMaster->isDead() &&
+        !(recoverySpell ? trustdevelopment::IsEnabled(trust) : IsDefendingWhileOwnerKO(trust)))
     {
         return false;
     }
@@ -1917,14 +1975,15 @@ auto CTrustController::Cast(const EntityId target, SpellID spellid) -> bool
         auto*                         PCurrentMob  = dynamic_cast<CMobEntity*>(POwner->GetBattleTarget());
 
         const bool fullAllianceActive   = trustutils::IsTwillsFullAllianceActive(PMaster);
-        const bool ordinaryCombat       = CanUseOrdinaryTrustCombat(PMaster);
+        const bool ordinaryCombat       = CanUseOrdinaryTrustCombat(PMaster, trust);
         const auto focusTargId          = static_cast<uint16>(POwner->GetLocalVar(TrustFocusTargetTargIdVar));
         const bool targetMatchesContext = PMobTarget != nullptr &&
                                           ((PCurrentMob != nullptr && PCurrentMob->id == PMobTarget->id) ||
                                            ((fullAllianceActive || ordinaryCombat) && focusTargId != 0 && focusTargId == PMobTarget->targid) ||
                                            (fullAllianceActive && MobThreatensTrustParty(PMobTarget, PMaster)));
 
-        if (PValidTarget == nullptr || !PValidTarget->isAlive() || PValidTarget->loc.zone != POwner->loc.zone || !targetMatchesContext)
+        if (PValidTarget == nullptr || !PValidTarget->isAlive() || PValidTarget->loc.zone != POwner->loc.zone || !targetMatchesContext ||
+            (POwner->PMaster->isDead() && castTarget != POwner->battleTarget()))
         {
             trustutils::LogTrustActionSkip(POwner, PTarget, static_cast<uint16>(spellid), "trust_cast_guard", "stale_hostile_magic_target");
             return false;
@@ -1932,7 +1991,7 @@ auto CTrustController::Cast(const EntityId target, SpellID spellid) -> bool
     }
 
     const auto PSpellFamily = PSpell->getSpellFamily();
-    const bool developed    = trustdevelopment::IsEnabled(static_cast<CTrustEntity*>(POwner));
+    const bool developed    = trustdevelopment::IsEnabled(trust);
     bool       canCast      = true;
 
     // clang-format off
@@ -2005,8 +2064,9 @@ auto CTrustController::GetTopEnmity() const -> CBattleEntity*
 
     CBattleEntity* PEntity        = nullptr;
     auto*          PMaster        = dynamic_cast<CCharEntity*>(POwner->PMaster);
+    auto*          PTrust         = static_cast<const CTrustEntity*>(POwner);
     const bool     useTrustTarget = trustutils::IsTwillsFullAllianceActive(PMaster) ||
-                                    (trustdevelopment::IsEnabled(static_cast<const CTrustEntity*>(POwner)) && CanUseOrdinaryTrustCombat(PMaster));
+                                    (trustdevelopment::IsEnabled(PTrust) && CanUseOrdinaryTrustCombat(PMaster, PTrust));
     auto*          PTarget        = useTrustTarget ? POwner->GetBattleTarget() : (PMaster ? PMaster->GetBattleTarget() : nullptr);
     if (const auto* PMob = dynamic_cast<CMobEntity*>(PTarget))
     {

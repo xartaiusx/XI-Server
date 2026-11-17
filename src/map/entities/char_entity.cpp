@@ -2582,7 +2582,7 @@ void CCharEntity::Die(timer::duration _duration, DeathParams params)
     TracyZoneScopedN("CCharEntity::Die");
 
     // Keep only explicitly approved Trusts attached to this exact owner. Clear
-    // queued combat immediately; the controller permits only recovery while KO.
+    // queued combat immediately; retained Trusts must reacquire defensive focus.
     std::erase_if(PTrusts, [this](CTrustEntity* trust)
                   {
                       if (!trust || !trustdevelopment::IsEnabled(trust) || trust->PMaster != this ||
