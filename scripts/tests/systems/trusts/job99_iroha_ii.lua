@@ -375,6 +375,7 @@ describe('Iroha II developed jobs', function()
 
         local function watchOffensiveSignature(expectedId)
             -- Use the real spawn gambits with a healthy party, and isolate TP from melee.
+            xi.test.world:setSetting('map.TRUST_TP_MULTIPLIER', 1.0)
             iroha:setMobAbilityEnabled(true)
             iroha:setMP(0)
             assert(iroha:addStatusEffect(xi.effect.HASSO, { power = 1, duration = 60, origin = iroha }))
@@ -383,7 +384,9 @@ describe('Iroha II developed jobs', function()
             iroha:addListener('WEAPONSKILL_USE', 'IROHA_TEST_OFFENSIVE_SIGNATURE', function(actor, target, skill, spentTp, action, damage)
                 assert(actor:getID() == iroha:getID() and target:getID() == mobId)
                 assert(skill:getID() == expectedId and action:getCategory() == xi.action.category.MOBABILITY_FINISH)
-                table.insert(actions, { spentTp = spentTp, remainingTp = actor:getTP(), damage = damage })
+                -- The listener runs after a successful signature has returned its single-hit TP.
+                local returnedTp = xi.combat.tp.getSingleMeleeHitTPReturn(actor, false)
+                table.insert(actions, { spentTp = spentTp, remainingTp = actor:getTP(), returnedTp = returnedTp, damage = damage })
             end)
 
             iroha:setTP(3000)
@@ -394,8 +397,10 @@ describe('Iroha II developed jobs', function()
             iroha:removeListener('WEAPONSKILL_USE', 'IROHA_TEST_OFFENSIVE_SIGNATURE')
             assert(#actions == 1, 'Iroha must autonomously finish one offensive signature')
             local finish = actions[1]
-            assert(finish.spentTp == 3000 and finish.remainingTp == 0)
-            assert(finish.damage > 0 and mob:getHP() < startingHp)
+            assert(finish.spentTp == 3000, string.format('expected 3000 TP spent, got %d', finish.spentTp))
+            assert(finish.damage > 0 and mob:getHP() < startingHp, 'the signature must deal damage')
+            assert(finish.returnedTp > 0 and finish.remainingTp == finish.returnedTp,
+                string.format('expected %d TP returned after the hit, got %d', finish.returnedTp, finish.remainingTp))
         end
 
         it('uses Amatsu Kyori to open an autonomous skillchain at capped TP', function()
