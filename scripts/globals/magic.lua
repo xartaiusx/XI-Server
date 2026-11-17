@@ -34,37 +34,45 @@ function getBaseCureOld(power, divisor, constant)
     return (power / 2) / divisor + constant
 end
 
-function getCureFinal(caster, spell, basecure, minCure, isBlueMagic)
-    if basecure < minCure then
-        basecure = minCure
-    end
+local function curePotency(caster)
+    local curePot = math.min(caster:getMod(xi.mod.CURE_POTENCY), 50) / 100
+    local curePotII = math.min(caster:getMod(xi.mod.CURE_POTENCY_II), 30) / 100
+    return 1 + curePot + curePotII
+end
 
-    local curePot         = math.min(caster:getMod(xi.mod.CURE_POTENCY), 50) / 100 -- caps at 50%
-    local curePotII       = math.min(caster:getMod(xi.mod.CURE_POTENCY_II), 30) / 100 -- caps at 30%
-    local potency         = 1 + curePot + curePotII
-    local dayWeatherBonus = xi.spells.damage.calculateDayAndWeather(caster, spell:getElement(), false)
-    local dSeal           = 1
+local function cureStatusMultipliers(caster, isBlueMagic)
+    local dSeal = caster:hasStatusEffect(xi.effect.DIVINE_SEAL) and 2 or 1
+    local hasRapture = not isBlueMagic and caster:hasStatusEffect(xi.effect.RAPTURE)
+    local rapture = hasRapture and (1.5 + caster:getMod(xi.mod.RAPTURE_AMOUNT) / 100) or 1
+    return dSeal, rapture, hasRapture
+end
 
-    if caster:hasStatusEffect(xi.effect.DIVINE_SEAL) then
-        dSeal = 2
-    end
-
-    local rapture = 1
-    if not isBlueMagic then --rapture doesn't affect BLU cures as they're not white magic
-        if caster:hasStatusEffect(xi.effect.RAPTURE) then
-            rapture = 1.5 + caster:getMod(xi.mod.RAPTURE_AMOUNT) / 100
-            caster:delStatusEffectSilent(xi.effect.RAPTURE)
-        end
-    end
-
-    -- Floor and return.
-    local final = math.floor(basecure)
-    final       = math.floor(final * potency)
-    final       = math.floor(final * dayWeatherBonus)
-    final       = math.floor(final * rapture)
-    final       = math.floor(final * dSeal)
-
+local function modifiedCure(basecure, minCure, potency, dayWeatherBonus, rapture, dSeal)
+    local final = math.floor(math.max(basecure, minCure))
+    final = math.floor(final * potency)
+    final = math.floor(final * dayWeatherBonus)
+    final = math.floor(final * rapture)
+    final = math.floor(final * dSeal)
     return final
+end
+
+function getCureFinal(caster, spell, basecure, minCure, isBlueMagic)
+    local potency = curePotency(caster)
+    local dayWeatherBonus = xi.spells.damage.calculateDayAndWeather(caster, spell:getElement(), false)
+    local dSeal, rapture, hasRapture = cureStatusMultipliers(caster, isBlueMagic)
+    if hasRapture then
+        caster:delStatusEffectSilent(xi.effect.RAPTURE)
+    end
+
+    return modifiedCure(basecure, minCure, potency, dayWeatherBonus, rapture, dSeal)
+end
+
+xi.magic.getWhiteCureFinalRange = function(caster, basecure, minCure, weatherLow, weatherHigh)
+    local potency = curePotency(caster)
+    local dSeal, rapture = cureStatusMultipliers(caster, false)
+    local a = modifiedCure(basecure, minCure, potency, weatherLow, rapture, dSeal)
+    local b = modifiedCure(basecure, minCure, potency, weatherHigh, rapture, dSeal)
+    return math.min(a, b), math.max(a, b)
 end
 
 function isValidHealTarget(caster, target)

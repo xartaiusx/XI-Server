@@ -20,6 +20,7 @@
 #include "map/ability.h"
 #include "map/data/datasets/merits/dataset.h"
 #include "map/items/item_weapon.h"
+#include "map/spell.h"
 #include "map/utils/dataset_loader.h"
 #include "map/utils/trust_job_development.h"
 #include "map/utils/trust_weapon_skills.h"
@@ -48,7 +49,10 @@ TEST_CASE("Trust development activation excludes unapproved variants and evidenc
     CHECK_FALSE(IsApprovedSummon(910, true, 255, xi::Job::PLD, xi::Job::WAR));
     CHECK_FALSE(IsApprovedSummon(910, true, 0, xi::Job::PLD, xi::Job::NONE));
     CHECK_FALSE(IsApprovedSummon(910, true, 0, xi::Job::WAR, xi::Job::PLD));
-    CHECK_FALSE(IsApprovedSummon(1018, true, 0, xi::Job::SAM, xi::Job::WHM));
+    CHECK(IsApprovedSummon(1018, true, 0, xi::Job::SAM, xi::Job::WHM));
+    CHECK_FALSE(IsApprovedSummon(1018, false, 0, xi::Job::SAM, xi::Job::WHM));
+    CHECK_FALSE(IsApprovedSummon(1018, true, 1, xi::Job::SAM, xi::Job::WHM));
+    CHECK_FALSE(IsApprovedSummon(1018, true, 0, xi::Job::SAM, xi::Job::BLM));
     CHECK_FALSE(IsApprovedSummon(9999, true, 0, xi::Job::PLD, xi::Job::WAR));
     CHECK_FALSE(HasAssignedJob(*GetProfile(910), xi::Job::NONE));
     CHECK_FALSE(HasAssignedJob(*GetProfile(910), xi::Job::BLM));
@@ -92,7 +96,15 @@ TEST_CASE("Trust JP grants cover exactly ten categories of each approved assigne
     }
     CHECK(GetDevelopedJobPointLevel(910, 0x80) == 0); // BLM
     CHECK(GetDevelopedJobPointLevel(910, 0xFFFF) == 0);
-    CHECK(GetDevelopedJobPointLevel(1018, 0x180) == 0); // Prepared SAM is inactive.
+    for (const auto base : { uint16{ 0x60 }, uint16{ 0x180 } }) // WHM and SAM
+    {
+        for (uint16 offset = 0; offset < 10; ++offset)
+        {
+            CHECK(GetDevelopedJobPointLevel(1018, base + offset) == 20);
+        }
+        CHECK(GetDevelopedJobPointLevel(1018, base + 10) == 0);
+    }
+    CHECK(GetDevelopedJobPointLevel(1018, 0x80) == 0); // BLM
     CHECK(GetDevelopedJobPointLevel(9999, 0x20) == 0);
 }
 
@@ -200,7 +212,22 @@ TEST_CASE("Valaineral admits all13PLD and12WAR native ability definitions includ
     {
         CHECK_FALSE(CanUseAbility(profile, xi::Job::WAR, 1, flags, none));
     }
-    CHECK_FALSE(CanUseAbility(*GetProfile(1018), xi::Job::SAM, 1, ADDTYPE_NORMAL, none));
+    CHECK(CanUseAbility(*GetProfile(1018), xi::Job::SAM, 1, ADDTYPE_NORMAL, none));
+    CHECK(CanUseAbility(*GetProfile(1018), xi::Job::WHM, 96, ADDTYPE_MAIN_ONLY, none));
+    CHECK(CanUseAbility(*GetProfile(1018), xi::Job::WHM, 75, ADDTYPE_MERIT, xi::Merit::Devotion));
+    CHECK_FALSE(CanUseAbility(*GetProfile(1018), xi::Job::BLM, 1, ADDTYPE_NORMAL, none));
+}
+
+TEST_CASE("Iroha II has qualified gift and signature spells without a BLM job", "[trust][development]")
+{
+    const auto& iroha      = *GetProfile(1018);
+    const auto& valaineral = *GetProfile(910);
+    for (const auto spellId : { SpellID::Full_Cure, SpellID::Reraise_IV, SpellID::Flare_II })
+    {
+        CHECK(CanUseSpecialSpell(iroha, spellId));
+        CHECK_FALSE(CanUseSpecialSpell(valaineral, spellId));
+    }
+    CHECK_FALSE(CanUseSpecialSpell(iroha, SpellID::Fire_VI));
 }
 
 TEST_CASE("Developed Fencer weapon admission preserves native one-hand and offhand restrictions", "[trust][development]")

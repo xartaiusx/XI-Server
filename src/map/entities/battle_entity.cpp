@@ -32,6 +32,7 @@
 #include "action/action.h"
 #include "action/interrupts.h"
 #include "ai/ai_container.h"
+#include "ai/controllers/trust_controller.h"
 #include "ai/helpers/targetfind.h"
 #include "ai/states/ability_state.h"
 #include "ai/states/attack_state.h"
@@ -2505,6 +2506,10 @@ void CBattleEntity::OnCastFinished(CMagicState& state, action_t& action)
 
     for (auto* PTarget : PAI->TargetFind->m_targets)
     {
+        if (trustcombat::IsSleepProtected(this, PTarget))
+        {
+            continue;
+        }
         // Retained corpses admit only a still-legal Raise target, including at
         // final victim dispatch. Ordinary friendly effects cannot heal a corpse.
         if (auto* corpse = dynamic_cast<CTrustEntity*>(PTarget); corpse && corpse->isDead())
@@ -2800,8 +2805,12 @@ void CBattleEntity::OnAbility(CAbilityState& state, action_t& action)
             PAI->TargetFind->findWithinArea(this, AOE_RADIUS::ATTACKER, PAbility->getRadius(), FINDFLAGS_NONE, PAbility->getValidTarget());
 
             auto prevMsg = MsgBasic::None;
-            for (auto&& PTargetFound : PAI->TargetFind->m_targets)
+            for (auto* PTargetFound : PAI->TargetFind->m_targets)
             {
+                if (trustcombat::IsSleepProtected(this, PTargetFound))
+                {
+                    continue;
+                }
                 action_target_t& actionTarget = action.addTarget(PTargetFound->id);
                 action_result_t& actionResult = actionTarget.addResult();
                 actionResult.resolution       = ActionResolution::Hit;
@@ -3033,6 +3042,10 @@ void CBattleEntity::OnMobSkillFinished(CMobSkillState& state, action_t& action)
     // Lambda to process a target
     auto processTarget = [&](CBattleEntity* PTargetFound)
     {
+        if (trustcombat::IsSleepProtected(this, PTargetFound))
+        {
+            return;
+        }
         action_target_t& target = action.addTarget(PTargetFound->id);
         action_result_t& result = target.addResult();
 
@@ -3169,7 +3182,7 @@ void CBattleEntity::OnMobSkillFinished(CMobSkillState& state, action_t& action)
 
     PTarget = state.target().resolve<CBattleEntity>(); // TODO: why is this recast here? can state change between now and the original cast?
 
-    if (PTarget)
+    if (PTarget && !trustcombat::IsSleepProtected(this, PTarget))
     {
         if (PTarget->objtype == TYPE_MOB && this->allegiance == xi::Allegiance::Player)
         {

@@ -72,6 +72,11 @@ end
 function CSimulation:skipTime(seconds)
 end
 
+---Returns the simulated steady clock in seconds.
+---@return number
+function CSimulation:getSteadyTime()
+end
+
 ---Read an active effect's signed monotonic start in integer milliseconds; no state change.
 ---Returns nil for a missing/nonbattle actor, invalid effect ID or missing effect.
 ---Also returns nil if the native milliseconds cannot be represented exactly in Lua.

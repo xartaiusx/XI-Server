@@ -3832,7 +3832,7 @@ bool HasNinjaTool(CBattleEntity* PEntity, CSpell* PSpell, bool ConsumeTool)
     then determines if the difference of those angles is within acceptable range for moves that require the three to be "in a straight line"
     Used for Trick Attack and Cover: separate checks for distance/party membership must be done to confirm eligability
 */
-inline bool areInLine(uint8 firstEntityWorldAngle, CBattleEntity* anchorEntity, CBattleEntity* otherEntity)
+inline bool areInLine(uint8 firstEntityWorldAngle, const CBattleEntity* anchorEntity, const CBattleEntity* otherEntity)
 {
     // X-degree angle threshold, centered on the firstPlayer's world angle
     // X = 10 => 10/2 * 255 / 360 ~ 3.5 rotation diff, rounded to 4 which really gives X~11.3
@@ -4116,38 +4116,21 @@ uint8 getStoreTPbonusFromMerit(CBattleEntity* PEntity)
 
 int32 getOverWhelmDamageBonus(CBattleEntity* PAttacker, CBattleEntity* PDefender, int32 damage)
 {
-    if (auto PChar = dynamic_cast<CCharEntity*>(PAttacker)) // Some mobskills use TakeWeaponskillDamage function, which calls upon this one.
+    if (!infront(PAttacker->loc.p, PDefender->loc.p, 64))
     {
-        // must be in front of mob
-        if (infront(PChar->loc.p, PDefender->loc.p, 64))
-        {
-            uint8 meritCount = PChar->PMeritPoints->GetMeritValue(xi::Merit::Overwhelm, PChar);
-            float tmpDamage  = static_cast<float>(damage);
-
-            switch (meritCount)
-            {
-                case 1:
-                    tmpDamage += tmpDamage * 0.05f;
-                    break;
-                case 2:
-                    tmpDamage += tmpDamage * 0.10f;
-                    break;
-                case 3:
-                    tmpDamage += tmpDamage * 0.15f;
-                    break;
-                case 4:
-                    tmpDamage += tmpDamage * 0.17f;
-                    break;
-                case 5:
-                    tmpDamage += tmpDamage * 0.19f;
-                    break;
-                default:
-                    break;
-            }
-            damage = static_cast<int32>(floor(tmpDamage));
-        }
+        return damage;
     }
-    return damage;
+
+    const auto           merit = PAttacker->objtype == TYPE_TRUST ? trustdevelopment::GetMeritValue(PAttacker, xi::Merit::Overwhelm)
+                                                                  : GetMeritValue(PAttacker, xi::Merit::Overwhelm);
+    constexpr std::array bonuses{ 0.0f, 0.05f, 0.10f, 0.15f, 0.17f, 0.19f };
+    if (merit <= 0 || static_cast<std::size_t>(merit) >= bonuses.size())
+    {
+        return damage;
+    }
+
+    const auto baseDamage = static_cast<float>(damage);
+    return static_cast<int32>(floor(baseDamage + baseDamage * bonuses[static_cast<std::size_t>(merit)]));
 }
 
 uint8 getBarrageShotCount(CBattleEntity* PBattleEntity)
@@ -5690,6 +5673,10 @@ timer::duration CalculateSpellCastTime(CBattleEntity* PEntity, CMagicState* PMag
         {
             fastCast += PChar->PMeritPoints->GetMeritValue(xi::Merit::CureCastTime, PChar);
         }
+        else
+        {
+            fastCast += trustdevelopment::GetMeritValue(PEntity, xi::Merit::CureCastTime);
+        }
     }
     else if (auto* PChar = dynamic_cast<CCharEntity*>(PEntity); PSpell->getSkillType() == xi::SkillType::Geomancy && PChar)
     {
@@ -5711,7 +5698,7 @@ timer::duration CalculateSpellCastTime(CBattleEntity* PEntity, CMagicState* PMag
     return std::chrono::floor<std::chrono::milliseconds>(cast * ((100.0f - sumFastCast) / 100.0f));
 }
 
-uint16 CalculateSpellCost(CBattleEntity* PEntity, CSpell* PSpell)
+static uint16 CalculateSpellCost(CBattleEntity* PEntity, CSpell* PSpell, SpellCostCheck check)
 {
     if (PSpell == nullptr)
     {
@@ -5775,18 +5762,31 @@ uint16 CalculateSpellCost(CBattleEntity* PEntity, CSpell* PSpell)
         cost = cost * (1.f - static_cast<float>(mpCostReduction) / 100.f);
     }
 
-    if (xirand::GetRandomNumber(100) < (PEntity->getMod(xi::Mod::NO_SPELL_MP_DEPLETION)))
+    // Native resolution preserves its original RNG draw, even when the proc rate is zero.
+    // Guaranteed affordability cannot rely on a chance-based discount or advance the RNG.
+    const auto roll = check == SpellCostCheck::Native ? xirand::GetRandomNumber(100) : 99;
+    if (roll < PEntity->getMod(xi::Mod::NO_SPELL_MP_DEPLETION))
     {
         cost = 0;
     }
     return std::clamp<int16>(cost, 0, 9999);
 }
 
-bool CanAffordSpell(CBattleEntity* PEntity, CSpell* PSpell, uint8 flags)
+uint16 CalculateSpellCost(CBattleEntity* PEntity, CSpell* PSpell)
+{
+    return CalculateSpellCost(PEntity, PSpell, SpellCostCheck::Native);
+}
+
+bool CanAffordSpell(CBattleEntity* PEntity, CSpell* PSpell, uint8 flags, SpellCostCheck check)
 {
     if (PEntity == nullptr)
     {
         return false;
+    }
+
+    if (PSpell->getID() == SpellID::Full_Cure)
+    {
+        return PEntity->health.mp > 0;
     }
 
     // Check if entity bypasses MP costs
@@ -5808,7 +5808,7 @@ bool CanAffordSpell(CBattleEntity* PEntity, CSpell* PSpell, uint8 flags)
     // Check if spell has MP cost and if entity has enough MP
     if (PSpell->hasMPCost())
     {
-        uint16 spellCost = CalculateSpellCost(PEntity, PSpell);
+        uint16 spellCost = CalculateSpellCost(PEntity, PSpell, check);
         return PEntity->health.mp >= spellCost;
     }
 
@@ -6284,6 +6284,21 @@ auto GetRuneEnhancementElement(xi::StatusEffect runeEffect) -> ELEMENT
     }
 }
 
+auto HasCoverGeometry(const CBattleEntity* protector, const CBattleEntity* recipient, const CBattleEntity* attacker) -> bool
+{
+    if (protector == recipient || protector->loc.zone != recipient->loc.zone ||
+        attacker->loc.zone != recipient->loc.zone || protector->PInstance != recipient->PInstance ||
+        attacker->PInstance != recipient->PInstance || protector->PBattlefield != recipient->PBattlefield ||
+        attacker->PBattlefield != recipient->PBattlefield)
+    {
+        return false;
+    }
+    const auto distanceToProtector = distance(protector->loc.p, attacker->loc.p);
+    return distanceToProtector <= attacker->GetMeleeRange(protector) && distanceToProtector >= worldAngleMinDistance &&
+           distanceToProtector < distance(recipient->loc.p, attacker->loc.p) &&
+           areInLine(worldAngle(attacker->loc.p, protector->loc.p), attacker, recipient);
+}
+
 CBattleEntity* GetCoverAbilityUser(CBattleEntity* PCoverAbilityTarget, CBattleEntity* PMob, bool allowDevelopedTrust)
 {
     CBattleEntity* PCoverAbilityUser    = nullptr;
@@ -6358,10 +6373,7 @@ CBattleEntity* GetCoverAbilityUser(CBattleEntity* PCoverAbilityTarget, CBattleEn
             {
                 continue;
             }
-            const auto angle = worldAngle(PMob->loc.p, trust->loc.p);
-            const auto dist  = distance(trust->loc.p, PMob->loc.p);
-            if (dist <= PMob->GetMeleeRange(trust) && dist >= worldAngleMinDistance &&
-                dist < distance(PCoverAbilityTarget->loc.p, PMob->loc.p) && areInLine(angle, PMob, PCoverAbilityTarget))
+            if (HasCoverGeometry(trust, PCoverAbilityTarget, PMob))
             {
                 return trust;
             }

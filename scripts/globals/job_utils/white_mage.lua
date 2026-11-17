@@ -78,13 +78,15 @@ xi.job_utils.white_mage.useAsylum = function(player, target, ability)
     return xi.effect.ASYLUM
 end
 
+xi.job_utils.white_mage.removeHealingAilments = function(target)
+    for _, effect in ipairs(removables) do
+        target:delStatusEffect(effect)
+    end
+end
+
 xi.job_utils.white_mage.useBenediction = function(player, target, ability)
     -- To Do: Benediction can remove Charm only while in Assault Mission Lamia No.13
-    for i, effect in ipairs(removables) do
-        if target:hasStatusEffect(effect) then
-            target:delStatusEffect(effect)
-        end
-    end
+    xi.job_utils.white_mage.removeHealingAilments(target)
 
     local heal = (target:getMaxHP() * player:getMainLvl()) / target:getMainLvl()
 
@@ -106,6 +108,12 @@ xi.job_utils.white_mage.useBenediction = function(player, target, ability)
     player:updateEnmityFromCure(target, heal)
     target:addHP(heal)
     target:wakeUp()
+
+    -- The area action calls this once per recipient. Only the caster recovers MP.
+    if player:isDevelopedTrust() and target:getID() == player:getID() then
+        local rank = player:getJobPointLevel(xi.jp.BENEDICTION_EFFECT)
+        player:addMP(math.floor(player:getMaxMP() * rank / 100))
+    end
 
     return heal
 end

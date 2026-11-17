@@ -26,6 +26,7 @@
 #include "action/action.h"
 #include "action/interrupts.h"
 #include "ai/ai_container.h"
+#include "ai/controllers/trust_controller.h"
 #include "common/settings.h"
 #include "entities/char_entity.h"
 #include "entities/trust_entity.h"
@@ -170,7 +171,8 @@ auto CRangeState::Update(const timer::time_point tick) -> bool
         auto*    cast_errorMsg = dynamic_cast<GP_SERV_COMMAND_BATTLE_MESSAGE*>(m_errorMsg.get());
 
         // Target is untargetable (e.g., Super Jump, Worm roaming, Antlion burrowing etc.)
-        if (PTarget && PTarget->PAI->IsUntargetable())
+        if ((PTarget && PTarget->PAI->IsUntargetable()) ||
+            trustcombat::IsSleepProtected(m_PEntity, target().resolve<CBattleEntity>()))
         {
             InterruptRangedAttack(action);
         }
@@ -191,10 +193,15 @@ auto CRangeState::Update(const timer::time_point tick) -> bool
                 m_isOutOfRange = true;
             }
 
+            const auto sleepApplication = trustcombat::SleepApplication(m_PEntity, PTarget);
             m_PEntity->OnRangedAttack(*this, action);
             // Only send packet if action was populated (e.g. interrupts return early)
             if (!action.targets.empty())
             {
+                if (!m_isOutOfRange && PTarget && m_PEntity->CanSeeTarget(PTarget) && action.actiontype == ActionCategory::RangedFinish)
+                {
+                    trustcombat::RecordResolvedAction(m_PEntity, PTarget, action, sleepApplication);
+                }
                 trustutils::LogTrustActionPacket(m_PEntity, action, PTarget, "range_state_finish");
                 m_PEntity->loc.zone->PushPacket(m_PEntity, CHAR_INRANGE_SELF, std::make_unique<GP_SERV_COMMAND_BATTLE2>(action));
             }

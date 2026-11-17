@@ -3,6 +3,8 @@
 -- Restores target's HP.
 -- Shamelessly stolen from http://members.shaw.ca/pizza_steve/cure/Cure_Calculator.html
 -----------------------------------
+local healing = require('scripts/globals/spells/healing_spell')
+
 ---@type TSpell
 local spellObject = {}
 
@@ -11,57 +13,10 @@ spellObject.onMagicCastingCheck = function(caster, target, spell)
 end
 
 spellObject.onSpellCast = function(caster, target, spell)
-    local divisor = 0
-    local constant = 0
-    local basepower = 0
-    local power = 0
-    local basecure = 0
     local final = 0
 
-    local minCure = 130
-    if xi.settings.main.USE_OLD_CURE_FORMULA then
-        power = getCurePowerOld(caster)
-        divisor = 1
-        constant = 70
-        if power > 300 then
-            divisor = 15.6666
-            constant = 180.43
-        elseif power > 180 then
-            divisor = 2
-            constant = 115
-        end
-    else
-        power = getCurePower(caster)
-        if power < 125 then
-            divisor = 2.2
-            constant = 130
-            basepower = 70
-        elseif power < 200 then
-            divisor =  75 / 65
-            constant = 155
-            basepower = 125
-        elseif power < 300 then
-            divisor = 2.5
-            constant = 220
-            basepower = 200
-        elseif power < 700 then
-            divisor = 5
-            constant = 260
-            basepower = 300
-        else
-            divisor = 999999
-            constant = 340
-            basepower = 0
-        end
-    end
-
     if isValidHealTarget(caster, target) then
-        if xi.settings.main.USE_OLD_CURE_FORMULA then
-            basecure = getBaseCureOld(power, divisor, constant)
-        else
-            basecure = getBaseCure(power, divisor, constant, basepower)
-        end
-
+        local basecure, minCure = healing.getBaseCure(caster, 3, xi.settings.main.USE_OLD_CURE_FORMULA)
         final = getCureFinal(caster, spell, basecure, minCure, false)
         if
             caster:hasStatusEffect(xi.effect.AFFLATUS_SOLACE) and
@@ -82,10 +37,7 @@ spellObject.onSpellCast = function(caster, target, spell)
             target:addStatusEffect(xi.effect.STONESKIN, { power = solaceStoneskin, duration = 25, origin = caster, tier = 1 })
         end
 
-        final = final + (final * (target:getMod(xi.mod.CURE_POTENCY_RCVD) / 100))
-
-        --Applying server mods
-        final = final * xi.settings.main.CURE_POWER
+        final = healing.applyReceivedPotency(target, final, false)
 
         local diff = (target:getMaxHP() - target:getHP())
         if final > diff then
@@ -105,12 +57,7 @@ spellObject.onSpellCast = function(caster, target, spell)
             spell:setMsg(xi.msg.basic.MAGIC_NO_EFFECT)
         else
             -- e.g. monsters healing themselves.
-            if xi.settings.main.USE_OLD_CURE_FORMULA then
-                basecure = getBaseCureOld(power, divisor, constant)
-            else
-                basecure = getBaseCure(power, divisor, constant, basepower)
-            end
-
+            local basecure, minCure = healing.getBaseCure(caster, 3, xi.settings.main.USE_OLD_CURE_FORMULA)
             final = getCureFinal(caster, spell, basecure, minCure, false)
             local diff = (target:getMaxHP() - target:getHP())
             if final > diff then

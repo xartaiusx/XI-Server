@@ -191,7 +191,7 @@ CItemWeapon*    GetEntityWeapon(CBattleEntity* PEntity, SLOTTYPE Slot);
 CItemEquipment* GetEntityArmor(CBattleEntity* PEntity, SLOTTYPE Slot);
 
 void           MakeEntityStandUp(CBattleEntity* PEntity);
-inline bool    areInLine(uint8 firstPlayerWA, CBattleEntity* insidePlayer, CBattleEntity* outidePlayer);
+inline bool    areInLine(uint8 firstPlayerWA, const CBattleEntity* insidePlayer, const CBattleEntity* outidePlayer);
 CBattleEntity* getAvailableTrickAttackChar(CBattleEntity* taUser, CBattleEntity* PMob);
 
 bool HasNinjaTool(CBattleEntity* PEntity, CSpell* PSpell, bool ConsumeTool);
@@ -254,10 +254,16 @@ void turnTowardsTarget(CBaseEntity* PEntity, CBaseEntity* PTarget, bool force = 
 void AddTraits(CBattleEntity* PEntity, TraitList_t* TraitList, uint8 level);
 bool HasClaim(CBattleEntity* PEntity, CBattleEntity* PTarget);
 
+enum class SpellCostCheck : uint8
+{
+    Native,
+    Guaranteed,
+};
+
 timer::duration CalculateSpellCastTime(CBattleEntity*, CMagicState*);
 uint16          CalculateSpellCost(CBattleEntity*, CSpell*);
 timer::duration CalculateSpellRecastTime(CBattleEntity*, CSpell*);
-bool            CanAffordSpell(CBattleEntity* PEntity, CSpell* PSpell, uint8 flags = 0);
+bool            CanAffordSpell(CBattleEntity* PEntity, CSpell* PSpell, uint8 flags = 0, SpellCostCheck check = SpellCostCheck::Native);
 int16           CalculateWeaponSkillTP(CBattleEntity*, CWeaponSkill*, int16);
 bool            RemoveAmmo(CCharEntity*, int quantity = 1);
 int32           GetMeritValue(CBattleEntity*, xi::Merit);
@@ -268,6 +274,7 @@ auto  GetEnspellDamageType(ENSPELL enspellType) -> xi::DamageType;
 auto  GetRuneEnhancementDamageType(xi::StatusEffect runeEffect) -> xi::DamageType;
 auto  GetRuneEnhancementElement(xi::StatusEffect runeEffect) -> ELEMENT;
 
+auto           HasCoverGeometry(const CBattleEntity* protector, const CBattleEntity* recipient, const CBattleEntity* attacker) -> bool;
 CBattleEntity* GetCoverAbilityUser(CBattleEntity* PCoverAbilityTarget, CBattleEntity* PMob, bool allowDevelopedTrust = false);
 bool           IsMagicCovered(CBattleEntity* PCoverAbilityUser);
 void           ConvertDmgToMP(CBattleEntity* PDefender, int32 damage, bool IsCovered);

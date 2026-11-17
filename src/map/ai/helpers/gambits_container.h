@@ -114,6 +114,10 @@ enum class G_CONDITION : uint16
     CASTER_STATUS_FLAG                = 46,
     STATUS_MISSING_OR_EXPIRING        = 47,
     CASTER_STATUS_MISSING_OR_EXPIRING = 48,
+    COVER_OPPORTUNITY                 = 49,
+    IROHA_RECOVERY                    = 50,
+    MB_ELEMENT_AVAILABLE              = 51,
+    PARTY_DEFENSE_MISSING             = 52,
 };
 
 enum class G_REACTION : uint16
@@ -149,6 +153,7 @@ enum class G_SELECT : uint16
     DEF_BAR_ELEMENT     = 17,
     RUNE_DAY            = 18,
     RANDOM_ANIMATION    = 19,
+    IROHA_CURE          = 20,
 };
 
 enum class G_TP_TRIGGER : uint16
@@ -312,7 +317,7 @@ public:
     void RemoveGambit(const std::string& id);
     void RemoveAllGambits();
     auto HasRaiseRecoveryTarget() const -> bool;
-    auto Tick(timer::time_point tick, bool raiseRecoveryOnly = false) -> Task<void>;
+    auto Tick(timer::time_point tick, bool raiseRecoveryOnly = false, bool friendlyOnly = false) -> Task<void>;
 
     // TODO: make private
     std::vector<TrustSkill_t> tp_skills;

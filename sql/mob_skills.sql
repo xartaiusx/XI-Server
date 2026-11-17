@@ -3766,12 +3766,12 @@ INSERT INTO `mob_skills` VALUES (3726,2281,'tachi_fudo',0,0.0,7.0,2000,1500,4,0,
 -- INSERT INTO `mob_skills` VALUES (3730,3474,'self-destruct',0,0.0,7.0,2000,1500,4,0,0,0,0,0,0);
 -- INSERT INTO `mob_skills` VALUES (3731,3475,'self-destruct',0,0.0,7.0,2000,1500,4,0,0,0,0,0,0);
 INSERT INTO `mob_skills` VALUES (3732,488,'amatsu_fuga',0,0.0,7.0,2000,1500,4,0,0,0,0,0,0);
-INSERT INTO `mob_skills` VALUES (3733,492,'amatsu_kyori',0,0.0,7.0,2000,1500,4,0,0,0,0,0,0);
-INSERT INTO `mob_skills` VALUES (3734,489,'amatsu_hanadoki',0,0.0,7.0,2000,1500,4,0,0,0,0,0,0);
+INSERT INTO `mob_skills` VALUES (3733,492,'iroha_ii_kyori',0,0.0,7.0,2000,0,4,0,0,0,7,0,0);
+INSERT INTO `mob_skills` VALUES (3734,489,'iroha_ii_hanadoki',0,0.0,7.0,2000,0,4,0,0,0,5,8,0);
 INSERT INTO `mob_skills` VALUES (3735,490,'amatsu_choun',0,0.0,7.0,2000,1500,4,0,0,0,0,0,0);
-INSERT INTO `mob_skills` VALUES (3736,491,'amatsu_gachirin',0,0.0,7.0,2000,1500,4,0,0,0,0,0,0);
-INSERT INTO `mob_skills` VALUES (3737,493,'amatsu_suien',0,0.0,7.0,2000,1500,4,0,0,0,0,0,0);
-INSERT INTO `mob_skills` VALUES (3738,516,'rise_from_ashes',0,0.0,7.0,2000,1500,4,0,0,0,0,0,0);
+INSERT INTO `mob_skills` VALUES (3736,491,'iroha_ii_gachirin',0,0.0,7.0,2000,0,4,0,0,0,13,12,0);
+INSERT INTO `mob_skills` VALUES (3737,493,'iroha_ii_suien',0,0.0,7.0,2000,0,4,0,0,0,11,0,0);
+INSERT INTO `mob_skills` VALUES (3738,516,'iroha_ii_rise_from_ashes',1,10.0,10.0,2000,0,1,0,0,0,0,0,0);
 -- Trust: Shantotto II
 INSERT INTO `mob_skills` VALUES (3739,2546,'auto_attack_shantotto_ii',0,0.0,7.0,2000,0,4,4,0,0,0,0,0);     -- Capture shows 498. Adding 2048 for it to work properly.
 INSERT INTO `mob_skills` VALUES (3740,2547,'final_exam',0,0.0,7.0,2000,1500,4,0,0,0,13,11,0);        -- Capture shows 499. Adding 2048 for it to work properly.

@@ -517,6 +517,13 @@ bool CStatusEffectContainer::AddStatusEffect(std::unique_ptr<CStatusEffect> PSta
 
         m_StatusEffectSet.insert(std::move(PStatusEffectPtr));
 
+        const auto gainedEffect = PStatusEffect->GetStatusID();
+        if (gainedEffect == xi::StatusEffect::SleepI || gainedEffect == xi::StatusEffect::SleepIi || gainedEffect == xi::StatusEffect::Lullaby)
+        {
+            ordinaryTrustSleepReleasedBy_ = 0;
+            ++ordinaryTrustSleepApplication_;
+        }
+
         HandleEffectGainSideEffects(PStatusEffect);
 
         luautils::OnEffectGain(m_POwner, PStatusEffect);
@@ -2250,6 +2257,24 @@ bool CStatusEffectContainer::CheckForElevenRoll()
 bool CStatusEffectContainer::IsAsleep()
 {
     return HasStatusEffect({ xi::StatusEffect::SleepI, xi::StatusEffect::SleepIi, xi::StatusEffect::Lullaby });
+}
+
+auto CStatusEffectContainer::OrdinaryTrustSleepApplication() -> uint64
+{
+    return IsAsleep() ? ordinaryTrustSleepApplication_ : 0;
+}
+
+void CStatusEffectContainer::ReleaseOrdinaryTrustSleepProtection(uint64 ownerSerial, uint64 application)
+{
+    if (application != 0 && application == ordinaryTrustSleepApplication_ && IsAsleep())
+    {
+        ordinaryTrustSleepReleasedBy_ = ownerSerial;
+    }
+}
+
+bool CStatusEffectContainer::IsOrdinaryTrustSleepProtected(uint64 ownerSerial)
+{
+    return IsAsleep() && ordinaryTrustSleepReleasedBy_ != ownerSerial;
 }
 
 void CStatusEffectContainer::WakeUp()

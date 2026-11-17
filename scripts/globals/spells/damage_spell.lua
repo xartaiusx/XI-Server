@@ -520,28 +520,8 @@ xi.spells.damage.calculateAdditionalResistTier = function(caster, target, spellE
     return 0.5
 end
 
-xi.spells.damage.calculateDayAndWeather = function(caster, spellElement, alwaysApply)
-    local dayAndWeather = 1 -- The variable we want to calculate
-
-    -- Early return: Invalid element.
-    if spellElement <= xi.element.NONE then
-        return dayAndWeather
-    end
-
-    -- Define what to apply.
-    local applyBonuses   = false
-    local applyPenalties = false
-
-    if
-        alwaysApply or                                    -- Helixes and other actions always apply both bonuses and penalties.
-        math.randomInt(1, 100) <= 33 or                      -- Random. Applies to both bonuses and penalties.
-        caster:getMod(xi.mod.FORCE_DW_BONUS_PENALTY) >= 1 -- Hachirin-no-Obi forces both bonuses and penalties.
-    then
-        applyBonuses   = true
-        applyPenalties = true
-    elseif caster:getMod(xi.data.element.getForcedDayOrWeatherBonusModifier(spellElement)) >= 1 then -- Elemental Obis only force bonuses, not penalties.
-        applyBonuses = true
-    end
+local function dayWeatherMultiplier(caster, spellElement, applyBonuses, applyPenalties)
+    local dayAndWeather = 1
 
     -- Calculate bonuses and penalties.
     local weather    = caster:getWeather()
@@ -600,6 +580,47 @@ xi.spells.damage.calculateDayAndWeather = function(caster, spellElement, alwaysA
     dayAndWeather = utils.clamp(dayAndWeather, 0, 1.4)
 
     return dayAndWeather
+end
+
+xi.spells.damage.calculateDayAndWeather = function(caster, spellElement, alwaysApply)
+    -- Early return: Invalid element.
+    if spellElement <= xi.element.NONE then
+        return 1
+    end
+
+    -- Define what to apply.
+    local applyBonuses   = false
+    local applyPenalties = false
+
+    if
+        alwaysApply or                                    -- Helixes and other actions always apply both bonuses and penalties.
+        math.randomInt(1, 100) <= 33 or                      -- Random. Applies to both bonuses and penalties.
+        caster:getMod(xi.mod.FORCE_DW_BONUS_PENALTY) >= 1 -- Hachirin-no-Obi forces both bonuses and penalties.
+    then
+        applyBonuses   = true
+        applyPenalties = true
+    elseif caster:getMod(xi.data.element.getForcedDayOrWeatherBonusModifier(spellElement)) >= 1 then -- Elemental Obis only force bonuses, not penalties.
+        applyBonuses = true
+    end
+
+    return dayWeatherMultiplier(caster, spellElement, applyBonuses, applyPenalties)
+end
+
+-- The random proc applies both modifiers. A failed proc may still apply
+-- forced bonuses. Calculate both results without drawing from the RNG.
+xi.spells.damage.getDayAndWeatherRange = function(caster, spellElement)
+    if spellElement <= xi.element.NONE then
+        return 1, 1
+    end
+
+    local proc = dayWeatherMultiplier(caster, spellElement, true, true)
+    if caster:getMod(xi.mod.FORCE_DW_BONUS_PENALTY) >= 1 then
+        return proc, proc
+    end
+
+    local forceBonus = caster:getMod(xi.data.element.getForcedDayOrWeatherBonusModifier(spellElement)) >= 1
+    local noProc = dayWeatherMultiplier(caster, spellElement, forceBonus, false)
+    return math.min(proc, noProc), math.max(proc, noProc)
 end
 
 -- Magic Attack Bonus VS Magic Defense Bonus

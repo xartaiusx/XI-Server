@@ -25,17 +25,20 @@
 
 class CAbility;
 class CBattleEntity;
+class CSpell;
 class CTrustEntity;
+enum class SpellID : uint16;
 
 namespace trustdevelopment
 {
 
 struct Profile
 {
-    uint32  trustId{};
-    xi::Job mainJob{ xi::Job::NONE };
-    xi::Job supportJob{ xi::Job::NONE };
-    bool    approved{};
+    uint32      trustId{};
+    xi::Job     mainJob{ xi::Job::NONE };
+    xi::Job     supportJob{ xi::Job::NONE };
+    bool        approved{};
+    const char* setting{};
 };
 
 auto GetProfile(uint32 trustId) -> const Profile*;
@@ -53,6 +56,10 @@ auto HasMainJobAccess(const CBattleEntity* PEntity, xi::Job job) -> bool;
 auto GetActionJobLevel(const CBattleEntity* PEntity, xi::Job job) -> uint8;
 auto GetMeritValue(const CBattleEntity* PEntity, xi::Merit merit) -> int32;
 auto GetJobPointLevel(const CBattleEntity* PEntity, uint16 jpType) -> uint8;
+auto IsJobCatalogSpell(CSpell& spell) -> bool;
+auto CanUseSpecialSpell(const Profile& profile, SpellID spellId) -> bool;
+auto IsIrohaSignature(uint16 skillId) -> bool;
+auto CanUseIrohaSignature(const CBattleEntity* entity) -> bool;
 
 // Catalog admission only: the caller still enforces targets, resources,
 // recasts, range, line of sight and the native Lua ability check.

@@ -140,10 +140,19 @@ void CAttack::SetCritical(bool value)
         }
 
         // need to pass the weapon slot because damage ratio depends on ATT which varies by slot
-        const int32 doubleAttackBonus = developed && m_attackType == PHYSICAL_ATTACK_TYPE::DOUBLE
-                                            ? trustdevelopment::GetJobPointLevel(m_attacker, JP_DOUBLE_ATTACK_EFFECT)
-                                            : 0;
-        m_damageRatio                 = battleutils::GetDamageRatio(m_attacker, m_victim, m_isCritical, attBonus, skilltype, weaponSlot, false, doubleAttackBonus);
+        int32 flatAttackBonus = 0;
+        if (developed)
+        {
+            if (m_attackType == PHYSICAL_ATTACK_TYPE::DOUBLE)
+            {
+                flatAttackBonus = trustdevelopment::GetJobPointLevel(m_attacker, JP_DOUBLE_ATTACK_EFFECT);
+            }
+            else if (m_attackType == PHYSICAL_ATTACK_TYPE::ZANSHIN)
+            {
+                flatAttackBonus = trustdevelopment::GetJobPointLevel(m_attacker, JP_ZANSHIN_EFFECT) * 2;
+            }
+        }
+        m_damageRatio = battleutils::GetDamageRatio(m_attacker, m_victim, m_isCritical, attBonus, skilltype, weaponSlot, false, flatAttackBonus);
     }
 }
 
@@ -463,19 +472,17 @@ bool CAttack::CheckCounter()
 
     uint16 seiganChance = 0;
 
-    if (auto* PChar = dynamic_cast<CCharEntity*>(m_victim); PChar && m_victim->getMod(xi::Mod::SEIGAN_COUNTER_BONUS) > 0)
+    if (m_victim->getMod(xi::Mod::SEIGAN_COUNTER_BONUS) > 0 &&
+        (dynamic_cast<CCharEntity*>(m_victim) != nullptr || trustdevelopment::IsEnabled(dynamic_cast<CTrustEntity*>(m_victim))))
     {
-        // counter check (rate AND your hit rate makes it land, else its just a regular hit)
-        // having seigan active gives chance to counter at 25% of the zanshin proc rate
-        auto* weapon             = dynamic_cast<CItemWeapon*>(PChar->m_Weapons[SLOT_MAIN]);
-        bool  isValid2HandWeapon = weapon && weapon->isTwoHanded();
-        bool  hasValidSeigan     = isValid2HandWeapon && PChar->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Seigan, 0);
-
-        if (hasValidSeigan)
+        // Seigan counters at one quarter of the Zanshin rate with a two-handed weapon.
+        const auto* weapon = dynamic_cast<CItemWeapon*>(m_victim->m_Weapons[SLOT_MAIN]);
+        if (weapon && weapon->isTwoHanded() && m_victim->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Seigan, 0))
         {
-            seiganChance = PChar->getMod(xi::Mod::ZANSHIN) + PChar->PMeritPoints->GetMeritValue(xi::Merit::ZanshinAttackRate, PChar);
-            seiganChance = std::clamp<uint16>(seiganChance, 0, 100);
-            seiganChance /= 4;
+            const auto merit   = m_victim->objtype == TYPE_TRUST ? trustdevelopment::GetMeritValue(m_victim, xi::Merit::ZanshinAttackRate)
+                                                                 : battleutils::GetMeritValue(m_victim, xi::Merit::ZanshinAttackRate);
+            const auto zanshin = m_victim->getMod(xi::Mod::ZANSHIN) + merit;
+            seiganChance       = static_cast<uint16>(std::clamp(zanshin, 0, 100) / 4);
         }
     }
 
