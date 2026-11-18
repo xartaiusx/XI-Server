@@ -51,6 +51,9 @@ auto CPlayerController::Tick(timer::time_point /*tick*/) -> Task<void>
     {
         ordinaryTrustActionTarget.clean();
         ordinaryTrustPartyActionTarget.clean();
+    }
+    if (PChar->PTrusts.empty())
+    {
         ordinaryTrustAttackers.clear();
     }
 

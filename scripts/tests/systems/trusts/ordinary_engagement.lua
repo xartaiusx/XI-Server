@@ -352,6 +352,126 @@ describe('Ordinary Trust engagement', function()
         assert(not owner:isEngaged() and onTarget(val, mob) and onTarget(iroha, mob))
     end)
 
+    it('defends living Trusts against native attacks before and during the owner Raise prompt', function()
+        local previousFocus = fixtureMob('Ordinary_KO_Previous_Focus', -3)
+        local attacker = fixtureMob('Ordinary_KO_Native_Attacker', 1)
+        previousFocus:setAggressive(false)
+        attacker:setAggressive(false)
+        playerSpell(previousFocus, xi.magic.spell.PARALYZE)
+        assert(onTarget(val, previousFocus) and onTarget(iroha, previousFocus))
+
+        local valId, irohaId = val:getID(), iroha:getID()
+        local attackerId = attacker:getID()
+        local previousFocusId = previousFocus:getID()
+        local function nativeMeleeDamage(actorId, recipientId)
+            local damage = 0
+            for _, packet in ipairs(owner.packets:actionPackets()) do
+                if
+                    packet.m_uID == actorId and
+                    packet.cmd_no == xi.action.category.BASIC_ATTACK
+                then
+                    for _, target in ipairs(packet.target) do
+                        if target.m_uID == recipientId then
+                            for _, result in ipairs(target.result) do
+                                damage = damage + result.value
+                            end
+                        end
+                    end
+                end
+            end
+
+            return damage
+        end
+
+        local function raisePromptDelivered()
+            for _, packet in ipairs(owner.packets:getIncoming()) do
+                -- GP_SERV_COMMAND_RES type 1 is Raise, distinct from homepoint and Tractor.
+                if
+                    packet.type == 0x0F9 and
+                    packet.data[10] == 1 and
+                    packet.data[11] == 0
+                then
+                    return true
+                end
+            end
+
+            return false
+        end
+
+        local function advanceUntil(predicate, seconds)
+            for _ = 1, seconds do
+                xi.test.world:skipTime(1)
+                if predicate() then
+                    return true
+                end
+            end
+
+            return false
+        end
+
+        -- Leave Iroha to offer the native Raise while Valaineral defends the party.
+        val:setMP(0)
+        owner:setUnkillable(false)
+        owner.packets:clear()
+        owner:die({ expLoss = false })
+        xi.test.world:tickEntity(owner)
+        assert(owner:isDead() and #owner:getPartyWithTrusts() == 3)
+        assert(not val:isEngaged() and not iroha:isEngaged())
+        xi.test.world:skipTime(1)
+        assert(not val:isEngaged() and not iroha:isEngaged(), 'the stale pre-KO owner focus cannot start a fight')
+
+        local valHp = val:getHP()
+        stub('xi.combat.physicalHitRate.getPhysicalHitRate', 1)
+        stub('xi.combat.physical.isParried', false)
+        stub('xi.combat.physical.isGuarded', false)
+        stub('xi.combat.physical.isBlocked', false)
+        attacker:setDamage(20, xi.slot.MAIN)
+        attacker:setAutoAttackEnabled(true)
+        attacker:addBaseEnmity(val)
+        attacker:setCE(val, 10000)
+        attacker:updateEnmity(val)
+        val:setAutoAttackEnabled(true)
+        iroha:setAutoAttackEnabled(true)
+
+        local function valDefended()
+            return nativeMeleeDamage(valId, attackerId) > 0
+        end
+
+        assert(advanceUntil(valDefended, 15), 'Valaineral must land a native defensive hit')
+        assert(nativeMeleeDamage(attackerId, valId) > 0 and val:getHP() < valHp, 'the real attacker must damage the living Trust')
+        assert(not raisePromptDelivered(), 'defense must begin before the delayed Raise prompt')
+        assert(nativeMeleeDamage(valId, previousFocusId) == 0 and nativeMeleeDamage(irohaId, previousFocusId) == 0)
+
+        assert(advanceUntil(raisePromptDelivered, 40), 'the native Raise prompt must reach the owner')
+        assert(owner:isDead() and owner:hasRaiseTractorMenu(), 'the player still chooses when to accept')
+        owner.packets:clear()
+        local function bothDefended()
+            return
+                nativeMeleeDamage(valId, attackerId) > 0 and
+                nativeMeleeDamage(irohaId, attackerId) > 0 and
+                nativeMeleeDamage(attackerId, valId) > 0
+        end
+
+        assert(advanceUntil(bothDefended, 15), 'both retained Trusts must land native attacks while Raise remains pending')
+        assert(owner:isDead() and owner:hasRaiseTractorMenu())
+        assert(onTarget(val, attacker) and onTarget(iroha, attacker))
+        assert(nativeMeleeDamage(valId, previousFocusId) == 0 and nativeMeleeDamage(irohaId, previousFocusId) == 0)
+
+        xi.test.world:setSetting('main.ENABLE_TRUST_DEFENSIVE_MODE', false)
+        owner.packets:clear()
+        xi.test.world:skipTime(2)
+        xi.test.world:skipTime(2)
+        assert(not val:isEngaged() and not iroha:isEngaged(), 'revoking defensive mode must stop KO combat')
+        assert(nativeMeleeDamage(valId, attackerId) == 0 and nativeMeleeDamage(irohaId, attackerId) == 0)
+        assert(owner:isDead() and owner:hasRaiseTractorMenu(), 'revoking defense must preserve the manual Raise offer')
+
+        owner.actions:acceptRaise()
+        xi.test.world:skipTime(3)
+        xi.test.world:skipTime(3)
+        assert(owner:isAlive() and #owner:getPartyWithTrusts() == 3)
+        assert(val:getID() == valId and iroha:getID() == irohaId)
+    end)
+
     local function collateralAttack(exclusiveClaim)
         local mob = fixtureMob('Ordinary_Trust_Collateral', 0)
         local outsider = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.WAR, level = 99 })
