@@ -31,7 +31,6 @@ describe('Ordinary Iroha II travel', function()
     ---@type CClientEntityPair
     local owner
 
-
     local function requestByPartyChat(player, text)
         -- 0x0B5 GP_CLI_COMMAND_CHAT_STD, including its four-byte header.
         local size = 4 * math.ceil((6 + #text + 1) / 4)
@@ -80,7 +79,6 @@ describe('Ordinary Iroha II travel', function()
             owner.assert:hasKI(crystal)
             owner:gotoZone(sourceZone)
             prepareOwner()
-            xi.test.world:loadZone(zone)
 
             local iroha = summon()
             assert(owner.actions:hasTrustSpell(iroha, spellId))

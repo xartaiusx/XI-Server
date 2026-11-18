@@ -12,7 +12,7 @@ commandObj.cmdprops =
 
 commandObj.onTrigger = function(player, request)
     local destination = (request or ''):match('^%s*(.-)%s*$') or ''
-    local result = player:requestIrohaTravel(destination:lower())
+    local result = player:requestIrohaTravel(string.lower(destination))
     if result ~= '' then
         player:printToPlayer(result)
     end
