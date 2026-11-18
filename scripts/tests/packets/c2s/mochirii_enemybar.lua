@@ -98,6 +98,8 @@ describe('Mochirii Enemybar target data', function()
     it('sends actual target resources only to the entitled viewer and rate-limits repeats', function()
         selectTarget(owner, mob:getTargID())
         selectTarget(outsider, mob:getTargID())
+        mob:setMod(xi.mod.HPP, 25)
+        mob:setMod(xi.mod.MPP, 25)
         mob:setMaxHP(4321)
         mob:setHP(3456)
         mob:setMaxMP(700)
@@ -105,13 +107,21 @@ describe('Mochirii Enemybar target data', function()
         mob:setTP(777)
         assert(mob:addStatusEffect(xi.effect.SLEEP_I, { power = 1, duration = 30, origin = owner, icon = xi.effect.SLEEP_I }))
 
+        -- The health setters assign base maxima. Read the effective values after modifiers.
+        local hp, maxHP = mob:getHP(), mob:getMaxHP()
+        local mp, maxMP = mob:getMP(), mob:getMaxMP()
+        local tp = mob:getTP()
+        assert(hp == 3456 and maxHP > hp and mp == 123 and maxMP > mp and tp == 777,
+            string.format('unexpected fixture resources: HP %d/%d, MP %d/%d, TP %d', hp, maxHP, mp, maxMP, tp))
+
+        local expected = string.format(
+            'MEB1 %s %u %u %u %d %d %d %d %d 1 1 %u',
+            nonce, owner:getZoneID(), mob:getID(), mob:getTargID(), hp, maxHP, mp, maxMP, tp, xi.effect.SLEEP_I)
         request(owner, nonce, mob:getTargID())
         request(outsider, nonce, mob:getTargID())
         local messages = responses(owner)
         assert(#messages == 1 and #responses(outsider) == 0)
-        assert(messages[1] == string.format(
-            'MEB1 %s %u %u %u 3456 4321 123 700 777 1 1 %u',
-            nonce, owner:getZoneID(), mob:getID(), mob:getTargID(), xi.effect.SLEEP_I))
+        assert(messages[1] == expected, string.format('expected %q, got %q', expected, messages[1]))
 
         owner.packets:clear()
         request(owner, '0000000000000002', mob:getTargID())

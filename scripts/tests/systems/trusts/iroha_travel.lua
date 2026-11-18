@@ -74,10 +74,13 @@ describe('Ordinary Iroha II travel', function()
         local name, spellId, zone, crystal, eventId = route.name, route.spellId, route.zone, route.crystal, route.eventId
         local cost, destination = route.cost, route.destination
         it('uses the native Telepoint and transports the summoner to ' .. name, function()
+            local sourcePosition = { x = owner:getXPos(), y = owner:getYPos(), z = owner:getZPos(), rot = owner:getRotPos() }
+
             owner:gotoZone(zone)
             owner.entities:gotoAndTrigger('Telepoint', { eventId = eventId, finishOption = 0 })
             owner.assert:hasKI(crystal)
-            owner:gotoZone(sourceZone)
+            -- The fixture retains its Telepoint coordinates unless a destination position is supplied.
+            owner:gotoZone(sourceZone, sourcePosition)
             prepareOwner()
 
             local iroha = summon()
@@ -112,7 +115,12 @@ describe('Ordinary Iroha II travel', function()
                 assert(starts == 0)
                 requestByPartyChat(owner, '!irohatravel holla')
             else
-                assert(owner:requestIrohaTravel(name) == started)
+                local result = owner:requestIrohaTravel(name)
+                assert(result == started, string.format(
+                    '%s: %s (owner %.3f, %.3f, %.3f; Iroha %.3f, %.3f, %.3f)',
+                    name, result, owner:getXPos(), owner:getYPos(), owner:getZPos(),
+                    iroha:getXPos(), iroha:getYPos(), iroha:getZPos()
+                ))
             end
 
             assert(owner:requestIrohaTravel(name) ~= started, 'repeat cannot replace a pending cast')
