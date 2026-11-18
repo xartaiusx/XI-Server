@@ -3559,6 +3559,19 @@ end
 function CBaseEntity:returnOrdinaryTrusts(request)
 end
 
+---Requests one native travel spell from the caller's developed Iroha II.
+---@param destination string
+---@return string
+function CBaseEntity:requestIrohaTravel(destination)
+end
+
+---Checks whether the current Iroha II spell can transport this summoner.
+---@param caster CBaseEntity
+---@param spellId integer
+---@return boolean
+function CBaseEntity:canReceiveIrohaTravel(caster, spellId)
+end
+
 ---@nodiscard
 ---@return boolean
 function CBaseEntity:isTwillsFullAllianceActive()

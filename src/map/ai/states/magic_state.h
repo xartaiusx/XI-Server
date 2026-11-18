@@ -54,6 +54,18 @@ public:
     void SetInstantCast(bool bInstantCast);
     auto IsInstantCast() const -> bool;
 
+    // Consent belongs to this cast state. Interruptions and replacements
+    // destroy it together with the native cast.
+    void AuthorizeIrohaTravel()
+    {
+        m_irohaTravelAuthorized = true;
+    }
+
+    auto IsIrohaTravelAuthorized() const -> bool
+    {
+        return m_irohaTravelAuthorized;
+    }
+
 protected:
     auto CanCastSpell(CBattleEntity* PTarget, bool isEndOfCast) -> bool;
     auto HasCost() -> bool;
@@ -69,5 +81,6 @@ protected:
     bool                    m_startedMoving{ false };
     bool                    m_interrupted{ false };
     bool                    m_instantCast{ false };
+    bool                    m_irohaTravelAuthorized{ false };
     uint8                   m_flags{ 0 };
 };

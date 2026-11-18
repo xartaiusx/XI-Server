@@ -21,12 +21,15 @@
 
 #include "0x0b5_chat_std.h"
 
+#include "ai/ai_container.h"
 #include "aman.h"
 #include "command_handler.h"
 #include "common/ipc_structs.h"
 #include "common/lua.h"
 #include "common/settings.h"
+#include "common/timer.h"
 #include "entities/char_entity.h"
+#include "entities/mob_entity.h"
 #include "enums/msg_basic.h"
 #include "ipc_client.h"
 #include "linkshell.h"
@@ -36,11 +39,129 @@
 #include "packets/s2c/0x017_chat_std.h"
 #include "packets/s2c/0x029_battle_message.h"
 #include "roe.h"
+#include "status_effect_container.h"
 #include "unitychat.h"
 #include "utils/jailutils.h"
+#include "utils/trustutils.h"
+
+#include <algorithm>
+#include <array>
+#include <charconv>
+#include <format>
+#include <set>
+#include <string_view>
 
 namespace
 {
+
+constexpr auto   EnemyBarCommand           = std::string_view("mochienemybar");
+constexpr uint32 EnemyBarRequestIntervalMs = 1000;
+constexpr float  EnemyBarRange             = 24.0f;
+constexpr size_t EnemyBarIconsPerPacket    = 8;
+constexpr size_t EnemyBarMaxParts          = 17;
+
+template <typename Number>
+bool ParseEnemyBarNumber(std::string_view text, Number& value)
+{
+    if (text.empty() || text.front() < '1' || text.front() > '9')
+    {
+        return false;
+    }
+
+    const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value);
+    return error == std::errc{} && end == text.data() + text.size();
+}
+
+void SendSelectedEnemyBar(CCharEntity* player, std::string_view request)
+{
+    if (!trustutils::CanUseTwillsTrustGameplay(player) || !player->isAlive() || player->inMogHouse() || player->pendingPositionUpdate)
+    {
+        return;
+    }
+
+    std::array<std::string_view, 4> fields;
+    for (auto& field : fields)
+    {
+        if (!request.starts_with(' '))
+        {
+            return;
+        }
+        request.remove_prefix(1);
+        field = request.substr(0, request.find(' '));
+        request.remove_prefix(field.size());
+    }
+    const auto nonce = fields[0];
+    uint16     zone  = 0;
+    uint32     id    = 0;
+    uint16     index = 0;
+    if (!request.empty() || nonce.size() != 16 ||
+        !std::ranges::all_of(nonce, [](char c)
+                             {
+                                 return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+                             }) ||
+        !ParseEnemyBarNumber(fields[1], zone) || !ParseEnemyBarNumber(fields[2], id) || !ParseEnemyBarNumber(fields[3], index) || index > 4095)
+    {
+        return;
+    }
+
+    const auto now  = static_cast<uint32>(timer::count_milliseconds(timer::now().time_since_epoch()));
+    const auto last = player->GetLocalVar("MochiriiEnemyBarLastRequest");
+    if (last != 0 && now - last < EnemyBarRequestIntervalMs)
+    {
+        return;
+    }
+    player->SetLocalVar("MochiriiEnemyBarLastRequest", now);
+
+    const auto header = std::format("MEB1 {} {} {} {}", nonce, zone, id, index);
+    const auto send   = [&](const std::string& text)
+    {
+        player->pushPacket<GP_SERV_COMMAND_CHAT_STD>(player, MESSAGE_SYSTEM_1, text, "MochiEnemybar");
+    };
+    const auto  visible = player->SpawnMOBList.find(id);
+    const auto* base    = visible == player->SpawnMOBList.end() ? nullptr : visible->second;
+    auto*       mob     = base && base->objtype == TYPE_MOB ? static_cast<CMobEntity*>(visible->second) : nullptr;
+    if (!mob || player->getZone() != static_cast<xi::ZoneId>(zone) || player->m_TargID != index || mob->targid != index ||
+        player->loc.zone != mob->loc.zone || player->PInstance != mob->PInstance || player->PBattlefield != mob->PBattlefield ||
+        player->getBattleID() != mob->getBattleID() || player->allegiance == mob->allegiance ||
+        player->StatusEffectContainer->GetConfrontationEffect() != mob->StatusEffectContainer->GetConfrontationEffect() ||
+        !mob->isAlive() || !mob->PAI->IsSpawned() || mob->PAI->IsUntargetable() || mob->IsNameHidden() || mob->GetUntargetable() ||
+        mob->status == xi::Status::Invisible || distance(player->loc.p, mob->loc.p) > EnemyBarRange)
+    {
+        send(header + " unavailable");
+        return;
+    }
+
+    std::set<uint16> icons;
+    mob->StatusEffectContainer->ForEachEffect([&](const CStatusEffect& effect)
+                                              {
+                                                  if (const auto icon = effect.GetIcon(); icon != 0)
+                                                  {
+                                                      icons.insert(icon);
+                                                  }
+                                              });
+    if (icons.size() > EnemyBarMaxParts * EnemyBarIconsPerPacket)
+    {
+        send(header + " unavailable");
+        return;
+    }
+
+    const auto resources = std::format("{} {} {} {} {}", mob->health.hp, mob->GetMaxHP(), mob->health.mp, mob->GetMaxMP(), static_cast<uint16>(mob->health.tp));
+    const auto parts     = std::max(size_t{ 1 }, (icons.size() + EnemyBarIconsPerPacket - 1) / EnemyBarIconsPerPacket);
+    auto       icon      = icons.begin();
+    for (size_t part = 1; part <= parts; ++part)
+    {
+        std::string effectList;
+        for (size_t count = 0; icon != icons.end() && count < EnemyBarIconsPerPacket; ++icon, ++count)
+        {
+            if (!effectList.empty())
+            {
+                effectList += ',';
+            }
+            effectList += std::to_string(*icon);
+        }
+        send(std::format("{} {} {} {} {}", header, resources, part, parts, effectList.empty() ? "-" : effectList));
+    }
+}
 
 const auto auditChat = [](Scheduler& scheduler, CCharEntity* PChar, const std::string& chatType, const std::string& rawMessage)
 {
@@ -124,6 +245,13 @@ void GP_CLI_COMMAND_CHAT_STD::process(MapSession* PSession, CCharEntity* PChar) 
     // Handle possible !commands
     if (firstChar == '!' && !jailutils::InPrison(PChar))
     {
+        const std::string_view command(rawMessageWithoutFirstChar);
+        if (command == EnemyBarCommand || (command.starts_with(EnemyBarCommand) && command[EnemyBarCommand.size()] == ' '))
+        {
+            SendSelectedEnemyBar(PChar, command.substr(EnemyBarCommand.size()));
+            return;
+        }
+
         // TODO: Don't pass around Scheduler& through PSession
         auto& scheduler = *PSession->scheduler;
         if (CCommandHandler::call(scheduler, lua, PChar, rawMessageWithoutFirstChar) == CommandResult::Success ||

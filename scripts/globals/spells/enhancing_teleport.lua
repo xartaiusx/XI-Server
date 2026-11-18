@@ -47,6 +47,17 @@ xi.spells.enhancing.useTeleportSpell = function(caster, target, spell)
     end
 
     local spellId = spell:getID()
+
+    -- Iroha II's area spell may dispatch several targets. The approved
+    -- command authorizes only the current summoner as its travel recipient.
+    if
+        caster:getObjType() == xi.objType.TRUST and
+        caster:getTrustID() == xi.magic.spell.IROHA_II and
+        not target:canReceiveIrohaTravel(caster, spellId)
+    then
+        return 0
+    end
+
     local keyItem = pTable[spellId][column.TELEPORT_KEY_ITEM]
     if keyItem > 0 and not target:hasKeyItem(keyItem) then
         return 0

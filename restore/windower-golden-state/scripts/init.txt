@@ -18,6 +18,7 @@ lua load GearSwap
 lua load XivParty
 xp setup off
 lua load xivhotbar
+lua load enemybar
 lua load MochiriiScreenshotQA
 
 bind !f10 gs c cycle

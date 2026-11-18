@@ -16491,6 +16491,23 @@ auto CLuaBaseEntity::returnOrdinaryTrusts(const std::string& request) -> std::st
     return m_PBaseEntity->objtype == TYPE_PC ? trustutils::ReturnOrdinaryTrusts(static_cast<CCharEntity*>(m_PBaseEntity), request) : std::string{};
 }
 
+auto CLuaBaseEntity::requestIrohaTravel(const std::string& destination) -> std::string
+{
+    return m_PBaseEntity->objtype == TYPE_PC ? trustutils::RequestIrohaTravel(static_cast<CCharEntity*>(m_PBaseEntity), destination) : std::string{};
+}
+
+bool CLuaBaseEntity::canReceiveIrohaTravel(CLuaBaseEntity* caster, uint16 spellId)
+{
+    if (m_PBaseEntity->objtype != TYPE_PC || !caster)
+    {
+        return false;
+    }
+
+    return trustutils::CanReceiveIrohaTravel(static_cast<CCharEntity*>(m_PBaseEntity),
+                                             dynamic_cast<CTrustEntity*>(caster->GetBaseEntity()),
+                                             static_cast<SpellID>(spellId));
+}
+
 bool CLuaBaseEntity::isTwillsFullAllianceActive()
 {
     return m_PBaseEntity->objtype == TYPE_PC &&
@@ -21734,6 +21751,8 @@ void CLuaBaseEntity::Register()
     SOL_REGISTER("canUseTwillsFullAlliance", CLuaBaseEntity::canUseTwillsFullAlliance);
     SOL_REGISTER("canUseTwillsTrustGameplay", CLuaBaseEntity::canUseTwillsTrustGameplay);
     SOL_REGISTER("returnOrdinaryTrusts", CLuaBaseEntity::returnOrdinaryTrusts);
+    SOL_REGISTER("requestIrohaTravel", CLuaBaseEntity::requestIrohaTravel);
+    SOL_REGISTER("canReceiveIrohaTravel", CLuaBaseEntity::canReceiveIrohaTravel);
     SOL_REGISTER("isTwillsFullAllianceActive", CLuaBaseEntity::isTwillsFullAllianceActive);
     SOL_REGISTER("getTwillsFullAllianceState", CLuaBaseEntity::getTwillsFullAllianceState);
     SOL_REGISTER("setTwillsFullAllianceState", CLuaBaseEntity::setTwillsFullAllianceState);
