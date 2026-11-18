@@ -15,7 +15,10 @@ mobskillObject.onMobWeaponSkill = function(mob, target, skill, action)
         return 0
     end
 
-    local restored = target:restoreHP(math.min(math.floor(target:getMaxHP() * 0.25), target:getMaxHP() - target:getHP()))
+    local recovery = math.floor(target:getMaxHP() / 4)
+    local restored = target:restoreHP(math.min(recovery, target:getMaxHP() - target:getHP()))
+    -- Retail confirms MP recovery. The max-HP budget is the provisional Mochirii model.
+    target:restoreMP(math.min(recovery, math.max(0, target:getMaxMP() - target:getMP())))
     target:wakeUp()
     -- The absorption value is a provisional community measurement.
     if not target:hasStatusEffect(xi.effect.STONESKIN) then

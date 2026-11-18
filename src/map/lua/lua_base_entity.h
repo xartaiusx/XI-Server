@@ -820,6 +820,8 @@ public:
     bool   canUseTwillsFullAlliance();
     bool   canUseTwillsTrustGameplay();
     auto   returnOrdinaryTrusts(const std::string& request) -> std::string;
+    auto   requestIrohaTravel(const std::string& destination) -> std::string;
+    bool   canReceiveIrohaTravel(CLuaBaseEntity* caster, uint16 spellId);
     bool   isTwillsFullAllianceActive();
     uint8  getTwillsFullAllianceState();
     bool   setTwillsFullAllianceState(uint32 state);

@@ -69,6 +69,46 @@
       "sha256": "afc893bb97c2df9db74b7a852eb67a9d18ccadc2fddf9f74fe07a45954d3ed4f"
     },
     {
+      "relativePath": "addons/enemybar/LICENSE",
+      "bytes": 1476,
+      "sha256": "fee0fdaffb04f61a9d343dedf033425fd77da16a0e4a9cb0fed96cd700a55c19"
+    },
+    {
+      "relativePath": "addons/enemybar/README.md",
+      "bytes": 1022,
+      "sha256": "c384afe2d0aace38d1e68e23017376e1b1a8603b4304ce6dd743fa5bba229ad5"
+    },
+    {
+      "relativePath": "addons/enemybar/bg_body.png",
+      "bytes": 2823,
+      "sha256": "b6d22af76907db157c3837eb0c0612bc5e59fd227d11ed7481476cce9a67d900"
+    },
+    {
+      "relativePath": "addons/enemybar/bg_cap.png",
+      "bytes": 2805,
+      "sha256": "81fa3b2c55872c86c82b11dfeb7175407a0e375f6ef66fb8347a191fd6218040"
+    },
+    {
+      "relativePath": "addons/enemybar/enemybar.lua",
+      "bytes": 4210,
+      "sha256": "3985ec0a17b30396ae97b2a4eb635f47fe327aa5d5cd5e1f6e4fc1b784463282"
+    },
+    {
+      "relativePath": "addons/enemybar/fg_body.png",
+      "bytes": 2819,
+      "sha256": "e23b019ed862be9e43e44475cb53299720f219c46c63bced4cc347341bdd13e0"
+    },
+    {
+      "relativePath": "addons/enemybar/mochi_protocol.lua",
+      "bytes": 5145,
+      "sha256": "a1859c852f95fb3ce0b00c9c56437262476d953853ab9301af133d71be38e1d7"
+    },
+    {
+      "relativePath": "addons/enemybar/targetBar.lua",
+      "bytes": 7351,
+      "sha256": "14f1c0cf1b3f796efa2b7cfa0f6ee4f7337e2b0ea21d3c9aedd9cf883603b56a"
+    },
+    {
       "relativePath": "addons/xivhotbar/data/Twills/General.lua",
       "bytes": 6452,
       "sha256": "8fdbe5e89e440a5f5b8ee5f7e72917bf5664d4ff53d93833ff5cc911db409406"
@@ -120,8 +160,8 @@
     },
     {
       "relativePath": "scripts/init.txt",
-      "bytes": 443,
-      "sha256": "f715c88ab4b8b93e1cb55b7dd1425ceea7b668b0eb176a1928411cde90913ba5"
+      "bytes": 462,
+      "sha256": "79493f72fc33704874a5aa24ddb301a6b0b40ad2c79e39514459bee49cb8f814"
     },
     {
       "relativePath": "settings.xml",
@@ -192,5 +232,22 @@
     "sha256": "d74e3d8450df5ba55e7ea21a13607be456ff13226ab3c0c26d0fdbf1089fb905",
     "bundleSha256": "0c4cd92b01a4e045fed4be128a78749d7658ba7a1e4d32a136a405a5bc45917d",
     "isolatedRestoreReceiptSha256": "9bb64b7d76b890ea5d6d667164ff675452025e5c03b38a08934c4365f4fdbdba"
+  },
+  "currentEnemyBarDependency": {
+    "upstreamCommit": "15ddc1e36b3806c325e29fedd550b2977828d4d5",
+    "upstreamSource": "https://github.com/Windower/Lua/tree/15ddc1e36b3806c325e29fedd550b2977828d4d5/addons/enemybar",
+    "installation": "Apply the tracked EnemyBar addon and startup overlay after restoring the encrypted baseline.",
+    "existingPublicAssetDependency": "XivParty assets/buffIcons for status art. Missing art falls back to icon IDs.",
+    "requiredTrackedOverlay": [
+      "scripts/init.txt",
+      "addons/enemybar/LICENSE",
+      "addons/enemybar/README.md",
+      "addons/enemybar/bg_body.png",
+      "addons/enemybar/bg_cap.png",
+      "addons/enemybar/enemybar.lua",
+      "addons/enemybar/fg_body.png",
+      "addons/enemybar/mochi_protocol.lua",
+      "addons/enemybar/targetBar.lua"
+    ]
   }
 }

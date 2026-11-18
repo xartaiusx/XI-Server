@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <cstring>
 #include <ctime>
 #include <filesystem>
@@ -62,6 +63,8 @@
 #include "ai/ai_container.h"
 #include "ai/controllers/trust_controller.h"
 #include "ai/helpers/gambits_container.h"
+#include "ai/states/magic_state.h"
+#include "data/enums/key_item.h"
 #include "enmity_container.h"
 #include "entities/char_entity.h"
 #include "entities/mob_entity.h"
@@ -72,6 +75,7 @@
 #include "items/item_weapon.h"
 #include "lua/luautils.h"
 #include "mobskill.h"
+#include "spell.h"
 #include "status_effect_container.h"
 #include "trait.h"
 #include "weapon_skill.h"
@@ -187,11 +191,67 @@ auto HasSupportedTrustSessionPartyShape(CCharEntity* PMaster) -> bool
 
 trustutils::TrustReturnNonceCache trustReturnNonces{ static_cast<uint64>(std::time(nullptr)) };
 
-bool IsOwnedTrustReturnTarget(CCharEntity* PMaster, CTrustEntity* PTrust)
+bool IsOwnedTrustTarget(CCharEntity* PMaster, CTrustEntity* PTrust)
 {
     return PMaster && PTrust && PTrust->objtype == TYPE_TRUST && PTrust->PMaster == PMaster &&
            PTrust->loc.zone == PMaster->loc.zone && PTrust->PInstance == PMaster->PInstance &&
            std::ranges::find(PMaster->PTrusts, PTrust) != PMaster->PTrusts.end();
+}
+
+struct IrohaTravelRoute
+{
+    std::string_view name;
+    SpellID          spell;
+    xi::KeyItem      crystal;
+};
+
+constexpr std::array IrohaTravelRoutes{
+    IrohaTravelRoute{ "holla", SpellID::Teleport_Holla, xi::KeyItem::HollaGateCrystal },
+    IrohaTravelRoute{ "dem", SpellID::Teleport_Dem, xi::KeyItem::DemGateCrystal },
+    IrohaTravelRoute{ "mea", SpellID::Teleport_Mea, xi::KeyItem::MeaGateCrystal },
+    IrohaTravelRoute{ "vahzl", SpellID::Teleport_Vahzl, xi::KeyItem::VahzlGateCrystal },
+    IrohaTravelRoute{ "yhoat", SpellID::Teleport_Yhoat, xi::KeyItem::YhoatorGateCrystal },
+    IrohaTravelRoute{ "altep", SpellID::Teleport_Altep, xi::KeyItem::AltepaGateCrystal },
+    IrohaTravelRoute{ "jugner", SpellID::Recall_Jugner, xi::KeyItem::JugnerGateCrystal },
+    IrohaTravelRoute{ "pashh", SpellID::Recall_Pashh, xi::KeyItem::PashhowGateCrystal },
+    IrohaTravelRoute{ "meriph", SpellID::Recall_Meriph, xi::KeyItem::MeriphataudGateCrystal },
+};
+
+constexpr auto IrohaIITrustId = static_cast<uint16>(SpellID::Iroha_II);
+
+bool CanTravelWithIroha(CCharEntity* summoner, CTrustEntity* iroha)
+{
+    if (!summoner || !summoner->loc.zone || !summoner->isAlive() || !summoner->PAI ||
+        !summoner->PAI->IsStateStackEmpty() || summoner->animation != xi::Animation::None || summoner->status != xi::Status::Normal ||
+        summoner->isInEvent() || summoner->m_Locked || summoner->PAI->IsUntargetable() || summoner->m_Costume != 0 ||
+        summoner->isCrafting() || summoner->isMounted() || summoner->isFishing() ||
+        summoner->StatusEffectContainer->HasPreventActionEffect() ||
+        summoner->StatusEffectContainer->HasStatusEffect({ xi::StatusEffect::Gestation, xi::StatusEffect::Teleport }) ||
+        !trustutils::CanUseTwillsTrustGameplay(summoner))
+    {
+        return false;
+    }
+
+    return IsOwnedTrustTarget(summoner, iroha) && iroha->trustID() == IrohaIITrustId &&
+           trustdevelopment::IsEnabled(iroha) && !iroha->released() && iroha->isAlive() &&
+           iroha->PAI && iroha->PAI->IsSpawned() && !iroha->StatusEffectContainer->HasPreventActionEffect() &&
+           iroha->PBattlefield == summoner->PBattlefield && iroha->allegiance == summoner->allegiance &&
+           iroha->StatusEffectContainer->GetConfrontationEffect() == summoner->StatusEffectContainer->GetConfrontationEffect() &&
+           !std::ranges::any_of(summoner->PTrusts, [](auto* trust)
+                                {
+                                    return trust && trust->isAlive() && trust->PAI && (trust->PAI->IsEngaged() || trust->GetBattleTarget());
+                                });
+}
+
+bool IsIrohaTravelDestinationAvailable(CCharEntity* summoner, CTrustEntity* iroha, CSpell* spell)
+{
+    if (!spell || !luautils::IsContentEnabled(spell->getContentTag()))
+    {
+        return false;
+    }
+    const auto& recipient = summoner->loc.p;
+    const auto& caster    = iroha->loc.p;
+    return isWithinDistance(recipient, caster, spell->getRadius()) && std::abs(recipient.y - caster.y) < 8.0f;
 }
 
 } // namespace
@@ -199,7 +259,7 @@ bool IsOwnedTrustReturnTarget(CCharEntity* PMaster, CTrustEntity* PTrust)
 auto trustutils::QueueTrustRelease(CCharEntity* PMaster, CTrustEntity* PTrust, bool bindIdentity) -> TrustReleaseResult
 {
     if (!PMaster || !PTrust || PTrust->PMaster != PMaster || PTrust->released() ||
-        (bindIdentity && !IsOwnedTrustReturnTarget(PMaster, PTrust)))
+        (bindIdentity && !IsOwnedTrustTarget(PMaster, PTrust)))
     {
         return TrustReleaseResult::Rejected;
     }
@@ -219,7 +279,7 @@ auto trustutils::QueueTrustRelease(CCharEntity* PMaster, CTrustEntity* PTrust, b
                                                 auto* master = dynamic_cast<CCharEntity*>(entity);
                                                 if (trust && master && trust->PMaster == master &&
                                                     (!bindIdentity || (master->id == owner && master->loc.zone == zone && master->PInstance == instance &&
-                                                                       trust->id == id && trust->serial() == serial && trust->released() && IsOwnedTrustReturnTarget(master, trust))))
+                                                                       trust->id == id && trust->serial() == serial && trust->released() && IsOwnedTrustTarget(master, trust))))
                                                 {
                                                     trust->animation = xi::Animation::Death;
                                                     trust->updatemask |= UPDATE_HP;
@@ -306,7 +366,7 @@ auto trustutils::ReturnOrdinaryTrusts(CCharEntity* PMaster, std::string_view req
         }
         for (auto* trust : PMaster->PTrusts)
         {
-            if (!IsOwnedTrustReturnTarget(PMaster, trust) || trust->released() ||
+            if (!IsOwnedTrustTarget(PMaster, trust) || trust->released() ||
                 std::ranges::any_of(targets, [trust](const auto& target)
                                     {
                                         return std::get<0>(target) == trust->id;
@@ -320,7 +380,7 @@ auto trustutils::ReturnOrdinaryTrusts(CCharEntity* PMaster, std::string_view req
     else
     {
         auto* trust = dynamic_cast<CTrustEntity*>(PMaster->GetEntity(value.index, TYPE_TRUST));
-        if (!IsOwnedTrustReturnTarget(PMaster, trust) || trust->id != value.id)
+        if (!IsOwnedTrustTarget(PMaster, trust) || trust->id != value.id)
         {
             return reply("DENIED", "TARGET");
         }
@@ -360,7 +420,7 @@ auto trustutils::ReturnOrdinaryTrusts(CCharEntity* PMaster, std::string_view req
             return reply("UNCERTAIN", "PARTIAL", queued);
         }
         auto* current = dynamic_cast<CTrustEntity*>(PMaster->GetEntity(index, TYPE_TRUST));
-        if (!IsOwnedTrustReturnTarget(PMaster, current) || current->id != id || current->serial() != serial || !current->released())
+        if (!IsOwnedTrustTarget(PMaster, current) || current->id != id || current->serial() != serial || !current->released())
         {
             return reply("UNCERTAIN", "PARTIAL", queued);
         }
@@ -376,6 +436,65 @@ auto trustutils::CanUseTwillsFullAlliance(const TwillsFullAllianceAccessContext&
            context.actualGmLevel == 5 &&
            context.visibleGmLevel == 0 &&
            context.entitlement == 1;
+}
+
+auto trustutils::RequestIrohaTravel(CCharEntity* summoner, std::string_view destination) -> std::string
+{
+    const auto route = std::ranges::find(IrohaTravelRoutes, destination, &IrohaTravelRoute::name);
+    if (route == IrohaTravelRoutes.end())
+    {
+        return "Usage: !irohatravel <holla|dem|mea|vahzl|yhoat|altep|jugner|pashh|meriph>";
+    }
+
+    if (!summoner)
+    {
+        return {};
+    }
+    const auto match = std::ranges::find_if(summoner->PTrusts, [](const auto* trust)
+                                            {
+                                                return trust && trust->trustID() == IrohaIITrustId;
+                                            });
+    auto*      iroha = match == summoner->PTrusts.end() ? nullptr : *match;
+    if (!CanTravelWithIroha(summoner, iroha))
+    {
+        return "Iroha II travel requires your developed Iroha II and an idle party.";
+    }
+    if (!charutils::hasKeyItem(summoner, route->crystal))
+    {
+        return "You need the matching Gate Crystal.";
+    }
+    if (!IsIrohaTravelDestinationAvailable(summoner, iroha, spell::GetSpell(route->spell)))
+    {
+        return "Move within range of Iroha II. The destination must be enabled.";
+    }
+
+    // The action is centred on Iroha; the native AoE selects potential recipients.
+    if (!iroha->PAI->Cast(iroha->entityId(), route->spell))
+    {
+        return "Iroha II cannot start that spell right now.";
+    }
+    // Bind the opt-in to the actual native state, never to a reusable ID or
+    // local variable that might outlive an interrupted or dismissed cast.
+    auto* state = dynamic_cast<CMagicState*>(iroha->PAI->GetCurrentState());
+    if (!state || state->GetSpell()->getID() != route->spell)
+    {
+        return "Iroha II could not authorize that spell.";
+    }
+    state->AuthorizeIrohaTravel();
+    return "Iroha II has started the requested travel spell.";
+}
+
+auto trustutils::CanReceiveIrohaTravel(CCharEntity* summoner, CTrustEntity* iroha, SpellID spellId) -> bool
+{
+    const auto route = std::ranges::find(IrohaTravelRoutes, spellId, &IrohaTravelRoute::spell);
+    if (route == IrohaTravelRoutes.end() || !CanTravelWithIroha(summoner, iroha) || !charutils::hasKeyItem(summoner, route->crystal))
+    {
+        return false;
+    }
+
+    const auto* state = dynamic_cast<CMagicState*>(iroha->PAI->GetCurrentState());
+    return state && state->IsIrohaTravelAuthorized() && state->GetSpell()->getID() == spellId &&
+           IsIrohaTravelDestinationAvailable(summoner, iroha, state->GetSpell());
 }
 
 auto trustutils::CanUseTwillsFullAlliance(CCharEntity* PMaster) -> bool

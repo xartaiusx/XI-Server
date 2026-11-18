@@ -697,7 +697,7 @@ describe('Ordinary Trust engagement', function()
         assert(#owner:getPartyWithTrusts() == 3)
     end)
 
-    it('uses Rise from Ashes on living party recipients when they are asleep', function()
+    it('uses Rise from Ashes on sleeping party members and restores MP independently of HP', function()
         local mob = fixtureMob('Ordinary_Trust_Rise', 0)
         playerSpell(mob, xi.magic.spell.PARALYZE)
         assert(onTarget(iroha, mob))
@@ -711,7 +711,14 @@ describe('Ordinary Trust engagement', function()
             assert(member:addStatusEffect(xi.effect.SLEEP_I, { power = 1, duration = 60, origin = mob }))
         end
 
-        local ownerHp = owner:getHP()
+        owner:setHP(owner:getMaxHP())
+        for _, entry in ipairs({ { owner, 1400, 100 }, { val, 250, 249 }, { outsider, 800, 50 }, { iroha, 0, 0 } }) do
+            entry[1]:setMod(xi.mod.REFRESH, 0)
+            entry[1]:setMaxMP(entry[2])
+            entry[1]:setMP(entry[3])
+        end
+
+        local expectedOwnerMp = math.min(owner:getMaxMP(), 100 + math.floor(owner:getMaxHP() / 4))
         local valHp = val:getHP()
         local outsiderHp = outsider:getHP()
         iroha:setMobAbilityEnabled(true)
@@ -725,9 +732,11 @@ describe('Ordinary Trust engagement', function()
         end
 
         assert(iroha:getTP() == 0)
-        assert(owner:getHP() > ownerHp and not owner:hasStatusEffect(xi.effect.SLEEP_I))
+        assert(owner:getHP() == owner:getMaxHP() and not owner:hasStatusEffect(xi.effect.SLEEP_I))
+        assert(owner:getMP() == expectedOwnerMp)
         assert(val:getHP() > valHp and not val:hasStatusEffect(xi.effect.SLEEP_I))
-        assert(outsider:getHP() == outsiderHp and outsider:hasStatusEffect(xi.effect.SLEEP_I))
+        assert(val:getMP() == val:getMaxMP() and iroha:getMP() == 0)
+        assert(outsider:getHP() == outsiderHp and outsider:hasStatusEffect(xi.effect.SLEEP_I) and outsider:getMP() == 50)
     end)
 
     local function assertIrohaEmergencyCure(config)

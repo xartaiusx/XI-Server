@@ -32,6 +32,7 @@ class CCharEntity;
 class CBattleEntity;
 class CTrustEntity;
 class CSpell;
+enum class SpellID : uint16;
 struct action_t;
 
 namespace trustutils
@@ -46,6 +47,8 @@ enum class TrustReleaseResult : uint8
 };
 auto QueueTrustRelease(CCharEntity* PMaster, CTrustEntity* PTrust, bool bindIdentity = false) -> TrustReleaseResult;
 auto ReturnOrdinaryTrusts(CCharEntity* PMaster, std::string_view request) -> std::string;
+auto RequestIrohaTravel(CCharEntity* summoner, std::string_view destination) -> std::string;
+auto CanReceiveIrohaTravel(CCharEntity* summoner, CTrustEntity* iroha, SpellID spellId) -> bool;
 
 void RefreshDevelopedTrusts(CCharEntity* PMaster);
 void RefreshDevelopedSpellCatalog(CTrustEntity* PTrust);
