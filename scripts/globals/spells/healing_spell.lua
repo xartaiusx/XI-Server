@@ -116,11 +116,20 @@ local curves =
 
 healing.getBaseCure = function(caster, tier, useOldFormula)
     local curve = curves[tier]
+    local solaceBonus = 0
+    if
+        caster:isDevelopedTrust() and
+        caster:getTrustID() == xi.magic.spell.IROHA_II and
+        caster:hasStatusEffect(xi.effect.AFFLATUS_SOLACE)
+    then
+        solaceBonus = caster:getJobPointLevel(xi.jp.AFFLATUS_SOLACE_EFFECT) * 2
+    end
+
     if useOldFormula and curve.old then
         local power = getCurePowerOld(caster)
         for _, row in ipairs(curve.old) do
             if power > row[1] then
-                return getBaseCureOld(power, row[2], row[3]), curve.minimum
+                return getBaseCureOld(power, row[2], row[3]) + solaceBonus, curve.minimum + solaceBonus
             end
         end
     end
@@ -131,7 +140,7 @@ healing.getBaseCure = function(caster, tier, useOldFormula)
             -- Cure VI uses its modern power curve even when an NPC's
             -- non-friendly fallback applies the old base calculation.
             local base = useOldFormula and getBaseCureOld(power, row[2], row[3]) or getBaseCure(power, row[2], row[3], row[4])
-            return base, curve.minimum
+            return base + solaceBonus, curve.minimum + solaceBonus
         end
     end
 end
