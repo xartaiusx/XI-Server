@@ -418,6 +418,99 @@ describe('Iroha II native merit consumers', function()
         assert(completion.ce == 236 and completion.ve == 472)
     end)
 
+    it('adds Afflatus Solace job points to Iroha II single-target cures and their emergency estimates', function()
+        xi.test.world:setSetting('main.CURE_POWER', 1)
+        xi.test.world:setSetting('main.USE_OLD_CURE_FORMULA', false)
+        local owner, iroha = spawn(xi.job.WHM)
+        owner:masterJob()
+        assert(owner:getJobPointLevel(xi.jp.AFFLATUS_SOLACE_EFFECT) == 20)
+        assert(iroha:getJobPointLevel(xi.jp.AFFLATUS_SOLACE_EFFECT) == 20)
+        local other = assert(owner:spawnTrust(xi.magic.spell.KUPIPI))
+        other:removeAllGambits()
+        other:setAutoAttackEnabled(false)
+        other:setMobAbilityEnabled(false)
+
+        local healing = require('scripts/globals/spells/healing_spell')
+        for _, control in ipairs({ owner, other }) do
+            assert(not control:isDevelopedTrust())
+            local base, minimum = healing.getBaseCure(control, 3, false)
+            assert(control:addStatusEffect(xi.effect.AFFLATUS_SOLACE, { duration = 60, origin = control }))
+            local activeBase, activeMinimum = healing.getBaseCure(control, 3, false)
+            assert(activeBase == base and activeMinimum == minimum)
+            control:delStatusEffect(xi.effect.AFFLATUS_SOLACE)
+        end
+
+        stub('xi.spells.damage.calculateDayAndWeather', 1)
+        stub('xi.spells.damage.getDayAndWeatherRange', function()
+            return 1, 1
+        end)
+
+        owner:setMod(xi.mod.REGEN, 0)
+        owner:setMod(xi.mod.CURE_POTENCY_RCVD, 0)
+        iroha:setMod(xi.mod.REFRESH, 0)
+        iroha:setMod(xi.mod.CURE2MP_PERCENT, 0)
+        iroha:setMod(xi.mod.CURE_POTENCY, 50)
+        iroha:setMod(xi.mod.CURE_POTENCY_II, 0)
+        for _, member in ipairs({ owner, iroha }) do
+            assert(member:addStatusEffect(xi.effect.DECOY_SHOT, {
+                duration = 60,
+                flag     = xi.effectFlag.NO_REST,
+                origin   = member,
+                silent   = true,
+            }))
+            assert(member:hasStatusEffectByFlag(xi.effectFlag.NO_REST))
+        end
+
+        local spellId = xi.magic.spell.CURE_III
+        local function cast()
+            owner:setHP(1)
+            local hp, mp = owner:getHP(), iroha:getMP()
+            local cure
+            iroha:addListener('MAGIC_USE', 'IROHA_SOLACE_CURE', function(actor, recipient, spell, action)
+                assert(not cure and actor:getID() == iroha:getID() and recipient:getID() == owner:getID() and spell:getID() == spellId)
+                assert(action:getCategory() == xi.action.category.MAGIC_FINISH)
+                cure =
+                {
+                    healed = action:getParam(recipient:getID()),
+                    hp     = recipient:getHP(),
+                    mp     = actor:getMP(),
+                    recast = actor:hasRecast(xi.recast.MAGIC, spellId),
+                }
+            end)
+
+            assert(owner.actions:useTrustSpell(iroha, owner, spellId))
+            xi.test.world:tickEntity(iroha)
+            xi.test.world:skipTime(4)
+            iroha:removeListener('IROHA_SOLACE_CURE')
+            local completion = assert(cure, 'native Cure III must complete')
+            assert(completion.healed > 0 and completion.hp == hp + completion.healed)
+            assert(completion.hp < owner:getMaxHP(), 'target HP must leave room for the entire restored amount')
+            assert(completion.mp == mp - 46 and completion.recast)
+            return completion.healed
+        end
+
+        assert(not iroha:hasStatusEffect(xi.effect.AFFLATUS_SOLACE))
+        local normal = cast()
+        xi.test.world:skipTime(7)
+        assert(not iroha:hasRecast(xi.recast.MAGIC, spellId))
+
+        local base, minimum = healing.getBaseCure(iroha, 1, false)
+        local plain = xi.magic.getWhiteCureFinalRange(iroha, base, minimum, 1, 1)
+        owner:setHP(math.ceil(owner:getMaxHP() * 0.30) - plain - 1)
+        assert(owner:getHP() > 0 and healing.selectIrohaEmergencyCure(iroha, owner, 1) == 0)
+
+        assert(owner.actions:useTrustAbility(iroha, iroha, xi.jobAbility.AFFLATUS_SOLACE))
+        xi.test.world:tickEntity(iroha)
+        xi.test.world:skipTime(2)
+        assert(iroha:hasStatusEffect(xi.effect.AFFLATUS_SOLACE))
+        assert(healing.selectIrohaEmergencyCure(iroha, owner, 1) == xi.magic.spell.CURE)
+        assert(cast() == normal + 60, '40 base HP must receive the same 50 percent potency as the rest of the cure')
+
+        iroha:delStatusEffect(xi.effect.AFFLATUS_SOLACE)
+        local afterBase, afterMinimum = healing.getBaseCure(iroha, 1, false)
+        assert(afterBase == base and afterMinimum == minimum)
+    end)
+
     for _, withMerit in ipairs({ true, false }) do
         it(withMerit and 'finishes Curaga V in the native merit timing window' or 'finishes later when the native merit contribution is neutralized', function()
             local owner, iroha = spawn()

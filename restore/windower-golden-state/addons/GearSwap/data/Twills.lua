@@ -9,6 +9,13 @@ local nuke_mode = 'free'
 local weapon_mode = 'daybreak'
 local gearscore_notes = {}
 
+local capes = {
+    cast = { name="Sucellos's Cape", augments={ 'MND+30', '"Fast Cast"+10' } },
+    tp = { name="Sucellos's Cape", augments={ 'DEX+30', '"Dual Wield"+10' } },
+    ws = { name="Sucellos's Cape", augments={ 'STR+30', 'Weapon skill damage +10%' } },
+    nuke = { name="Sucellos's Cape", augments={ 'INT+30', '"Mag.Atk.Bns."+10' } },
+}
+
 local ws_weapon_modes = {
     ['Savage Blade'] = 'naegling',
     ['Sanguine Blade'] = 'crocea',
@@ -356,6 +363,15 @@ local function qa_append_action_row(event, phase, spell, label, set, outcome, is
 end
 
 local function qa_equip(label, set, spell, phase)
+    if phase == 'aftercast' and type(set.back) == 'table' and set.back.augments then
+        -- Restore the augmented cape before the rest of a split equipment response.
+        local cape = {}
+        for key, value in pairs(set.back) do
+            cape[key] = value
+        end
+        cape.priority = 1
+        set = set_combine(set, { back = cape })
+    end
     qa_append_action_row('equip', phase or '', spell, label, set, nil)
     equip(set)
 end
@@ -597,7 +613,7 @@ function get_sets()
         neck="Loricate Torque +1", waist="Carrier's Sash",
         left_ear="Etiolation Earring", right_ear="Malignance Earring",
         left_ring="Defending Ring", right_ring="Vocane Ring +1",
-        back="Sucellos's Cape",
+        back=capes.cast,
     }
 
     sets.idle.Refresh = set_combine(sets.idle, {
@@ -632,7 +648,7 @@ function get_sets()
         neck="Anu Torque", waist="Sailfi Belt +1",
         left_ear="Telos Earring", right_ear="Sherida Earring",
         left_ring="Chirich Ring +1", right_ring="Chirich Ring +1",
-        back="Sucellos's Cape",
+        back=capes.tp,
     })
 
     sets.precast = {}
@@ -643,7 +659,7 @@ function get_sets()
         neck="Dls. Torque +2", waist="Acuity Belt +1",
         left_ear="Etiolation Earring", right_ear="Malignance Earring",
         left_ring="Kishar Ring", right_ring="Prolix Ring",
-        back="Sucellos's Cape",
+        back=capes.cast,
     })
 
     sets.precast.JA = set_combine(sets.idle, {})
@@ -675,7 +691,7 @@ function get_sets()
         neck="Fotia Gorget", waist="Fotia Belt",
         left_ear="Telos Earring", right_ear="Sherida Earring",
         left_ring="Epaminondas's Ring", right_ring="Sroda Ring",
-        back="Sucellos's Cape",
+        back=capes.ws,
     })
     sets.precast.WS['Savage Blade'] = set_combine(sets.precast.WS, sets.weapons.naegling)
     sets.precast.WS['Black Halo'] = set_combine(sets.precast.WS, sets.weapons.maxentius)
@@ -689,7 +705,7 @@ function get_sets()
         neck="Baetyl Pendant", waist="Orpheus's Sash",
         left_ear="Friomisi Earring", right_ear="Malignance Earring",
         left_ring="Freke Ring", right_ring="Archon Ring",
-        back="Sucellos's Cape",
+        back=capes.nuke,
     })
     sets.precast.WS['Seraph Blade'] = set_combine(sets.precast.WS['Sanguine Blade'], sets.weapons.crocea)
     sets.precast.WS['Red Lotus Blade'] = set_combine(sets.precast.WS['Sanguine Blade'], sets.weapons.crocea)
@@ -702,7 +718,7 @@ function get_sets()
         neck="Incanter's Torque", waist="Bishop's Sash",
         left_ear="Mendi. Earring", right_ear="Mimir Earring",
         left_ring="Sirona's Ring", right_ring="Metamor. Ring +1",
-        back="Sucellos's Cape",
+        back=capes.cast,
     })
     sets.midcast.StatusRemoval = set_combine(sets.midcast.Cure, {
         main="Daybreak", ammo="Staunch Tathlum +1",
@@ -716,7 +732,7 @@ function get_sets()
         neck="Incanter's Torque", waist="Olympus Sash",
         left_ear="Andoaa Earring", right_ear="Mimir Earring",
         left_ring="Stikini Ring +1", right_ring="Stikini Ring +1",
-        back="Sucellos's Cape",
+        back=capes.cast,
     })
     sets.midcast.Enhancing = sets.midcast.EnhancingSkill
 
@@ -727,7 +743,7 @@ function get_sets()
         neck="Dls. Torque +2", waist="Olympus Sash",
         left_ear="Andoaa Earring", right_ear="Mimir Earring",
         left_ring="Stikini Ring +1", right_ring="Stikini Ring +1",
-        back="Sucellos's Cape",
+        back=capes.cast,
     })
     sets.midcast.EnhancingSelf = set_combine(sets.midcast.EnhancingDuration, {
         body="Lethargy Sayon +2", hands="Atrophy Gloves +3",
@@ -762,7 +778,7 @@ function get_sets()
         neck="Dls. Torque +2", waist="Acuity Belt +1",
         left_ear="Digni. Earring", right_ear="Mimir Earring",
         left_ring="Stikini Ring +1", right_ring="Metamor. Ring +1",
-        back="Sucellos's Cape",
+        back=capes.cast,
     })
     sets.midcast.EnfeeblingMND = set_combine(sets.midcast.Enfeebling, {
         right_ear="Snotra Earring",
@@ -783,7 +799,7 @@ function get_sets()
         neck="Baetyl Pendant", waist="Acuity Belt +1",
         left_ear="Friomisi Earring", right_ear="Regal Earring",
         left_ring="Freke Ring", right_ring="Metamor. Ring +1",
-        back="Sucellos's Cape",
+        back=capes.nuke,
     })
     sets.midcast.MagicBurst = set_combine(sets.midcast.Nuke, {
         head="Ea Hat +1", body="Ea Houppe. +1", hands="Ea Cuffs +1",
