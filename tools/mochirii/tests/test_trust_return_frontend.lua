@@ -146,6 +146,40 @@ check('outgoing text uses third blocked and fourth FFXI arguments', function()
     end
 end)
 
+check('party travel uses one native Say command in both input origins and hook orders', function()
+    for _, text in ipairs({ '/p !irohatravel help', '/P  !IROHATRAVEL AlTeP  ' }) do
+        for _, ffxi in ipairs({ true, false }) do
+            local f = fixture()
+            local handler = f.events['outgoing text']
+            local expected = text:find('help', 1, true) and '/say !irohatravel help' or '/say !irohatravel altep'
+            assert(route_outgoing({ handler, shortcuts_fixture(f) }, text, false, ffxi) == expected)
+            assert(route_outgoing({ shortcuts_fixture(f), handler }, text, false, ffxi) == expected)
+            assert(f:out(expected, expected, false, ffxi) == nil)
+            assert(#f.inputs == 0 and #f.shortcuts_inputs == 0)
+        end
+    end
+end)
+
+check('party travel preserves blocked ordinary malformed and other-character text', function()
+    local f = fixture()
+    local text = '/p !irohatravel help'
+    assert(f:out(text, text, true) == nil)
+    assert(f:out(text, '', false) == nil)
+    for _, other in ipairs({
+        '/p hello', '/p !irohatraveler help', '/p !irohatravel help extra', '/p !irohatravel',
+        '/p !irohatravel <t>', '/p !irohatravel altep; echo', '/p !irohatravel altep\nextra',
+        '!irohatravel help', '/party !irohatravel help', '/say !irohatravel help',
+    }) do
+        assert(f:out(other, other) == nil)
+    end
+    f.player.name = 'Other'
+    assert(f:out(text, text) == nil)
+    f.player.name = 'Twills'
+    f.info.logged_in = false
+    assert(f:out(text, text) == nil)
+    assert(#f.inputs == 0 and #f.messages == 0)
+end)
+
 check('Mochirii before Shortcuts captures bare high-slot target before rewrite', function()
     for _, alias in ipairs({ 'retr', 'returntrust', 'refa', 'returnfaith' }) do
         local text = '/' .. alias

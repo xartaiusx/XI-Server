@@ -151,6 +151,13 @@ windower.register_event('outgoing text', function(_, modified, blocked)
         return
     end
 
+    -- Party chat can fail locally with only Trusts. The server consumes this
+    -- exact command before it routes Say and still checks travel eligibility.
+    local destination = modified:lower():match('^/p[ \t]+!irohatravel[ \t]+([a-z]+)[ \t]*$')
+    if destination then
+        return '/say !irohatravel ' .. destination
+    end
+
     local alias, argument = modified:match('^/([%a]+)%s*(.-)%s*$')
     if not alias or not aliases[alias:lower()] then
         return

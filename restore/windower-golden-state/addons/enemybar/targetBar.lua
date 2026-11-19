@@ -157,7 +157,7 @@ function targetBar.draw(target, snapshot)
 
     local detail = snapshot and string.format('HP %u/%u    MP %u/%u    TP %u',
         snapshot.hp, snapshot.max_hp, snapshot.mp, snapshot.max_mp, snapshot.tp) or
-        string.format('HP %u%%', target.hpp)
+        'HP --/--    MP --/--    TP --'
     if detail ~= previous_detail then
         detail_text:text(detail)
         previous_detail = detail

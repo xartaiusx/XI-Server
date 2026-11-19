@@ -99,6 +99,8 @@ check(not state.snapshot, 'late response beyond 3 seconds rejected')
 -- Mock the Windows event surface and actual addon, parser, and renderer together.
 local callbacks, requests, primitives = {}, {}, {}
 local native_message
+local chat_attempts = 0
+local placeholder = 'HP --/--    MP --/--    TP --'
 local player = { id = 2, name = 'Twills' }
 local info = { logged_in = true, zone = 289 }
 local monster = { id = 17960999, index = 39, valid_target = true, is_npc = true, spawn_type = 16, name = 'Eschan Il’aern', hpp = 75 }
@@ -136,10 +138,19 @@ package.preload.texts = function()
 end
 package.preload.socket = function() return { gettime = function() return now end } end
 package.preload.packets = function()
-    return { parse = function(direction, raw)
-        assert(direction == 'incoming' and #raw >= 24)
-        return native_message
-    end }
+    return {
+        parse = function(direction, raw)
+            assert(direction == 'incoming' and #raw >= 24)
+            return native_message
+        end,
+        inject = function(direction, id, fields)
+            assert(direction == 'outgoing' and id == 0x0B5 and fields.Mode == 0 and fields.GM == 0)
+            local request_nonce, zone, entity, index = fields.Message:match('^!mochienemybar ([0-9a-f]+) (%d+) (%d+) (%d+)$')
+            assert(request_nonce and #request_nonce == 16 and tonumber(zone) == info.zone and
+                tonumber(entity) == current_target.id and tonumber(index) == current_target.index)
+            requests[#requests + 1] = fields.Message
+        end,
+    }
 end
 windower = {
     addon_path = '/Windower/addons/enemybar/',
@@ -148,7 +159,7 @@ windower = {
         get_player = function() return player end,
         get_mob_by_target = function(which) assert(which == 't'); return current_target end,
     },
-    chat = { input = function(text) requests[#requests + 1] = assert(text:match('^/say (.+)$')) end },
+    chat = { input = function() chat_attempts = chat_attempts + 1 end },
     file_exists = function(path) return not path:find('/65535.png', 1, true) end,
     get_windower_settings = function() return screen end,
     register_event = function(name, event) assert(not callbacks[name]); callbacks[name] = event end,
@@ -156,9 +167,9 @@ windower = {
 _addon = {}
 assert(loadfile(addon_path .. '/enemybar.lua'))()
 
-local function find_widget(value, key, visible)
+local function find_widget(value, field, visible)
     for _, object in ipairs(primitives) do
-        if object[key] == value and object.visible == visible then return object end
+        if object[field] == value and object.visible == visible then return object end
     end
 end
 
@@ -168,8 +179,14 @@ local function incoming(message, mode, sender, injected, blocked)
 end
 
 callbacks.prerender()
-check(#requests == 1 and requests[1]:find('17960999 39$', 1), 'valid monster emits only ordinary command')
-check(find_widget('HP 75%', 'text_value', true), 'native percentage fallback')
+check(#requests == 1, 'valid monster queues one reserved outgoing 0x0B5 request')
+for _ = 1, 60 do callbacks.prerender() end
+check(#requests == 1, 'repeated render frames do not poll again')
+check(chat_attempts == 0, 'initial query did not enter chat')
+check(find_widget(placeholder, 'text_value', true), 'all three stat labels display before any reply')
+check(not find_widget('HP 75%', 'text_value', true), 'HP percent is not a text fallback')
+local fill = find_widget('/Windower/addons/enemybar/fg_body.png', 'path_value', true)
+check(fill and fill.draw_width == 448, 'the stock HP proportion controls only the fallback fill')
 local raw_prefix = 'MEB1 ' .. assert(requests[1]:match('^!mochienemybar (.+)$')) .. ' '
 local reply = raw_prefix .. '265 900 23 191 900 1 1 2,65535'
 check(not incoming(reply, 3, 'MochiEnemybar', false, false), 'private response mode gate')
@@ -217,11 +234,41 @@ check(#requests == 2, 'Trust target sends no request')
 current_target = monster
 player.name = 'OtherPlayer'
 callbacks.prerender()
-check(#requests == 2 and find_widget('HP 75%', 'text_value', true), 'different character only sees native fallback')
+check(#requests == 2 and find_widget(placeholder, 'text_value', true), 'different character sees placeholders without polling')
 player.name = 'Twills'
 player.id = 3
 callbacks.prerender()
-check(#requests == 2 and find_widget('HP 75%', 'text_value', true), 'matching name with a different ID only sees native fallback')
+check(#requests == 2 and find_widget(placeholder, 'text_value', true), 'matching name with another ID sees placeholders without polling')
+local function check_quiet_transitions()
+    player.id = 2
+    info.zone = 131
+    callbacks['zone change']()
+    callbacks.prerender()
+    check(#requests == 2 and find_widget(placeholder, 'text_value', true), 'Mordion Gaol never transmits reserved speech')
+    info.zone = 289
+    callbacks['zone change']()
+    callbacks.prerender()
+    check(#requests == 3, 'normal entitled zone resumes quiet polling')
+    local expiry_header = 'MEB1 ' .. assert(requests[3]:match('^!mochienemybar (.+)$')) .. ' '
+    check(incoming(expiry_header .. '750 1000 4 5 30 1 1 2', 6, 'MochiEnemybar', false, false),
+        'matching fresh private response is consumed')
+    now = now + 1.1
+    callbacks.prerender()
+    check(#requests == 4 and find_widget('HP 750/1000    MP 4/5    TP 30', 'text_value', true),
+        'while a quiet refresh is pending, the previous fresh exact snapshot stays visible')
+    now = now + 1.9
+    callbacks.prerender()
+    check(#requests == 4 and find_widget(placeholder, 'text_value', true), 'stale values expire to the same three labels')
+    check(not find_widget('/Windower/addons/enemybar/../XivParty/assets/buffIcons/2.png', 'path_value', true),
+        'expired private status icons are removed')
+    local negative_header = 'MEB1 ' .. assert(requests[4]:match('^!mochienemybar (.+)$')) .. ' '
+    check(incoming(negative_header .. 'unavailable', 6, 'MochiEnemybar', false, false),
+        'authenticated unavailable response is consumed')
+    callbacks.prerender()
+    check(#requests == 5 and find_widget(placeholder, 'text_value', true), 'valid unavailable response keeps all labels')
+    check(chat_attempts == 0, 'no request or response uses the chat input surface')
+end
+check_quiet_transitions()
 info.logged_in = false
 callbacks.logout()
 callbacks.prerender()

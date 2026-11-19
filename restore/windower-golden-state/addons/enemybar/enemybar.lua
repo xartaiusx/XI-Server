@@ -25,7 +25,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 _addon.name = 'enemybar'
 _addon.author = 'mmckee'
-_addon.version = '1.0.2-mochirii'
+_addon.version = '1.0.3-mochirii'
 _addon.language = 'English'
 
 local packets = require('packets')
@@ -33,6 +33,7 @@ local socket = require('socket')
 local protocol = require('mochi_protocol')
 local ui = require('targetBar')
 local state = protocol.new()
+local mordian_gaol = 131
 
 local function integer_in(value, minimum, maximum)
     return type(value) == 'number' and value >= minimum and value <= maximum and value % 1 == 0
@@ -51,8 +52,9 @@ local function selected_monster()
     end
 
     local player = windower.ffxi.get_player()
+    -- The server does not dispatch private commands during ordinary jail speech.
     if not player or player.name ~= 'Twills' or player.id ~= 2 or
-        not integer_in(info.zone, 1, 65535) then
+        info.zone == mordian_gaol or not integer_in(info.zone, 1, 65535) then
         return target
     end
 
@@ -69,8 +71,12 @@ local function render_target_bar()
     end
 
     if request then
-        local ok, result = pcall(windower.chat.input, '/say ' .. request)
-        if not ok or result == false then state.pending = nil end
+        local ok = pcall(packets.inject, 'outgoing', 0x0B5, {
+            Mode = 0,
+            GM = 0,
+            Message = request,
+        })
+        if not ok then state.pending = nil end
     end
 end
 
