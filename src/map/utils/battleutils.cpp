@@ -4685,7 +4685,17 @@ float HandleTranquilHeart(CBattleEntity* PEntity)
 {
     float reductionPercent = 0.0f;
 
-    if (auto* PChar = dynamic_cast<CCharEntity*>(PEntity); PChar && charutils::hasTrait(PChar, TRAIT_TRANQUIL_HEART))
+    auto* const PChar            = dynamic_cast<CCharEntity*>(PEntity);
+    bool        hasTranquilHeart = PChar && charutils::hasTrait(PChar, TRAIT_TRANQUIL_HEART);
+    if (!PChar && trustdevelopment::IsEnabled(dynamic_cast<const CTrustEntity*>(PEntity)) &&
+        PEntity->hasTrait(TRAIT_TRANQUIL_HEART))
+    {
+        const auto* magicState = dynamic_cast<const CMagicState*>(PEntity->PAI->GetCurrentState());
+        const auto* spell      = magicState ? magicState->GetSpell() : nullptr;
+        hasTranquilHeart       = spell && spell->getSkillType() == xi::SkillType::HealingMagic;
+    }
+
+    if (hasTranquilHeart)
     {
         int16 healingSkill = PEntity->GetSkill(xi::SkillType::HealingMagic);
         reductionPercent   = ((healingSkill / 10.0f) * 0.5f);
