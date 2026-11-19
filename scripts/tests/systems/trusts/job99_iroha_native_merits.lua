@@ -210,12 +210,25 @@ describe('Iroha II native merit consumers', function()
         }))
         assert(iroha:hasStatusEffectByFlag(xi.effectFlag.NO_REST))
 
+        -- The hostile cast guard requires this real native battle target throughout both samples.
+        local x, y, z = owner:getXPos(), owner:getYPos(), owner:getZPos()
+        owner.actions:engage(mob)
+        owner:lookAt(2 * x - mob:getXPos(), y, 2 * z - mob:getZPos())
+        mob:updateEnmity(owner)
+        iroha:engage(mob:getTargID())
+
         -- Isolate the job-point term while keeping native spell completion and resistance processing.
         stub('xi.combat.magicHitRate.calculateResistRate', 0.5)
         stub('xi.spells.damage.calculateDayAndWeather', 1)
         stub('xi.spells.damage.calculateMagicCriticalMultiplier', 1)
         local id = xi.magic.spell.BANISH
         local function cast()
+            local ownerTarget, trustTarget = owner:getTarget(), iroha:getTarget()
+            assert(owner:isEngaged() and ownerTarget and ownerTarget:getID() == targetId and not owner:isFacing(mob),
+                'owner must retain the native battle target without swinging at the fixture')
+            assert(iroha:isEngaged() and trustTarget and trustTarget:getID() == targetId,
+                'Iroha must retain the exact native hostile casting target')
+
             local completion
             local hp, mp = mob:getHP(), iroha:getMP()
             iroha:addListener('MAGIC_USE', 'IROHA_MISERY_BANISH', function(actor, recipient, spell, action)
