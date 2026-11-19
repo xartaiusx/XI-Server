@@ -25,8 +25,8 @@
     },
     {
       "relativePath": "addons/MochiriiTrustReturn/MochiriiTrustReturn.lua",
-      "bytes": 8547,
-      "sha256": "e86d92a089d8132f9a3e8a1de82910d0f098fcc599aa8212f78f6677ad2fa70d"
+      "bytes": 8881,
+      "sha256": "0284b95ef9566604e75d2ed1be0b99d5fa37269e4085b1b6c7063e773cd0471c"
     },
     {
       "relativePath": "addons/XICamera/data/settings.xml",
@@ -75,8 +75,8 @@
     },
     {
       "relativePath": "addons/enemybar/README.md",
-      "bytes": 1022,
-      "sha256": "c384afe2d0aace38d1e68e23017376e1b1a8603b4304ce6dd743fa5bba229ad5"
+      "bytes": 1256,
+      "sha256": "72a58b5d33234e8b0bcb54362631f6369cb484cf7c7afd3fee839f66e4d4f82a"
     },
     {
       "relativePath": "addons/enemybar/bg_body.png",
@@ -90,8 +90,8 @@
     },
     {
       "relativePath": "addons/enemybar/enemybar.lua",
-      "bytes": 4210,
-      "sha256": "3985ec0a17b30396ae97b2a4eb635f47fe327aa5d5cd5e1f6e4fc1b784463282"
+      "bytes": 4399,
+      "sha256": "d2c931e5e6ccade38aa1159e9fe0f00aab45a60936c88b913876e92a786938d5"
     },
     {
       "relativePath": "addons/enemybar/fg_body.png",
@@ -105,8 +105,8 @@
     },
     {
       "relativePath": "addons/enemybar/targetBar.lua",
-      "bytes": 7351,
-      "sha256": "14f1c0cf1b3f796efa2b7cfa0f6ee4f7337e2b0ea21d3c9aedd9cf883603b56a"
+      "bytes": 7346,
+      "sha256": "5f673bc07f6997f82ce7f265d4bd1ac37afab2e9397abc372e1f8da0d611ccba"
     },
     {
       "relativePath": "addons/xivhotbar/data/Twills/General.lua",
@@ -145,8 +145,8 @@
     },
     {
       "relativePath": "addons/xivhotbar/lib/ui.lua",
-      "bytes": 45240,
-      "sha256": "620d13eb9d1e456710ac4044c6b47ae959daf3456e79b714fa6b51ba14b5f139"
+      "bytes": 46444,
+      "sha256": "f46db4b18c467a2ffb1a54d3a690378ce461e9a63582ec015fe055159992a5a0"
     },
     {
       "relativePath": "addons/xivhotbar/xivhotbar.lua",

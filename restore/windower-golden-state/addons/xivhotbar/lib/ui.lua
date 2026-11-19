@@ -1102,6 +1102,25 @@ local function place_tooltip(self, hover)
     end
     tooltip_x = math.max(margin, math.min(tooltip_x, self.scaled_pos_x - width - margin))
     local tooltip_y = math.max(margin, math.min(hover.cursor_y, self.scaled_pos_y - height - margin))
+
+    -- Keep EnemyBar's six possible status rows and resource text clear at the Mochirii UI size.
+    if
+        self.scaled_pos_x == 2560 and self.scaled_pos_y == 1600 and
+        tooltip_x < 1580 and tooltip_x + width > 980 and tooltip_y < 1428 and tooltip_y + height > 1262
+    then
+        local info = windower.ffxi.get_info()
+        local target = windower.ffxi.get_mob_by_target('t')
+        if
+            info and info.logged_in and target and target.valid_target and target.is_npc and target.spawn_type == 16 and
+            not target.in_party and not target.in_alliance and not target.charmed and
+            type(target.hpp) == 'number' and target.hpp >= 1 and target.hpp <= 100 and target.hpp % 1 == 0 and
+            type(target.id) == 'number' and target.id >= 1 and target.id <= 4294967295 and target.id % 1 == 0 and
+            type(target.index) == 'number' and target.index >= 1 and target.index <= 4095 and target.index % 1 == 0
+        then
+            tooltip_y = math.max(margin, 1262 - height - margin)
+        end
+    end
+
     self.action_info:pos(tooltip_x, tooltip_y)
 end
 
@@ -1184,6 +1203,13 @@ end
 windower.register_event('lose focus', function()
     if ui.hotbar.ready then
         ui:hide_hover()
+    end
+end)
+
+windower.register_event('target change', function()
+    local hover = ui.hovered_tooltip
+    if hover then
+        place_tooltip(ui, hover)
     end
 end)
 
