@@ -318,6 +318,21 @@ local function cardinalChantBonus(actor, target, direction, spellId, skillType)
     return chantBonus
 end
 
+-- Afflatus Misery job points add flat Banish damage before resistance and later multipliers.
+local function getAfflatusMiseryBanishBonus(caster, spellId)
+    if
+        (spellId == xi.magic.spell.BANISH or spellId == xi.magic.spell.BANISH_II or spellId == xi.magic.spell.BANISH_III or
+            spellId == xi.magic.spell.BANISHGA or spellId == xi.magic.spell.BANISHGA_II) and
+        caster:isDevelopedTrust() and
+        caster:getTrustID() == xi.magic.spell.IROHA_II and
+        caster:hasStatusEffect(xi.effect.AFFLATUS_MISERY)
+    then
+        return caster:getJobPointLevel(xi.jp.AFFLATUS_MISERY_EFFECT) * 2
+    end
+
+    return 0
+end
+
 -----------------------------------
 -- Basic Functions
 -----------------------------------
@@ -430,6 +445,8 @@ xi.spells.damage.calculateBaseDamage = function(caster, target, spellId, spellGr
     then
         baseSpellDamageBonus = baseSpellDamageBonus + caster:getJobPointLevel(xi.jp.DIVINE_EMBLEM_EFFECT) * 2
     end
+
+    baseSpellDamageBonus = baseSpellDamageBonus + getAfflatusMiseryBanishBonus(caster, spellId)
 
     -- Bonus to spell base damage from gear.
     baseSpellDamageBonus = baseSpellDamageBonus + caster:getMod(xi.mod.MAGIC_DAMAGE)

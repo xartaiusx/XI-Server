@@ -27,8 +27,8 @@ describe('Iroha II native merit consumers', function()
         end
     end)
 
-    local function spawn()
-        local owner = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = xi.job.PLD, level = 99 })
+    local function spawn(job)
+        local owner = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE, job = job or xi.job.PLD, level = 99 })
         local iroha = assert(owner:spawnTrust(xi.magic.spell.IROHA_II))
         assert(iroha:isDevelopedTrust() and iroha:getMainJob() == xi.job.SAM and iroha:getSubJob() == xi.job.WHM)
         iroha:removeAllGambits()
@@ -136,6 +136,130 @@ describe('Iroha II native merit consumers', function()
         assert(neutral.tp == math.floor(baseTP * (1 + store / 100)) and neutral.tp < rear.tp)
     end)
 
+    it('adds Afflatus Misery job points only to developed Iroha II Banish magic damage', function()
+        local owner, iroha = spawn(xi.job.WHM)
+        owner:masterJob()
+        assert(owner:getJobPointLevel(xi.jp.AFFLATUS_MISERY_EFFECT) == 20)
+        local other = assert(owner:spawnTrust(xi.magic.spell.KUPIPI))
+        other:removeAllGambits()
+        other:setAutoAttackEnabled(false)
+        assert(not owner:isDevelopedTrust() and not other:isDevelopedTrust())
+        assert(iroha:getJobPointLevel(xi.jp.AFFLATUS_MISERY_EFFECT) == 20)
+
+        local family =
+        {
+            xi.magic.spell.BANISH,
+            xi.magic.spell.BANISH_II,
+            xi.magic.spell.BANISH_III,
+            xi.magic.spell.BANISHGA,
+            xi.magic.spell.BANISHGA_II,
+        }
+
+        local function baseDamage(actor, id)
+            return xi.spells.damage.calculateBaseDamage(actor, owner, id, xi.magic.spellGroup.WHITE, xi.skill.DIVINE_MAGIC, xi.mod.MND)
+        end
+
+        local before = {}
+        for _, id in ipairs(family) do
+            assert(owner.actions:hasTrustSpell(iroha, id))
+            before[id] = baseDamage(iroha, id)
+        end
+
+        local holyBefore = baseDamage(iroha, xi.magic.spell.HOLY)
+        local excludedBefore = baseDamage(iroha, xi.magic.spell.BANISH_IV)
+        assert(not owner.actions:hasTrustSpell(iroha, xi.magic.spell.BANISH_IV))
+        for _, control in ipairs({ owner, other }) do
+            local damageBefore = baseDamage(control, xi.magic.spell.BANISH)
+            assert(control:addStatusEffect(xi.effect.AFFLATUS_MISERY, { duration = 60, origin = control }))
+            assert(baseDamage(control, xi.magic.spell.BANISH) == damageBefore)
+        end
+
+        local mob = assert(owner:getZone():insertDynamicEntity({
+            objtype              = xi.objType.MOB,
+            name                 = 'Iroha_Misery_Banish',
+            groupId              = 5,
+            groupZoneId          = 154,
+            minLevel             = 99,
+            maxLevel             = 99,
+            respawn              = 0,
+            releaseIdOnDisappear = true,
+        }))
+        local targetId = mob:getID()
+        targets[#targets + 1] = targetId
+        SpawnMob(targetId)
+        mob:setAggressive(false)
+        mob:setAutoAttackEnabled(false)
+        mob:setRangedAttackEnabled(false)
+        mob:setMagicCastingEnabled(false)
+        mob:setMobAbilityEnabled(false)
+        mob:setMobMod(xi.mobMod.NO_MOVE, 1)
+        mob:setMobMod(xi.mobMod.NO_REST, 1)
+        mob:setDropID(0)
+        mob:setMaxHP(1000000)
+        mob:setHP(1000000)
+        mob:setUnkillable(true)
+        mob:setPos(owner:getXPos(), owner:getYPos(), owner:getZPos() + 2)
+        iroha:setMobMod(xi.mobMod.NO_MOVE, 1)
+        iroha:setMod(xi.mod.REFRESH, 0)
+        iroha:setMod(xi.mod.MAGIC_CRITHITRATE, 0)
+        assert(iroha:addStatusEffect(xi.effect.DECOY_SHOT, {
+            duration = 60,
+            flag     = xi.effectFlag.NO_REST,
+            origin   = iroha,
+            silent   = true,
+        }))
+        assert(iroha:hasStatusEffectByFlag(xi.effectFlag.NO_REST))
+
+        -- Isolate the job-point term while keeping native spell completion and resistance processing.
+        stub('xi.combat.magicHitRate.calculateResistRate', 0.5)
+        stub('xi.spells.damage.calculateDayAndWeather', 1)
+        stub('xi.spells.damage.calculateMagicCriticalMultiplier', 1)
+        local id = xi.magic.spell.BANISH
+        local function cast()
+            local completion
+            local hp, mp = mob:getHP(), iroha:getMP()
+            iroha:addListener('MAGIC_USE', 'IROHA_MISERY_BANISH', function(actor, recipient, spell, action)
+                assert(not completion and actor:getID() == iroha:getID() and recipient:getID() == targetId and spell:getID() == id)
+                assert(action:getCategory() == xi.action.category.MAGIC_FINISH)
+                completion =
+                {
+                    damage = action:getParam(targetId),
+                    hp     = recipient:getHP(),
+                    mp     = actor:getMP(),
+                    recast = actor:hasRecast(xi.recast.MAGIC, id),
+                }
+            end)
+
+            assert(owner.actions:useTrustSpell(iroha, mob, id))
+            xi.test.world:tickEntity(iroha)
+            xi.test.world:skipTime(4)
+            iroha:removeListener('IROHA_MISERY_BANISH')
+            local result = assert(completion, 'native Banish must complete')
+            assert(result.damage > 0 and result.hp == hp - result.damage)
+            assert(result.mp == mp - 15 and result.recast)
+            return result.damage
+        end
+
+        assert(not iroha:hasStatusEffect(xi.effect.AFFLATUS_MISERY))
+        local normal = cast()
+        xi.test.world:skipTime(17)
+        assert(not iroha:hasRecast(xi.recast.MAGIC, id))
+        assert(owner.actions:useTrustAbility(iroha, iroha, xi.jobAbility.AFFLATUS_MISERY))
+        xi.test.world:tickEntity(iroha)
+        xi.test.world:skipTime(2)
+        assert(iroha:hasStatusEffect(xi.effect.AFFLATUS_MISERY))
+        assert(iroha:getMod(xi.mod.AFFLATUS_MISERY) == 0, 'isolate job points from stored damage')
+        for _, spellId in ipairs(family) do
+            assert(baseDamage(iroha, spellId) == before[spellId] + 40)
+        end
+
+        assert(baseDamage(iroha, xi.magic.spell.HOLY) == holyBefore)
+        assert(baseDamage(iroha, xi.magic.spell.BANISH_IV) == excludedBefore)
+        assert(cast() > normal)
+        iroha:delStatusEffect(xi.effect.AFFLATUS_MISERY)
+        assert(baseDamage(iroha, id) == before[id])
+    end)
+
     it('adds Yaegasumi job-point TP only to effective native weapon-skill TP while active', function()
         local owner, iroha = spawn()
         assert(iroha:getJobPointLevel(xi.jp.YAEGASUMI_EFFECT) == 20)
@@ -179,6 +303,106 @@ describe('Iroha II native merit consumers', function()
 
         assert(#effectiveTP == 4)
         assert(effectiveTP[1] == 1000 and effectiveTP[2] == 1600 and effectiveTP[3] == 3000 and effectiveTP[4] == 1000)
+    end)
+
+    it('applies Tranquil Heart to Cure V enmity on developed Iroha II', function()
+        xi.test.world:setSetting('map.ALTER_EGO_SKILL_MULTIPLIER', 1)
+        local owner, iroha = spawn(xi.job.WHM)
+        owner:setSkillLevel(xi.skill.HEALING_MAGIC, 3990)
+        assert(owner:getSkillLevel(xi.skill.HEALING_MAGIC) == 399 and owner:hasTrait(xi.trait.TRANQUIL_HEART))
+        assert(iroha:getSkillLevel(xi.skill.HEALING_MAGIC) == 424 and iroha:hasTrait(xi.trait.TRANQUIL_HEART))
+        local control = assert(owner:spawnTrust(xi.magic.spell.KUPIPI))
+        assert(not control:isDevelopedTrust())
+        control:removeAllGambits()
+        control:setAutoAttackEnabled(false)
+        control:setMobAbilityEnabled(false)
+
+        local x, y, z = owner:getXPos(), owner:getYPos(), owner:getZPos()
+        local mob = assert(owner:getZone():insertDynamicEntity({
+            objtype              = xi.objType.MOB,
+            name                 = 'Iroha_Tranquil_Heart',
+            groupId              = 5,
+            groupZoneId          = 154,
+            minLevel             = 99,
+            maxLevel             = 99,
+            respawn              = 0,
+            releaseIdOnDisappear = true,
+        }))
+        local id = mob:getID()
+        targets[#targets + 1] = id
+        SpawnMob(id)
+        mob:setAggressive(false)
+        mob:setAutoAttackEnabled(false)
+        mob:setRangedAttackEnabled(false)
+        mob:setMagicCastingEnabled(false)
+        mob:setMobAbilityEnabled(false)
+        mob:setMobMod(xi.mobMod.NO_MOVE, 1)
+        mob:setDropID(0)
+        mob:setPos(x, y, z + 2)
+        mob:updateEnmityFromDamage(owner, 1)
+        mob:setCE(owner, 0)
+        mob:setVE(owner, 0)
+
+        for _, member in ipairs({ owner, iroha, control }) do
+            member:setMod(xi.mod.ENMITY, 0)
+            member:setPos(x, y, z)
+        end
+
+        -- The control samples use the same native CE/VE consumer as Cure V.
+        owner:updateEnmityFromCure(owner, 100, 300, 600)
+        -- At skill 399, the exact pre-truncation results are 240.15 and 480.30.
+        assert(mob:getCE(owner) == 240 and mob:getVE(owner) == 480)
+        assert(control:hasTrait(xi.trait.TRANQUIL_HEART))
+        control:updateEnmityFromCure(owner, 100, 300, 600)
+        assert(mob:getCE(control) == 300 and mob:getVE(control) == 600)
+
+        -- Non-spell healing such as Benediction also calls this consumer.
+        iroha:updateEnmityFromCure(owner, 100, 300, 600)
+        assert(mob:getCE(iroha) == 300 and mob:getVE(iroha) == 600)
+        mob:setCE(iroha, 0)
+        mob:setVE(iroha, 0)
+
+        iroha:setMobMod(xi.mobMod.NO_MOVE, 1)
+        iroha:setMod(xi.mod.REFRESH, 0)
+        iroha:setMod(xi.mod.CURE2MP_PERCENT, 0)
+        owner:setMod(xi.mod.REGEN, 0)
+        for _, member in ipairs({ owner, iroha }) do
+            assert(member:addStatusEffect(xi.effect.DECOY_SHOT, {
+                duration = 10,
+                flag     = xi.effectFlag.NO_REST,
+                origin   = member,
+                silent   = true,
+            }))
+            assert(member:hasStatusEffectByFlag(xi.effectFlag.NO_REST))
+        end
+
+        owner:setHP(owner:getMaxHP() - 400)
+        local hp, mp = owner:getHP(), iroha:getMP()
+        local spellId = xi.magic.spell.CURE_V
+        local cure
+        iroha:addListener('MAGIC_USE', 'IROHA_TRANQUIL_HEART_CURE', function(actor, recipient, spell, action)
+            assert(not cure and actor:getID() == iroha:getID() and recipient:getID() == owner:getID() and spell:getID() == spellId)
+            assert(action:getCategory() == xi.action.category.MAGIC_FINISH)
+            cure =
+            {
+                healed = action:getParam(recipient:getID()),
+                hp     = recipient:getHP(),
+                mp     = actor:getMP(),
+                ce     = mob:getCE(actor),
+                ve     = mob:getVE(actor),
+                recast = actor:hasRecast(xi.recast.MAGIC, spellId),
+            }
+        end)
+
+        assert(owner.actions:useTrustSpell(iroha, owner, spellId))
+        xi.test.world:tickEntity(iroha)
+        xi.test.world:skipTime(4)
+        iroha:removeListener('IROHA_TRANQUIL_HEART_CURE')
+        local completion = assert(cure, 'native Cure V must complete')
+        assert(completion.healed > 0 and completion.hp == hp + completion.healed)
+        assert(completion.mp == mp - 135 and completion.recast)
+        -- At skill 424, the exact pre-truncation results are 236.40 and 472.80.
+        assert(completion.ce == 236 and completion.ve == 472)
     end)
 
     for _, withMerit in ipairs({ true, false }) do
