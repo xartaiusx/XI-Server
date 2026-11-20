@@ -22,6 +22,8 @@
 #include "common/settings.h"
 #include "common/utils.h"
 
+#include "ai/ai_container.h"
+#include "ai/states/magic_state.h"
 #include "enmity_container.h"
 #include "entities/battle_entity.h"
 #include "entities/char_entity.h"
@@ -30,6 +32,7 @@
 #include "job_points.h"
 #include "map_constants.h"
 #include "notoriety_container.h"
+#include "spell.h"
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
 #include "utils/trust_job_development.h"
@@ -305,10 +308,23 @@ void CEnmityContainer::UpdateEnmityFromCure(CBattleEntity* PEntity, uint8 level,
         return;
     }
 
-    int32 CE                     = 0;
-    int32 VE                     = 0;
-    float bonus                  = CalculateEnmityBonus(PEntity);
-    float tranquilHeartReduction = 1.0f - battleutils::HandleTranquilHeart(PEntity);
+    int32       CE    = 0;
+    int32       VE    = 0;
+    float       bonus = CalculateEnmityBonus(PEntity);
+    const auto* trust = dynamic_cast<const CTrustEntity*>(PEntity);
+    if (trustdevelopment::IsEnabled(trust) &&
+        trust->trustID() == static_cast<uint32>(SpellID::Iroha_II) &&
+        trust->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::DivineSeal))
+    {
+        const auto* magicState = dynamic_cast<const CMagicState*>(trust->PAI->GetCurrentState());
+        auto*       spell      = magicState ? magicState->GetSpell() : nullptr;
+        if (spell && spell->getID() >= SpellID::Cure && spell->getID() <= SpellID::Cure_VI)
+        {
+            // This action-specific reduction stacks multiplicatively after the ordinary cap.
+            bonus *= (100.0f - 3.0f * trustdevelopment::GetJobPointLevel(trust, JP_DIVINE_SEAL_EFFECT)) / 100.0f;
+        }
+    }
+    const float tranquilHeartReduction = 1.0f - battleutils::HandleTranquilHeart(PEntity);
 
     if (fixedCE > 0 || fixedVE > 0)
     {

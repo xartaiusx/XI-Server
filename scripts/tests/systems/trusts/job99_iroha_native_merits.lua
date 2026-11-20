@@ -318,7 +318,7 @@ describe('Iroha II native merit consumers', function()
         assert(effectiveTP[1] == 1000 and effectiveTP[2] == 1600 and effectiveTP[3] == 3000 and effectiveTP[4] == 1000)
     end)
 
-    it('applies Tranquil Heart to Cure V enmity on developed Iroha II', function()
+    local function tranquilHeartCure(withSeal, enmity)
         xi.test.world:setSetting('map.ALTER_EGO_SKILL_MULTIPLIER', 1)
         local owner, iroha = spawn(xi.job.WHM)
         owner:setSkillLevel(xi.skill.HEALING_MAGIC, 3990)
@@ -361,6 +361,12 @@ describe('Iroha II native merit consumers', function()
             member:setPos(x, y, z)
         end
 
+        if withSeal then
+            for _, controlCaster in ipairs({ owner, control }) do
+                assert(controlCaster:addStatusEffect(xi.effect.DIVINE_SEAL, { duration = 60, origin = controlCaster }))
+            end
+        end
+
         -- The control samples use the same native CE/VE consumer as Cure V.
         owner:updateEnmityFromCure(owner, 100, 300, 600)
         -- At skill 399, the exact pre-truncation results are 240.15 and 480.30.
@@ -368,12 +374,6 @@ describe('Iroha II native merit consumers', function()
         assert(control:hasTrait(xi.trait.TRANQUIL_HEART))
         control:updateEnmityFromCure(owner, 100, 300, 600)
         assert(mob:getCE(control) == 300 and mob:getVE(control) == 600)
-
-        -- Non-spell healing such as Benediction also calls this consumer.
-        iroha:updateEnmityFromCure(owner, 100, 300, 600)
-        assert(mob:getCE(iroha) == 300 and mob:getVE(iroha) == 600)
-        mob:setCE(iroha, 0)
-        mob:setVE(iroha, 0)
 
         iroha:setMobMod(xi.mobMod.NO_MOVE, 1)
         iroha:setMod(xi.mod.REFRESH, 0)
@@ -388,6 +388,23 @@ describe('Iroha II native merit consumers', function()
             }))
             assert(member:hasStatusEffectByFlag(xi.effectFlag.NO_REST))
         end
+
+        if withSeal then
+            assert(iroha:getJobPointLevel(xi.jp.DIVINE_SEAL_EFFECT) == 20)
+            assert(owner.actions:useTrustAbility(iroha, iroha, xi.jobAbility.DIVINE_SEAL))
+            xi.test.world:tickEntity(iroha)
+            xi.test.world:skipTime(2)
+            assert(iroha:hasStatusEffect(xi.effect.DIVINE_SEAL))
+            mob:setCE(iroha, 0)
+            mob:setVE(iroha, 0)
+        end
+
+        -- Non-spell healing keeps its native enmity even while the Seal is present.
+        iroha:updateEnmityFromCure(owner, 100, 300, 600)
+        assert(mob:getCE(iroha) == 300 and mob:getVE(iroha) == 600)
+        mob:setCE(iroha, 0)
+        mob:setVE(iroha, 0)
+        iroha:setMod(xi.mod.ENMITY, enmity)
 
         owner:setHP(owner:getMaxHP() - 400)
         local hp, mp = owner:getHP(), iroha:getMP()
@@ -414,8 +431,24 @@ describe('Iroha II native merit consumers', function()
         local completion = assert(cure, 'native Cure V must complete')
         assert(completion.healed > 0 and completion.hp == hp + completion.healed)
         assert(completion.mp == mp - 135 and completion.recast)
+        assert(not iroha:hasStatusEffect(xi.effect.DIVINE_SEAL), 'the native cast must consume the Seal')
+        return completion
+    end
+
+    it('applies Tranquil Heart to Cure V enmity on developed Iroha II', function()
+        local completion = tranquilHeartCure(false, 0)
         -- At skill 424, the exact pre-truncation results are 236.40 and 472.80.
         assert(completion.ce == 236 and completion.ve == 472)
+    end)
+
+    it('applies developed Iroha II Divine Seal job points to native Cure V enmity', function()
+        local completion = tranquilHeartCure(true, 0)
+        assert(completion.ce == 94 and completion.ve == 189)
+    end)
+
+    it('stacks Divine Seal after the ordinary native Cure V enmity cap', function()
+        local completion = tranquilHeartCure(true, -60)
+        assert(completion.ce == 47 and completion.ve == 94)
     end)
 
     it('adds Afflatus Solace job points to Iroha II single-target cures and their emergency estimates', function()
