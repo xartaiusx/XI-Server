@@ -3978,9 +3978,11 @@ bool CBattleEntity::OnAttack(CAttackState& state, action_t& action)
             battleutils::HandleParrySpikesDamage(this, PTarget, &actionResult, attack.GetDamage());
         }
 
+        // Adding a Zanshin swing can invalidate the current swing reference.
         const auto currentAttackType = attack.GetAttackType();
+        const bool firstSwing        = attack.IsFirstSwing();
         // try zanshin only on single swing attack rounds - it is last priority in the multi-hit order
-        if (attack.IsFirstSwing() && attackRound.GetAttackSwingCount() == 1)
+        if (firstSwing && attackRound.GetAttackSwingCount() == 1)
         {
             uint16 zanshinChance = this->getMod(xi::Mod::ZANSHIN) + battleutils::GetMeritValue(this, xi::Merit::ZanshinAttackRate);
             zanshinChance        = std::clamp<uint16>(zanshinChance, 0, 100);
@@ -4016,7 +4018,7 @@ bool CBattleEntity::OnAttack(CAttackState& state, action_t& action)
             }
         }
 
-        if (attack.IsFirstSwing())
+        if (firstSwing)
         {
             StatusEffectContainer->DelStatusEffectSilent(xi::StatusEffect::SneakAttack);
             StatusEffectContainer->DelStatusEffectSilent(xi::StatusEffect::TrickAttack);
