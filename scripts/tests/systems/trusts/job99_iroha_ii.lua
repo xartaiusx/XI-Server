@@ -214,6 +214,71 @@ describe('Iroha II developed jobs', function()
         assert(not owner.actions:useTrustAbility(iroha, iroha, xi.jobAbility.BENEDICTION))
     end)
 
+    it('centers Asylum on Iroha and protects only the nearby party', function()
+        xi.test.world:setSetting('main.TRUST_JOB99_VALAINERAL', true)
+        local owner, iroha = spawn()
+        local valaineral = assert(owner:spawnTrust(xi.magic.spell.VALAINERAL))
+        local outsider = xi.test.world:spawnPlayer({ zone = xi.zone.WEST_RONFAURE })
+        valaineral:removeAllGambits()
+        valaineral:setAutoAttackEnabled(false)
+
+        local x, y, z = owner:getXPos(), owner:getYPos(), owner:getZPos()
+        for _, member in ipairs({ iroha, valaineral }) do
+            member:setMobMod(xi.mobMod.NO_MOVE, 1)
+            member:setPos(x, y, z)
+        end
+
+        outsider:setPos(x, y, z)
+
+        assert(not owner.actions:useTrustAbility(iroha, owner, xi.jobAbility.ASYLUM))
+        assert(not owner.actions:useTrustAbility(iroha, valaineral, xi.jobAbility.ASYLUM))
+        assert(not iroha:hasRecast(xi.recast.ABILITY, xi.recastID.SPECIAL2))
+
+        assert(owner.actions:useTrustAbility(iroha, iroha, xi.jobAbility.ASYLUM))
+        xi.test.world:tickEntity(iroha)
+        xi.test.world:skipTime(1)
+
+        for _, member in ipairs({ owner, iroha, valaineral }) do
+            local effect = assert(member:getStatusEffect(xi.effect.ASYLUM))
+            assert(effect:getDuration() == 30000 and effect:getOriginID() == iroha:getID())
+        end
+
+        assert(not outsider:hasStatusEffect(xi.effect.ASYLUM))
+        assert(iroha:hasRecast(xi.recast.ABILITY, xi.recastID.SPECIAL2))
+    end)
+
+    it('lets a player White Mage use Asylum only on self and excludes distant party members', function()
+        local whm = xi.test.world:spawnPlayer({ zone = xi.zone.GM_HOME, job = xi.job.WHM, level = 99 })
+        local nearby = xi.test.world:spawnPlayer({ zone = xi.zone.GM_HOME })
+        local distant = xi.test.world:spawnPlayer({ zone = xi.zone.GM_HOME })
+        for _, member in ipairs({ nearby, distant }) do
+            whm.actions:inviteToParty(member)
+            member.actions:acceptPartyInvite()
+        end
+
+        local x, y, z = whm:getXPos(), whm:getYPos(), whm:getZPos()
+        nearby:setPos(x, y, z)
+        distant:setPos(x + 25, y, z)
+
+        whm.actions:useAbility(nearby, xi.jobAbility.ASYLUM)
+        xi.test.world:tickEntity(whm)
+        assert(not whm:hasStatusEffect(xi.effect.ASYLUM))
+        assert(not nearby:hasStatusEffect(xi.effect.ASYLUM))
+        assert(not whm:hasRecast(xi.recast.ABILITY, xi.recastID.SPECIAL2))
+
+        whm.actions:useAbility(whm, xi.jobAbility.ASYLUM)
+        xi.test.world:tickEntity(whm)
+        xi.test.world:skipTime(1)
+
+        for _, member in ipairs({ whm, nearby }) do
+            local effect = assert(member:getStatusEffect(xi.effect.ASYLUM))
+            assert(effect:getDuration() == 30000 and effect:getOriginID() == whm:getID())
+        end
+
+        assert(not distant:hasStatusEffect(xi.effect.ASYLUM))
+        assert(whm:hasRecast(xi.recast.ABILITY, xi.recastID.SPECIAL2))
+    end)
+
     it('spends all MP on a completed Full Cure and retains native recast', function()
         local owner, iroha = spawn()
         local spent = observeFullCureSpend(iroha, 31)
