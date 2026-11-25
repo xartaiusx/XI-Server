@@ -1105,7 +1105,7 @@ local function place_tooltip(self, hover)
 
     -- Keep EnemyBar's six possible status rows and resource text clear at the Mochirii UI size.
     if
-        self.scaled_pos_x == 2560 and self.scaled_pos_y == 1600 and
+        self.scaled_pos_x >= 2560 and self.scaled_pos_y >= 1600 and
         tooltip_x < 1580 and tooltip_x + width > 980 and tooltip_y < 1428 and tooltip_y + height > 1262
     then
         local info = windower.ffxi.get_info()

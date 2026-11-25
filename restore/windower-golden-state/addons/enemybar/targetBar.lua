@@ -127,6 +127,8 @@ function targetBar.draw(target, snapshot)
         return
     end
 
+    -- The fixed Mochirii hotbars use the 2560 x 1600 layout even when the renderer is larger.
+    width, height = math.min(width, 2560), math.min(height, 1600)
     local bar_width = math.min(width - 64, maximum_width)
     local left = math.floor((width - bar_width) / 2)
     local top = height - 208

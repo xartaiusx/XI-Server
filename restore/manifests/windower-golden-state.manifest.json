@@ -105,8 +105,8 @@
     },
     {
       "relativePath": "addons/enemybar/targetBar.lua",
-      "bytes": 7346,
-      "sha256": "5f673bc07f6997f82ce7f265d4bd1ac37afab2e9397abc372e1f8da0d611ccba"
+      "bytes": 7507,
+      "sha256": "fbf0e5e52e0b2b92a706e8af8deeb8dca6a79bec3eeffc726576b520245ebe0e"
     },
     {
       "relativePath": "addons/xivhotbar/data/Twills/General.lua",
@@ -146,7 +146,7 @@
     {
       "relativePath": "addons/xivhotbar/lib/ui.lua",
       "bytes": 46444,
-      "sha256": "f46db4b18c467a2ffb1a54d3a690378ce461e9a63582ec015fe055159992a5a0"
+      "sha256": "8ea10840b22342b4d3611a020a4af47dd604e38a451ffcc01354a56eb454da0c"
     },
     {
       "relativePath": "addons/xivhotbar/xivhotbar.lua",
