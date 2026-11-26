@@ -225,6 +225,32 @@ check(details and details.y == 1407, 'full exact details position clears 1428 ho
 local bar = find_widget('/Windower/addons/enemybar/bg_body.png', 'path_value', true)
 check(bar and bar.x == 981 and bar.draw_width == 598 and bar.y == 1392, 'centered official width')
 
+local resolutions = {
+    { 3840, 2400, 3840, 2400, 981, 1392 },
+    { 3840, 2400, 2560, 1600, 981, 1392 },
+    { 3840, 2400, nil, nil, 981, 1392 },
+    { 3840, 1440, 3840, 1440, 981, 1232 },
+    { 2400, 2400, 2400, 2400, 901, 1392 },
+    { 1280, 720, 1280, 720, 341, 512 },
+    { 2560, 1600, 2560, 1600, 981, 1392 },
+}
+for _, expected in ipairs(resolutions) do
+    screen.x_res, screen.y_res = expected[1], expected[2]
+    screen.ui_x_res, screen.ui_y_res = expected[3], expected[4]
+    callbacks.prerender()
+    local left, top = expected[5], expected[6]
+    check(bar.x == left and bar.y == top, 'resize preserves the fixed hotbar anchor or fits a smaller view')
+    check(fill.x == left and fill.y == top, 'resize aligns the HP fill')
+    check(details.x == left + 4 and details.y == top + 15, 'resize keeps the stats with the bar')
+    for _, icon in ipairs(primitives) do
+        if icon.visible and icon.path_value and icon.path_value:find('buffIcons', 1, true) then
+            check(icon.x >= left and icon.x + 16 <= left + 598 and icon.y >= top - 130 and icon.y < top - 22,
+                'resize keeps every status icon above the bar')
+        end
+    end
+end
+check(#requests == 2, 'layout redraws do not trigger extra requests')
+
 callbacks['target change']()
 for _, object in ipairs(primitives) do check(not object.visible, 'retarget clears overlay and status art immediately') end
 current_target = { id = 17960999, index = 39, valid_target = true, is_npc = true, spawn_type = 14, name = 'Trust', hpp = 100 }
